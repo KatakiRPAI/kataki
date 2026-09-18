@@ -1,0 +1,308 @@
+"""Prompt assembly and the token economy.
+
+Layout is strictly stable -> volatile so llama.cpp prefix reuse and API prompt caches hit:
+
+  1. system: rules, public cards, world primer, pinned facts   (changes only on edit)
+  2.         scene summaries                                    (append-only)
+  3. history window, which slides in BIG chunks (oldest 25% at once), so the prefix stays
+     byte-identical across many turns instead of shifting every turn
+  4. the volatile tail - scene state, the SPEAKER's private card and recalled memories,
+     the directive - prepended to the final user message and never persisted
+
+The system block is speaker-free: only the tail knows who is speaking, so switching speaker
+costs no cache. Only the speaker's own secrets and memories are ever in the prompt.
+"""
+
+import json
+import math
+import sqlite3
+from dataclasses import dataclass, field
+
+from kataki import chat, clock
+from kataki.llm import Endpoint
+
+RATIO, MARGIN = 3.6, 1.08  # chars per token until calibrated from real usage; safety margin
+BASE_CTX = 8192
+BASE_CAPS = {
+    "response": 600,
+    "rules": 350,
+    "cards": 1400,
+    "summaries": 900,
+    "memory": 900,
+    "flags": 250,
+}
+DEFAULT_THINK_BUDGET = 1500
+KEEP_LAST = 4  # messages that are never evicted
+KEEP_PROMPTS = 20  # full prompts kept per story for the inspector
+
+RULES = """\
+This is an ongoing collaborative story. Each reply voices exactly one character (or the \
+narrator), named at the end of the latest message. Write only that character's words and \
+actions, in prose. Never speak, act or decide for {persona}.
+
+Memory notes are everything the speaking character remembers that matters right now:
+- [SHARP] notes are certain. If someone says otherwise, the character challenges it.
+- [HAZY] notes are vague. The character is unsure, may doubt what they are told, and can be \
+persuaded.
+- If there is no note about something, the character has no memory of it. They react \
+naturally and may simply believe what they are told. Never invent memories.
+Characters know only their own notes. Never reveal another character's private knowledge."""
+
+
+@dataclass(frozen=True)
+class Recalled:
+    """One memory retrieve.py decided the speaker recalls. `text` is what the tier renders."""
+
+    memory_id: int
+    tier: str  # "sharp" | "hazy"
+    text: str
+    gist: str | None = None  # fallback when the memory budget is tight
+    activation: float = 0.0
+    breakdown: dict = field(default_factory=dict)  # A, B, S, G ... for the inspector
+
+
+@dataclass
+class Built:
+    messages: list[dict]
+    sections: list[dict]  # [{name, tokens, cap, evicted}]
+    memories: list[dict]  # [{memory_id, tier, rendered, tokens, ...breakdown}]
+    est_tokens: int
+    response_reserve: int
+    budget: int
+
+
+def estimate(text: str, ratio: float = RATIO) -> int:
+    return math.ceil(round(len(text) / ratio * MARGIN, 6))
+
+
+def _present(conn: sqlite3.Connection, scene_id: int | None, path_ids: set[int]) -> list:
+    """Entities currently in the scene: the latest live presence row per entity says so."""
+    rows = conn.execute(
+        "SELECT p.entity_id, p.present, p.message_id, e.* FROM presence p"
+        " JOIN entities e ON e.id=p.entity_id WHERE p.scene_id IS ? ORDER BY p.id",
+        (scene_id,),
+    ).fetchall()
+    latest = {}
+    for r in rows:
+        if r["message_id"] is None or r["message_id"] in path_ids:  # live on this branch
+            latest[r["entity_id"]] = r
+    return [r for r in latest.values() if r["present"]]
+
+
+def _system(conn, story, persona, present, place) -> tuple[str, str]:
+    rules = RULES.format(persona=persona["name"] if persona else "the user")
+    cards = [f"## {e['name']}\n{e['description'] or ''}".strip() for e in present]
+    if place:
+        cards.append(f"## Place: {place['name']}\n{place['description'] or ''}".strip())
+    if story["scenario_id"]:
+        scenario = conn.execute(
+            "SELECT description FROM lib_items WHERE id=?", (story["scenario_id"],)
+        ).fetchone()
+        if scenario and scenario["description"]:
+            cards.insert(0, f"## Scenario\n{scenario['description']}")
+    pinned = conn.execute(
+        "SELECT detail FROM memories WHERE story_id=? AND pinned=1 AND hidden=0 ORDER BY id",
+        (story["id"],),
+    ).fetchall()
+    if pinned:
+        cards.append("## Established facts\n" + "\n".join(f"- {p['detail']}" for p in pinned))
+    return rules, "\n\n".join(cards)
+
+
+def _line(message, names: dict[int, str]) -> str:
+    name = names.get(message["speaker_id"])
+    return f"{name}: {message['text']}" if name else message["text"]
+
+
+def _window(conn, story, lines: list[str], cap: int, ratio: float) -> tuple[int, int]:
+    """Where the verbatim window starts. Moves rarely and far, and is remembered per story."""
+    overrides = json.loads(story["overrides"])
+    floor = max(len(lines) - KEEP_LAST, 0)
+    stored = cut = min(overrides.get("history_cut", 0), floor)  # a shorter branch clamps it
+    sizes = [estimate(line, ratio) for line in lines]
+    while sum(sizes[cut:]) > cap and cut < floor:
+        cut = min(cut + max(1, (len(lines) - cut) // 4), floor)
+    if cut != stored:
+        overrides["history_cut"] = cut
+        with conn:
+            conn.execute(
+                "UPDATE stories SET overrides=? WHERE id=?", (json.dumps(overrides), story["id"])
+            )
+    return cut, sum(sizes[cut:])
+
+
+def _fit_memories(recalled: list[Recalled], cap: int, ratio: float) -> tuple[list[str], list, int]:
+    lines, report, used = [], [], 0
+    for m in sorted(recalled, key=lambda m: m.activation, reverse=True):
+        label = m.tier.upper()
+        choices = [("detail" if m.tier == "sharp" else "gist", f"- [{label}] {m.text}")]
+        if m.tier == "sharp" and m.gist:
+            choices.append(("gist", f"- [HAZY] {m.gist}"))  # degrade before dropping
+        rendered, cost = "dropped", 0
+        for how, line in choices:
+            if used + (tokens := estimate(line, ratio)) <= cap:
+                lines.append(line)
+                rendered, cost, used = how, tokens, used + tokens
+                break
+        report.append(
+            {"memory_id": m.memory_id, "tier": m.tier, "rendered": rendered, "tokens": cost}
+            | m.breakdown
+        )
+    return lines, report, used
+
+
+def build(
+    conn: sqlite3.Connection,
+    story_id: int,
+    speaker_id: int | None,  # None = the narrator
+    ep: Endpoint,
+    recalled: list[Recalled] | tuple = (),
+    directive: str = "",
+) -> Built:
+    story = conn.execute("SELECT * FROM stories WHERE id=?", (story_id,)).fetchone()
+    ratio = ep.params.get("tok_ratio", RATIO)
+    ctx = ep.params.get("ctx_size", BASE_CTX)
+    caps = {name: int(tokens * ctx / BASE_CTX) for name, tokens in BASE_CAPS.items()}
+    think = ep.params.get("think_budget_tokens", DEFAULT_THINK_BUDGET) if ep.thinks else 0
+    reserve = caps["response"] + think
+
+    path = [m for m in chat.active_path(conn, story_id) if not m["hidden"]]
+    scene_id = path[-1]["scene_id"] if path else None
+    if scene_id is None:
+        first = conn.execute(
+            "SELECT id FROM scenes WHERE story_id=? ORDER BY id LIMIT 1", (story_id,)
+        ).fetchone()
+        scene_id = first["id"] if first else None
+    scene = conn.execute("SELECT * FROM scenes WHERE id IS ?", (scene_id,)).fetchone()
+    present = _present(conn, scene_id, {m["id"] for m in path})
+    names = {e["entity_id"]: e["name"] for e in present}
+    names |= {
+        r["id"]: r["name"]
+        for r in conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,))
+    }
+    persona = next((e for e in present if e["entity_id"] == story["persona_entity_id"]), None)
+    place = (
+        conn.execute("SELECT * FROM entities WHERE id=?", (scene["place_id"],)).fetchone()
+        if scene and scene["place_id"]
+        else None
+    )
+    speaker = next((e for e in present if e["entity_id"] == speaker_id), None)
+
+    # 1-2. the stable system block
+    rules, cards = _system(conn, story, persona, present, place)
+    summaries = [
+        r["text"]
+        for r in conn.execute(
+            "SELECT text FROM summaries WHERE story_id=? ORDER BY id", (story_id,)
+        )
+    ]
+    dropped_summaries = 0
+    while summaries and estimate("\n".join(summaries), ratio) > caps["summaries"]:
+        step = max(1, len(summaries) // 4)
+        summaries, dropped_summaries = summaries[step:], dropped_summaries + step
+    system = "\n\n".join(
+        part
+        for part in (
+            rules,
+            cards,
+            "## The story so far\n" + "\n".join(summaries) if summaries else "",
+        )
+        if part
+    )
+
+    # 3. history: whatever is left after the fixed blocks and the tail's reserved room
+    lines = [_line(m, names) for m in path]
+    history_cap = ctx - reserve - estimate(system, ratio) - caps["memory"] - caps["flags"]
+    cut, history_tokens = _window(conn, story, lines, max(history_cap, 0), ratio)
+
+    messages: list[dict] = [{"role": "system", "content": system}]
+
+    def add(role: str, content: str) -> None:
+        if messages[-1]["role"] == role:  # many chat templates reject two turns in a row
+            messages[-1]["content"] += "\n\n" + content
+        else:
+            messages.append({"role": role, "content": content})
+
+    window = [
+        ("assistant" if m["role"] == "assistant" else "user", line)
+        for m, line in zip(path[cut:], lines[cut:], strict=True)
+    ]
+    # a pending user line is held back: the tail goes directly in front of it, never inside it
+    pending = window.pop()[1] if window and window[-1][0] == "user" else "(Continue the scene.)"
+    for role, line in window:
+        add(role, line)
+
+    # 4. the volatile tail
+    now = path[-1]["story_time"] if path else 0
+    where = f"{place['name']} · " if place else ""
+    state = [
+        f"[Scene] {where}{clock.label(now, story['epoch_offset_min'])}"
+        f" · present: {', '.join(e['name'] for e in present) or 'no one'}"
+    ]
+    memory_lines, report, memory_tokens = _fit_memories(list(recalled), caps["memory"], ratio)
+    who = speaker["name"] if speaker else "the narrator"
+    if speaker and speaker["private"]:
+        state.append(f"[{who}, private]\n{speaker['private']}")
+    if memory_lines:
+        state.append(f"[{who} remembers]\n" + "\n".join(memory_lines))
+    if speaker:
+        state.append(f"[Directive] Reply only as {who}. {directive}".strip())
+    else:
+        state.append(
+            "[Directive] Reply only as the narrator: describe what happens and what can be "
+            f"perceived. Voice no character's private thoughts. {directive}".strip()
+        )
+    tail = "\n".join(state)
+    # Inside the final user turn, not a trailing system message: those break Mistral and Gemma.
+    add("user", f"{tail}\n\n{pending}")
+
+    sections = [
+        {"name": "rules", "tokens": estimate(rules, ratio), "cap": caps["rules"], "evicted": 0},
+        {"name": "cards", "tokens": estimate(cards, ratio), "cap": caps["cards"], "evicted": 0},
+        {
+            "name": "summaries",
+            "tokens": estimate("\n".join(summaries), ratio),
+            "cap": caps["summaries"],
+            "evicted": dropped_summaries,
+        },
+        {"name": "history", "tokens": history_tokens, "cap": max(history_cap, 0), "evicted": cut},
+        {
+            "name": "memory",
+            "tokens": memory_tokens,
+            "cap": caps["memory"],
+            "evicted": sum(m["rendered"] == "dropped" for m in report),
+        },
+        {
+            "name": "tail",
+            "tokens": estimate(tail, ratio),
+            "cap": caps["memory"] + caps["flags"],
+            "evicted": 0,
+        },
+    ]
+    total = sum(estimate(m["content"], ratio) for m in messages)
+    return Built(messages, sections, report, total, reserve, ctx)
+
+
+def log(conn: sqlite3.Connection, story_id: int, message_id: int | None, speaker_id, built: Built):
+    """One row per turn: the inspector's token meter, resolved prompt and recall breakdown."""
+    with conn:
+        conn.execute(
+            "INSERT INTO context_log"
+            "(story_id, message_id, speaker_id, budget, sections, memories, prompt, est_tokens)"
+            " VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                story_id,
+                message_id,
+                speaker_id,
+                built.budget,
+                json.dumps(built.sections),
+                json.dumps(built.memories),
+                json.dumps(built.messages, ensure_ascii=False),
+                built.est_tokens,
+            ),
+        )
+        conn.execute(
+            "UPDATE context_log SET prompt=NULL WHERE story_id=? AND id NOT IN"
+            " (SELECT id FROM context_log WHERE story_id=? ORDER BY id DESC LIMIT ?)",
+            (story_id, story_id, KEEP_PROMPTS),
+        )
