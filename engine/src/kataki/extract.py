@@ -9,13 +9,16 @@ Every row written here carries the run id. Deleting the run cascades to all of i
 retry is idempotent; nothing derived is ever updated in place.
 """
 
+import asyncio
+import contextlib
 import json
 import re
 import sqlite3
 
-from kataki import chat, library
+from kataki import chat, db, library, retrieve, roles
 from kataki.activation import FIDELITY
-from kataki.models import parse_extraction
+from kataki.llm import LLM, Endpoint, LLMError
+from kataki.models import extraction_schema, parse_extraction
 
 BELIEF = {"challenged": 0.1, "doubted": 0.5, "accepted": 0.9}
 PRONOUNS = frozenset(
@@ -43,15 +46,28 @@ class _Applier:
         self.story_id, self.run_id = run["story_id"], run["id"]
         end = conn.execute("SELECT * FROM messages WHERE id=?", (run["to_message_id"],)).fetchone()
         self.now, self.scene_id = end["story_time"], end["scene_id"]
-        # witnesses: the characters who were there for the window's last line
         path = chat.path_to(conn, end["id"])
+        # transcript line n (1-based) = the n-th visible message of the window
+        self.lines = [m for m in path if m["id"] >= run["from_message_id"] and not m["hidden"]]
         characters = conn.execute(
             "SELECT id FROM entities WHERE story_id=? AND kind='character'", (self.story_id,)
         ).fetchall()
-        self.in_room = {
-            c["id"] for c in characters if end["id"] in chat.heard_by(conn, path, c["id"])
-        }
+        self.heard = {c["id"]: chat.heard_by(conn, path, c["id"]) for c in characters}
         self.new: dict[str, int] = {}
+
+    def at(self, line: int | None) -> sqlite3.Row:
+        """The message a transcript line points at; the window's end when unsure."""
+        if line is not None and 1 <= line <= len(self.lines):
+            return self.lines[line - 1]
+        return (
+            self.lines[-1]
+            if self.lines
+            else {"id": self.run["to_message_id"], "story_time": self.now}
+        )
+
+    def there_for(self, message_id: int) -> set[int]:
+        """The characters who were there when this message happened."""
+        return {c for c, heard in self.heard.items() if message_id in heard}
 
     def entity(self, handle: str | None) -> int | None:
         """Handle -> entity id in this story, or None (the caller records the warning)."""
@@ -130,6 +146,7 @@ class _Applier:
             is_claim = asserter is not None or item.kind == "claim"
             clashes = [c for c in contested.get(index, []) if self.memory(c.contradicts)]
             supersedes = None if is_claim else self.memory(item.supersedes)
+            where = self.at(item.line)
             memory_id = self.conn.execute(
                 "INSERT INTO memories(story_id, kind, story_time, detail, gist, importance,"
                 " emotion, is_true, asserted_by, supersedes_id, covert, tags_text, from_message_id,"
@@ -137,7 +154,7 @@ class _Applier:
                 (
                     self.story_id,
                     "claim" if is_claim else item.kind,
-                    self.now,
+                    where["story_time"],
                     item.detail,
                     item.gist,
                     item.importance,
@@ -162,23 +179,32 @@ class _Applier:
             involved = {e for e, role in links if role in ("actor", "target", "witness")}
             audience = involved | {self.entity(ref) for ref in item.heard_by} - {None}
             if not item.covert:
-                audience |= self.in_room
+                audience |= self.there_for(where["id"])
             belief = {self.entity(c.hearer): BELIEF[c.resolution] for c in clashes}
+            when = where["story_time"]
             for knower in sorted(e for e in audience if e != asserter and self.is_character(e)):
                 if is_claim:
-                    self.know(
-                        knower, memory_id, "told", asserter, belief.get(knower, BELIEF["accepted"])
-                    )
+                    doubt = belief.get(knower, BELIEF["accepted"])
+                    self.know(knower, memory_id, "told", asserter, doubt, when)
                 else:
-                    self.know(knower, memory_id, "witnessed")
+                    self.know(knower, memory_id, "witnessed", when=when)
             if asserter is not None:
-                self.know(asserter, memory_id, "witnessed")  # they know what they said
+                self.know(asserter, memory_id, "witnessed", when=when)  # they know what they said
 
-    def know(self, knower, memory_id, source, told_by=None, belief=1.0) -> None:
+    def know(self, knower, memory_id, source, told_by=None, belief=1.0, when=None) -> None:
         self.conn.execute(
             "INSERT INTO knowledge(knower_id, memory_id, source, told_by_id, learned_story_time,"
             " fidelity, belief, run_id) VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
-            (knower, memory_id, source, told_by, self.now, FIDELITY[source], belief, self.run_id),
+            (
+                knower,
+                memory_id,
+                source,
+                told_by,
+                self.now if when is None else when,
+                FIDELITY[source],
+                belief,
+                self.run_id,
+            ),
         )
 
     def add_state(self, parsed) -> None:
@@ -262,3 +288,299 @@ def apply(conn: sqlite3.Connection, run_id: int, data) -> list[str]:
             (json.dumps(data), json.dumps(warnings), run_id),
         )
     return warnings
+
+
+# --- the pipeline: what to read, when, with which model --------------------------------------
+
+CADENCE = 10  # lines waiting before a run is due (about five exchanges)
+MAX_WINDOW = 12  # lines a single run reads; small models lose the thread beyond this
+MAX_ATTEMPTS = 3  # automatic tries per window; after that it waits for the user
+MAX_ROSTER, MAX_MEMORIES = 40, 20
+
+INSTRUCTIONS = """\
+You keep the memory of an ongoing story. Read the new transcript lines and record what \
+matters, as JSON.
+
+- Refer to people, places and things ONLY by handle: one from the roster (E12), or a new one \
+you declare in new_entities (N1, N2, ...). Never write a name where a handle is asked for.
+- Refer to earlier memories only by handle (M31).
+- memories: an event (what happened), a fact (what is now true of the world), or a claim \
+(what a character SAID, which may be false).
+  - Narration and shown actions are events or facts. Anything a character says is a claim: \
+asserted_by = the speaker, heard_by = who heard it.
+  - detail: one or two specific sentences: names, numbers, exact words where they matter.
+  - gist: the same thing as a vague half-memory: no minor names, no numbers, no quotes.
+  - importance 1-10: 1 small talk, 5 useful, 8 life-changing, 10 unforgettable.
+  - line: the transcript line where it happened.
+  - covert: true if only the participants could know (a whisper, a hidden act).
+  - supersedes: an earlier memory this replaces because the world changed.
+- knowledge: someone learns about an EARLIER memory by being told, overhearing, rumour, or \
+working it out.
+- contradictions: a claim here that contradicts an earlier memory ("claim" = its index in \
+memories), and how the hearer took it: challenged, doubted, or accepted.
+- flags: visible state that changed (injured, holding, wearing, mood...). value null clears \
+it. private: only that character knows.
+- edges: relationships that formed or changed (distrusts, owes, loves, works for...).
+- presence: someone arrived (true) or left (false).
+- scene_summary: only if the scene clearly ended. Two sentences.
+- skip_hint: if time passed without the text saying how much.
+Record only what the transcript shows. Empty lists are fine."""
+
+
+def pending(conn: sqlite3.Connection, story_id: int) -> list[sqlite3.Row]:
+    """Lines on the active branch no live run has read yet. The newest reply waits until the
+    user answers it: an answer is acceptance, so an ordinary swipe never touches memory."""
+    path = chat.active_path(conn, story_id)
+    live = sorted(db.live_runs(conn, story_id))
+    ends = conn.execute(
+        f"SELECT to_message_id FROM extraction_runs WHERE id IN ({','.join('?' * len(live))})",
+        live,
+    )
+    covered = max((r[0] for r in ends), default=0)  # ids grow along a path
+    todo = [m for m in path if m["id"] > covered and not m["hidden"]]
+    if todo and todo[-1]["role"] == "assistant":
+        todo.pop()
+    return todo
+
+
+def plan(todo: list, history_from: int = 0, manual: bool = False) -> tuple[list, str | None]:
+    """Which lines to read now, and why; ([], None) when nothing is due yet."""
+    if not todo:
+        return [], None
+    first = todo[0]
+    end = next(
+        (
+            i
+            for i, m in enumerate(todo[1:], 1)
+            if m["skip_minutes"] or m["scene_id"] != first["scene_id"]
+        ),
+        len(todo),
+    )
+    chunk = todo[: min(end, MAX_WINDOW)]
+    if end < len(todo) and end <= MAX_WINDOW:  # a time skip or a new scene closes the stretch
+        return chunk, "skip" if todo[end]["skip_minutes"] else "scene"
+    if len(todo) >= CADENCE:
+        return chunk, "cadence"
+    if first["id"] < history_from:  # about to scroll out of the verbatim window
+        return chunk, "evict"
+    return (chunk, "manual") if manual else ([], None)
+
+
+def roster(conn: sqlite3.Connection, story_id: int, chunk: list) -> tuple[list[str], list[str]]:
+    """The handles the model may use: who is here, speaking or named, and the memories in play."""
+    path = chat.path_to(conn, chunk[-1]["id"]) if chunk else chat.active_path(conn, story_id)
+    scene_id = chat.scene_of(conn, story_id, path)
+    scene = conn.execute("SELECT place_id FROM scenes WHERE id IS ?", (scene_id,)).fetchone()
+    live = db.live_runs(conn, story_id, path[-1]["id"] if path else None)
+    live_sql, live_args = db.live_filter(live, "m.run_id")
+
+    ids = [m["speaker_id"] for m in chunk if m["speaker_id"]]
+    ids += [e["id"] for e in chat.present_entities(conn, scene_id, path)]
+    ids += sorted(retrieve.mentioned(conn, story_id, "\n".join(m["text"] for m in chunk)))
+    if scene and scene["place_id"]:
+        ids.append(scene["place_id"])
+    focus = list(dict.fromkeys(ids))
+    memories = []
+    if focus:
+        memories = conn.execute(
+            "SELECT DISTINCT m.* FROM memories m JOIN memory_entities me ON me.memory_id=m.id"
+            f" WHERE m.story_id=? AND m.hidden=0 AND {live_sql}"
+            f" AND me.entity_id IN ({','.join('?' * len(focus))}) ORDER BY m.id DESC LIMIT ?",
+            [story_id, *live_args, *focus, MAX_MEMORIES],
+        ).fetchall()
+        for m in memories:  # everyone those memories involve, so the model can refer to them
+            involved = conn.execute(
+                "SELECT entity_id FROM memory_entities WHERE memory_id=?", (m["id"],)
+            )
+            focus += [r[0] for r in involved]
+    entity_lines = []
+    for entity_id in list(dict.fromkeys(focus))[:MAX_ROSTER]:
+        e = conn.execute("SELECT * FROM entities WHERE id=?", (entity_id,)).fetchone()
+        aliases = [
+            r["alias"]
+            for r in conn.execute("SELECT alias FROM aliases WHERE entity_id=?", (entity_id,))
+            if r["alias"].lower() != e["name"].lower()
+        ][:3]
+        line = f"E{e['id']} {e['name']} ({e['kind']})"
+        line += f" aka {', '.join(aliases)}" if aliases else ""
+        entity_lines.append(line + (f" - {e['summary']}" if e["summary"] else ""))
+    memory_lines = [f"M{m['id']} [{m['kind']}] {m['detail'][:160]}" for m in reversed(memories)]
+    return entity_lines, memory_lines
+
+
+def prompt(conn: sqlite3.Connection, story_id: int, chunk: list) -> tuple[list[dict], dict]:
+    """The messages and the handle-closed JSON schema for reading this chunk."""
+    entity_lines, memory_lines = roster(conn, story_id, chunk)
+    names = dict(
+        conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)).fetchall()
+    )
+    new = [f"N{i}" for i in range(1, 9)]
+    transcript = "\n".join(
+        f"[{i}] {names.get(m['speaker_id'], 'Narration')}: {m['text']}"
+        for i, m in enumerate(chunk, 1)
+    )
+    body = "Roster:\n" + "\n".join(entity_lines)
+    body += f"\nNew handles you may declare: {', '.join(new)}"
+    if memory_lines:
+        body += "\n\nEarlier memories:\n" + "\n".join(memory_lines)
+    body += "\n\nTranscript:\n" + transcript
+    messages = [{"role": "system", "content": INSTRUCTIONS}, {"role": "user", "content": body}]
+    handles = [line.split()[0] for line in entity_lines] + new
+    memories = [line.split()[0] for line in memory_lines]
+    return messages, extraction_schema(handles, memories, len(chunk))
+
+
+def _check_document(data):
+    parse_extraction(data)  # raises only when the whole document is unusable
+    return data
+
+
+async def read(
+    conn: sqlite3.Connection,
+    llm: LLM,
+    story_id: int,
+    chunk: list,
+    trigger: str,
+    role: str,
+    ep: Endpoint,
+    attempts: int = 0,
+) -> int:
+    """Read one chunk with one model call and apply it. Returns the run id, whatever happened."""
+    run_id = open_run(conn, story_id, chunk[0]["id"], chunk[-1]["id"], trigger)
+    with conn:
+        conn.execute(
+            "UPDATE extraction_runs SET status='running', role=?, model=?, attempts=?,"
+            " started_at=CURRENT_TIMESTAMP WHERE id=?",
+            (role, ep.model, attempts + 1, run_id),
+        )
+    messages, schema = prompt(conn, story_id, chunk)
+    try:
+        data = await llm.complete_json(ep, messages, schema, _check_document, "story_memory")
+    except LLMError as e:
+        with conn:
+            conn.execute(
+                "UPDATE extraction_runs SET status='failed', error=?,"
+                " finished_at=CURRENT_TIMESTAMP WHERE id=?",
+                (str(e), run_id),
+            )
+        return run_id
+    except asyncio.CancelledError:
+        db.discard_run(conn, run_id)  # stopped to make way for a reply: no trace, retried later
+        raise
+    with contextlib.suppress(ValueError):  # apply() has already marked the run failed
+        apply(conn, run_id, data)
+    return run_id
+
+
+def due(
+    conn: sqlite3.Connection, story_id: int, get_key=roles.get_key, manual: bool = False
+) -> tuple[list, str, str, Endpoint, int] | None:
+    """The next read to do: (chunk, trigger, role, endpoint, attempts so far), or None."""
+    story = conn.execute("SELECT overrides FROM stories WHERE id=?", (story_id,)).fetchone()
+    history_from = json.loads(story["overrides"]).get("history_from", 0)
+    chunk, trigger = plan(pending(conn, story_id), history_from, manual)
+    if not chunk:
+        return None
+    role = "reasoning" if trigger == "scene" else "utility"  # a closing scene gets the careful read
+    if (ep := roles.resolve(conn, role, story_id, get_key)) is None:
+        return None
+    unfinished = conn.execute(
+        "SELECT id, attempts FROM extraction_runs"
+        " WHERE story_id=? AND from_message_id=? AND status!='ok'",
+        (story_id, chunk[0]["id"]),
+    ).fetchall()
+    attempts = max((r["attempts"] for r in unfinished), default=0)
+    if attempts >= MAX_ATTEMPTS and not manual:
+        return None
+    for r in unfinished:
+        db.discard_run(conn, r["id"])
+    return chunk, trigger, role, ep, attempts
+
+
+async def run_due(
+    conn: sqlite3.Connection,
+    llm: LLM,
+    story_id: int,
+    get_key=roles.get_key,
+    manual: bool = False,
+) -> int | None:
+    """Do the next due read, if any. Returns its run id."""
+    if job := due(conn, story_id, get_key, manual):
+        chunk, trigger, role, ep, attempts = job
+        return await read(conn, llm, story_id, chunk, trigger, role, ep, attempts)
+    return None
+
+
+async def reread(
+    conn: sqlite3.Connection,
+    llm: LLM,
+    run_id: int,
+    role: str = "reasoning",
+    get_key=roles.get_key,
+) -> int | None:
+    """Read a run's window again: it went stale, or deserves a stronger model."""
+    run = conn.execute("SELECT * FROM extraction_runs WHERE id=?", (run_id,)).fetchone()
+    if run is None or (ep := roles.resolve(conn, role, run["story_id"], get_key)) is None:
+        return None
+    path = chat.path_to(conn, run["to_message_id"])
+    chunk = [m for m in path if m["id"] >= run["from_message_id"] and not m["hidden"]]
+    db.discard_run(conn, run_id)
+    return await read(conn, llm, run["story_id"], chunk, run["trigger"], role, ep)
+
+
+def recover(conn: sqlite3.Connection) -> None:
+    """At startup: runs that never finished leave no trace; their windows get read again."""
+    unfinished = conn.execute(
+        "SELECT id FROM extraction_runs WHERE status IN ('pending', 'running', 'cancelled')"
+    ).fetchall()
+    for r in unfinished:
+        db.discard_run(conn, r["id"])
+
+
+class Worker:
+    """Reads the story into memory in the background, once it goes quiet after a reply.
+
+    ponytail: one read at a time for the whole engine; a queue per story if a server ever
+    hosts many busy stories at once.
+    """
+
+    def __init__(self, conn: sqlite3.Connection, llm: LLM, get_key=roles.get_key, delay=3.0):
+        self.conn, self.llm, self.get_key, self.delay = conn, llm, get_key, delay
+        self._task: asyncio.Task | None = None
+        self._base_url: str | None = None  # set while a model call is in flight
+
+    def poke(self, story_id: int) -> None:
+        """Something happened in this story: look for due work once it has been quiet."""
+        self.cancel()
+        self._task = asyncio.create_task(self._work(story_id))
+
+    def turn_started(self, story_id: int, base_url: str) -> None:
+        """A reply is about to be generated. Step aside, unless we run on another endpoint."""
+        if self._base_url is None or self._base_url == base_url:
+            self.cancel()
+
+    def cancel(self) -> None:
+        if self._task and not self._task.done():
+            self._task.cancel()
+
+    async def idle(self) -> None:
+        if self._task:
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._task
+
+    async def _work(self, story_id: int) -> None:
+        await asyncio.sleep(self.delay)
+        while job := due(self.conn, story_id, self.get_key):
+            chunk, trigger, role, ep, attempts = job
+            self._base_url = ep.base_url
+            try:
+                run_id = await read(
+                    self.conn, self.llm, story_id, chunk, trigger, role, ep, attempts
+                )
+            finally:
+                self._base_url = None
+            status = self.conn.execute(
+                "SELECT status FROM extraction_runs WHERE id=?", (run_id,)
+            ).fetchone()
+            if status is None or status[0] != "ok":
+                return  # a failing model is not hammered; the next poke tries again

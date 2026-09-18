@@ -33,7 +33,7 @@ HEARSAY = {
 }
 
 
-def _seeds(conn: sqlite3.Connection, story_id: int, text: str) -> set[int]:
+def mentioned(conn: sqlite3.Connection, story_id: int, text: str) -> set[int]:
     """Entities the text names. Longest alias first, so 'the old docks' beats 'the docks'."""
     rows = conn.execute(
         "SELECT a.alias, a.entity_id FROM aliases a JOIN entities e ON e.id=a.entity_id"
@@ -81,7 +81,7 @@ def recall(
     scene = conn.execute("SELECT place_id FROM scenes WHERE id IS ?", (scene_id,)).fetchone()
     present = chat.present_entities(conn, scene_id, path)
 
-    seeds = _seeds(conn, story_id, text)
+    seeds = mentioned(conn, story_id, text)
     if scene and scene["place_id"]:
         seeds.add(scene["place_id"])
     nearby = {e["entity_id"] for e in present} - seeds

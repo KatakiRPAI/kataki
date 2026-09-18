@@ -39,6 +39,7 @@ class MemoryItem(BaseModel):
     covert: bool = False  # only the participants know
     supersedes: str | None = None
     tags: list[str] = []
+    line: int | None = None  # the transcript line it happened on: decides who witnessed it
 
 
 class KnowledgeItem(BaseModel):  # someone learns of an EXISTING memory
@@ -73,6 +74,69 @@ class Contradiction(BaseModel):
     contradicts: str
     hearer: str
     resolution: Literal["challenged", "doubted", "accepted"]
+
+
+class Extraction(BaseModel):
+    """One whole extraction; its JSON schema is what the model is constrained to."""
+
+    new_entities: list[NewEntity] = []
+    memories: list[MemoryItem] = []
+    knowledge: list[KnowledgeItem] = []
+    flags: list[FlagItem] = []
+    edges: list[EdgeItem] = []
+    presence: list[PresenceItem] = []
+    contradictions: list[Contradiction] = []
+    scene_summary: str | None = None
+    skip_hint: Literal["none", "hours", "days", "weeks", "months", "years"] = "none"
+
+
+ENTITY_REFS = {
+    "Participant": ["ref"],
+    "MemoryItem": ["place", "asserted_by", "heard_by"],
+    "KnowledgeItem": ["knower", "told_by"],
+    "FlagItem": ["entity"],
+    "EdgeItem": ["src", "dst"],
+    "PresenceItem": ["entity"],
+    "Contradiction": ["hearer"],
+}
+MEMORY_REFS = {
+    "KnowledgeItem": ["memory"],
+    "MemoryItem": ["supersedes"],
+    "Contradiction": ["contradicts"],
+}
+
+
+def _strings(prop: dict) -> dict:
+    """The string schema inside a property: itself, an anyOf branch, or array items."""
+    if prop.get("type") == "array":
+        return prop["items"]
+    return next((b for b in prop.get("anyOf", []) if b.get("type") == "string"), prop)
+
+
+def extraction_schema(entities: list[str], memories: list[str], lines: int) -> dict:
+    """The Extraction schema with every reference closed to the handles in the roster, so a
+    grammar-constrained model cannot invent an id, misspell a name, or cite a missing line."""
+    schema = Extraction.model_json_schema()
+    defs = schema["$defs"]
+    for model, fields in ENTITY_REFS.items():
+        for name in fields:
+            _strings(defs[model]["properties"][name])["enum"] = entities
+    defs["NewEntity"]["properties"]["handle"]["enum"] = [h for h in entities if h[0] == "N"]
+    for model, fields in MEMORY_REFS.items():
+        for name in fields:
+            prop = defs[model]["properties"][name]
+            if memories:
+                _strings(prop)["enum"] = memories
+            elif "anyOf" in prop:
+                defs[model]["properties"][name] = {"type": "null", "default": None}
+    if not memories:  # sections whose items must point at an earlier memory
+        schema["properties"]["knowledge"]["maxItems"] = 0
+        schema["properties"]["contradictions"]["maxItems"] = 0
+    line = next(
+        b for b in defs["MemoryItem"]["properties"]["line"]["anyOf"] if b["type"] == "integer"
+    )
+    line.update(minimum=1, maximum=max(lines, 1))
+    return schema
 
 
 SECTIONS: dict[str, type[BaseModel]] = {
