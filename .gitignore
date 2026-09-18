@@ -1,0 +1,25 @@
+# python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# node
+node_modules/
+dist/
+dist-electron/
+
+# app data (never commit user libraries or secrets)
+*.db
+*.db-wal
+*.db-shm
+blobs/
+.env
+
+# os / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
