@@ -1,0 +1,80 @@
+import pytest
+
+from kataki.clock import label, parse_skip
+
+H, D = 60, 1440
+W, MO, Y = 7 * D, 30 * D, 365 * D
+NOON = 12 * H
+
+
+@pytest.mark.parametrize(
+    ("text", "minutes"),
+    [
+        ("Six years later, the docks had changed.", 6 * Y),
+        ("six years later", 3_153_600),
+        ("Three days pass without word.", 3 * D),
+        ("Two weeks went by.", 2 * W),
+        ("10 minutes later the door opens.", 10),
+        ("An hour later she returns.", H),
+        ("A year passed.", Y),
+        ("After a few hours of walking, they arrive.", 3 * H),
+        ("A couple of days later, the letter came.", 2 * D),
+        ("Several months later", 5 * MO),
+        ("Many years later", 10 * Y),
+        ("Half an hour later", 30),
+        ("Hours later, he woke.", 3 * H),
+        ("Years later they met again.", 3 * Y),
+        ("Moments later the guard returned.", 5),
+        ("A moment later", 5),
+        ("Twenty minutes have passed.", 20),
+        ("Five days had passed since the fire.", 5 * D),
+        ("Some time later", H),
+        ("One month later", MO),
+        ("1 week later", W),
+        ("Three days later... and two hours later still", 3 * D + 2 * H),
+    ],
+)
+def test_relative_skips(text, minutes):
+    assert parse_skip(text) == minutes
+
+
+@pytest.mark.parametrize(
+    ("text", "minutes"),
+    [
+        ("The next morning, she was gone.", 20 * H),  # noon -> 08:00 tomorrow
+        ("The following day they set out.", D),
+        ("Later that evening, the tavern filled.", 7 * H),  # noon -> 19:00
+        ("That night he could not sleep.", 10 * H),  # noon -> 22:00
+        ("The next week", W),
+        ("The following year", Y),
+        ("At dawn they left.", 18 * H),  # noon -> 06:00 tomorrow
+    ],
+)
+def test_skips_to_a_time_of_day_count_from_the_current_story_clock(text, minutes):
+    assert parse_skip(text, minute_of_day=NOON) == minutes
+
+
+def test_a_time_of_day_already_past_rolls_to_tomorrow():
+    assert parse_skip("That evening", minute_of_day=21 * H) == 22 * H
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "She smiles and pours another drink.",
+        "It happened six years ago.",  # the past, not a skip
+        '"Come back three days later," she said.',  # spoken, not narrated
+        "“See you next week,” he called.",
+        "He was later than usual.",
+        "The latest shipment arrived.",
+    ],
+)
+def test_ordinary_prose_does_not_move_the_clock(text):
+    assert parse_skip(text, minute_of_day=NOON) == 0
+
+
+def test_label_reads_like_a_story_clock():
+    assert label(0) == "Day 1, 08:00"  # stories open at 08:00 by default
+    assert label(20 * H) == "Day 2, 04:00"
+    assert label(6 * Y + 90) == "Year 7, Day 1, 09:30"
+    assert label(0, epoch_offset_min=0) == "Day 1, 00:00"
