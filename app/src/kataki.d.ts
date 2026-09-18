@@ -1,4 +1,6 @@
+/// <reference types="vite/client" />
+
 // Exposed by electron/preload.cts
 interface Window {
-  kataki: { baseUrl: string; token: string }
+  kataki?: { baseUrl: string; token: string }
 }

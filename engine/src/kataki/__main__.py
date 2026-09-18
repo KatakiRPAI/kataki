@@ -22,7 +22,7 @@ def default_db_path() -> Path:
     return Path(base) / "Kataki" / "library.db"
 
 
-def serve(db_path: Path, parent_watch: bool) -> None:
+def serve(db_path: Path, parent_watch: bool, port: int = 0) -> None:
     token = os.environ.get("KATAKI_TOKEN")
     hello = {}
     # Headless use: mint a token and tell the user. A parent-supplied token is never echoed.
@@ -30,7 +30,7 @@ def serve(db_path: Path, parent_watch: bool) -> None:
         token = hello["token"] = secrets.token_urlsafe(32)
 
     sock = socket.socket()
-    sock.bind(("127.0.0.1", 0))
+    sock.bind(("127.0.0.1", port))
     sock.listen()  # so clients that race the announcement queue instead of being refused
     hello["port"] = sock.getsockname()[1]
     print(json.dumps(hello), flush=True)
@@ -53,9 +53,10 @@ def main(argv: list[str] | None = None) -> None:
     s = sub.add_parser("serve", help="run the local engine server")
     s.add_argument("--db", type=Path, default=default_db_path())
     s.add_argument("--parent-watch", action="store_true", help="exit when stdin closes")
+    s.add_argument("--port", type=int, default=0, help="default: any free port")
     args = parser.parse_args(argv)
     if args.cmd == "serve":
-        serve(args.db, args.parent_watch)
+        serve(args.db, args.parent_watch, args.port)
 
 
 if __name__ == "__main__":

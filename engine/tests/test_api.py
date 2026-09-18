@@ -205,6 +205,26 @@ def test_people_come_and_go_and_scenes_change(api, story):
     assert api.get(f"/stories/{story}/messages").json()[-1]["text"] == "— Night —"
 
 
+def test_a_library_character_joins_mid_story_and_a_scene_moves_to_a_new_place(api, story):
+    dara = api.post("/library", json={"kind": "character", "name": "Dara"}).json()["id"]
+    docks = api.post("/library", json={"kind": "place", "name": "The Docks"}).json()["id"]
+    joined = {
+        e["name"]: e
+        for e in api.post(f"/stories/{story}/cast", json={"library_id": dara}).json()["entities"]
+    }
+    assert joined["Dara"]["present"] and joined["Dara"]["is_ai"]
+    again = api.post(f"/stories/{story}/cast", json={"library_id": dara}).json()["entities"]
+    assert [e["name"] for e in again].count("Dara") == 1  # joining twice is still one Dara
+
+    scene = api.post(
+        f"/stories/{story}/scene",
+        json={"present": [joined["Dara"]["id"]], "library_place_id": docks},
+    ).json()
+    place = next(e for e in scene["entities"] if e["name"] == "The Docks")
+    assert scene["scene"]["place_id"] == place["id"]
+    assert api.get(f"/stories/{story}/messages").json()[-1]["text"] == "— The Docks —"
+
+
 def test_a_turn_without_a_model_explains_what_to_set(api):
     mira = api.post("/library", json={"kind": "character", "name": "Mira"}).json()["id"]
     story = api.post("/stories", json={"title": "x", "character_ids": [mira]}).json()["id"]

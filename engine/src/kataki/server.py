@@ -104,8 +104,13 @@ class PresenceIn(BaseModel):
 
 class SceneIn(BaseModel):
     present: list[int]
-    place_id: int | None = None
+    place_id: int | None = None  # a place already in the story
+    library_place_id: int | None = None  # or one from the library, brought in
     title: str | None = None
+
+
+class JoinIn(BaseModel):
+    library_id: int
 
 
 class RereadIn(BaseModel):
@@ -530,10 +535,29 @@ def create_app(
         chat.set_presence(conn, story_id, p.entity_id, p.present)
         return await get_cast(story_id)
 
+    @app.post("/stories/{story_id}/cast", status_code=201)
+    async def join(story_id: int, j: JoinIn):
+        """Bring a library character into the story; they arrive in the current scene."""
+        story_row(story_id)
+        if library.get_item(conn, j.library_id) is None:
+            raise HTTPException(422, f"no library item {j.library_id}")
+        entity_id = library.add_to_story(conn, story_id, j.library_id)
+        if (
+            conn.execute("SELECT kind FROM entities WHERE id=?", (entity_id,)).fetchone()[0]
+            == "character"
+        ):
+            chat.set_presence(conn, story_id, entity_id, True)
+        return await get_cast(story_id)
+
     @app.post("/stories/{story_id}/scene", status_code=201)
     async def new_scene(story_id: int, s: SceneIn):
         story_row(story_id)
-        chat.new_scene(conn, story_id, s.present, s.place_id, s.title)
+        place_id = s.place_id
+        if s.library_place_id is not None:
+            if library.get_item(conn, s.library_place_id) is None:
+                raise HTTPException(422, f"no library item {s.library_place_id}")
+            place_id = library.add_to_story(conn, story_id, s.library_place_id)
+        chat.new_scene(conn, story_id, s.present, place_id, s.title)
         worker.poke(story_id)  # the closed scene is worth a careful read
         return await get_cast(story_id)
 

@@ -166,6 +166,18 @@ def create_story(
     return story_id
 
 
+def add_to_story(conn: sqlite3.Connection, story_id: int, item_id: int) -> int:
+    """Bring a library character or place into a running story (once): its entity id."""
+    found = conn.execute(
+        "SELECT id FROM entities WHERE story_id=? AND lib_item_id=?", (story_id, item_id)
+    ).fetchone()
+    if found:
+        return found["id"]
+    item = get_item(conn, item_id)
+    with conn:
+        return _instantiate(conn, story_id, item, is_ai=item["kind"] == "character")
+
+
 def add_memory(
     conn: sqlite3.Connection,
     story_id: int,
