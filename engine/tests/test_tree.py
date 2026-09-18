@@ -107,3 +107,28 @@ def test_a_run_on_another_branch_is_not_flagged(conn, story):
     assert (
         conn.execute("SELECT stale FROM extraction_runs WHERE id=?", (run_on_b,)).fetchone()[0] == 0
     )
+
+
+def _ok_run(conn, story, first, last):
+    return conn.execute(
+        "INSERT INTO extraction_runs(story_id, from_message_id, to_message_id, trigger, status)"
+        " VALUES(?, ?, ?, 'cadence', 'ok')",
+        (story, first, last),
+    ).lastrowid
+
+
+def test_undoing_a_skip_moves_everything_after_it_and_rereads_memory_from_there(conn, story):
+    a = chat.append_message(conn, story, "user", "one")
+    b = chat.append_message(conn, story, "assistant", "Six years later...", skip_minutes=500)
+    c = chat.append_message(conn, story, "user", "three")
+    early = _ok_run(conn, story, a, a)
+    late = _ok_run(conn, story, b, c)
+
+    chat.set_skip(conn, b, 0)
+
+    times = [m["story_time"] for m in chat.active_path(conn, story)]
+    assert times == [2, 4, 6]
+    assert conn.execute("SELECT skip_minutes FROM messages WHERE id=?", (b,)).fetchone()[0] == 0
+    runs = {r[0] for r in conn.execute("SELECT id FROM extraction_runs")}
+    assert runs == {early}  # the run that read the skipped stretch goes, to be re-read
+    assert late not in runs

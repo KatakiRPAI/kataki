@@ -130,12 +130,19 @@ class LLM:
         if r.status_code >= 400:
             raise LLMError(f"{r.request.url} answered {r.status_code}: {r.text[:500]}")
 
-    async def chat_stream(self, ep: Endpoint, messages: list[dict]) -> AsyncIterator[Event]:
-        """Stream one reply. Closing the generator closes the connection, which stops generation."""
+    async def chat_stream(
+        self, ep: Endpoint, messages: list[dict], **extra
+    ) -> AsyncIterator[Event]:
+        """Stream one reply. Closing the generator closes the connection, which stops generation.
+
+        `extra` goes into the request body (e.g. stop=[...]); the role's own body params win.
+        """
         url = f"{ep.base_url.rstrip('/')}/chat/completions"
-        body = self._body(ep, messages, stream=True, stream_options={"include_usage": True})
+        body = self._body(
+            ep, messages, stream=True, stream_options={"include_usage": True}, **extra
+        )
         splitter = ThinkSplitter(*ep.think_tags)
-        usage = None
+        usage = timings = None
         try:
             async with self._client.stream(
                 "POST", url, json=body, headers=self._headers(ep.api_key)
@@ -153,6 +160,7 @@ class LLM:
                     if error := chunk.get("error"):
                         raise LLMError(f"{url} failed mid-stream: {error.get('message', error)}")
                     usage = chunk.get("usage") or usage
+                    timings = chunk.get("timings") or timings  # llama.cpp: cache hits live here
                     for choice in chunk.get("choices") or []:
                         delta = choice.get("delta") or {}
                         if thought := delta.get("reasoning_content") or delta.get("reasoning"):
@@ -164,7 +172,7 @@ class LLM:
             raise LLMError(f"cannot reach {url}: {e}") from e
         for event in splitter.flush():
             yield event
-        yield ("done", {"usage": usage})
+        yield ("done", {"usage": usage, **({"timings": timings} if timings else {})})
 
     async def _complete(
         self, ep: Endpoint, messages: list[dict], formats: list[dict | None]

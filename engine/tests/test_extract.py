@@ -361,7 +361,7 @@ def test_retrying_a_run_leaves_exactly_the_same_rows(conn, world):
     run(conn, world, data, window=window)
     before = counts(conn)
 
-    extract.discard_run(conn, conn.execute("SELECT max(id) FROM extraction_runs").fetchone()[0])
+    db.discard_run(conn, conn.execute("SELECT max(id) FROM extraction_runs").fetchone()[0])
     assert counts(conn)["memories"] == 0 and counts(conn)["flags"] == 0
     run(conn, world, data, window=window)
     assert counts(conn) == before

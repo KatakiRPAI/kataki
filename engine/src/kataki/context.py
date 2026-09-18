@@ -18,7 +18,7 @@ import math
 import sqlite3
 from dataclasses import dataclass, field
 
-from kataki import chat, clock
+from kataki import chat, clock, db
 from kataki.llm import Endpoint
 
 RATIO, MARGIN = 3.6, 1.08  # chars per token until calibrated from real usage; safety margin
@@ -69,10 +69,51 @@ class Built:
     est_tokens: int
     response_reserve: int
     budget: int
+    window_start: int | None = None  # first message still shown verbatim
 
 
 def estimate(text: str, ratio: float = RATIO) -> int:
     return math.ceil(round(len(text) / ratio * MARGIN, 6))
+
+
+def token_ratio(conn: sqlite3.Connection, model: str) -> float:
+    """Characters per token for this model, learned from what the backend reports."""
+    row = conn.execute("SELECT value FROM settings WHERE key=?", (f"tok_ratio:{model}",)).fetchone()
+    return json.loads(row["value"]) if row else RATIO
+
+
+def calibrate(conn: sqlite3.Connection, model: str, chars: int, prompt_tokens: int) -> None:
+    if not prompt_tokens or not chars:
+        return
+    seen = min(
+        max(chars / prompt_tokens, 1.5), 8.0
+    )  # a garbled usage report must not wreck budgets
+    blended = 0.8 * token_ratio(conn, model) + 0.2 * seen
+    with conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO settings(key, value) VALUES(?, ?)",
+            (f"tok_ratio:{model}", json.dumps(blended)),
+        )
+
+
+def _state(conn, entities: list, speaker_id: int | None, now: int, live: set[int]) -> list[str]:
+    """What anyone in the room could see (injuries, what they hold...), plus the speaker's
+    own private state. Each flag's current value is its latest live row at or before now."""
+    if not entities:
+        return []
+    names = {e["id"]: e["name"] for e in entities}
+    live_sql, live_args = db.live_filter(live)
+    rows = conn.execute(
+        f"SELECT * FROM flags WHERE entity_id IN ({','.join('?' * len(names))})"
+        f" AND story_time<=? AND {live_sql} ORDER BY story_time, id",
+        [*names, now, *live_args],
+    )
+    current = {(r["entity_id"], r["key"].lower()): r for r in rows}
+    shown: dict[int, list[str]] = {}
+    for (entity_id, _), r in current.items():
+        if r["value"] is not None and (not r["private"] or entity_id == speaker_id):
+            shown.setdefault(entity_id, []).append(f"{r['key']}: {r['value']}")
+    return [f"{names[e]}: {'; '.join(parts)}" for e, parts in shown.items()]
 
 
 def _system(conn, story, persona, present, place) -> tuple[str, str]:
@@ -100,16 +141,18 @@ def _line(message, names: dict[int, str]) -> str:
     return f"{name}: {message['text']}" if name else message["text"]
 
 
-def _window(conn, story, lines: list[str], cap: int, ratio: float) -> tuple[int, int]:
-    """Where the verbatim window starts. Moves rarely and far, and is remembered per story."""
+def _window(conn, story, path: list, lines: list[str], cap: int, ratio: float) -> tuple[int, int]:
+    """Where the verbatim window starts. It moves rarely and far, and is remembered per story
+    as a message id, so it means the same thing for every speaker and every branch."""
     overrides = json.loads(story["overrides"])
     floor = max(len(lines) - KEEP_LAST, 0)
-    stored = cut = min(overrides.get("history_cut", 0), floor)  # a shorter branch clamps it
+    start = next((i for i, m in enumerate(path) if m["id"] >= overrides.get("history_from", 0)), 0)
+    cut = start = min(start, floor)  # a shorter branch clamps it
     sizes = [estimate(line, ratio) for line in lines]
     while sum(sizes[cut:]) > cap and cut < floor:
         cut = min(cut + max(1, (len(lines) - cut) // 4), floor)
-    if cut != stored:
-        overrides["history_cut"] = cut
+    if cut > start:
+        overrides["history_from"] = path[cut]["id"]
         with conn:
             conn.execute(
                 "UPDATE stories SET overrides=? WHERE id=?", (json.dumps(overrides), story["id"])
@@ -144,23 +187,22 @@ def build(
     ep: Endpoint,
     recalled: list[Recalled] | tuple = (),
     directive: str = "",
+    leaf_id: int | None = None,  # build as of this message (a regenerate); default: active leaf
 ) -> Built:
     story = conn.execute("SELECT * FROM stories WHERE id=?", (story_id,)).fetchone()
-    ratio = ep.params.get("tok_ratio", RATIO)
+    ratio = token_ratio(conn, ep.model)
     ctx = ep.params.get("ctx_size", BASE_CTX)
     caps = {name: int(tokens * ctx / BASE_CTX) for name, tokens in BASE_CAPS.items()}
     think = ep.params.get("think_budget_tokens", DEFAULT_THINK_BUDGET) if ep.thinks else 0
     reserve = caps["response"] + think
 
-    path = [m for m in chat.active_path(conn, story_id) if not m["hidden"]]
-    scene_id = path[-1]["scene_id"] if path else None
-    if scene_id is None:
-        first = conn.execute(
-            "SELECT id FROM scenes WHERE story_id=? ORDER BY id LIMIT 1", (story_id,)
-        ).fetchone()
-        scene_id = first["id"] if first else None
+    full = chat.path_to(conn, leaf_id) if leaf_id else chat.active_path(conn, story_id)
+    path = [m for m in full if not m["hidden"]]
+    live = db.live_runs(conn, story_id, leaf_id)
+    live_sql, live_args = db.live_filter(live)
+    scene_id = chat.scene_of(conn, story_id, path)
     scene = conn.execute("SELECT * FROM scenes WHERE id IS ?", (scene_id,)).fetchone()
-    present = chat.present_entities(conn, scene_id, {m["id"] for m in path})
+    present = chat.present_entities(conn, scene_id, path)
     names = {e["entity_id"]: e["name"] for e in present}
     names |= {
         r["id"]: r["name"]
@@ -179,7 +221,8 @@ def build(
     summaries = [
         r["text"]
         for r in conn.execute(
-            "SELECT text FROM summaries WHERE story_id=? ORDER BY id", (story_id,)
+            f"SELECT text FROM summaries WHERE story_id=? AND {live_sql} ORDER BY id",
+            [story_id, *live_args],
         )
     ]
     dropped_summaries = 0
@@ -196,10 +239,15 @@ def build(
         if part
     )
 
-    # 3. history: whatever is left after the fixed blocks and the tail's reserved room
-    lines = [_line(m, names) for m in path]
+    # 3. history: whatever is left after the fixed blocks and the tail's reserved room.
+    # A character only sees what was said while they were there; the narrator sees it all.
+    shown = path
+    if speaker_id is not None:
+        heard = chat.heard_by(conn, path, speaker_id)
+        shown = [m for m in path if m["id"] in heard]
+    lines = [_line(m, names) for m in shown]
     history_cap = ctx - reserve - estimate(system, ratio) - caps["memory"] - caps["flags"]
-    cut, history_tokens = _window(conn, story, lines, max(history_cap, 0), ratio)
+    cut, history_tokens = _window(conn, story, shown, lines, max(history_cap, 0), ratio)
 
     messages: list[dict] = [{"role": "system", "content": system}]
 
@@ -211,7 +259,7 @@ def build(
 
     window = [
         ("assistant" if m["role"] == "assistant" else "user", line)
-        for m, line in zip(path[cut:], lines[cut:], strict=True)
+        for m, line in zip(shown[cut:], lines[cut:], strict=True)
     ]
     # a pending user line is held back: the tail goes directly in front of it, never inside it
     pending = window.pop()[1] if window and window[-1][0] == "user" else "(Continue the scene.)"
@@ -225,6 +273,13 @@ def build(
         f"[Scene] {where}{clock.label(now, story['epoch_offset_min'])}"
         f" · present: {', '.join(e['name'] for e in present) or 'no one'}"
     ]
+    seen, used = [], 0
+    for line in _state(conn, [*present, *([place] if place else [])], speaker_id, now, live):
+        if (used := used + estimate(line, ratio)) > caps["flags"]:
+            break
+        seen.append(line)
+    if seen:
+        state.append("[State]\n" + "\n".join(seen))
     memory_lines, report, memory_tokens = _fit_memories(list(recalled), caps["memory"], ratio)
     who = speaker["name"] if speaker else "the narrator"
     if speaker and speaker["private"]:
@@ -266,13 +321,16 @@ def build(
         },
     ]
     total = sum(estimate(m["content"], ratio) for m in messages)
-    return Built(messages, sections, report, total, reserve, ctx)
+    start = shown[cut]["id"] if cut < len(shown) else None
+    return Built(messages, sections, report, total, reserve, ctx, start)
 
 
-def log(conn: sqlite3.Connection, story_id: int, message_id: int | None, speaker_id, built: Built):
+def log(
+    conn: sqlite3.Connection, story_id: int, message_id: int | None, speaker_id, built: Built
+) -> int:
     """One row per turn: the inspector's token meter, resolved prompt and recall breakdown."""
     with conn:
-        conn.execute(
+        log_id = conn.execute(
             "INSERT INTO context_log"
             "(story_id, message_id, speaker_id, budget, sections, memories, prompt, est_tokens)"
             " VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
@@ -286,9 +344,23 @@ def log(conn: sqlite3.Connection, story_id: int, message_id: int | None, speaker
                 json.dumps(built.messages, ensure_ascii=False),
                 built.est_tokens,
             ),
-        )
+        ).lastrowid
         conn.execute(
             "UPDATE context_log SET prompt=NULL WHERE story_id=? AND id NOT IN"
             " (SELECT id FROM context_log WHERE story_id=? ORDER BY id DESC LIMIT ?)",
             (story_id, story_id, KEEP_PROMPTS),
+        )
+    return log_id
+
+
+def finish_log(conn: sqlite3.Connection, log_id: int, message_id: int | None, done: dict) -> None:
+    """After the reply: which message it produced, and what the backend really counted."""
+    usage = done.get("usage") or {}
+    cached = (usage.get("prompt_tokens_details") or {}).get("cached_tokens")
+    if cached is None:
+        cached = (done.get("timings") or {}).get("cache_n")  # llama.cpp reports it here
+    with conn:
+        conn.execute(
+            "UPDATE context_log SET message_id=?, actual_tokens=?, cached_tokens=? WHERE id=?",
+            (message_id, usage.get("prompt_tokens"), cached, log_id),
         )

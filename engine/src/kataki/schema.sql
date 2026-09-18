@@ -10,7 +10,7 @@ CREATE TABLE providers(
   id INTEGER PRIMARY KEY,
   name TEXT UNIQUE NOT NULL,
   base_url TEXT NOT NULL,
-  extra JSON NOT NULL DEFAULT '{}'
+  extra TEXT NOT NULL DEFAULT '{}'
 );
 
 CREATE TABLE model_roles(
@@ -19,11 +19,11 @@ CREATE TABLE model_roles(
   model TEXT,                                   -- provider_id and model both NULL = inherit (chain lives in code)
   kind TEXT NOT NULL DEFAULT 'auto' CHECK(kind IN('auto','reasoning','standard')),  -- user override
   detected_kind TEXT CHECK(detected_kind IN('reasoning','standard')),               -- from the connection probe
-  params JSON NOT NULL DEFAULT '{}'             -- samplers, extra_body, id_slot, ctx_size, tok_ratio, thinking,
+  params TEXT NOT NULL DEFAULT '{}'             -- samplers, extra_body, id_slot, ctx_size, tok_ratio, thinking,
                                                 -- reasoning_effort, think_budget_tokens, think_tags, show_thoughts
 );
 
-CREATE TABLE settings(key TEXT PRIMARY KEY, value JSON NOT NULL);
+CREATE TABLE settings(key TEXT PRIMARY KEY, value TEXT NOT NULL);
 
 CREATE TABLE lib_items(
   id INTEGER PRIMARY KEY,
@@ -31,7 +31,7 @@ CREATE TABLE lib_items(
   name TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
   private TEXT NOT NULL DEFAULT '',
-  data JSON NOT NULL DEFAULT '{}',              -- first_message, example_dialogue, aliases[], card leftovers (M2)
+  data TEXT NOT NULL DEFAULT '{}',              -- first_message, example_dialogue, aliases[], card leftovers (M2)
   folder_id INTEGER,                            -- M2 seam
   media_id INTEGER,                             -- M3 seam
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -46,7 +46,7 @@ CREATE TABLE stories(
   active_leaf_id INTEGER,
   epoch_offset_min INTEGER NOT NULL DEFAULT 480,
   minutes_per_turn INTEGER NOT NULL DEFAULT 2,
-  overrides JSON NOT NULL DEFAULT '{}',         -- per-story settings, incl. overrides.roles
+  overrides TEXT NOT NULL DEFAULT '{}',         -- per-story settings, incl. overrides.roles
   book_id INTEGER,                              -- M2 seam
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
@@ -64,7 +64,7 @@ CREATE TABLE messages(
   tokens INTEGER,
   hidden INTEGER NOT NULL DEFAULT 0,
   edited_at TEXT,
-  gen JSON,                                     -- generation metadata, incl. reasoning (never re-enters prompts)
+  gen TEXT,                                     -- generation metadata, incl. reasoning (never re-enters prompts)
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX ix_msg_parent ON messages(parent_id);
@@ -78,7 +78,7 @@ CREATE TABLE scenes(
   title TEXT,
   start_story_time INTEGER NOT NULL,
   mood TEXT,
-  media JSON                                    -- M3/M4 seam
+  media  TEXT                                    -- M3/M4 seam
 );
 
 CREATE TABLE presence(                          -- append-only; current = last live row per entity
@@ -258,8 +258,8 @@ CREATE TABLE extraction_runs(
   attempts INTEGER NOT NULL DEFAULT 0,
   role TEXT,                                    -- which model role served the run
   model TEXT,
-  raw JSON,
-  warnings JSON,
+  raw TEXT,
+  warnings TEXT,
   error TEXT,
   started_at TEXT,
   finished_at TEXT,
@@ -272,8 +272,8 @@ CREATE TABLE context_log(
   message_id INTEGER REFERENCES messages ON DELETE CASCADE,
   speaker_id INTEGER,
   budget INTEGER,
-  sections JSON NOT NULL,                       -- [{name,tokens,cap,evicted}]
-  memories JSON NOT NULL,                       -- [{memory_id,tier,A,B,S,G,imp,F,noise,effortful,tokens}]
+  sections TEXT NOT NULL,                       -- [{name,tokens,cap,evicted}]
+  memories TEXT NOT NULL,                       -- [{memory_id,tier,A,B,S,G,imp,F,noise,effortful,tokens}]
   prompt TEXT,                                  -- pruned to the last 20 per story
   est_tokens INTEGER,
   actual_tokens INTEGER,

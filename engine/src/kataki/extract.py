@@ -37,27 +37,20 @@ def open_run(conn: sqlite3.Connection, story_id: int, first: int, last: int, tri
         ).lastrowid
 
 
-def discard_run(conn: sqlite3.Connection, run_id: int) -> None:
-    """Undo a run completely. FKs cascade everything except taggings, which are polymorphic."""
-    with conn:
-        for obj, table in (("memory", "memories"), ("entity", "entities")):
-            conn.execute(
-                f"DELETE FROM taggings WHERE obj=? AND obj_id IN"
-                f" (SELECT id FROM {table} WHERE run_id=?)",
-                (obj, run_id),
-            )
-        conn.execute("DELETE FROM extraction_runs WHERE id=?", (run_id,))
-
-
 class _Applier:
     def __init__(self, conn: sqlite3.Connection, run: sqlite3.Row, warnings: list[str]):
         self.conn, self.run, self.warnings = conn, run, warnings
         self.story_id, self.run_id = run["story_id"], run["id"]
         end = conn.execute("SELECT * FROM messages WHERE id=?", (run["to_message_id"],)).fetchone()
         self.now, self.scene_id = end["story_time"], end["scene_id"]
-        path_ids = {m["id"] for m in chat.path_to(conn, run["to_message_id"])}
-        present = chat.present_entities(conn, self.scene_id, path_ids)
-        self.in_room = {e["entity_id"] for e in present if e["kind"] == "character"}
+        # witnesses: the characters who were there for the window's last line
+        path = chat.path_to(conn, end["id"])
+        characters = conn.execute(
+            "SELECT id FROM entities WHERE story_id=? AND kind='character'", (self.story_id,)
+        ).fetchall()
+        self.in_room = {
+            c["id"] for c in characters if end["id"] in chat.heard_by(conn, path, c["id"])
+        }
         self.new: dict[str, int] = {}
 
     def entity(self, handle: str | None) -> int | None:

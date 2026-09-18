@@ -175,3 +175,76 @@ def test_every_turn_is_logged_for_the_inspector_and_old_prompts_are_pruned(conn,
     assert len(rows) == 25
     assert sum(r["prompt"] is not None for r in rows) == 20
     assert {s["name"] for s in json.loads(rows[-1]["sections"])} >= {"cards", "history", "memory"}
+
+
+def test_world_state_shows_what_anyone_could_see_plus_only_the_speakers_private_flags(conn, story):
+    say(conn, story, "Aren", "Hello.")
+    flags = [
+        ("Tobin", "injured", "cut on the left hand", 0),
+        ("Tobin", "plans", "to sell the ledger", 1),
+        ("Mira", "owes", "forty silver to the guild", 1),
+        ("Mira", "holding", "a lantern", 0),
+        ("Mira", "holding", None, 0),  # later cleared
+    ]
+    for name, key, value, private in flags:
+        conn.execute(
+            "INSERT INTO flags(entity_id, key, value, story_time, private) VALUES(?, ?, ?, 0, ?)",
+            (eid(conn, name), key, value, private),
+        )
+    tail = context.build(conn, story, eid(conn, "Mira"), EP).messages[-1]["content"]
+    assert "Tobin: injured: cut on the left hand" in tail
+    assert "owes: forty silver to the guild" in tail
+    assert "to sell the ledger" not in tail  # Tobin's private state is his alone
+    assert "lantern" not in tail  # cleared
+
+
+def test_summaries_from_an_abandoned_branch_stay_out_of_the_prompt(conn, story):
+    first = say(conn, story, "Aren", "Hello.")
+    reply = say(conn, story, "Mira", "Branch A.")
+    run = conn.execute(
+        "INSERT INTO extraction_runs(story_id, from_message_id, to_message_id, trigger, status)"
+        " VALUES(?, ?, ?, 'cadence', 'ok')",
+        (story, first, reply),
+    ).lastrowid
+    conn.execute(
+        "INSERT INTO summaries(story_id, text, run_id) VALUES(?, 'Mira confessed on branch A.', ?)",
+        (story, run),
+    )
+    say(conn, story, "Aren", "Go on.")
+    assert (
+        "confessed on branch A"
+        in context.build(conn, story, eid(conn, "Mira"), EP).messages[0]["content"]
+    )
+
+    chat.append_sibling(conn, reply, "Branch B.")
+    assert (
+        "confessed" not in context.build(conn, story, eid(conn, "Mira"), EP).messages[0]["content"]
+    )
+
+
+def test_the_window_start_is_reported_for_recall(conn, story):
+    for i in range(300):
+        say(conn, story, "Aren" if i % 2 == 0 else "Mira", f"Line {i}. " + "words " * 60)
+    built = context.build(conn, story, eid(conn, "Mira"), EP)
+    first_shown = conn.execute(
+        "SELECT text FROM messages WHERE id=?", (built.window_start,)
+    ).fetchone()["text"]
+    assert first_shown.split(".")[0] in json.dumps(built.messages)
+    assert built.window_start > chat.active_path(conn, story)[0]["id"]
+
+
+def test_a_character_never_hears_what_was_said_while_they_were_out(conn, story):
+    say(conn, story, "Aren", "Evening.")
+    chat.set_presence(conn, story, eid(conn, "Tobin"), False)
+    say(conn, story, "Aren", "The ledger is under the floorboard.")
+    say(conn, story, "Mira", "Understood.")
+    chat.set_presence(conn, story, eid(conn, "Tobin"), True)
+    say(conn, story, "Aren", "Tobin! Welcome back.")
+
+    to_tobin = flat(context.build(conn, story, eid(conn, "Tobin"), EP).messages)
+    to_mira = flat(context.build(conn, story, eid(conn, "Mira"), EP).messages)
+    narrator = flat(context.build(conn, story, None, EP).messages)
+    assert "floorboard" in to_mira and "floorboard" in narrator
+    assert "floorboard" not in to_tobin and "Understood." not in to_tobin
+    assert "Evening." in to_tobin and "Welcome back." in to_tobin
+    assert "present: Mira, Tobin, Aren" in to_tobin  # he is back in the room

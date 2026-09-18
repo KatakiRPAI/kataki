@@ -20,19 +20,41 @@ def connect(path: str | Path) -> sqlite3.Connection:
     return conn
 
 
-def live_runs(conn: sqlite3.Connection, story_id: int) -> set[int]:
-    """Runs whose rows count right now: finished ok, and extracted on the active branch.
+def live_runs(conn: sqlite3.Connection, story_id: int, leaf_id: int | None = None) -> set[int]:
+    """Runs whose rows count right now: finished ok, and extracted on the branch that ends at
+    `leaf_id` (default: the active leaf).
 
-    Every memory query filters on `run_id IS NULL OR run_id IN live_runs`, which is why a
-    swipe or a branch switch never has to touch memory.
+    Every memory query filters through `live_filter`, which is why a swipe or a branch
+    switch never has to touch memory.
     """
+    start = "SELECT id, parent_id FROM messages WHERE id=?"
+    if leaf_id is None:
+        start = "SELECT m.id, m.parent_id FROM messages m JOIN stories s ON s.active_leaf_id=m.id"
+        start += " WHERE s.id=?"
     rows = conn.execute(
-        "WITH RECURSIVE up(id, parent_id) AS ("
-        " SELECT m.id, m.parent_id FROM messages m JOIN stories s ON s.active_leaf_id=m.id"
-        " WHERE s.id=?"
+        f"WITH RECURSIVE up(id, parent_id) AS ({start}"
         " UNION ALL SELECT m.id, m.parent_id FROM messages m JOIN up ON m.id=up.parent_id)"
         " SELECT r.id FROM extraction_runs r WHERE r.story_id=? AND r.status='ok'"
         " AND r.to_message_id IN (SELECT id FROM up)",
-        (story_id, story_id),
+        (story_id if leaf_id is None else leaf_id, story_id),
     )
     return {r["id"] for r in rows}
+
+
+def live_filter(live: set[int], column: str = "run_id") -> tuple[str, list[int]]:
+    """SQL condition + args: the row was written by the user, or by a live run."""
+    if not live:
+        return f"{column} IS NULL", []
+    return f"({column} IS NULL OR {column} IN ({','.join('?' * len(live))}))", sorted(live)
+
+
+def discard_run(conn: sqlite3.Connection, run_id: int) -> None:
+    """Undo a run completely. FKs cascade everything except taggings, which are polymorphic."""
+    with conn:
+        for obj, table in (("memory", "memories"), ("entity", "entities")):
+            conn.execute(
+                f"DELETE FROM taggings WHERE obj=? AND obj_id IN"
+                f" (SELECT id FROM {table} WHERE run_id=?)",
+                (obj, run_id),
+            )
+        conn.execute("DELETE FROM extraction_runs WHERE id=?", (run_id,))

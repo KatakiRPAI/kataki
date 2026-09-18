@@ -33,12 +33,6 @@ HEARSAY = {
 }
 
 
-def _live(live: set[int], column: str = "run_id") -> tuple[str, list[int]]:
-    if not live:
-        return f"{column} IS NULL", []
-    return f"({column} IS NULL OR {column} IN ({','.join('?' * len(live))}))", sorted(live)
-
-
 def _seeds(conn: sqlite3.Connection, story_id: int, text: str) -> set[int]:
     """Entities the text names. Longest alias first, so 'the old docks' beats 'the docks'."""
     rows = conn.execute(
@@ -76,15 +70,16 @@ def recall(
     noise: bool = True,
     log: bool = True,  # False = a read-only look, for the inspector
     d: float = activation.DECAY,
+    leaf_id: int | None = None,  # recall as of this message (a regenerate); default: active leaf
 ) -> list[Recalled]:
-    path = chat.active_path(conn, story_id)
+    path = chat.path_to(conn, leaf_id) if leaf_id else chat.active_path(conn, story_id)
     if not path:
         return []
     now, scene_id = path[-1]["story_time"], path[-1]["scene_id"]
-    live = db.live_runs(conn, story_id)
-    live_sql, live_args = _live(live)
+    live = db.live_runs(conn, story_id, leaf_id)
+    live_sql, live_args = db.live_filter(live)
     scene = conn.execute("SELECT place_id FROM scenes WHERE id IS ?", (scene_id,)).fetchone()
-    present = chat.present_entities(conn, scene_id, {m["id"] for m in path})
+    present = chat.present_entities(conn, scene_id, path)
 
     seeds = _seeds(conn, story_id, text)
     if scene and scene["place_id"]:
@@ -134,7 +129,7 @@ def recall(
         [*sorted(candidates), story_id, now, *live_args],
     ).fetchall()
 
-    know_sql, know_args = _live(live, "k.run_id")
+    know_sql, know_args = db.live_filter(live, "k.run_id")
     names = dict(
         conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)).fetchall()
     )

@@ -99,3 +99,16 @@ def test_role_names_are_constrained(conn):
     conn.execute("INSERT INTO model_roles(role) VALUES('reasoning')")
     with pytest.raises(sqlite3.IntegrityError):
         conn.execute("INSERT INTO model_roles(role) VALUES('chef')")
+
+
+def test_json_columns_keep_a_bare_number_as_text(conn):
+    # a column declared JSON gets NUMERIC affinity in SQLite and would turn '3.5' into 3.5
+    conn.execute("INSERT INTO settings(key, value) VALUES('ratio', '3.5')")
+    assert conn.execute("SELECT typeof(value) FROM settings").fetchone()[0] == "text"
+    json_columns = [
+        (t, c["name"])
+        for (t,) in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        for c in conn.execute(f"PRAGMA table_info({t})")
+        if c["type"].upper() == "JSON"
+    ]
+    assert json_columns == []
