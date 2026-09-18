@@ -6,15 +6,15 @@ What makes it different:
 
 - **Realism-first memory** in SQLite: characters, places and events are extracted automatically and cross-linked; each character only remembers what they witnessed or were told; memories fade with *story* time, important ones fade slower, and a character told something false will try to remember and challenge it.
 - **Token economy** built for small local models: cache-friendly prompt layout, extraction every few turns in idle time, zero extra LLM calls per turn for recall.
-- **Per-task model selector**: separate roles for character replies, narrator, utility extraction, reasoning, embeddings (later image and music), with reasoning and standard models handled differently.
+- **Per-task model selector**: separate jobs for character replies, narrator, the memory reader and careful re-reads, with reasoning and standard models handled differently.
 - Planned: consistent scene images, location/mood-adaptive music with slow crossfades, and a book/story/chapter library with cross-story canon links.
 
-Status: **pre-alpha**, milestone M0 (scaffold). Design spec: [docs/specs/2026-09-18-m0-m1-design.md](docs/specs/2026-09-18-m0-m1-design.md).
+Status: **pre-alpha**, milestone M1 (chat and the memory engine). Design spec and progress: [docs/specs/2026-09-18-m0-m1-design.md](docs/specs/2026-09-18-m0-m1-design.md).
 
 ## Layout
 
-- `engine/` — Python package `kataki`: the headless harness (library, CLI, local HTTP server).
-- `app/` — Electron + React + TypeScript desktop client.
+- `engine/`: Python package `kataki`, the headless harness (library, CLI, local HTTP server).
+- `app/`: Electron + React + TypeScript desktop client.
 
 ## Development
 
@@ -28,10 +28,53 @@ pnpm dev                      # desktop app (spawns the engine, dev library in .
 pnpm smoke                    # headless end-to-end check: shell -> engine -> renderer
 ```
 
-The engine also runs on its own: `cd engine && uv run kataki serve` prints `{"token", "port"}`.
+The engine also runs on its own:
+
+- `uv run kataki serve` prints `{"token", "port"}`. Open the renderer in any browser with `#port=<port>&token=<token>` after the address.
+- `uv run kataki chat --db <library.db>` plays the newest story in the terminal.
+
+## Connecting a model
+
+Kataki talks to anything with an OpenAI-compatible `/v1` endpoint. The Models page can find llama.cpp, Ollama, LM Studio, KoboldCpp, vLLM and TabbyAPI when they are already running on this computer, and has presets for OpenRouter and HuggingFace. API keys go to the system keychain, never into the library file.
+
+### A local model on an 8 GB GPU (the reference laptop: RTX 5060 Laptop, 8 GB)
+
+1. **llama.cpp.** Download a Windows CUDA release from [llama.cpp releases](https://github.com/ggml-org/llama.cpp/releases). RTX 50-series (Blackwell) cards need a **CUDA 12.8 or newer** build.
+2. **A model.** An 8B instruct model at Q4_K_M (about 5 GB) leaves room for a 16k context. A model with switchable thinking (the Qwen3 family, for example) can serve every job alone: thinking off for replies, on for the Reasoning job.
+3. **Start it.** Flags change between llama.cpp builds, so check `llama-server --help` against yours:
+
+   ```bash
+   llama-server -m model.gguf -c 16384 -ngl 99 -fa on -ctk q8_0 -ctv q8_0 -np 2 --jinja --port 8080
+   ```
+
+   - `-ngl 99` puts every layer on the GPU.
+   - `-ctk/-ctv q8_0` halves the memory of the context.
+   - `-np 2` gives replies and the memory reader a slot each, so reading memory does not throw away the chat's cached prompt. Some builds split `-c` between the slots; if yours does, raise `-c` or add `--kv-unified`.
+   - `--jinja` uses the model's own chat template, which is what switches thinking on and off.
+4. **In Kataki:** Models → *Look for model servers on this computer* → *Add and use it*. Then set the Characters job's context size to match `-c`.
+
+Ollama works the same way (`ollama pull <model>`, then look for servers). It has no slots, so the chat prompt is re-read after each memory read, which is slower.
+
+### Checking memory against a real model
+
+```bash
+cd engine
+uv run python evals/live_eval.py --base-url http://127.0.0.1:8080/v1 --model <model>
+```
+
+This plays a scripted story. A secret is told while one character is out of the room, the user lies about it, and the story skips six years. The report covers:
+
+- whether the absent character leaks the secret
+- whether the other character recalls it
+- how usable the memory reader's JSON was
+- duplicate entities
+- prompt-cache reuse
+- latency
+
+It runs in a throwaway library.
 
 ## Licence
 
-Licence TBD — all rights reserved until one is chosen. Do not redistribute yet.
+Licence TBD: all rights reserved until one is chosen. Do not redistribute yet.
 
 See [CONTENT_POLICY.md](CONTENT_POLICY.md).
