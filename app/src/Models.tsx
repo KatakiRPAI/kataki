@@ -18,7 +18,7 @@ const TEXT_ROLES: { role: string; label: string; help: string }[] = [
   {
     role: 'embed',
     label: 'Recall by meaning',
-    help: 'Optional. An embedding model lets "that treachery" find "Tobin betrayed us". Without one, memory is found by names and words. Ollama: nomic-embed-text.',
+    help: 'Lets "that treachery" find "Tobin betrayed us". Works out of the box: a small built-in model runs on the CPU (downloaded once, 125 MB). Pick a server here only to use your own embedding model, e.g. nomic-embed-text in Ollama.',
   },
 ]
 
@@ -230,14 +230,14 @@ function RoleEditor({
         <small>
           {row.effective_model
             ? `${row.inherited_from ? `same as ${TEXT_ROLES.find((r) => r.role === row.inherited_from)?.label ?? row.inherited_from}: ` : ''}${row.effective_model}`
-            : 'no model yet'}
+            : simple ? 'built-in model' : 'no model yet'}
         </small>
       </div>
       <p className="muted" style={{ margin: 0 }}>{meta.help}</p>
       <div className="grid2">
         <label>Server
           <select value={providerId ?? ''} onChange={(e) => setProviderId(e.target.value ? Number(e.target.value) : null)}>
-            <option value="">{meta.role === 'rp' ? 'Choose…' : simple ? 'None' : 'Inherit'}</option>
+            <option value="">{meta.role === 'rp' ? 'Choose…' : simple ? 'Built-in' : 'Inherit'}</option>
             {providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </label>

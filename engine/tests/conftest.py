@@ -5,7 +5,7 @@ import keyring
 import keyring.backend
 import pytest
 
-from kataki import db
+from kataki import db, embed
 from kataki.llm import LLM
 
 
@@ -31,6 +31,12 @@ class MemoryKeyring(keyring.backend.KeyringBackend):
 @pytest.fixture(autouse=True)
 def memory_keyring():
     keyring.set_keyring(MemoryKeyring())
+
+
+@pytest.fixture(autouse=True)
+def no_builtin_embedder(monkeypatch):
+    """Tests never download the built-in embedding model; the ones about it bring a fake."""
+    monkeypatch.setattr(embed, "builtin", lambda: None)
 
 
 @pytest.fixture

@@ -25,9 +25,11 @@ function fail(message: string): void {
 async function startEngine(token: string): Promise<number> {
   // ponytail: dev layout only (the repo venv). M5 packaging swaps in the bundled runtime path.
   const python = join(repoRoot, 'engine', '.venv', process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python')
-  const args = ['-m', 'kataki', 'serve', '--parent-watch', '--db', join(repoRoot, '.dev', 'library.db')]
+  const home = join(repoRoot, '.dev') // the dev library and downloaded models stay in the repo
+  const args = ['-m', 'kataki', 'serve', '--parent-watch', '--db', join(home, 'library.db')]
   // The engine watches its stdin: when this process ends for any reason, the pipe closes and it exits.
-  engine = spawn(python, args, { env: { ...process.env, KATAKI_TOKEN: token }, stdio: ['pipe', 'pipe', 'inherit'] })
+  const env = { ...process.env, KATAKI_TOKEN: token, KATAKI_HOME: home }
+  engine = spawn(python, args, { env, stdio: ['pipe', 'pipe', 'inherit'] })
   engine.on('error', (err) => fail(`could not start ${python}: ${err.message}`))
   engine.on('exit', (code) => fail(`engine exited with code ${code}`))
   const [hello] = await once(createInterface({ input: engine.stdout! }), 'line')

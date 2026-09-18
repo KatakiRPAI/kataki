@@ -303,5 +303,5 @@ def test_the_model_must_say_who_took_part_and_who_said_it():
 
 
 def test_the_reader_is_told_to_declare_new_things_and_keep_thoughts_private():
-    for rule in ("new_entities", "Unspoken thoughts", "keep the main people's names"):
+    for rule in ("new_entities", "Unspoken thoughts", "remembered years later"):
         assert rule in extract.INSTRUCTIONS

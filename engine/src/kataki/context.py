@@ -3,10 +3,9 @@
 Layout is strictly stable -> volatile so llama.cpp prefix reuse and API prompt caches hit:
 
   1. system: rules, public cards, world primer, pinned facts   (changes only on edit)
-  2.         scene summaries                                    (append-only)
-  3. history window, which slides in BIG chunks (oldest 25% at once), so the prefix stays
+  2. history window, which slides in BIG chunks (oldest 25% at once), so the prefix stays
      byte-identical across many turns instead of shifting every turn
-  4. the volatile tail - scene state, the SPEAKER's private card and recalled memories,
+  3. the volatile tail - scene state, the SPEAKER's private card and recalled memories,
      the directive - prepended to the final user message and never persisted
 
 The system block is speaker-free: only the tail knows who is speaking, so switching speaker
@@ -27,7 +26,6 @@ BASE_CAPS = {
     "response": 600,
     "rules": 350,
     "cards": 1400,
-    "summaries": 900,
     "memory": 900,
     "flags": 250,
     "examples": 300,  # the speaker's example dialogue, sent only when they speak
@@ -221,7 +219,6 @@ def build(
     full = chat.path_to(conn, leaf_id) if leaf_id else chat.active_path(conn, story_id)
     path = [m for m in full if not m["hidden"]]
     live = db.live_runs(conn, story_id, leaf_id)
-    live_sql, live_args = db.live_filter(live)
     scene_id = chat.scene_of(conn, story_id, path)
     scene = conn.execute("SELECT * FROM scenes WHERE id IS ?", (scene_id,)).fetchone()
     present = chat.present_entities(conn, scene_id, path)
@@ -239,27 +236,10 @@ def build(
     speaker = next((e for e in present if e["entity_id"] == speaker_id), None)
 
     # 1-2. the stable system block
+    # No scene summaries here: they are written by an all-seeing reader, and this block is
+    # shared by every speaker. What a character knows of the past comes from their own memory.
     rules, cards = _system(conn, story, persona, present, place)
-    summaries = [
-        r["text"]
-        for r in conn.execute(
-            f"SELECT text FROM summaries WHERE story_id=? AND {live_sql} ORDER BY id",
-            [story_id, *live_args],
-        )
-    ]
-    dropped_summaries = 0
-    while summaries and estimate("\n".join(summaries), ratio) > caps["summaries"]:
-        step = max(1, len(summaries) // 4)
-        summaries, dropped_summaries = summaries[step:], dropped_summaries + step
-    system = "\n\n".join(
-        part
-        for part in (
-            rules,
-            cards,
-            "## The story so far\n" + "\n".join(summaries) if summaries else "",
-        )
-        if part
-    )
+    system = "\n\n".join(part for part in (rules, cards) if part)
 
     # 3. history: whatever is left after the fixed blocks and the tail's reserved room.
     # A character only sees what was said while they were there; the narrator sees it all.
@@ -322,7 +302,7 @@ def build(
     memory_lines, report, memory_tokens = _fit_memories(list(recalled), caps["memory"], ratio)
     who = speaker["name"] if speaker else "the narrator"
     if speaker and speaker["private"]:
-        state.append(f"[{who}, private]\n{speaker['private']}")
+        state.append(f"[Only {who} knows]\n{speaker['private']}")
     examples, clipped = _clip(speaker["examples"] if speaker else "", caps["examples"], ratio)
     if examples:
         state.append(f"[How {who} talks]\n{examples}")
@@ -342,12 +322,6 @@ def build(
     sections = [
         {"name": "rules", "tokens": estimate(rules, ratio), "cap": caps["rules"], "evicted": 0},
         {"name": "cards", "tokens": estimate(cards, ratio), "cap": caps["cards"], "evicted": 0},
-        {
-            "name": "summaries",
-            "tokens": estimate("\n".join(summaries), ratio),
-            "cap": caps["summaries"],
-            "evicted": dropped_summaries,
-        },
         {"name": "history", "tokens": history_tokens, "cap": max(history_cap, 0), "evicted": cut},
         {
             "name": "memory",

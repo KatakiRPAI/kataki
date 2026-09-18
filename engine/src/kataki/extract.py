@@ -315,8 +315,10 @@ character says aloud is a claim: asserted_by = the speaker, heard_by = who heard
   - Unspoken thoughts and feelings are private: an event with covert: true whose only \
 participant is the one thinking it. Never a claim, never heard by anyone else.
   - detail: one or two specific sentences: names, numbers, exact words where they matter.
-  - gist: the same thing as a vague half-memory: keep the main people's names, drop minor \
-names, numbers and exact words.
+  - gist: the same thing as it is remembered years later: the main people and roughly what \
+happened, without the specifics (exact places and hiding spots, numbers, minor names, quoted \
+words). "Silas buried forty crowns under the mill's waterwheel" -> "Silas buried some money \
+near the mill".
   - importance 1-10: 1 small talk, 5 useful, 8 life-changing, 10 unforgettable.
   - line: the transcript line where it happened.
   - covert: true if only the participants could know (a whisper, a hidden act).
@@ -474,6 +476,8 @@ async def read(
     except asyncio.CancelledError:
         db.discard_run(conn, run_id)  # stopped to make way for a reply: no trace, retried later
         raise
+    if conn.execute("SELECT 1 FROM extraction_runs WHERE id=?", (run_id,)).fetchone() is None:
+        return run_id  # another reader took this window over while the model was busy
     with contextlib.suppress(ValueError):  # apply() has already marked the run failed
         apply(conn, run_id, data)
     return run_id

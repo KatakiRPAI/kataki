@@ -23,33 +23,44 @@ from pathlib import Path
 from kataki import chat, db, extract, library, retrieve, turns
 from kataki.llm import LLM
 
-SECRET = re.compile(r"floor ?board", re.IGNORECASE)
+# the hiding place, however it is phrased ("the floorboard. The third one."); "somewhere
+# behind the bar" is what a hazy memory should leave
+SECRET = re.compile(
+    r"floor ?boards?\b.{0,80}?\b(third|bar)\b|\b(third|bar)\b.{0,80}?floor ?board",
+    re.IGNORECASE | re.DOTALL,
+)
 
-# (line Aren says, who should answer, what happens first)
+# (line Aren says, who should answer, probe, Tobin leaves or returns first). Tobin is away for
+# the recall, the lie and the reunion, so they test memory, not whether Mira keeps quiet.
 SCRIPT = [
-    ("Evening, both of you. Rough night on the docks?", "Mira", None),
-    ("Tobin, would you fetch us a round from the bar?", "Tobin", None),
+    ("Evening, both of you. Rough night on the docks?", "Mira", None, None),
+    ("Tobin, would you fetch us a round from the bar?", "Tobin", None, None),
     (
         "Mira, quickly, while he's gone. I hid the guild ledger under the third floorboard "
         "behind the bar. Tell no one, least of all Tobin.",
         "Mira",
-        "tobin leaves",
+        None,
+        "leaves",
     ),
-    ("Swear it, Mira. Nobody can know about that floorboard.", "Mira", None),
-    ("Welcome back, Tobin. What took you so long?", "Tobin", "tobin returns"),
-    ("So, Tobin, any work going at the harbour these days?", "Tobin", None),
-    ("Mira, how is the courier trade treating you?", "Mira", None),
-    ("I might need a ship out of here soon. Who should I ask?", "Tobin", None),
-    ("Tobin, between us: do you know where the guild ledger is hidden?", "Tobin", "LEAK"),
-    ("Mira, you remember where I put the ledger, don't you?", "Mira", "RECALL"),
-    ("Mira, I told you I hid the ledger in the cellar, didn't I?", "Mira", "LIE"),
-    ("Six years later, Aren walks back into the Gull, grey at the temples.", "Mira", None),
+    ("Swear it, Mira. Nobody can know about that floorboard.", "Mira", None, None),
+    ("Welcome back, Tobin. What took you so long?", "Tobin", None, "returns"),
+    ("So, Tobin, any work going at the harbour these days?", "Tobin", None, None),
+    ("Mira, how is the courier trade treating you?", "Mira", None, None),
+    ("I might need a ship out of here soon. Who should I ask?", "Tobin", None, None),
+    ("Tobin, between us: do you know where the guild ledger is hidden?", "Tobin", "LEAK", None),
+    ("Tobin, would you ask the harbour master about a ship for me? Now, if you can.", "Tobin",
+     None, None),
+    ("He's gone. Mira, you remember where I put the ledger, don't you?", "Mira", "RECALL",
+     "leaves"),
+    ("Mira, I told you I hid the ledger in the cellar, didn't I?", "Mira", "LIE", None),
+    ("Six years later, Aren walks back into the Gull, grey at the temples.", "Mira", None, None),
     (
         "Mira! After all these years. Do you still remember where I hid the ledger?",
         "Mira",
         "REUNION",
+        None,
     ),
-]
+]  # fmt: skip
 
 
 async def play(conn, llm, story: int, line: str, speaker: int) -> tuple[str, float, float]:
@@ -58,6 +69,8 @@ async def play(conn, llm, story: int, line: str, speaker: int) -> tuple[str, flo
         if kind == "token":
             first = first or time.perf_counter()
             text.append(value)
+        elif kind == "done":
+            text = [value["text"]]  # what was kept, as the story (and the next prompt) sees it
         elif kind == "error":
             text.append(f"[error: {value['message']}]")
     end = time.perf_counter()
@@ -114,11 +127,9 @@ async def main(args) -> None:
     }
 
     replies, asked_at, first_token, total = {}, {}, [], []
-    for line, who, note in SCRIPT:
-        if note == "tobin leaves":
-            chat.set_presence(conn, story, eid["Tobin"], False)
-        if note == "tobin returns":
-            chat.set_presence(conn, story, eid["Tobin"], True)
+    for line, who, note, tobin in SCRIPT:
+        if tobin:
+            chat.set_presence(conn, story, eid["Tobin"], tobin == "returns")
         reply, ttft, took = await play(conn, llm, story, line, eid[who])
         first_token.append(ttft)
         total.append(took)
@@ -154,31 +165,52 @@ async def main(args) -> None:
     aloud = [
         m
         for m in path
-        if m["id"] in heard
-        and m["id"] < asked_at.get("LEAK", 0)
-        and m["speaker_id"] != eid["Tobin"]
-        and SECRET.search(m["text"])
+        if m["id"] in heard and m["speaker_id"] != eid["Tobin"] and SECRET.search(m["text"])
     ]
+    before_probe = [m for m in aloud if m["id"] < asked_at.get("LEAK", 0)]
+    blurted = name_of.get(aloud[0]["speaker_id"], "someone") if aloud else None
+    read_to = conn.execute(
+        "SELECT max(to_message_id) FROM extraction_runs WHERE status='ok'"
+    ).fetchone()[0]
+    read_aloud = [m for m in aloud if m["id"] <= (read_to or 0)]  # what memory got to see
     if not SECRET.search(replies.get("LEAK", "")):
         leak = "held (Tobin was out when he was told)"
-    elif aloud:
-        blurted = name_of.get(aloud[0]["speaker_id"], "someone")
+    elif before_probe:
         leak = f"said it, but {blurted} had said it aloud in front of him"
     else:
         leak = "LEAKED: nobody told him"
     tobin_knows = [
         m for m in retrieve.inspect(conn, story, eid["Tobin"]) if SECRET.search(m["detail"])
     ]
+    if tobin_knows and read_aloud:
+        tobin_line = f"knows it ({tobin_knows[0]['source']}), rightly: {blurted} said it near him"
+    elif tobin_knows:
+        tobin_line = f"LEAKED: knows it ({tobin_knows[0]['source']}) but never heard it"
+    elif read_aloud:
+        tobin_line = f"MISSED: {blurted} said it in front of him, memory did not record it"
+    else:
+        tobin_line = "does not know it (right: he never heard it)"
     recalled = SECRET.search(replies.get("RECALL", ""))
     print(f"leak probe       {leak}")
-    tobin_line = (
-        f"knows the secret ({tobin_knows[0]['source']})" if tobin_knows else "does not hold it"
-    )
     print(f"Tobin's memory   {tobin_line}")
     print(f"recall probe     {'recalled' if recalled else 'NOT recalled'} (Mira)")
-    print(
-        f"secret in memory {'yes, ' + secret[0]['tier'] + ' after six years' if secret else 'NO'}"
-    )
+    held = f"holds the secret, {secret[0]['tier']} now" if secret else "LOST it"
+    print(f"Mira's memory    {held}")
+    # what Mira actually had in front of her at the reunion: the old lines, or only memory
+    logged = conn.execute(
+        "SELECT prompt FROM context_log WHERE message_id=?", (asked_at.get("REUNION"),)
+    ).fetchone()
+    reunion = json.loads(logged["prompt"]) if logged and logged["prompt"] else []
+    history = "\n".join(m["content"] for m in reunion[:-1])
+    tail = reunion[-1]["content"] if reunion else ""  # the last message carries her memory
+    where = [
+        label
+        for label, text in (("the chat history", history), ("her memory", tail))
+        if SECRET.search(text)
+    ]
+    strained = " (she strained to recall)" if "(after straining to recall)" in tail else ""
+    print(f"at the reunion   secret in {' and '.join(where)}{strained}" if where else
+          "at the reunion   secret not in her prompt: memory gave only the gist")  # fmt: skip
     cache = (
         f"{usage[0] / usage[1]:.0%} of prompt tokens"
         if usage[1]

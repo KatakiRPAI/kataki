@@ -9,6 +9,7 @@ dependencies = [
     "httpx2>=2.13",
     "keyring>=25",
     "numpy>=2",
+    "model2vec>=0.9",
 ]
 
 [project.scripts]

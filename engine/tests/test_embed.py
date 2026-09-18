@@ -3,6 +3,7 @@
 import json
 
 import httpx2
+import numpy as np
 import pytest
 
 from kataki import chat, embed, extract, library, retrieve, turns
@@ -106,6 +107,26 @@ async def test_a_turn_uses_the_embedder_to_recall_by_meaning(conn, story):
     await play(turns.turn(conn, server.llm, story, QUESTION, speaker=mira(conn)))
     assert QUESTION in server.embedded[-1]
     assert BETRAYAL in json.dumps(server.chats[-1]["messages"])
+
+
+class Builtin:
+    """Stands in for the small built-in model: same `encode` shape, `concept` inside."""
+
+    def encode(self, texts):
+        return np.array([concept(t) for t in texts], dtype=np.float32)
+
+
+async def test_with_no_embed_model_set_the_builtin_one_recalls_by_meaning(conn, story, monkeypatch):
+    monkeypatch.setattr(embed, "builtin", Builtin)
+    server = Server()
+    assert await embed.refresh(conn, server.llm, story) == 2
+    assert server.embedded == []  # nothing went to a server
+
+    ranks = await embed.ranks_for(conn, server.llm, story, QUESTION)
+    got = retrieve.recall(
+        conn, story, mira(conn), QUESTION, noise=False, log=False, vector_ranks=ranks
+    )
+    assert [r.text for r in got][0] == BETRAYAL
 
 
 async def test_a_broken_embedder_never_breaks_a_turn(conn, story):

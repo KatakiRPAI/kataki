@@ -14,7 +14,7 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import aclosing
 from typing import Any
 
-from kataki import chat, clock, context, embed, retrieve, roles
+from kataki import chat, clock, context, embed, extract, retrieve, roles
 from kataki.llm import LLM, LLMError
 
 Event = tuple[str, Any]
@@ -119,6 +119,21 @@ class _Prefix:
         return held
 
 
+async def _read_past_before_skip(
+    conn: sqlite3.Connection, llm: LLM, story_id: int, get_key: Callable[[str], str | None]
+) -> None:
+    """Years pass before this reply, so the lines before them leave the verbatim window, and
+    a line leaves only once memory has read it. Read them now rather than after the reply,
+    or the reply would still see the old conversation word for word."""
+    while any(m["skip_minutes"] >= context.BIG_SKIP for m in extract.pending(conn, story_id)[1:]):
+        if (job := extract.due(conn, story_id, get_key)) is None:
+            return
+        run_id = await extract.read(conn, llm, story_id, *job)
+        status = conn.execute("SELECT status FROM extraction_runs WHERE id=?", (run_id,))
+        if (row := status.fetchone()) is None or row[0] != "ok":
+            return  # the model can't read right now: reply anyway, the window stays whole
+
+
 async def _generate(
     conn: sqlite3.Connection,
     llm: LLM,
@@ -127,6 +142,7 @@ async def _generate(
     speaker_id: int | None,
     get_key: Callable[[str], str | None],
 ) -> AsyncIterator[Event]:
+    await _read_past_before_skip(conn, llm, story_id, get_key)
     role = "rp" if speaker_id is not None else "narrator"
     ep = roles.resolve(conn, role, story_id, get_key)
     if ep is None:

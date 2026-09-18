@@ -94,6 +94,17 @@ async def test_a_time_skip_in_what_the_user_writes_moves_the_story_clock(conn, s
     assert user["skip_minutes"] == 6 * 365 * 1440
 
 
+async def test_the_reply_after_years_pass_sees_only_memory_of_the_old_lines(conn, story, backend):
+    backend.say("I hid it under the third floorboard.")
+    await play(turns.turn(conn, backend.llm, story, "Mira, where is it?"))
+    backend.say(json.dumps({}), "So much has changed.")  # the past is read first, then the reply
+    await play(turns.turn(conn, backend.llm, story, "Six years later, Aren returns to the Gull."))
+
+    read, reply = backend.requests[-2:]
+    assert not read.get("stream") and reply["stream"]
+    assert "floorboard" not in json.dumps(reply["messages"])
+
+
 # --- who speaks ----------------------------------------------------------------------------
 
 

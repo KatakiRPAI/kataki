@@ -40,18 +40,21 @@ Kataki talks to anything with an OpenAI-compatible `/v1` endpoint. The Models pa
 ### A local model on an 8 GB GPU (the reference laptop: RTX 5060 Laptop, 8 GB)
 
 1. **llama.cpp.** Download a Windows CUDA release from [llama.cpp releases](https://github.com/ggml-org/llama.cpp/releases). RTX 50-series (Blackwell) cards need a **CUDA 12.8 or newer** build.
-2. **A model.** An 8B instruct model at Q4_K_M (about 5 GB) leaves room for a 16k context. A model with switchable thinking (the Qwen3 family, for example) can serve every job alone: thinking off for replies, on for the Reasoning job.
-3. **Start it.** Flags change between llama.cpp builds, so check `llama-server --help` against yours:
+2. **A model.** An 8-9B instruct model at Q4_K_M (about 5-6 GB) leaves room for a 16k context. A model with switchable thinking can serve every job alone: thinking off for replies and memory reads, on for the Reasoning job. Tested: **Qwen3.5-9B Q4_K_M** (`Qwen3.5-9B-Q4_K_M.gguf` from [unsloth/Qwen3.5-9B-GGUF](https://huggingface.co/unsloth/Qwen3.5-9B-GGUF), 5.7 GB).
+3. **Start it.** This command was tested with llama.cpp b11043 (CUDA 13). Flags change between builds, so check `llama-server --help` against yours:
 
    ```bash
-   llama-server -m model.gguf -c 16384 -ngl 99 -fa on -ctk q8_0 -ctv q8_0 -np 2 --jinja --port 8080
+   llama-server -m Qwen3.5-9B-Q4_K_M.gguf --alias qwen3.5-9b -c 32768 -ngl 99 -fa on -ctk q8_0 -ctv q8_0 -np 2 -kvu --port 8080
    ```
 
-   - `-ngl 99` puts every layer on the GPU.
+   - `-ngl 99` puts every layer on the GPU (about 6 GB of VRAM in total with this model).
    - `-ctk/-ctv q8_0` halves the memory of the context.
-   - `-np 2` gives replies and the memory reader a slot each, so reading memory does not throw away the chat's cached prompt. Some builds split `-c` between the slots; if yours does, raise `-c` or add `--kv-unified`.
-   - `--jinja` uses the model's own chat template, which is what switches thinking on and off.
-4. **In Kataki:** Models → *Look for model servers on this computer* → *Add and use it*. Then set the Characters job's context size to match `-c`.
+   - `-np 2` gives replies and the memory reader a slot each, so reading memory does not throw away the chat's cached prompt. `-kvu` lets the slots share the whole `-c` instead of splitting it.
+   - The model's own chat template (on by default in recent builds; older ones need `--jinja`) is what switches thinking on and off.
+   - On the reference laptop: first words in 1-2 s, a whole reply in 7-9 s.
+4. **In Kataki:** Models → *Look for model servers on this computer* → *Add and use it*. Then set the Characters job's context size (16384 is plenty). For a hybrid model like Qwen3.5, set thinking to *off* on Characters and Memory reader and *on* on Reasoning.
+
+**Recall by meaning** needs no setup: with nothing chosen on that row, a small built-in model ([potion-retrieval-32M](https://huggingface.co/minishlab/potion-retrieval-32M), 125 MB, runs on the CPU) is downloaded once into Kataki's data folder and used. Pick a server on that row only to use your own embedding model.
 
 Ollama works the same way (`ollama pull <model>`, then look for servers). It has no slots, so the chat prompt is re-read after each memory read, which is slower.
 
@@ -59,13 +62,15 @@ Ollama works the same way (`ollama pull <model>`, then look for servers). It has
 
 ```bash
 cd engine
-uv run python evals/live_eval.py --base-url http://127.0.0.1:8080/v1 --model <model>
+uv run python evals/live_eval.py --base-url http://127.0.0.1:8080/v1 --model <model> --ctx 16384 --hybrid
 ```
+
+(`--hybrid` for a model with switchable thinking, as in the setup above.)
 
 This plays a scripted story. A secret is told while one character is out of the room, the user lies about it, and the story skips six years. The report covers:
 
-- whether the absent character leaks the secret
-- whether the other character recalls it
+- whether the absent character leaks the secret, and whether he learned it later by honest means
+- whether the other character recalls it, and what was actually in her prompt at the six-year reunion: the old conversation, or only her (hazy) memory
 - how usable the memory reader's JSON was
 - duplicate entities
 - prompt-cache reuse

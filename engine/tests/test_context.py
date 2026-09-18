@@ -198,28 +198,25 @@ def test_world_state_shows_what_anyone_could_see_plus_only_the_speakers_private_
     assert "lantern" not in tail  # cleared
 
 
-def test_summaries_from_an_abandoned_branch_stay_out_of_the_prompt(conn, story):
-    first = say(conn, story, "Aren", "Hello.")
-    reply = say(conn, story, "Mira", "Branch A.")
+def test_scene_summaries_never_reach_a_characters_prompt(conn, story):
+    # found against a real model: the reader summarised a secret told while Tobin was out, and
+    # the shared block put that summary in front of Tobin. What someone knows comes only from
+    # their own memory; summaries are for the app to show.
+    first = say(conn, story, "Aren", "Mira, the ledger is under the third floorboard.")
+    reply = say(conn, story, "Mira", "I'll keep it.")
     run = conn.execute(
         "INSERT INTO extraction_runs(story_id, from_message_id, to_message_id, trigger, status)"
         " VALUES(?, ?, ?, 'cadence', 'ok')",
         (story, first, reply),
     ).lastrowid
     conn.execute(
-        "INSERT INTO summaries(story_id, text, run_id) VALUES(?, 'Mira confessed on branch A.', ?)",
+        "INSERT INTO summaries(story_id, text, run_id) VALUES(?, 'Aren told Mira of the"
+        " floorboard.', ?)",
         (story, run),
     )
-    say(conn, story, "Aren", "Go on.")
-    assert (
-        "confessed on branch A"
-        in context.build(conn, story, eid(conn, "Mira"), EP).messages[0]["content"]
-    )
-
-    chat.append_sibling(conn, reply, "Branch B.")
-    assert (
-        "confessed" not in context.build(conn, story, eid(conn, "Mira"), EP).messages[0]["content"]
-    )
+    say(conn, story, "Aren", "Tobin, what do you know?")
+    prompt = json.dumps(context.build(conn, story, eid(conn, "Tobin"), EP).messages)
+    assert "Aren told Mira" not in prompt
 
 
 def test_the_window_start_is_reported_for_recall(conn, story):

@@ -12,15 +12,12 @@ from pathlib import Path
 
 import uvicorn
 
-from kataki import db
+from kataki import data_dir, db, embed
 from kataki.server import create_app
 
 
 def default_db_path() -> Path:
-    base = (
-        os.environ.get("APPDATA") or os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share"
-    )
-    return Path(base) / "Kataki" / "library.db"
+    return data_dir() / "library.db"
 
 
 def serve(db_path: Path, parent_watch: bool, port: int = 0) -> None:
@@ -36,6 +33,8 @@ def serve(db_path: Path, parent_watch: bool, port: int = 0) -> None:
     hello["port"] = sock.getsockname()[1]
     print(json.dumps(hello), flush=True)
 
+    # load (on first run, download) the built-in embedding model now, not on the first turn
+    threading.Thread(target=embed.builtin, daemon=True).start()
     config = uvicorn.Config(create_app(db.connect(db_path), token), log_level="warning")
     server = uvicorn.Server(config)
     if parent_watch:
