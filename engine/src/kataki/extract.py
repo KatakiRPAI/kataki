@@ -15,7 +15,7 @@ import json
 import re
 import sqlite3
 
-from kataki import chat, db, library, retrieve, roles
+from kataki import chat, db, embed, library, retrieve, roles
 from kataki.activation import FIDELITY
 from kataki.llm import LLM, Endpoint, LLMError
 from kataki.models import extraction_schema, parse_extraction
@@ -507,7 +507,9 @@ async def run_due(
     """Do the next due read, if any. Returns its run id."""
     if job := due(conn, story_id, get_key, manual):
         chunk, trigger, role, ep, attempts = job
-        return await read(conn, llm, story_id, chunk, trigger, role, ep, attempts)
+        run_id = await read(conn, llm, story_id, chunk, trigger, role, ep, attempts)
+        await embed.refresh(conn, llm, story_id, get_key)
+        return run_id
     return None
 
 
@@ -584,3 +586,4 @@ class Worker:
             ).fetchone()
             if status is None or status[0] != "ok":
                 return  # a failing model is not hammered; the next poke tries again
+            await embed.refresh(self.conn, self.llm, story_id, self.get_key)

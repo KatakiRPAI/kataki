@@ -15,6 +15,11 @@ const TEXT_ROLES: { role: string; label: string; help: string }[] = [
   { role: 'narrator', label: 'Narrator', help: 'Narration and scene description. Empty: uses Characters.' },
   { role: 'utility', label: 'Memory reader', help: 'Reads the story into memory every few turns, at temperature 0. A small fast model is ideal.' },
   { role: 'reasoning', label: 'Reasoning', help: 'Careful re-reads when a scene closes, and on request. A reasoning model shines here.' },
+  {
+    role: 'embed',
+    label: 'Recall by meaning',
+    help: 'Optional. An embedding model lets "that treachery" find "Tobin betrayed us". Without one, memory is found by names and words. Ollama: nomic-embed-text.',
+  },
 ]
 
 const SAMPLERS: Record<string, Record<string, number>> = {
@@ -57,7 +62,7 @@ export default function Models() {
               onChange={reloadRoles}
             />
           ))}
-        <p className="muted">Embeddings, images and music get their own slots in later milestones.</p>
+        <p className="muted">Images and music get their own slots in later milestones.</p>
       </section>
     </div>
   )
@@ -213,7 +218,8 @@ function RoleEditor({
     })
 
   const probe = () => run(async () => { await api(`/roles/${meta.role}/probe`, 'POST'); onChange() })
-  const shownKind = kind === 'auto' ? row.effective_kind : kind
+  const simple = meta.role === 'embed' // a model and nothing else: no kind, no thinking, no samplers
+  const shownKind = simple ? null : kind === 'auto' ? row.effective_kind : kind
 
   return (
     <div className="card stack">
@@ -231,7 +237,7 @@ function RoleEditor({
       <div className="grid2">
         <label>Server
           <select value={providerId ?? ''} onChange={(e) => setProviderId(e.target.value ? Number(e.target.value) : null)}>
-            <option value="">{meta.role === 'rp' ? 'Choose…' : 'Inherit'}</option>
+            <option value="">{meta.role === 'rp' ? 'Choose…' : simple ? 'None' : 'Inherit'}</option>
             {providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </label>
@@ -239,6 +245,7 @@ function RoleEditor({
           <input list={`models-${meta.role}`} value={model} disabled={!providerId} placeholder={providerId ? 'Type or pick a model' : ''} onChange={(e) => setModel(e.target.value)} />
           <datalist id={`models-${meta.role}`}>{models.map((m) => <option key={m} value={m} />)}</datalist>
         </label>
+        {!simple && (<>
         <label>Kind
           <div className="row">
             <select value={kind} onChange={(e) => setKind(e.target.value as Kind)}>
@@ -252,6 +259,7 @@ function RoleEditor({
         <label>Context size (tokens)
           <input type="number" min={1024} step={1024} value={String(params.ctx_size ?? '')} placeholder="8192" onChange={(e) => set('ctx_size', e.target.value ? Number(e.target.value) : '')} />
         </label>
+        </>)}
         {shownKind === 'reasoning' && (
           <>
             <label>Thinking
@@ -275,7 +283,7 @@ function RoleEditor({
           </>
         )}
       </div>
-      {meta.role !== 'utility' && meta.role !== 'reasoning' && (
+      {(meta.role === 'rp' || meta.role === 'narrator') && (
         <details>
           <summary>Samplers and extra request fields</summary>
           <div className="stack" style={{ marginTop: '0.5rem' }}>

@@ -113,6 +113,7 @@ def recall(
     log: bool = True,  # False = a read-only look, for the inspector
     d: float = activation.DECAY,
     leaf_id: int | None = None,  # recall as of this message (a regenerate); default: active leaf
+    vector_ranks: dict[int, int] | None = None,  # from embed.py, when an embedder is set
 ) -> list[Recalled]:
     path = chat.path_to(conn, leaf_id) if leaf_id else chat.active_path(conn, story_id)
     if not path:
@@ -159,9 +160,14 @@ def recall(
             (query, LIMIT),
         )
         ranks = {r["rowid"]: i for i, r in enumerate(hits, start=1)}
-    # ponytail: FTS is the only ranked list until embed.py lands; RRF then fuses both
+    # reciprocal rank fusion over the ranked lists that were searched: words, and meaning
+    searched = [r for r in (ranks if query else None, vector_ranks) if r is not None]
 
-    candidates = set(graph) | set(ranks)
+    def relevance_of(memory_id: int) -> float:
+        fused = sum(1 / (RRF_K + r[memory_id]) for r in searched if memory_id in r)
+        return fused / (len(searched) / (RRF_K + 1)) if searched else 0.0
+
+    candidates = set(graph) | set(ranks) | set(vector_ranks or ())
     if not candidates:
         return []
     marks = ",".join("?" * len(candidates))
@@ -189,7 +195,7 @@ def recall(
         if known is None and not m["common"]:
             continue  # the hard gate: this character does not know it
 
-        relevance = (1 / (RRF_K + ranks[m["id"]])) * (RRF_K + 1) if m["id"] in ranks else 0.0
+        relevance = relevance_of(m["id"])
         wobble = activation.noise(knower_id, m["id"], scene_id or 0) if noise else 0.0
         source, superseded, s = _assess(
             conn, m, knower_id, known, now, live_scenes, live, relevance, graph.get(m["id"], 0.0),

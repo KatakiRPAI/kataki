@@ -3,12 +3,12 @@ name = "kataki"
 version = "0.0.1"
 description = "Kataki RPAI engine: headless AI roleplay harness"
 requires-python = ">=3.12"
-# numpy and model2vec are added by the task that first uses them (embed.py)
 dependencies = [
     "fastapi>=0.115",
     "uvicorn>=0.30",
     "httpx2>=2.13",
     "keyring>=25",
+    "numpy>=2",
 ]
 
 [project.scripts]

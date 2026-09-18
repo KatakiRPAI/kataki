@@ -14,7 +14,7 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import aclosing
 from typing import Any
 
-from kataki import chat, clock, context, retrieve, roles
+from kataki import chat, clock, context, embed, retrieve, roles
 from kataki.llm import LLM, LLMError
 
 Event = tuple[str, Any]
@@ -132,14 +132,16 @@ async def _generate(
 
     built = context.build(conn, story_id, speaker_id, ep, leaf_id=parent_id)
     if speaker_id is not None:
+        recent = "\n".join(m["text"] for m in path[-2:])
         recalled = retrieve.recall(
             conn,
             story_id,
             speaker_id,
-            "\n".join(m["text"] for m in path[-2:]),
+            recent,
             window_start=built.window_start,
             pressed=_pressed(conn, story_id, speaker_id),
             leaf_id=parent_id,
+            vector_ranks=await embed.ranks_for(conn, llm, story_id, recent, get_key),
         )
         if recalled:
             built = context.build(conn, story_id, speaker_id, ep, recalled, leaf_id=parent_id)
