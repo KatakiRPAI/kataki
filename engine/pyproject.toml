@@ -4,7 +4,7 @@ version = "0.0.1"
 description = "Kataki RPAI engine: headless AI roleplay harness"
 requires-python = ">=3.12"
 # numpy, model2vec, keyring are added by the tasks that first use them
-dependencies = ["fastapi>=0.115", "uvicorn>=0.30", "httpx>=0.27"]
+dependencies = ["fastapi>=0.115", "uvicorn>=0.30", "httpx2>=2.13"]
 
 [project.scripts]
 kataki = "kataki.__main__:main"
@@ -21,6 +21,10 @@ packages = ["src/kataki"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+filterwarnings = [
+    "error",  # our own warnings fail the build
+    "ignore:The anyio.abc.BlockingPortal alias:DeprecationWarning",  # inside starlette.testclient
+]
 
 [tool.ruff]
 line-length = 100
