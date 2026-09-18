@@ -25,11 +25,29 @@ def _set_active(conn: sqlite3.Connection, story_id: int, message_id: int) -> Non
     conn.execute("UPDATE stories SET active_leaf_id=? WHERE id=?", (message_id, story_id))
 
 
-def active_path(conn: sqlite3.Connection, story_id: int) -> list[sqlite3.Row]:
-    """Root -> leaf. Ids only grow along a path, so ordering by id is ordering by depth."""
-    story = conn.execute("SELECT active_leaf_id FROM stories WHERE id=?", (story_id,)).fetchone()
+def path_to(conn: sqlite3.Connection, message_id: int | None) -> list[sqlite3.Row]:
+    """Root -> message. Ids only grow along a path, so ordering by id is ordering by depth."""
     sql = _UP + "SELECT * FROM messages WHERE id IN (SELECT id FROM up) ORDER BY id"
-    return conn.execute(sql, (story["active_leaf_id"],)).fetchall()
+    return conn.execute(sql, (message_id,)).fetchall()
+
+
+def active_path(conn: sqlite3.Connection, story_id: int) -> list[sqlite3.Row]:
+    story = conn.execute("SELECT active_leaf_id FROM stories WHERE id=?", (story_id,)).fetchone()
+    return path_to(conn, story["active_leaf_id"])
+
+
+def present_entities(conn: sqlite3.Connection, scene_id: int | None, path_ids: set[int]) -> list:
+    """Who is in the scene: the latest presence row per entity that is live on this branch."""
+    rows = conn.execute(
+        "SELECT p.entity_id, p.present, p.message_id, e.* FROM presence p"
+        " JOIN entities e ON e.id=p.entity_id WHERE p.scene_id IS ? ORDER BY p.id",
+        (scene_id,),
+    ).fetchall()
+    latest = {}
+    for r in rows:
+        if r["message_id"] is None or r["message_id"] in path_ids:
+            latest[r["entity_id"]] = r
+    return [r for r in latest.values() if r["present"]]
 
 
 def append_message(

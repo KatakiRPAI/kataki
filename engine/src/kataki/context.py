@@ -75,20 +75,6 @@ def estimate(text: str, ratio: float = RATIO) -> int:
     return math.ceil(round(len(text) / ratio * MARGIN, 6))
 
 
-def _present(conn: sqlite3.Connection, scene_id: int | None, path_ids: set[int]) -> list:
-    """Entities currently in the scene: the latest live presence row per entity says so."""
-    rows = conn.execute(
-        "SELECT p.entity_id, p.present, p.message_id, e.* FROM presence p"
-        " JOIN entities e ON e.id=p.entity_id WHERE p.scene_id IS ? ORDER BY p.id",
-        (scene_id,),
-    ).fetchall()
-    latest = {}
-    for r in rows:
-        if r["message_id"] is None or r["message_id"] in path_ids:  # live on this branch
-            latest[r["entity_id"]] = r
-    return [r for r in latest.values() if r["present"]]
-
-
 def _system(conn, story, persona, present, place) -> tuple[str, str]:
     rules = RULES.format(persona=persona["name"] if persona else "the user")
     cards = [f"## {e['name']}\n{e['description'] or ''}".strip() for e in present]
@@ -174,7 +160,7 @@ def build(
         ).fetchone()
         scene_id = first["id"] if first else None
     scene = conn.execute("SELECT * FROM scenes WHERE id IS ?", (scene_id,)).fetchone()
-    present = _present(conn, scene_id, {m["id"] for m in path})
+    present = chat.present_entities(conn, scene_id, {m["id"] for m in path})
     names = {e["entity_id"]: e["name"] for e in present}
     names |= {
         r["id"]: r["name"]
