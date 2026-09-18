@@ -59,6 +59,48 @@ def _ids(rows) -> set[int]:
     return {r[0] for r in rows}
 
 
+def _assess(conn, m, knower_id, known, now, live_scenes, live, relevance, graph, wobble, d):
+    """One memory, one knower: (how they know it, is it superseded, activation score)."""
+    live_sql, live_args = db.live_filter(live)
+    source = known["source"] if known else "innate"
+    learned = known["learned_story_time"] if known else m["story_time"]
+    accesses = [Access(learned, 1.0, True)]  # the encoding itself
+    accesses += [
+        Access(a["story_time"], a["weight"], bool(a["sharp"]))
+        for a in conn.execute(
+            "SELECT * FROM accesses WHERE knower_id=? AND memory_id=?", (knower_id, m["id"])
+        )
+        if a["scene_id"] in live_scenes and a["story_time"] <= now
+    ]
+    superseded = bool(
+        conn.execute(
+            f"SELECT 1 FROM memories WHERE supersedes_id=? AND {live_sql}", [m["id"], *live_args]
+        ).fetchone()
+    )
+    s = activation.score(
+        accesses,
+        now=now,
+        importance=m["importance"],
+        relevance=relevance,
+        graph=graph,
+        source=source,
+        superseded=superseded,
+        noise=wobble,
+        d=d,
+    )
+    return source, superseded, s
+
+
+def _live_scenes(conn, story_id: int, path: list) -> set[int]:
+    return _ids(
+        conn.execute(
+            "SELECT id FROM scenes WHERE story_id=? AND (start_message_id IS NULL"
+            f" OR start_message_id IN ({','.join('?' * len(path))}))",
+            [story_id, *(m["id"] for m in path)],
+        )
+    )
+
+
 def recall(
     conn: sqlite3.Connection,
     story_id: int,
@@ -133,13 +175,7 @@ def recall(
     names = dict(
         conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)).fetchall()
     )
-    live_scenes = _ids(
-        conn.execute(
-            "SELECT id FROM scenes WHERE story_id=? AND (start_message_id IS NULL"
-            f" OR start_message_id IN ({','.join('?' * len(path))}))",
-            [story_id, *(m["id"] for m in path)],
-        )
-    )
+    live_scenes = _live_scenes(conn, story_id, path)
 
     results = []
     for m in rows:
@@ -153,35 +189,12 @@ def recall(
         if known is None and not m["common"]:
             continue  # the hard gate: this character does not know it
 
-        source = known["source"] if known else "innate"
-        learned = known["learned_story_time"] if known else m["story_time"]
-        accesses = [Access(learned, 1.0, True)]  # the encoding itself
-        accesses += [
-            Access(a["story_time"], a["weight"], bool(a["sharp"]))
-            for a in conn.execute(
-                "SELECT * FROM accesses WHERE knower_id=? AND memory_id=?", (knower_id, m["id"])
-            )
-            if a["scene_id"] in live_scenes and a["story_time"] <= now
-        ]
-        superseded = bool(
-            conn.execute(
-                f"SELECT 1 FROM memories WHERE supersedes_id=? AND {live_sql}",
-                [m["id"], *live_args],
-            ).fetchone()
-        )
         relevance = (1 / (RRF_K + ranks[m["id"]])) * (RRF_K + 1) if m["id"] in ranks else 0.0
         wobble = activation.noise(knower_id, m["id"], scene_id or 0) if noise else 0.0
-        s = activation.score(
-            accesses,
-            now=now,
-            importance=m["importance"],
-            relevance=relevance,
-            graph=graph.get(m["id"], 0.0),
-            source=source,
-            superseded=superseded,
-            noise=wobble,
-            d=d,
-        )
+        source, superseded, s = _assess(
+            conn, m, knower_id, known, now, live_scenes, live, relevance, graph.get(m["id"], 0.0),
+            wobble, d,
+        )  # fmt: skip
         if s.tier is None:
             continue  # forgotten, for now
 
@@ -243,3 +256,53 @@ def recall(
                     ),
                 )
     return results
+
+
+def inspect(conn: sqlite3.Connection, story_id: int, knower_id: int) -> list[dict]:
+    """Everything this character knows, and how it would come back right now with no cue at
+    all. The inspector's view: read-only, no noise, nothing logged."""
+    path = chat.active_path(conn, story_id)
+    now = path[-1]["story_time"] if path else 0
+    live = db.live_runs(conn, story_id)
+    live_sql, live_args = db.live_filter(live)
+    know_sql, know_args = db.live_filter(live, "k.run_id")
+    live_scenes = _live_scenes(conn, story_id, path)
+    names = dict(
+        conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)).fetchall()
+    )
+    out = []
+    for m in conn.execute(
+        f"SELECT * FROM memories WHERE story_id=? AND story_time<=? AND {live_sql} ORDER BY id",
+        [story_id, now, *live_args],
+    ).fetchall():
+        known = conn.execute(
+            f"SELECT k.* FROM knowledge k WHERE k.knower_id=? AND k.memory_id=? AND {know_sql}"
+            " ORDER BY k.id DESC LIMIT 1",
+            [knower_id, m["id"], *know_args],
+        ).fetchone()
+        if known is None and not m["common"]:
+            continue
+        source, superseded, s = _assess(
+            conn, m, knower_id, known, now, live_scenes, live, 0.0, 0.0, 0.0, activation.DECAY
+        )
+        out.append(
+            {
+                "memory_id": m["id"],
+                "kind": m["kind"],
+                "detail": m["detail"],
+                "gist": m["gist"],
+                "importance": m["importance"],
+                "hidden": m["hidden"],
+                "pinned": m["pinned"],
+                "source": source,
+                "told_by": names.get(known["told_by_id"]) if known else None,
+                "belief": known["belief"] if known else 1.0,
+                "tier": s.tier or "forgotten",
+                "A": round(s.a_all, 3),
+                "A_detail": round(s.a_detail, 3),
+                "B": round(s.base_all, 3),
+                "superseded": superseded,
+                "story_time": m["story_time"],
+            }
+        )
+    return sorted(out, key=lambda r: r["A"], reverse=True)

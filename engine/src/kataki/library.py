@@ -3,6 +3,8 @@
 import json
 import sqlite3
 
+from kataki import chat
+
 ITEM_FIELDS = ("name", "description", "private", "data")
 
 
@@ -162,3 +164,72 @@ def create_story(
             ).lastrowid
             conn.execute("UPDATE stories SET active_leaf_id=? WHERE id=?", (leaf, story_id))
     return story_id
+
+
+def add_memory(
+    conn: sqlite3.Connection,
+    story_id: int,
+    detail: str,
+    gist: str | None = None,
+    importance: int = 5,
+    kind: str = "fact",
+    knower_ids: list[int] | tuple = (),
+    entity_ids: list[int] | tuple = (),
+    common: bool = False,
+    pinned: bool = False,
+) -> int:
+    """A memory written by the user: true, dated now, known to `knower_ids` (or to everyone
+    if `common`). `pinned` keeps it in the stable part of every prompt, like a lorebook entry."""
+    path = chat.active_path(conn, story_id)
+    now = path[-1]["story_time"] if path else 0
+    with conn:
+        memory_id = conn.execute(
+            "INSERT INTO memories(story_id, kind, story_time, detail, gist, importance, is_true,"
+            " common, pinned) VALUES(?, ?, ?, ?, ?, ?, 1, ?, ?)",
+            (story_id, kind, now, detail, gist or detail, importance, common, pinned),
+        ).lastrowid
+        for entity_id in entity_ids:
+            conn.execute(
+                "INSERT INTO memory_entities(memory_id, entity_id, role) VALUES(?, ?, 'subject')",
+                (memory_id, entity_id),
+            )
+        for knower in knower_ids:
+            conn.execute(
+                "INSERT INTO knowledge(knower_id, memory_id, source, learned_story_time)"
+                " VALUES(?, ?, 'innate', ?)",
+                (knower, memory_id, now),
+            )
+    return memory_id
+
+
+def merge_entities(conn: sqlite3.Connection, keep: int, drop: int) -> None:
+    """Two entities turned out to be one. Everything that pointed at `drop` now points at
+    `keep`, and its names become aliases of `keep`. `drop` is hidden, never deleted."""
+    moves = [
+        ("knowledge", "knower_id"),
+        ("knowledge", "told_by_id"),
+        ("memories", "asserted_by"),
+        ("flags", "entity_id"),
+        ("edges", "src_id"),
+        ("edges", "dst_id"),
+        ("presence", "entity_id"),
+        ("messages", "speaker_id"),
+        ("scenes", "place_id"),
+        ("stories", "persona_entity_id"),
+    ]
+    with conn:
+        for table, column in moves:
+            conn.execute(f"UPDATE {table} SET {column}=? WHERE {column}=?", (keep, drop))
+        for table, column in (("memory_entities", "entity_id"), ("accesses", "knower_id")):
+            # rows keep's copy already has would collide; the leftovers are those duplicates
+            conn.execute(f"UPDATE OR IGNORE {table} SET {column}=? WHERE {column}=?", (keep, drop))
+            conn.execute(f"DELETE FROM {table} WHERE {column}=?", (drop,))
+        conn.execute(
+            "INSERT OR IGNORE INTO aliases(entity_id, alias)"
+            " SELECT ?, alias FROM aliases WHERE entity_id=?",
+            (keep, drop),
+        )
+        conn.execute(
+            "UPDATE OR IGNORE taggings SET obj_id=? WHERE obj='entity' AND obj_id=?", (keep, drop)
+        )
+        conn.execute("UPDATE entities SET hidden=1, merge_candidate_id=? WHERE id=?", (keep, drop))

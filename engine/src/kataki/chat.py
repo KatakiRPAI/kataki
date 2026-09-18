@@ -116,13 +116,14 @@ def add_child(
     speaker_id: int | None = None,
     skip_minutes: int = 0,
     gen: dict | None = None,
+    scene_id: int | None = None,  # default: the parent's scene
 ) -> int:
     """Add a message under `parent_id` and make it the active leaf. The story clock moves
     one tick past the parent, plus any skip."""
     with conn:
         story = conn.execute("SELECT * FROM stories WHERE id=?", (story_id,)).fetchone()
         parent = get_message(conn, parent_id) if parent_id else None
-        scene = scene_of(conn, story_id, [parent] if parent else [])
+        scene = scene_id or scene_of(conn, story_id, [parent] if parent else [])
         now = (parent["story_time"] if parent else 0) + story["minutes_per_turn"] + skip_minutes
         return _insert(
             conn,
@@ -247,3 +248,35 @@ def set_skip(conn: sqlite3.Connection, message_id: int, minutes: int) -> None:
         ).fetchall()
     for run in stale:
         db.discard_run(conn, run["id"])
+
+
+def new_scene(
+    conn: sqlite3.Connection,
+    story_id: int,
+    present: list[int],
+    place_id: int | None = None,
+    title: str | None = None,
+) -> int:
+    """Cut to a new scene. It starts with a marker line in the story, so it belongs to this
+    branch like any message, and `present` is its opening roster."""
+    place = conn.execute("SELECT name FROM entities WHERE id=?", (place_id,)).fetchone()
+    label = title or (place["name"] if place else "A new scene")
+    leaf = conn.execute("SELECT active_leaf_id FROM stories WHERE id=?", (story_id,)).fetchone()[0]
+    with conn:
+        scene_id = conn.execute(
+            "INSERT INTO scenes(story_id, place_id, title, start_story_time) VALUES(?, ?, ?, 0)",
+            (story_id, place_id, title),
+        ).lastrowid
+        for entity_id in present:
+            conn.execute(
+                "INSERT INTO presence(scene_id, entity_id, present) VALUES(?, ?, 1)",
+                (scene_id, entity_id),
+            )
+    marker = add_child(conn, story_id, leaf, "system", f"— {label} —", scene_id=scene_id)
+    with conn:
+        conn.execute(
+            "UPDATE scenes SET start_message_id=?, start_story_time="
+            "(SELECT story_time FROM messages WHERE id=?) WHERE id=?",
+            (marker, marker, scene_id),
+        )
+    return scene_id

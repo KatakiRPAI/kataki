@@ -5,6 +5,7 @@ are layered parent-first, so an inheriting role can change how the *same* model 
 (one hybrid model: thinking off for `rp`, on for `reasoning`).
 """
 
+import contextlib
 import json
 import os
 import re
@@ -35,6 +36,11 @@ def get_key(provider_name: str) -> str | None:
 
 def set_key(provider_name: str, key: str) -> None:
     keyring.set_password("kataki", provider_name, key)
+
+
+def delete_key(provider_name: str) -> None:
+    with contextlib.suppress(keyring.errors.KeyringError):  # includes "there was no key"
+        keyring.delete_password("kataki", provider_name)
 
 
 def _own(conn: sqlite3.Connection, role: str, story_id: int | None) -> dict:
