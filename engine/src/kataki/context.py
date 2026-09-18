@@ -30,8 +30,10 @@ BASE_CAPS = {
     "summaries": 900,
     "memory": 900,
     "flags": 250,
+    "examples": 300,  # the speaker's example dialogue, sent only when they speak
 }
 DEFAULT_THINK_BUDGET = 1500
+BIG_SKIP = 1440  # story minutes: a skip of a day or more ends the verbatim transcript
 KEEP_LAST = 4  # messages that are never evicted
 KEEP_PROMPTS = 20  # full prompts kept per story for the inspector
 
@@ -46,7 +48,9 @@ Memory notes are everything the speaking character remembers that matters right 
 persuaded.
 - If there is no note about something, the character has no memory of it. They react \
 naturally and may simply believe what they are told. Never invent memories.
-Characters know only their own notes. Never reveal another character's private knowledge."""
+Characters know only their own notes. Never reveal another character's private knowledge.
+Everyone listed as present hears what is said aloud: a character keeps a secret by not saying \
+it in front of someone who must not learn it."""
 
 
 @dataclass(frozen=True)
@@ -85,9 +89,8 @@ def token_ratio(conn: sqlite3.Connection, model: str) -> float:
 def calibrate(conn: sqlite3.Connection, model: str, chars: int, prompt_tokens: int) -> None:
     if not prompt_tokens or not chars:
         return
-    seen = min(
-        max(chars / prompt_tokens, 1.5), 8.0
-    )  # a garbled usage report must not wreck budgets
+    # clamped: a garbled usage report must not wreck the budgets
+    seen = min(max(chars / prompt_tokens, 1.5), 8.0)
     blended = 0.8 * token_ratio(conn, model) + 0.2 * seen
     with conn:
         conn.execute(
@@ -116,6 +119,20 @@ def _state(conn, entities: list, speaker_id: int | None, now: int, live: set[int
     return [f"{names[e]}: {'; '.join(parts)}" for e, parts in shown.items()]
 
 
+def _clip(text: str, cap: int, ratio: float) -> tuple[str, int]:
+    """Whole lines from the top that fit the cap: (text, 1 if anything was cut, else 0)."""
+    if not text or estimate(text, ratio) <= cap:
+        return text, 0
+    kept: list[str] = []
+    for line in text.splitlines():
+        if estimate("\n".join([*kept, line]), ratio) > cap:
+            break
+        kept.append(line)
+    if not kept:  # one enormous line: cut it
+        kept = [text[: int(cap * ratio / MARGIN)]]
+    return "\n".join(kept), 1
+
+
 def _system(conn, story, persona, present, place) -> tuple[str, str]:
     rules = RULES.format(persona=persona["name"] if persona else "the user")
     cards = [f"## {e['name']}\n{e['description'] or ''}".strip() for e in present]
@@ -141,9 +158,13 @@ def _line(message, names: dict[int, str]) -> str:
     return f"{name}: {message['text']}" if name else message["text"]
 
 
-def _window(conn, story, path: list, lines: list[str], cap: int, ratio: float) -> tuple[int, int]:
+def _window(
+    conn, story, path: list, lines: list[str], cap: int, ratio: float, after_skip: int = 0
+) -> tuple[int, int]:
     """Where the verbatim window starts. It moves rarely and far, and is remembered per story
-    as a message id, so it means the same thing for every speaker and every branch."""
+    as a message id, so it means the same thing for every speaker and every branch.
+
+    `after_skip` is a hard floor: nothing from before a long time skip is shown verbatim."""
     overrides = json.loads(story["overrides"])
     floor = max(len(lines) - KEEP_LAST, 0)
     start = next((i for i, m in enumerate(path) if m["id"] >= overrides.get("history_from", 0)), 0)
@@ -151,6 +172,7 @@ def _window(conn, story, path: list, lines: list[str], cap: int, ratio: float) -
     sizes = [estimate(line, ratio) for line in lines]
     while sum(sizes[cut:]) > cap and cut < floor:
         cut = min(cut + max(1, (len(lines) - cut) // 4), floor)
+    cut = max(cut, after_skip)
     if cut > start:
         overrides["history_from"] = path[cut]["id"]
         with conn:
@@ -246,8 +268,25 @@ def build(
         heard = chat.heard_by(conn, path, speaker_id)
         shown = [m for m in path if m["id"] in heard]
     lines = [_line(m, names) for m in shown]
-    history_cap = ctx - reserve - estimate(system, ratio) - caps["memory"] - caps["flags"]
-    cut, history_tokens = _window(conn, story, shown, lines, max(history_cap, 0), ratio)
+    # the tail's room is reserved whoever speaks, so the history window never moves with them
+    tail_room = caps["memory"] + caps["flags"] + caps["examples"]
+    history_cap = ctx - reserve - estimate(system, ratio) - tail_room
+    # After a long time skip, what came before is memory, not a transcript: once those lines
+    # have been read into memory, they leave the window, and recalling them means decay.
+    ends = conn.execute(
+        f"SELECT to_message_id FROM extraction_runs WHERE id IN ({','.join('?' * len(live))})",
+        sorted(live),
+    ).fetchall()
+    read_to = max((r[0] for r in ends), default=0)
+    after_skip = max(
+        (
+            i
+            for i, m in enumerate(shown)
+            if i and m["skip_minutes"] >= BIG_SKIP and shown[i - 1]["id"] <= read_to
+        ),
+        default=0,
+    )
+    cut, history_tokens = _window(conn, story, shown, lines, max(history_cap, 0), ratio, after_skip)
 
     messages: list[dict] = [{"role": "system", "content": system}]
 
@@ -284,6 +323,9 @@ def build(
     who = speaker["name"] if speaker else "the narrator"
     if speaker and speaker["private"]:
         state.append(f"[{who}, private]\n{speaker['private']}")
+    examples, clipped = _clip(speaker["examples"] if speaker else "", caps["examples"], ratio)
+    if examples:
+        state.append(f"[How {who} talks]\n{examples}")
     if memory_lines:
         state.append(f"[{who} remembers]\n" + "\n".join(memory_lines))
     if speaker:
@@ -314,9 +356,15 @@ def build(
             "evicted": sum(m["rendered"] == "dropped" for m in report),
         },
         {
+            "name": "examples",
+            "tokens": estimate(examples, ratio) if examples else 0,
+            "cap": caps["examples"],
+            "evicted": clipped,
+        },
+        {
             "name": "tail",
             "tokens": estimate(tail, ratio),
-            "cap": caps["memory"] + caps["flags"],
+            "cap": tail_room,
             "evicted": 0,
         },
     ]

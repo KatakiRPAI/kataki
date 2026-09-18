@@ -95,14 +95,15 @@ def delete_item(conn: sqlite3.Connection, item_id: int) -> None:
 def _instantiate(conn: sqlite3.Connection, story_id: int, item: dict, is_ai: bool) -> int:
     """Snapshot a template into the story. The story may diverge; library edits never reach it."""
     entity_id = conn.execute(
-        "INSERT INTO entities(story_id, kind, name, description, private, lib_item_id, is_ai)"
-        " VALUES(?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO entities(story_id, kind, name, description, private, examples, lib_item_id,"
+        " is_ai) VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
         (
             story_id,
             item["kind"],
             item["name"],
             item["description"],
             item["private"],
+            item["data"].get("example_dialogue") or "",
             item["id"],
             is_ai,
         ),

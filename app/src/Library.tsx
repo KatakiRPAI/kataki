@@ -74,6 +74,7 @@ function Editor({ kind, item, onDone }: { kind: ItemKind; item: Item | null; onD
   const [description, setDescription] = useState(item?.description ?? '')
   const [secret, setSecret] = useState(item?.private ?? '')
   const [first, setFirst] = useState(item?.data.first_message ?? '')
+  const [examples, setExamples] = useState(item?.data.example_dialogue ?? '')
   const [aliases, setAliases] = useState((item?.data.aliases ?? []).join(', '))
   const [tags, setTags] = useState((item?.tags ?? []).join(', '))
 
@@ -83,7 +84,12 @@ function Editor({ kind, item, onDone }: { kind: ItemKind; item: Item | null; onD
         name: name.trim(),
         description,
         private: secret,
-        data: { ...item?.data, aliases: split(aliases), first_message: first || undefined },
+        data: {
+          ...item?.data,
+          aliases: split(aliases),
+          first_message: first || undefined,
+          example_dialogue: examples || undefined,
+        },
         tags: split(tags),
       }
       await (item ? api(`/library/${item.id}`, 'PATCH', body) : api('/library', 'POST', { kind, ...body }))
@@ -108,6 +114,17 @@ function Editor({ kind, item, onDone }: { kind: ItemKind; item: Item | null; onD
         <label>
           Private (only this character knows it; it reaches the prompt only when they speak)
           <textarea rows={3} value={secret} onChange={(e) => setSecret(e.target.value)} />
+        </label>
+      )}
+      {kind === 'character' && (
+        <label>
+          Example dialogue: a few lines in their voice (sent only when they speak, so keep it short)
+          <textarea
+            rows={4}
+            value={examples}
+            placeholder={'Mira: Coin first. Questions after.\nMira: *taps the letter* You want it or not?'}
+            onChange={(e) => setExamples(e.target.value)}
+          />
         </label>
       )}
       {kind !== 'place' && (

@@ -4,7 +4,11 @@ import sqlite3
 from importlib.resources import files
 from pathlib import Path
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+# version -> the SQL that brings a library up from the version before it; schema.sql is v1
+MIGRATIONS = {
+    2: "ALTER TABLE entities ADD COLUMN examples TEXT NOT NULL DEFAULT ''",  # example dialogue
+}
 
 
 def connect(path: str | Path) -> sqlite3.Connection:
@@ -14,9 +18,13 @@ def connect(path: str | Path) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")  # per-connection, so every connect, not just migration
-    if conn.execute("PRAGMA user_version").fetchone()[0] == 0:
+    version = conn.execute("PRAGMA user_version").fetchone()[0]
+    if version == 0:
         conn.executescript(files("kataki").joinpath("schema.sql").read_text(encoding="utf-8"))
-        conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+        version = 1
+    for target in range(version + 1, SCHEMA_VERSION + 1):
+        conn.executescript(MIGRATIONS[target])
+    conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
     return conn
 
 

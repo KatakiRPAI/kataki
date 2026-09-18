@@ -214,3 +214,12 @@ def test_splitter_supports_custom_tags_and_unterminated_thoughts():
     s = ThinkSplitter("[[", "]]")
     out = s.feed("hi [[plan") + s.feed("ning") + s.flush()
     assert out == [("token", "hi "), ("thought", "plan"), ("thought", "ning")]
+
+
+def test_thinking_switched_on_counts_as_thinking_even_before_the_kind_is_known():
+    assert Endpoint(base_url="x", model="m", params={"thinking": "enabled"}).thinks
+    assert not Endpoint(
+        base_url="x", model="m", reasoning=True, params={"thinking": "disabled"}
+    ).thinks
+    assert Endpoint(base_url="x", model="m", reasoning=True).thinks
+    assert not Endpoint(base_url="x", model="m").thinks

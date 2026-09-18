@@ -70,16 +70,21 @@ async def main(args) -> None:
     if args.api_key_env:
         os.environ["KATAKI_KEY_EVAL"] = os.environ[args.api_key_env]
     conn.execute("INSERT INTO providers(id, name, base_url) VALUES(1, 'eval', ?)", (args.base_url,))
+    # a hybrid model serves every job: thinking off for replies and memory reads, on for
+    # the careful re-reads (the reasoning job inherits the model and only changes that)
+    thinking = {"rp": "disabled", "utility": "disabled", "reasoning": "enabled"}
     for role, model in (
         ("rp", args.model),
         ("utility", args.utility_model),
         ("reasoning", args.reasoning_model),
     ):
-        if model:
-            conn.execute(
-                "INSERT INTO model_roles(role, provider_id, model, params) VALUES(?, 1, ?, ?)",
-                (role, model, json.dumps({"ctx_size": args.ctx})),
-            )
+        params = {"ctx_size": args.ctx}
+        if args.hybrid:
+            params["thinking"] = thinking[role]
+        conn.execute(
+            "INSERT INTO model_roles(role, provider_id, model, params) VALUES(?, ?, ?, ?)",
+            (role, 1 if model else None, model, json.dumps(params)),
+        )
     conn.commit()
 
     mira = library.create_item(
@@ -108,7 +113,7 @@ async def main(args) -> None:
         for r in conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story,))
     }
 
-    replies, first_token, total = {}, [], []
+    replies, asked_at, first_token, total = {}, {}, [], []
     for line, who, note in SCRIPT:
         if note == "tobin leaves":
             chat.set_presence(conn, story, eid["Tobin"], False)
@@ -120,6 +125,7 @@ async def main(args) -> None:
         print(f"\nAren: {line}\n{who}: {reply}")
         if note:
             replies[note] = reply
+            asked_at[note] = chat.active_path(conn, story)[-1]["id"]
         while await extract.run_due(conn, llm, story):  # what the background reader would do
             pass
     while await extract.run_due(conn, llm, story, manual=True):
@@ -140,9 +146,35 @@ async def main(args) -> None:
     print("\n" + "=" * 72)
     print(f"memory reader    {ok}/{len(runs)} runs usable, {skipped} items skipped")
     print(f"entities         {len(names)} found, {len(names) - len(set(names))} duplicates")
-    leaked = SECRET.search(replies.get("LEAK", ""))
+    # A leak only counts if nobody said the secret aloud in front of Tobin: a character blurting
+    # it out is the model's discretion failing, not the memory system.
+    name_of = {v: k for k, v in eid.items()}
+    path = chat.active_path(conn, story)
+    heard = chat.heard_by(conn, path, eid["Tobin"])
+    aloud = [
+        m
+        for m in path
+        if m["id"] in heard
+        and m["id"] < asked_at.get("LEAK", 0)
+        and m["speaker_id"] != eid["Tobin"]
+        and SECRET.search(m["text"])
+    ]
+    if not SECRET.search(replies.get("LEAK", "")):
+        leak = "held (Tobin was out when he was told)"
+    elif aloud:
+        blurted = name_of.get(aloud[0]["speaker_id"], "someone")
+        leak = f"said it, but {blurted} had said it aloud in front of him"
+    else:
+        leak = "LEAKED: nobody told him"
+    tobin_knows = [
+        m for m in retrieve.inspect(conn, story, eid["Tobin"]) if SECRET.search(m["detail"])
+    ]
     recalled = SECRET.search(replies.get("RECALL", ""))
-    print(f"leak probe       {'LEAKED' if leaked else 'held'} (Tobin was out)")
+    print(f"leak probe       {leak}")
+    tobin_line = (
+        f"knows the secret ({tobin_knows[0]['source']})" if tobin_knows else "does not hold it"
+    )
+    print(f"Tobin's memory   {tobin_line}")
     print(f"recall probe     {'recalled' if recalled else 'NOT recalled'} (Mira)")
     print(
         f"secret in memory {'yes, ' + secret[0]['tier'] + ' after six years' if secret else 'NO'}"
@@ -179,5 +211,10 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--ctx", type=int, default=8192, help="context size the server was started with"
+    )
+    parser.add_argument(
+        "--hybrid",
+        action="store_true",
+        help="the model can switch thinking: off for replies and reads, on for careful re-reads",
     )
     asyncio.run(main(parser.parse_args()))

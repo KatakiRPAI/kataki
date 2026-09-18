@@ -127,3 +127,13 @@ def test_director_mode_has_no_persona(conn, cast):
     ).fetchone()
     assert row["persona_entity_id"] is None
     assert row["active_leaf_id"] is None  # Tobin has no greeting, so the story starts empty
+
+
+def test_example_dialogue_is_copied_into_the_story_with_the_character(conn):
+    mira = library.create_item(
+        conn, "character", "Mira", data={"example_dialogue": "Mira: Coin first. Questions after."}
+    )
+    story = library.create_story(conn, "s", character_ids=[mira])
+    library.update_item(conn, mira, data={"example_dialogue": "changed later"})
+    row = conn.execute("SELECT examples FROM entities WHERE story_id=?", (story,)).fetchone()
+    assert row["examples"] == "Mira: Coin first. Questions after."

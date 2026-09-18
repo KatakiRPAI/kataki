@@ -248,3 +248,41 @@ def test_a_character_never_hears_what_was_said_while_they_were_out(conn, story):
     assert "floorboard" not in to_tobin and "Understood." not in to_tobin
     assert "Evening." in to_tobin and "Welcome back." in to_tobin
     assert "present: Mira, Tobin, Aren" in to_tobin  # he is back in the room
+
+
+def test_only_the_speakers_example_dialogue_is_sent_and_it_is_capped(conn, story):
+    conn.execute(
+        "UPDATE entities SET examples='Mira: Coin first. Questions after.' WHERE name='Mira'"
+    )
+    conn.execute("UPDATE entities SET examples=? WHERE name='Tobin'", ("Tobin: Heh. " * 400,))
+    say(conn, story, "Aren", "Hello.")
+
+    to_mira = context.build(conn, story, eid(conn, "Mira"), EP)
+    assert "[How Mira talks]\nMira: Coin first. Questions after." in to_mira.messages[-1]["content"]
+    assert "Tobin: Heh." not in flat(to_mira.messages)
+    assert "Coin first" not in to_mira.messages[0]["content"]  # never in the shared, cached part
+
+    to_tobin = context.build(conn, story, eid(conn, "Tobin"), EP)
+    examples = next(s for s in to_tobin.sections if s["name"] == "examples")
+    assert 0 < examples["tokens"] <= examples["cap"] and examples["evicted"] == 1
+
+
+def test_a_long_time_skip_closes_the_verbatim_window_once_the_past_is_in_memory(conn, story):
+    first = say(conn, story, "Aren", "The ledger is under the third floorboard.")
+    last = say(conn, story, "Mira", "I will remember.")
+    skip = chat.append_message(
+        conn, story, "user", "Six years later, Aren returns.", eid(conn, "Aren"), 6 * 525600
+    )
+    say(conn, story, "Mira", "You look older.")
+    say(conn, story, "Aren", "Where did I hide it?")
+    assert "third floorboard" in flat(context.build(conn, story, eid(conn, "Mira"), EP).messages)
+
+    run = conn.execute(  # the stretch before the skip has been read into memory
+        "INSERT INTO extraction_runs(story_id, from_message_id, to_message_id, trigger, status)"
+        " VALUES(?, ?, ?, 'skip', 'ok')",
+        (story, first, last),
+    ).lastrowid
+    built = context.build(conn, story, eid(conn, "Mira"), EP)
+    assert "third floorboard" not in flat(built.messages)  # six years on, only memory has it
+    assert "Six years later" in flat(built.messages) and built.window_start == skip
+    assert run

@@ -40,7 +40,10 @@ class Endpoint:
 
     @property
     def thinks(self) -> bool:
-        return self.reasoning and self.params.get("thinking") != "disabled"
+        """Will this request produce thoughts? Thinking switched on counts even before the
+        model's kind is known; switched off always wins."""
+        thinking = self.params.get("thinking", "default")
+        return thinking == "enabled" or (self.reasoning and thinking != "disabled")
 
 
 class ThinkSplitter:

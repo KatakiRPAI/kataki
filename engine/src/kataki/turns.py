@@ -85,6 +85,14 @@ def _pressed(conn: sqlite3.Connection, story_id: int, speaker_id: int) -> set[in
     return {m["memory_id"] for m in shown if m["tier"] == "hazy" and m["rendered"] != "dropped"}
 
 
+def _unsign(text: str, name: str) -> str:
+    """Drop the speaker's own name left dangling after the last sentence ('...due. Mira'):
+    small models sign off in the 'Name: line' shape of the history. A name inside a sentence
+    stays."""
+    pattern = rf"(?:(?<=[.!?\"”*…])\s+|\n+){re.escape(name)}:?\s*$"
+    return re.sub(pattern, "", text).rstrip()
+
+
 class _Prefix:
     """Drops a leading 'Mira:' the model may copy from the history's line format."""
 
@@ -174,7 +182,8 @@ async def _generate(
     prefix = _Prefix(name or "Narrator")
     finish, error, message_id, text, skip = "stopped", None, None, "", 0
     try:
-        async with aclosing(llm.chat_stream(ep, built.messages, stop=stops)) as stream:
+        stream = llm.chat_stream(ep, built.messages, stop=stops, max_tokens=built.response_reserve)
+        async with aclosing(stream) as stream:
             async for kind, value in stream:
                 if kind == "thought":
                     thoughts.append(value)
@@ -192,7 +201,7 @@ async def _generate(
     except LLMError as e:
         finish, error = "error", str(e)
     finally:  # runs on finish, on error, and when the client stops the stream
-        text = ("".join(parts) + prefix.flush()).strip()
+        text = _unsign(("".join(parts) + prefix.flush()).strip(), name or "Narrator")
         if text:
             parent_time = chat.get_message(conn, parent_id)["story_time"] if parent_id else 0
             skip = clock.parse_skip(text, _minute_of_day(story, parent_time))

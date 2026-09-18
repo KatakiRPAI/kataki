@@ -136,6 +136,14 @@ def extraction_schema(entities: list[str], memories: list[str], lines: int) -> d
         b for b in defs["MemoryItem"]["properties"]["line"]["anyOf"] if b["type"] == "integer"
     )
     line.update(minimum=1, maximum=max(lines, 1))
+    # Small models leave optional fields out, and a memory with no participants links to
+    # nothing. The model must answer these (null is allowed where it makes sense); the
+    # parser stays lenient for backends that ignore the schema.
+    memory = defs["MemoryItem"]
+    memory["required"] = sorted(
+        {*memory.get("required", []), "participants", "asserted_by", "line"}
+    )
+    memory["properties"]["participants"]["minItems"] = 1
     return schema
 
 

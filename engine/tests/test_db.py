@@ -112,3 +112,20 @@ def test_json_columns_keep_a_bare_number_as_text(conn):
         if c["type"].upper() == "JSON"
     ]
     assert json_columns == []
+
+
+def test_an_older_library_is_migrated_forward_without_losing_anything(tmp_path):
+    path = tmp_path / "old.db"
+    old = sqlite3.connect(path)  # a library from before any migration: schema v1 as shipped
+    old.executescript((db.files("kataki") / "schema.sql").read_text(encoding="utf-8"))
+    old.execute("PRAGMA user_version=1")
+    old.execute("INSERT INTO stories(title) VALUES('kept')")
+    old.commit()
+    old.close()
+
+    conn = db.connect(path)
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION
+    assert conn.execute("SELECT title FROM stories").fetchone()[0] == "kept"
+    columns = {c["name"] for c in conn.execute("PRAGMA table_info(entities)")}
+    assert "examples" in columns
+    conn.close()

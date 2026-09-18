@@ -221,3 +221,27 @@ async def test_real_usage_calibrates_the_token_estimate(conn, story, backend):
     )
     log = conn.execute("SELECT actual_tokens, message_id FROM context_log").fetchone()
     assert log["actual_tokens"] == chars // 4 and log["message_id"] is not None
+
+
+async def test_a_reply_is_capped_at_the_room_the_budget_kept_for_it(conn, story, backend):
+    backend.say("Hm.")
+    events = await play(turns.turn(conn, backend.llm, story, "Mira?"))
+    assert backend.requests[0]["max_tokens"] == events[0][1]["context"]["reserve"] == 600
+
+
+@pytest.mark.parametrize(
+    ("reply", "kept"),
+    [
+        ("Fine. Go on.\n\nMira", "Fine. Go on."),
+        ("Fine. Go on. Mira", "Fine. Go on."),
+        ('"Fine," she says.\nMira:', '"Fine," she says.'),
+        ("They call me Mira", "They call me Mira"),  # her name in a sentence stays
+        ("Thank you, Mira.", "Thank you, Mira."),
+    ],
+)
+async def test_a_reply_signed_with_the_speakers_own_name_loses_the_signature(
+    conn, story, backend, reply, kept
+):
+    backend.say(reply)
+    await play(turns.turn(conn, backend.llm, story, "Mira?"))
+    assert path(conn, story)[-1][2] == kept

@@ -26,3 +26,6 @@ Thumbs.db
 
 # dev library created by `pnpm dev`
 .dev/
+
+# local model runtime and model files (large, never committed)
+.runtime/

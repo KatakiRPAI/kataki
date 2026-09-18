@@ -293,3 +293,15 @@ def test_startup_forgets_runs_that_never_finished(conn, story):
     conn.execute("UPDATE extraction_runs SET status='running' WHERE id=?", (run,))
     extract.recover(conn)
     assert conn.execute("SELECT count(*) FROM extraction_runs").fetchone()[0] == 0
+
+
+def test_the_model_must_say_who_took_part_and_who_said_it():
+    # found against a real model: optional fields were simply left out, and nothing got linked
+    memory = extraction_schema(["E1", "N1"], [], lines=3)["$defs"]["MemoryItem"]
+    assert {"participants", "asserted_by", "line"} <= set(memory["required"])
+    assert memory["properties"]["participants"]["minItems"] == 1
+
+
+def test_the_reader_is_told_to_declare_new_things_and_keep_thoughts_private():
+    for rule in ("new_entities", "Unspoken thoughts", "keep the main people's names"):
+        assert rule in extract.INSTRUCTIONS

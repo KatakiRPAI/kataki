@@ -7,6 +7,7 @@ import time
 import httpx2
 from fastapi.testclient import TestClient
 
+from kataki import db
 from kataki.server import create_app
 
 TOKEN = "t0k"
@@ -22,7 +23,7 @@ def test_health_rejects_missing_or_wrong_token(conn):
 def test_health_reports_ok_with_token(conn):
     body = TestClient(create_app(conn, TOKEN)).get("/health", headers=AUTH).json()
     assert body["status"] == "ok"
-    assert body["schema"] == 1
+    assert body["schema"] == db.SCHEMA_VERSION
 
 
 def test_browser_preflight_passes_without_token(conn):

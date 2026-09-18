@@ -303,13 +303,20 @@ matters, as JSON.
 
 - Refer to people, places and things ONLY by handle: one from the roster (E12), or a new one \
 you declare in new_entities (N1, N2, ...). Never write a name where a handle is asked for.
+- new_entities: every person, place, group or notable object that matters and is not in the \
+roster yet (a ledger, a ship, someone named in passing). Declare it once, then use its handle.
 - Refer to earlier memories only by handle (M31).
 - memories: an event (what happened), a fact (what is now true of the world), or a claim \
 (what a character SAID, which may be false).
-  - Narration and shown actions are events or facts. Anything a character says is a claim: \
-asserted_by = the speaker, heard_by = who heard it.
+  - participants: who did it, to whom, who else took part, and any object involved. Always \
+at least one.
+  - Narration and shown actions are events or facts (asserted_by: null). Anything a \
+character says aloud is a claim: asserted_by = the speaker, heard_by = who heard it.
+  - Unspoken thoughts and feelings are private: an event with covert: true whose only \
+participant is the one thinking it. Never a claim, never heard by anyone else.
   - detail: one or two specific sentences: names, numbers, exact words where they matter.
-  - gist: the same thing as a vague half-memory: no minor names, no numbers, no quotes.
+  - gist: the same thing as a vague half-memory: keep the main people's names, drop minor \
+names, numbers and exact words.
   - importance 1-10: 1 small talk, 5 useful, 8 life-changing, 10 unforgettable.
   - line: the transcript line where it happened.
   - covert: true if only the participants could know (a whisper, a hidden act).
