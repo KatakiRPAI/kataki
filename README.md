@@ -18,15 +18,17 @@ Status: **pre-alpha**, milestone M0 (scaffold). Design spec: [docs/specs/2026-09
 
 ## Development
 
-Prerequisites: [uv](https://docs.astral.sh/uv/), Node 20+, pnpm.
+Prerequisites: [uv](https://docs.astral.sh/uv/) and Node 22+ with pnpm (`corepack enable pnpm`).
 
 ```bash
-cd engine && uv sync && uv run pytest
+cd engine && uv sync          # creates engine/.venv, which the desktop shell launches
+cd ../app && pnpm install
+cd .. && pnpm check           # ruff + pytest + tsc
+pnpm dev                      # desktop app (spawns the engine, dev library in .dev/)
+pnpm smoke                    # headless end-to-end check: shell -> engine -> renderer
 ```
 
-```bash
-cd app && pnpm install && pnpm dev
-```
+The engine also runs on its own: `cd engine && uv run kataki serve` prints `{"token", "port"}`.
 
 ## Licence
 

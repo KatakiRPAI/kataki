@@ -1,0 +1,28 @@
+{
+  "name": "kataki-app",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Kataki RPAI desktop client",
+  "type": "module",
+  "main": "dist-electron/main.js",
+  "packageManager": "pnpm@12.4.2",
+  "scripts": {
+    "dev": "tsc -p electron && electron .",
+    "smoke": "tsc -p electron && electron . --smoke",
+    "build": "tsc -p electron && vite build",
+    "typecheck": "tsc --noEmit && tsc -p electron --noEmit"
+  },
+  "dependencies": {
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "electron": "44.4.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0"
+  }
+}
