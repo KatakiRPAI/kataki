@@ -153,3 +153,53 @@ span.k-orb { display: block; }
 .ka-chip-person { padding-left: 6px; }
 .ka-link { align-self: flex-start; margin-top: 6px; padding: 0; border: 0; background: none; font: inherit; font-size: 13px; font-weight: 700; color: var(--k-sky-accent); cursor: pointer; }
 .ka-link:hover { color: var(--k-sky-accent-hover); }
+.ka-small { font-size: 12.5px; }
+.ka-stack--tight { gap: 3px; }
+.ka-input-lg { height: 52px; font-size: 18px; }
+.k-btn:has(> input:focus-visible) { outline: 3px solid var(--k-sky-accent); outline-offset: 2px; }
+.k-btn:disabled { opacity: .5; cursor: default; transform: none; }
+
+/* ---- Friends: new friends and the add card ---- */
+.ka-friend__ring { position: absolute; left: 12px; top: 12px; z-index: 2; font-size: 10px; color: var(--k-sky-ink); }
+.ka-add-card { width: 196px; height: 268px; box-sizing: border-box; padding: 20px; border-radius: 28px; border: 2px dashed rgba(47,99,240,.35); background: rgba(255,255,255,.35); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; text-decoration: none; color: var(--k-sky-ink); }
+.ka-add-card > strong { font-size: 16px; }
+.ka-add-card > span:last-child { font-size: 12.5px; color: var(--k-sky-muted); line-height: 1.4; }
+.ka-add-card:hover { background: rgba(255,255,255,.55); }
+
+/* ---- the editor (Add a friend) ---- */
+.ka-editor-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: -16px; }
+.ka-back { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; color: var(--k-sky-ink); text-decoration: none; }
+.ka-editor { display: flex; align-items: flex-start; gap: 24px; }
+.ka-steps { width: 260px; flex-shrink: 0; box-sizing: border-box; padding: 14px; border-radius: 28px; display: flex; flex-direction: column; gap: 4px; }
+.ka-steps__title { padding: 6px 12px 12px; font-size: 26px; }
+.ka-steps > .k-step { text-align: left; }
+.ka-steps > .k-step:disabled { opacity: .5; cursor: default; }
+.ka-steps__delete { align-self: flex-start; margin-top: 10px; }
+.ka-editor__main { flex-grow: 1; min-width: 0; min-height: min(700px, calc(100vh - 120px)); box-sizing: border-box; padding: 36px 40px; border-radius: var(--k-radius-hero); display: flex; flex-direction: column; gap: 20px; }
+.ka-step-eyebrow { font-size: 13px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--k-sky-accent); }
+.ka-step-title { margin: -8px 0 0; font-size: 48px; }
+.ka-step-help { margin: 0; max-width: 540px; font-size: 15px; line-height: 1.6; color: var(--k-sky-muted); }
+.ka-label { display: flex; flex-direction: column; gap: 8px; font-size: 13px; font-weight: 800; }
+.ka-label > .k-textarea { width: 100%; box-sizing: border-box; font-family: inherit; }
+.ka-starters { display: flex; flex-direction: column; gap: 10px; }
+.ka-starters > span { font-size: 13px; font-weight: 700; color: var(--k-sky-muted); }
+.ka-starter { height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid rgba(255,255,255,.95); background: rgba(255,255,255,.7); color: var(--k-sky-ink); font-size: 13px; font-weight: 700; }
+.ka-starter:hover { background: #fff; }
+.ka-editor__foot { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ka-upload { display: flex; align-items: center; gap: 18px; }
+.ka-upload__preview { width: 120px; height: 150px; flex-shrink: 0; border-radius: 22px; }
+.ka-upload__preview .ka-initials { font-size: 44px; inset: 0; }
+.ka-editor__aside { width: 320px; flex-shrink: 0; display: flex; flex-direction: column; gap: 14px; }
+.ka-live { width: 320px; height: 360px; }
+.ka-live .ka-initials { font-size: 110px; }
+.ka-live .k-nameplate { left: 12px; right: 12px; bottom: 12px; padding: 14px 16px; border-radius: 22px; gap: 4px; }
+.ka-live__name { font-size: 34px; }
+.ka-live__tagline { font-size: 13.5px; color: var(--k-sky-muted); }
+.ka-nudge { padding: 16px; border-radius: 24px; display: flex; align-items: center; gap: 14px; }
+.ka-nudge > .k-ring { font-size: 16px; flex-shrink: 0; }
+.ka-nudge__title { font-size: 14.5px; font-weight: 800; }
+.ka-checklist { margin: 0; padding: 16px; list-style: none; border-radius: 24px; display: flex; flex-direction: column; gap: 10px; font-size: 13.5px; font-weight: 700; }
+.ka-checklist > li { display: flex; align-items: center; gap: 10px; color: var(--k-sky-muted); }
+.ka-checklist > li.is-done { color: var(--k-sky-ink); }
+.ka-checklist > li.is-done .k-icon { color: var(--k-sky-success); }
+.ka-checklist > li.is-now { color: var(--k-sky-accent); }

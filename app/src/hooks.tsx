@@ -90,14 +90,14 @@ export function useRoute(): Route {
 
 // ---- the library: every item, loaded once and reloaded after any edit ----
 
-type Library = { items: Item[]; byId: Map<number, Item>; reload: () => void; error: string }
+type Library = { items: Item[]; byId: Map<number, Item>; loaded: boolean; reload: () => void; error: string }
 
-const LibraryContext = createContext<Library>({ items: [], byId: new Map(), reload: () => {}, error: '' })
+const LibraryContext = createContext<Library>({ items: [], byId: new Map(), loaded: false, reload: () => {}, error: '' })
 
 export function LibraryProvider({ children }: { children: ReactNode }) {
   const [items, reload, error] = useLoad(() => api<Item[]>('/library'), [])
   const value = useMemo(
-    () => ({ items: items ?? [], byId: new Map((items ?? []).map((i) => [i.id, i])), reload, error }),
+    () => ({ items: items ?? [], byId: new Map((items ?? []).map((i) => [i.id, i])), loaded: !!items, reload, error }),
     [items, reload, error],
   )
   return <LibraryContext.Provider value={value}>{children}</LibraryContext.Provider>

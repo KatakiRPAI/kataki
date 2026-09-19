@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { api, type Item, type StorySummary } from '../api'
 import { Portrait } from '../art'
 import { href, useAction, useLibrary, useLoad } from '../hooks'
 import { Candy, ErrorLine, Icon, SkyHeader, type CandyColor } from '../ui'
+import { completeness } from './Editor'
 
 type Filter = 'all' | 'favourites' | 'in-story' | 'new' | 'groups'
 
@@ -63,17 +64,27 @@ export default function Friends() {
             </button>
           ))}
         </div>
+        <a className="k-btn k-btn--dark k-btn--lg" href={href('/friends/new')}>
+          <Icon name="plus" size={17} />
+          Add a friend
+        </a>
       </SkyHeader>
       <ErrorLine error={error || storiesError || actionError} />
       <div className="ka-friends">
         {shown.map((f) => {
           const { text, idle } = status(f, stories ?? [])
+          const filled = Math.round(100 * completeness(f))
           return (
             <Portrait key={f.id} item={f} className="k-friend-card ka-friend">
               <a className="ka-friend__link" href={href(`/friend/${f.id}`)} aria-label={`${f.name}: open profile`} />
               <button type="button" className="ka-heart" aria-pressed={!!f.data.favourite} aria-label={`Favourite ${f.name}`} onClick={() => favourite(f)}>
                 <Icon name="heart" size={17} />
               </button>
+              {filled < 50 && (
+                <span className="k-ring ka-friend__ring" style={{ '--p': filled, '--s': '40px' } as CSSProperties} title={`Profile ${filled}% done`}>
+                  {filled}
+                </span>
+              )}
               <div className="k-nameplate">
                 <span className="ka-friend__name">{f.name}</span>
                 <span className="ka-friend__tagline">{f.description.split('\n')[0] || 'Just added. Finish their profile.'}</span>
@@ -82,7 +93,14 @@ export default function Friends() {
             </Portrait>
           )
         })}
-        {items.length > 0 && shown.length === 0 && <p className="ka-muted">No one here yet.</p>}
+        {items.length > 0 && shown.length === 0 && filter !== 'all' && <p className="ka-muted">No one here yet.</p>}
+        {filter === 'all' && (
+          <a className="ka-add-card" href={href('/friends/new')}>
+            <Candy icon="plus" size={56} />
+            <strong>Add a friend</strong>
+            <span>Build a character like a profile, one step at a time</span>
+          </a>
+        )}
       </div>
     </>
   )

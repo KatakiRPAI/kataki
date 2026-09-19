@@ -24,7 +24,13 @@ export function paletteOf(item: Item | undefined, name = item?.name ?? ''): Pale
   return PALETTES[h % PALETTES.length]
 }
 
-export const backdrop = (p: Palette) => `linear-gradient(160deg, ${p.bg[0]}, ${p.bg[1]})`
+/** The least-used palette among these items, for someone new (ties go to the earliest). */
+export function nextPalette(items: Item[]): Palette {
+  const uses = PALETTES.map((p) => items.filter((i) => i.data.palette?.bg[0] === p.bg[0]).length)
+  return PALETTES[uses.indexOf(Math.min(...uses))]
+}
+
+export const backdrop =(p: Palette) => `linear-gradient(160deg, ${p.bg[0]}, ${p.bg[1]})`
 
 export const pronounsOf = (item: Item | undefined): Pronouns => item?.data.pronouns ?? 'they'
 

@@ -6,6 +6,7 @@ import clouds from './design/clouds.svg'
 import { href, LibraryProvider, useRoute } from './hooks'
 import Kit from './Kit'
 import Chats from './sky/Chats'
+import Editor from './sky/Editor'
 import Friends from './sky/Friends'
 import { Icon } from './ui'
 
@@ -60,11 +61,18 @@ export default function App() {
   }, [])
 
   if (route.path === '/dev/kit') return <Kit />
-  const page = at === 'friends' ? <Friends /> : at === 'chats' ? <Chats selected={Number(route.parts[1]) || undefined} /> : null
+  const [, second, third] = route.parts
+  const page =
+    at === 'friends' && second === 'new' ? <Editor key={route.path} />
+    : at === 'friends' ? <Friends />
+    : at === 'friend' && third === 'edit' ? <Editor key={route.path} id={Number(second)} step={Number(route.query.get('step')) || 1} />
+    : at === 'you' && second === 'new' ? <Editor key={route.path} persona />
+    : at === 'chats' ? <Chats selected={Number(second) || undefined} />
+    : null
   if (page)
     return (
       <LibraryProvider>
-        <Sky at={at}>{page}</Sky>
+        <Sky at={at === 'friend' ? 'friends' : at}>{page}</Sky>
       </LibraryProvider>
     )
   return (
