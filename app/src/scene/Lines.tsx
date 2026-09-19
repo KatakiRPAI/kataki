@@ -1,5 +1,6 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { api, type Callout, type Cast, type CastEntity, type Item, type LineSignal, type Message, type Receipt, type Recall, type Signals, type Story } from '../api'
+import clouds from '../design/clouds.svg'
 import { Avatar, paletteOf, pronounsOf } from '../art'
 import { useAction, useLibrary } from '../hooks'
 import { ErrorLine, Icon, Prose } from '../ui'
@@ -458,6 +459,51 @@ function RecallCard({ recall }: { recall: Recall }) {
           </div>
         </div>
       ))}
+    </div>
+  )
+}
+
+/** Time passing, played over the scene: how long, the clock before and after, and what it cost
+ *  the people here. Dismissed by a click, by Esc, or on its own. */
+export function TimeSkip({ title, minutes, from, to, report, leaving, onUndo, onHold, onClose }: {
+  title: string
+  minutes: number
+  from: string
+  to: string
+  report?: string
+  leaving: boolean
+  onUndo: () => void
+  onHold: () => void // the reader is here: stop counting down
+  onClose: () => void
+}) {
+  const undo = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    undo.current?.focus() // so Undo is the first thing a keyboard reaches
+    const leave = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    addEventListener('keydown', leave)
+    return () => removeEventListener('keydown', leave)
+  }, [onClose])
+  return (
+    <div className={`k-timeskip ka-timeskip${leaving ? ' is-leaving' : ''}`} role="status"
+      onClick={onClose} onFocus={onHold}>
+      <img className="ka-timeskip__clouds" src={clouds} alt="" />
+      <img className="ka-timeskip__clouds ka-timeskip__clouds--far" src={clouds} alt="" />
+      <div className="ka-timeskip__text">
+        <span className="ka-timeskip__story">{title}</span>
+        <h2>{later(minutes)}</h2>
+        <div className="ka-timeskip__clocks">
+          <span className="k-sr">was </span>
+          <s>{from}</s>
+          <Icon name="right" size={16} />
+          <span className="k-sr">now </span>
+          <strong>{to}</strong>
+        </div>
+        {report && <div className="ka-timeskip__report">{report}</div>}
+        <button type="button" ref={undo} className="ka-timeskip__undo" onClick={(e) => { e.stopPropagation(); onUndo() }}>
+          <Icon name="undo" size={15} />
+          Undo the time skip
+        </button>
+      </div>
     </div>
   )
 }

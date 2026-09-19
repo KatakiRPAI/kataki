@@ -1,6 +1,6 @@
-import { useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import type { CastEntity, Story } from '../api'
-import { Avatar, Figure, paletteOf, Room } from '../art'
+import { Avatar, Figure, MIDDAY, paletteOf, Room, timeOfDay, type TimeOfDay } from '../art'
 import { DRAG, useLibrary, type Moving } from '../hooks'
 import { Icon } from '../ui'
 
@@ -17,6 +17,17 @@ export default function Stage({ story, people, arriving, busy, onMove }: {
 }) {
   const { byId } = useLibrary()
   const [target, setTarget] = useState(false)
+  // relighting crossfades two stacked rooms over 600 ms, opacity only (1.5)
+  const tod = timeOfDay(story.minute_of_day)
+  const [leaving, setLeaving] = useState<TimeOfDay>()
+  const lit = useRef(tod)
+  useEffect(() => {
+    if (lit.current === tod) return
+    setLeaving(lit.current)
+    lit.current = tod
+    const done = setTimeout(() => setLeaving(undefined), 600)
+    return () => clearTimeout(done)
+  }, [tod])
   const item = (e: { lib_item_id: number | null }) => (e.lib_item_id ? byId.get(e.lib_item_id) : undefined)
   const shown = people.slice(0, 3)
   return (
@@ -36,6 +47,9 @@ export default function Stage({ story, people, arriving, busy, onMove }: {
       }}
     >
       <Room item={story.place ? item(story.place) : undefined} minute={story.minute_of_day} />
+      {leaving && (
+        <Room key={leaving} item={story.place ? item(story.place) : undefined} minute={MIDDAY[leaving]} className="ka-room--leaving" />
+      )}
       {shown.map((e, i) => (
         <span key={e.id} className="ka-stage__slot" data-slot={i} draggable
           onDragStart={(d) => d.dataTransfer.setData(DRAG, JSON.stringify({ kind: 'here', id: e.id }))}>

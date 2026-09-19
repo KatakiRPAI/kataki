@@ -593,3 +593,30 @@ button.ka-bs-run[aria-pressed="true"] { background: rgba(140,195,255,.08); }
 .ka-recall__item { display: flex; flex-direction: column; gap: 6px; }
 .ka-recall__text { font-family: var(--k-font-story); font-size: 16px; color: var(--k-scene-ink); }
 .ka-recall__how { display: flex; align-items: center; gap: 10px; font-size: 11.5px; color: var(--k-scene-muted); }
+
+/* ---- time passing: the stage blurs, the mist rises, the clock rolls ---- */
+.ka-scene.is-skipping .ka-stage { filter: blur(8px); } /* static: filters are never animated (1.7) */
+.ka-timeskip { z-index: 60; cursor: pointer; animation: ka-mist var(--k-dur-slow) var(--k-ease-standard) both;
+  background: radial-gradient(ellipse 60% 55% at 45% 50%, rgba(246,248,255,.72) 0%, rgba(230,236,252,.55) 45%, rgba(200,212,240,.25) 100%); }
+.ka-timeskip.is-leaving { animation: ka-mist-out 400ms var(--k-ease-standard) forwards; }
+.ka-timeskip::before { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 260px; background: linear-gradient(180deg, rgba(240,244,255,0), rgba(240,244,255,.95)); }
+/* two big cloud layers, as the mockup places them: one over the top, one rising from below */
+.ka-timeskip__clouds { position: absolute; left: -14%; top: -29%; width: 128%; height: 128%; opacity: .95; pointer-events: none; }
+.ka-timeskip__clouds--far { left: -8%; top: 20%; width: 118%; height: 118%; opacity: .9; transform: scaleX(-1); }
+.ka-timeskip__text { position: relative; max-width: 660px; margin-inline-end: 15vw; /* centred over the stage, as the mockup has it */ display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center; }
+.ka-timeskip__story { font-size: 12px; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; color: #5a5068; }
+.ka-timeskip__clocks { display: flex; align-items: center; gap: 14px; font-size: 16px; font-variant-numeric: tabular-nums; }
+.ka-timeskip__clocks s { color: #6a6078; }
+.ka-timeskip__report { padding: 10px 16px; border-radius: 16px; background: rgba(255,255,255,.6); border: 1px solid rgba(255,255,255,.9); font-size: 14px; color: #3a3346; }
+.ka-timeskip__undo { height: 44px; padding: 0 20px; border-radius: 22px; border: 1px solid rgba(42,34,48,.25); background: rgba(255,255,255,.7); color: #2a2230; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
+@keyframes ka-mist { from { opacity: 0; } }
+@keyframes ka-mist-out { to { opacity: 0; } }
+.ka-room--leaving { z-index: 1; animation: ka-fade-out 600ms var(--k-ease-drift) forwards; }
+@keyframes ka-fade-out { to { opacity: 0; } }
+.ka-topbar__clock { display: inline-block; }
+.ka-topbar__clock.is-rolling { animation: ka-roll 600ms var(--k-ease-standard); } /* only after a skip */
+@keyframes ka-roll { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) { /* crossfades only, but the clouds still hang there */
+  .ka-timeskip, .ka-timeskip.is-leaving, .ka-room--leaving { animation-duration: 200ms; }
+  .ka-topbar__clock.is-rolling { animation: ka-mist 200ms var(--k-ease-standard); } /* no slide */
+}

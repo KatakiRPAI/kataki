@@ -96,11 +96,14 @@ export function AvatarStack({ people, size = 40 }: { people: { item?: Item; name
   )
 }
 
+/** The middle of each part of the day, for relighting a room to a past hour. */
+export const MIDDAY: Record<TimeOfDay, number> = { dawn: 390, day: 750, dusk: 1110, night: 1380 }
+
 /** A place: its image tinted by the time of day, or a lamplit room whose window follows it. */
-export function Room({ item, minute }: { item?: Item; minute: number }) {
+export function Room({ item, minute, className = '' }: { item?: Item; minute: number; className?: string }) {
   const tod = timeOfDay(minute)
   return (
-    <div className="ka-room" data-tod={tod} aria-hidden="true">
+    <div className={`ka-room ${className}`} data-tod={tod} aria-hidden="true">
       {item?.data.image ? (
         <img className="ka-room__img" src={mediaUrl(item.data.image)} alt="" />
       ) : (

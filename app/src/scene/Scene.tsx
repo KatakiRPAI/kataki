@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { api, stream, type Cast, type CastEntity, type ContextLog, type Message, type Signals, type Story, type TurnMeta, type Version } from '../api'
+import { api, stream, type Cast, type CastEntity, type ContextLog, type Message, type Signals, type Story, type TurnDone, type TurnMeta, type Version } from '../api'
 import { paletteOf, SunArc } from '../art'
 import { lastSky, rise, useAction, useLibrary, useLoad, usePoll, type Moving } from '../hooks'
 import { Dialog, ErrorLine, Field, Icon, Menu } from '../ui'
 import Composer, { type Meter, type Send } from './Composer'
-import Lines, { LiveLine, SaidLine, type Live } from './Lines'
+import Lines, { LiveLine, SaidLine, TimeSkip, type Live } from './Lines'
 import { Nearby, NewScene, type SceneBody } from './Nearby'
 import Backstage from './Backstage'
 import Stage from './Stage'
@@ -115,7 +115,62 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
   }, 3000, !live)
   const [backstage, setBackstage] = useState(false)
 
+  // Time passing: the overlay holds for at least 1.8 s, fades out, and then the clock rolls.
+  const [skipping, setSkipping] = useState<{ minutes: number; from: string; to: string; line: number; report?: string; leaving?: boolean } | null>(null)
+  const [rolling, setRolling] = useState(false)
+  const skipTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const rollTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const played = useRef(new Set<number>()) // a line's skip is a moment, played once
+  const onScreen = useRef<{ line: number; leaving: boolean } | null>(null)
+  const beforeReply = useRef('') // the clock the reply starts from, for a skip in its own words
+  useEffect(() => () => {
+    clearTimeout(skipTimer.current)
+    clearTimeout(rollTimer.current)
+  }, [])
+  const closeSkip = () => {
+    clearTimeout(skipTimer.current)
+    if (onScreen.current) onScreen.current.leaving = true
+    setSkipping((was) => (was?.leaving ? was : was && { ...was, leaving: true }))
+    skipTimer.current = setTimeout(() => {
+      onScreen.current = null
+      setSkipping(null)
+      setRolling(true) // the clock rolls as the mist lifts
+      rollTimer.current = setTimeout(() => setRolling(false), 800)
+    }, 400)
+  }
+  const holdSkip = (ms: number) => {
+    clearTimeout(skipTimer.current)
+    skipTimer.current = setTimeout(closeSkip, ms)
+  }
+  const playSkip = (minutes: number, from: string, to: string, line: number) => {
+    if (played.current.has(line)) return // a retake of the reply after it is not a new skip
+    played.current.add(line)
+    onScreen.current = { line, leaving: false }
+    setSkipping({ minutes, from, to, line })
+    holdSkip(2600)
+    // the engine writes what it cost each of them; hold a moment longer once it arrives
+    api<Signals>(`/stories/${id}/signals`).then((s) => {
+      const report = s.lines[line]?.skip?.text
+      if (!report || onScreen.current?.line !== line || onScreen.current.leaving) return
+      setSkipping((was) => (was && was.line === line ? { ...was, report } : was))
+      holdSkip(1600) // long enough to read what it cost them
+    }, () => {})
+  }
+  const undoSkip = () =>
+    act(async () => {
+      const line = skipping?.line
+      if (!line) return
+      closeSkip()
+      // the line may have been written moments ago, before this scene's data was refreshed
+      const known = data?.messages.find((m) => m.id === line)
+      const message = known ?? (await api<Message[]>(`/stories/${id}/messages`)).find((m) => m.id === line)
+      const only = message?.role === 'system' // a marker with nothing but the skip goes too
+      await api(`/messages/${line}`, 'PATCH', only ? { skip_minutes: 0, hidden: true } : { skip_minutes: 0 })
+      refreshAll()
+    })
+
   const generate = async (path: string, body: object, replacing?: number) => {
+    const was = { clock: data?.story.clock ?? '' } // the clock before this turn, for a skip the reply itself takes
     const ctl = new AbortController()
     controller.current = ctl
     setLive({ speaker: '', speakerId: null, text: '', thoughts: '', strained: false, replacing })
@@ -125,10 +180,18 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
           const meta = value as TurnMeta
           setLive((l) => l && { ...l, speaker: meta.speaker?.name ?? 'The narrator', speakerId: meta.speaker?.id ?? null, strained: meta.strained, clock: meta.clock, from: meta.from_clock })
           setMeter(meterOf(meta.context.est_tokens, meta.context.budget, meta.context.recalled))
+          beforeReply.current = meta.clock
+          if (!replacing && meta.skip >= 1440 && meta.parent_id) {
+            playSkip(meta.skip, meta.from_clock, meta.clock, meta.parent_id)
+          }
         } else if (kind === 'thought') {
           setLive((l) => l && { ...l, thoughts: l.thoughts + value, thoughtAt: l.thoughtAt ?? performance.now() })
         } else if (kind === 'token') {
           setLive((l) => l && { ...l, text: l.text + value, thinkMs: l.thinkMs ?? (l.thoughtAt === undefined ? undefined : performance.now() - l.thoughtAt) })
+        } else if (kind === 'done') {
+          const done = value as TurnDone
+          // the reply's own narration moved the clock: it starts from where the reply began
+          if (done.skip_minutes >= 1440) playSkip(done.skip_minutes, beforeReply.current || was.clock, done.clock, done.message_id)
         } else if (kind === 'error') {
           setFailed(value.message)
         }
@@ -148,8 +211,11 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
     setFailed('')
     if (s.text) setSaid({ text: s.text, audience: s.audience })
     if (s.reply) return generate(`/stories/${id}/turn`, { text: s.text, speaker: s.speaker, audience: s.audience, skip: s.skip })
+    const before = data?.story.clock ?? ''
     try {
-      await api(`/stories/${id}/line`, 'POST', { text: s.text, audience: s.audience, skip: s.skip })
+      const after = await api<Message[]>(`/stories/${id}/line`, 'POST', { text: s.text, audience: s.audience, skip: s.skip })
+      const last = after.at(-1)
+      if (last && last.skip_minutes >= 1440) playSkip(last.skip_minutes, before, last.clock, last.id)
     } catch (e) {
       setFailed((e as Error).message)
     }
@@ -168,10 +234,11 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
   }
   useEffect(() => {
     if (!reading) return
-    const leave = (e: KeyboardEvent) => e.key === 'Escape' && !document.querySelector('dialog[open], :popover-open') && setReading(false)
+    const leave = (e: KeyboardEvent) =>
+      e.key === 'Escape' && !skipping && !document.querySelector('dialog[open], :popover-open') && setReading(false)
     addEventListener('keydown', leave)
     return () => removeEventListener('keydown', leave)
-  }, [reading])
+  }, [reading, skipping])
   useEffect(() => () => clearTimeout(sleepTimer.current), [])
 
   // Open at the newest line, or at the deep-linked one; follow a reply as it is written.
@@ -211,7 +278,7 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
   const retake = () => newest && generate(`/stories/${id}/regenerate`, {}, newest.id)
 
   return (
-    <div className={`k-scene ka-scene${reading && !backstage ? ' is-reading' : ''}${awake ? ' is-awake' : ''}${backstage ? ' is-backstage' : ''}`}
+    <div className={`k-scene ka-scene${reading && !backstage ? ' is-reading' : ''}${awake ? ' is-awake' : ''}${backstage ? ' is-backstage' : ''}${skipping ? ' is-skipping' : ''}`}
       onPointerMove={reading ? wake : undefined}>
       {backstage && <Backstage story={story} cast={cast} tick={tick} onChange={refreshAll} />}
       <Stage story={story} people={people} arriving={arriving} busy={acting || !!live} onMove={move} />
@@ -230,7 +297,7 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
         <div className="k-scene-pill k-sglass">
           <SunArc minute={story.minute_of_day} />
           {story.place && <strong>{story.place.name}</strong>}
-          <span className="ka-topbar__clock">{story.clock}</span>
+          <span key={story.clock} className={`ka-topbar__clock${rolling ? ' is-rolling' : ''}`}>{story.clock}</span>
         </div>
         <div className="ka-topbar__side ka-topbar__side--end">
           <button type="button" role="switch" aria-checked={backstage} className="k-scene-pill k-sglass ka-bs-toggle"
@@ -269,6 +336,19 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
       />
       <NewScene open={newScene} story={story} cast={cast} onClose={() => setNewScene(false)} onCut={cut} />
       {cutting && <div className="ka-cut" aria-hidden="true" />}
+      {skipping && (
+        <TimeSkip
+          title={story.title}
+          minutes={skipping.minutes}
+          from={skipping.from}
+          to={skipping.to}
+          report={skipping.report}
+          leaving={!!skipping.leaving}
+          onUndo={undoSkip}
+          onHold={() => clearTimeout(skipTimer.current)}
+          onClose={closeSkip}
+        />
+      )}
     </div>
   )
 }
