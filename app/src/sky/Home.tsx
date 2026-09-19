@@ -10,17 +10,52 @@ type Settings = { persona?: number | null }
 const greeting = (hour = new Date().getHours()) =>
   hour >= 5 && hour < 12 ? 'Good morning' : hour >= 12 && hour < 17 ? 'Good afternoon' : 'Good evening'
 
-/** Who you are in new chats: your avatar opens it. Each chat keeps the persona it started with. */
+/** The choice of who you are in new chats: each persona, the director, or a new persona. */
+export function PersonaChoices({ current, personas, onPick, big = false }: {
+  current?: Item
+  personas: Item[]
+  onPick: (id: number | null) => void
+  big?: boolean
+}) {
+  const size = big ? 48 : 40
+  return (
+    <div className="ka-choices">
+      {personas.map((p) => (
+        <button key={p.id} type="button" className="ka-choice" aria-pressed={p.id === current?.id} onClick={() => onPick(p.id)}>
+          <Avatar item={p} size={size} />
+          <span className="ka-stack ka-stack--tight">
+            <strong>{p.name}</strong>
+            {p.description && <span className="ka-muted ka-small">{p.description.split('\n')[0]}</span>}
+          </span>
+          {p.id === current?.id && <Icon name="check" size={18} />}
+        </button>
+      ))}
+      <button type="button" className="ka-choice" aria-pressed={!current} onClick={() => onPick(null)}>
+        <span className="ka-choice__tile" style={{ width: size, height: size }}><Icon name="quill" size={20} /></span>
+        <span className="ka-stack ka-stack--tight">
+          <strong>Director</strong>
+          <span className="ka-muted ka-small">Play no one. Direct the story.</span>
+        </span>
+        {!current && <Icon name="check" size={18} />}
+      </button>
+      <a className="ka-choice ka-choice--new" href={href('/you/new')}>
+        <span className="ka-choice__tile ka-choice__tile--new" style={{ width: size, height: size }}><Icon name="plus" size={20} /></span>
+        <strong>New persona</strong>
+      </a>
+      <span className="ka-muted ka-small ka-choice__note">
+        Each chat keeps the persona it started with. Characters know each of your personas separately.
+      </span>
+    </div>
+  )
+}
+
+/** Your avatar, which opens the choice of who you are in new chats. */
 export function PersonaSwitcher({ current, personas, onPick }: {
   current?: Item
   personas: Item[]
   onPick: (id: number | null) => void
 }) {
   const id = useId()
-  const pick = (value: number | null) => {
-    onPick(value)
-    document.getElementById(id)?.hidePopover()
-  }
   return (
     <>
       <button type="button" className="ka-me" popoverTarget={id} aria-label={`You are ${current?.name ?? 'the director'}. Switch who you are`}>
@@ -29,29 +64,14 @@ export function PersonaSwitcher({ current, personas, onPick }: {
       </button>
       <div id={id} popover="auto" className="ka-menu ka-switcher">
         <span className="k-eyebrow ka-eyebrow">Who are you in new chats?</span>
-        {personas.map((p) => (
-          <button key={p.id} type="button" className="ka-switcher__row" aria-pressed={p.id === current?.id} onClick={() => pick(p.id)}>
-            <Avatar item={p} size={40} />
-            <span className="ka-stack ka-stack--tight">
-              <strong>{p.name}</strong>
-              {p.description && <span className="ka-muted ka-small">{p.description.split('\n')[0]}</span>}
-            </span>
-            {p.id === current?.id && <Icon name="check" size={18} />}
-          </button>
-        ))}
-        <button type="button" className="ka-switcher__row" aria-pressed={!current} onClick={() => pick(null)}>
-          <span className="ka-switcher__tile"><Icon name="quill" size={20} /></span>
-          <span className="ka-stack ka-stack--tight">
-            <strong>Director</strong>
-            <span className="ka-muted ka-small">Play no one: direct the story</span>
-          </span>
-          {!current && <Icon name="check" size={18} />}
-        </button>
-        <a className="ka-switcher__row" href={href('/you/new')}>
-          <span className="ka-switcher__tile"><Icon name="plus" size={20} /></span>
-          <strong>New persona</strong>
-        </a>
-        <span className="ka-muted ka-small ka-switcher__note">Each chat keeps the persona it started with. This changes who you are in new ones.</span>
+        <PersonaChoices
+          current={current}
+          personas={personas}
+          onPick={(value) => {
+            onPick(value)
+            document.getElementById(id)?.hidePopover()
+          }}
+        />
       </div>
     </>
   )

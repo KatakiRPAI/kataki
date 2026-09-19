@@ -246,11 +246,6 @@ span.k-orb { display: block; }
 .ka-me__badge { position: absolute; right: -4px; bottom: -2px; width: 24px; height: 24px; box-sizing: border-box; border-radius: 50%; border: 2px solid #fff; display: grid; place-items: center; background: var(--k-sky-ink); color: #fff; }
 .ka-switcher { position-area: bottom span-right; width: 340px; padding: 10px; gap: 4px; }
 .ka-switcher > .ka-eyebrow { padding: 6px 8px; }
-.ka-menu > .ka-switcher__row { height: auto; min-height: 56px; padding: 8px; gap: 12px; }
-.ka-switcher__row > .k-icon:last-child { margin-left: auto; color: var(--k-sky-accent); }
-.ka-switcher__row[aria-pressed="true"] { background: #fff; }
-.ka-switcher__tile { width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%; display: grid; place-items: center; background: rgba(20,38,77,.06); color: var(--k-sky-muted); }
-.ka-switcher__note { padding: 8px 8px 4px; line-height: 1.4; }
 .ka-continue { height: 372px; flex-shrink: 0; }
 .ka-continue .k-continue__scrim { background: linear-gradient(90deg, rgba(10,8,14,0) 22%, rgba(10,8,14,.8) 50%); }
 .ka-continue__figure { position: absolute; left: 10%; bottom: -100px; width: min(40%, 380px); }
@@ -289,3 +284,28 @@ span.k-orb { display: block; }
 .ka-plot__opening em { color: #5a6a8e; }
 .ka-plot__actions { margin-top: auto; }
 .ka-plot { height: 100%; box-sizing: border-box; }
+
+/* ---- who you are: the choice (Home's switcher and You) ---- */
+.ka-m0 { margin: 0; }
+.ka-choices { display: flex; flex-direction: column; gap: 4px; }
+.ka-choice { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 12px 8px 8px; box-sizing: border-box; border: 0; border-radius: 16px; background: none; color: var(--k-sky-ink); font: inherit; text-align: left; text-decoration: none; cursor: pointer; }
+.ka-choice:hover { background: rgba(255,255,255,.7); }
+.ka-choice[aria-pressed="true"] { background: #fff; }
+.ka-choice > .k-icon:last-child { margin-left: auto; color: var(--k-sky-accent); }
+.ka-choice strong { font-size: 15px; }
+.ka-choice__tile { width: 40px; height: 40px; flex-shrink: 0; box-sizing: border-box; border-radius: 50%; display: grid; place-items: center; background: rgba(20,38,77,.06); color: var(--k-sky-muted); }
+.ka-choice--new { color: var(--k-sky-accent); }
+.ka-choice__tile--new { background: none; border: 2px dashed rgba(47,99,240,.35); color: var(--k-sky-accent); }
+.ka-choice__note { padding: 8px 8px 4px; line-height: 1.45; }
+
+/* ---- You ---- */
+.ka-you { display: grid; grid-template-columns: 380px 360px minmax(0, 1fr); gap: 28px; align-items: start; margin-top: -8px; }
+.ka-you__choices { border-radius: var(--k-radius-hero); background: var(--k-sky-glass-strong); padding: 24px; }
+.ka-you__choices > .ka-eyebrow { padding: 0 8px; }
+.ka-you .ka-choice { min-height: 72px; padding: 12px; border-radius: 18px; }
+.ka-you .ka-choice[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--k-sky-accent); }
+.ka-you .ka-choice--new { margin-top: 8px; border-top: 1px solid var(--k-sky-hairline); border-radius: 0; }
+.ka-you__portrait { width: 360px; height: 440px; border-radius: var(--k-radius-hero); }
+.ka-you__portrait .ka-initials { font-size: 140px; }
+.ka-you__portrait .k-nameplate { left: 12px; right: 12px; bottom: 12px; padding: 14px 16px; border-radius: 22px; gap: 4px; }
+.ka-you__badge { position: absolute; left: 14px; top: 14px; z-index: 1; height: 32px; padding: 0 14px 0 12px; border-radius: 16px; display: inline-flex; align-items: center; gap: 6px; background: var(--k-sky-ink); color: #fff; font-size: 13px; font-weight: 800; }

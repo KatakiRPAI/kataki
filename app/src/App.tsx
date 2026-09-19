@@ -10,6 +10,7 @@ import Editor from './sky/Editor'
 import Friends from './sky/Friends'
 import Home from './sky/Home'
 import Places from './sky/Places'
+import You from './sky/You'
 import Profile from './sky/Profile'
 import { Icon } from './ui'
 
@@ -19,6 +20,7 @@ const RAIL: [string, string, string][] = [
   ['friends', 'users', 'Friends'],
   ['chats', 'chat', 'Chats'],
   ['places', 'map', 'Places'],
+  ['you', 'user', 'You'],
 ]
 
 /** The Sky: bright glass over clouds, with the rail on the left. */
@@ -74,6 +76,7 @@ export default function App() {
     : at === 'friend' && third === 'edit' ? <Editor key={route.path} id={Number(second)} step={Number(route.query.get('step')) || 1} />
     : at === 'friend' && !third ? <Profile key={second} id={Number(second)} />
     : at === 'you' && second === 'new' ? <Editor key={route.path} persona />
+    : at === 'you' ? <You key={route.path} id={second ? Number(second) : undefined} />
     : at === 'chats' ? <Chats selected={Number(second) || undefined} />
     : at === 'places' ? <Places />
     : null

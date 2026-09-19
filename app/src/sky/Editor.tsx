@@ -169,7 +169,7 @@ function Form({ item, persona, initialStep }: { item?: Item; persona: boolean; i
   }
   const finish = async () => {
     await save()
-    go(draft.persona || idRef.current === undefined ? home : `/friend/${idRef.current}`) // a friend's profile
+    go(idRef.current === undefined ? home : `${draft.persona ? '/you' : '/friend'}/${idRef.current}`) // their profile
   }
   const start = (text: string) => {
     const field = (['description', 'private', 'example_dialogue', 'first_message'] as const)[step - 1]
