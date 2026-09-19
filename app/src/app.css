@@ -578,3 +578,18 @@ button.ka-bs-run[aria-pressed="true"] { background: rgba(140,195,255,.08); }
 /* the design's `.k-backstage button { font-family: inherit }` outranks `.k-bs-btn`'s mono */
 .k-backstage :is(.k-bs-btn, .ka-bs-run) { font-family: var(--k-font-mono); }
 .k-backstage .ka-bs-person { font-family: var(--k-font-ui); }
+
+/* ---- memory signals: receipts, callouts, the recall spark ---- */
+/* 600 ms to sharp, 1.2 s to hazy; never the design's filter transition (1.7) */
+.ka-scene .k-receipt { transition: box-shadow 600ms var(--k-ease-standard), opacity 1.2s var(--k-ease-drift); }
+.ka-scene .k-receipt.is-forgotten { opacity: 0; }
+.ka-receipts__chips { display: none; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.ka-line:is(:hover, :focus-within) .ka-receipts__chips { display: flex; }
+.ka-line:is(:hover, :focus-within) .ka-receipts > .k-receipts { display: none; }
+.k-receipt-chip.is-absent { color: var(--k-scene-muted); }
+.ka-callout__why { margin-top: 6px; font-size: 11.5px; line-height: 1.4; color: var(--k-scene-muted); }
+.ka-spark { align-self: center; padding: 0; border: 0; background: none; cursor: help; }
+.ka-recall__title { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--k-scene-amber); }
+.ka-recall__item { display: flex; flex-direction: column; gap: 6px; }
+.ka-recall__text { font-family: var(--k-font-story); font-size: 16px; color: var(--k-scene-ink); }
+.ka-recall__how { display: flex; align-items: center; gap: 10px; font-size: 11.5px; color: var(--k-scene-muted); }

@@ -235,6 +235,34 @@ export type TurnMeta = {
   context: { est_tokens: number; budget: number; reserve: number; sections: Section[]; recalled: number }
 }
 
+/** `GET /stories/{id}/signals`: per line, who heard it and how clearly they will remember it,
+ *  what it meant to someone, what a reply recalled, what a skip made them forget. */
+export type Receipt = {
+  id: number
+  state: 'heard' | 'sharp' | 'hazy' | 'forgotten' | 'absent'
+  pending?: boolean // heard, not read by memory yet
+  why?: 'away' | 'whisper' // absent
+}
+export type Callout = {
+  kind: 'memory' | 'belief' | 'feeling'
+  who: number[]
+  text: string
+  reason: string | null
+  faded: boolean
+  memory_id: number | null
+}
+export type RecallItem = { memory_id: number; tier: 'sharp' | 'hazy'; text: string; how: string; detail: string }
+export type Recall = { speaker: number; title: string; items: RecallItem[] }
+export type SkipReport = {
+  minutes: number
+  from_clock: string
+  to_clock: string
+  faded: { id: number; hazy: number; gone: number }[]
+  text: string
+}
+export type LineSignal = { summary?: string; receipts?: Receipt[]; callouts?: Callout[]; recall?: Recall; skip?: SkipReport }
+export type Signals = { read_to: number; lines: Record<string, LineSignal> }
+
 /** `GET /stories/{id}/version`: changes whenever a memory read starts, ends or goes away. */
 export type Version = { v: string; waiting: number }
 export type TurnDone = {

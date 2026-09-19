@@ -1,5 +1,5 @@
-import { useState, type CSSProperties, type ReactNode } from 'react'
-import { api, type Cast, type Item, type Message, type Story } from '../api'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { api, type Callout, type Cast, type CastEntity, type Item, type LineSignal, type Message, type Receipt, type Recall, type Signals, type Story } from '../api'
 import { Avatar, paletteOf, pronounsOf } from '../art'
 import { useAction, useLibrary } from '../hooks'
 import { ErrorLine, Icon, Prose } from '../ui'
@@ -45,10 +45,11 @@ function names(ids: number[], cast: Cast) {
 
 /** The conversation: lines, title cards for the opening, scenes and skips, and notes on who came
  *  and went. `flash` marks a deep-linked line; `busy` while a reply is written. */
-export default function Lines({ story, messages, cast, flash, busy, onChange, onRetake }: {
+export default function Lines({ story, messages, cast, signals, flash, busy, onChange, onRetake }: {
   story: Story
   messages: Message[]
   cast: Cast
+  signals?: Signals
   flash?: number
   busy: boolean
   onChange: () => void
@@ -61,6 +62,7 @@ export default function Lines({ story, messages, cast, flash, busy, onChange, on
     const lib = entity(id)?.lib_item_id
     return lib ? byId.get(lib) : undefined
   }
+  const face = (id: number): Face => ({ name: entity(id)?.name ?? '?', item: itemOf(id) })
   const ink = (m: Message) =>
     m.speaker_id === null ? undefined
     : m.speaker_id === story.persona?.id ? 'var(--k-speaker-aren)'
@@ -112,6 +114,8 @@ export default function Lines({ story, messages, cast, flash, busy, onChange, on
           to={m.audience?.length ? names(m.audience, cast) : ''}
           flash={m.id === flash}
           retake={m === newest && m.role === 'assistant' && m.parent_id !== null}
+          signal={signals?.lines[m.id]}
+          face={face}
           busy={busy}
           onChange={onChange}
           onRetake={onRetake}
@@ -153,7 +157,7 @@ function Card({ children }: { children: ReactNode }) {
 
 /** One line, with its tools on hover or focus: takes (the last arrow on the newest reply asks for
  *  a new one), inline Edit, and Hide (the line stays in the story but never reaches the model). */
-function Line({ storyId, m, stamp, ink, to, flash, retake, busy, onChange, onRetake }: {
+function Line({ storyId, m, stamp, ink, to, flash, retake, signal, face, busy, onChange, onRetake }: {
   storyId: number
   m: Message
   stamp: string
@@ -161,6 +165,8 @@ function Line({ storyId, m, stamp, ink, to, flash, retake, busy, onChange, onRet
   to: string // who a whisper was for
   flash: boolean
   retake: boolean
+  signal?: LineSignal
+  face: (id: number) => Face
   busy: boolean
   onChange: () => void
   onRetake: () => void
@@ -183,6 +189,7 @@ function Line({ storyId, m, stamp, ink, to, flash, retake, busy, onChange, onRet
     if (draft.trim() && draft !== m.text) await patch({ text: draft.trim() })
     setEditing(false)
   }
+  const [recalling, setRecalling] = useState(false)
   const [index, count] = m.swipe
   const fresh = retake && index === count // the next arrow asks for a new take
   return (
@@ -225,6 +232,13 @@ function Line({ storyId, m, stamp, ink, to, flash, retake, busy, onChange, onRet
         {m.hidden && <span className="k-line__mark">hidden</span>}
         {m.audience?.length === 0 && <span className="k-line__mark">thought</span>}
         {to && <span className="k-line__mark">whispered to {to}</span>}
+        {signal?.recall && (
+          <button type="button" className="k-spark ka-spark" aria-label="Drew on memory" aria-expanded={recalling}
+            onMouseEnter={() => setRecalling(true)} onMouseLeave={() => setRecalling(false)}
+            onFocus={() => setRecalling(true)} onBlur={() => setRecalling(false)} onClick={() => setRecalling((r) => !r)}>
+            <Icon name="spark" size={14} />
+          </button>
+        )}
       </div>
       {editing ? (
         <div className="ka-edit">
@@ -245,7 +259,10 @@ function Line({ storyId, m, stamp, ink, to, flash, retake, busy, onChange, onRet
           <Prose text={m.text} />
         </div>
       )}
+      {recalling && signal?.recall && <RecallCard recall={signal.recall} />}
       {m.think_ms != null && m.reasoning && <Thought ms={m.think_ms} notes={m.reasoning} />}
+      {signal?.receipts && <Receipts receipts={signal.receipts} summary={signal.summary ?? ''} face={face} />}
+      {signal?.callouts?.map((c, i) => <CalloutChip key={i} callout={c} face={face} />)}
       <ErrorLine error={error} />
     </article>
   )
@@ -322,8 +339,15 @@ export function LiveLine({ live, item, ink }: { live: Live; item?: Item; ink?: s
   )
 }
 
-/** The user's line, shown the moment it is sent, until the engine's copy arrives. */
-export function SaidLine({ who, text, audience }: { who: string; text: string; audience: number[] | null }) {
+/** The user's line, shown the moment it is sent, until the engine's copy arrives: heard at once
+ *  by whoever it reaches. */
+export function SaidLine({ who, text, audience, hearers }: { who: string; text: string; audience: number[] | null; hearers: CastEntity[] }) {
+  const { byId } = useLibrary()
+  const face = (id: number): Face => {
+    const e = hearers.find((h) => h.id === id)
+    return { name: e?.name ?? '?', item: e?.lib_item_id ? byId.get(e.lib_item_id) : undefined }
+  }
+  const receipts: Receipt[] = hearers.map((e) => ({ id: e.id, state: 'heard', pending: true }))
   return (
     <article className="k-line ka-line" style={{ '--speaker': 'var(--k-speaker-aren)' } as CSSProperties}>
       <div className="k-line__head">
@@ -334,6 +358,106 @@ export function SaidLine({ who, text, audience }: { who: string; text: string; a
       <div className="k-line__body">
         <Prose text={text} />
       </div>
+      {receipts.length > 0 && (
+        <Receipts receipts={receipts} summary={`Heard by ${hearers.map((e) => e.name).join(', ').replace(/, ([^,]*)$/, ' and $1')}`} face={face} />
+      )}
     </article>
+  )
+}
+
+type Face = { name: string; item?: Item }
+
+const CHIP: Record<string, string> = {
+  sharp: 'heard · will remember',
+  hazy: 'heard · remembers it vaguely',
+  forgotten: 'heard · has forgotten',
+  heard: 'heard',
+  away: "wasn't there",
+  whisper: "didn't hear",
+}
+
+/** Who heard the line: small faces lit by how clearly each will remember it, the engine's
+ *  sentence, and dots while memory hasn't read the line yet; on hover, a chip per person. */
+function Receipts({ receipts, summary, face }: { receipts: Receipt[]; summary: string; face: (id: number) => Face }) {
+  const pending = receipts.some((r) => r.pending)
+  return (
+    <div className="ka-receipts">
+      <div className="k-receipts">
+        <span className="k-receipts__faces">
+          {receipts.map((r) => <ReceiptFace key={r.id} receipt={r} face={face(r.id)} />)}
+        </span>
+        <span>{summary}</span>
+        {pending && <span className="k-receipts__pending" aria-label="not read by memory yet"><i /><i /><i /></span>}
+      </div>
+      <div className="ka-receipts__chips">
+        {receipts.filter((r) => r.state !== 'forgotten').map((r) => (
+          <span key={r.id} className={`k-receipt-chip${r.state === 'absent' ? ' is-absent' : ''}`}>
+            <ReceiptFace receipt={r} face={face(r.id)} size={20} />
+            {face(r.id).name} {CHIP[r.state === 'absent' ? (r.why ?? 'away') : r.state]}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** One face. Someone who forgets fades out, then leaves the row (1.2 s); a face that was already
+ *  forgotten never shows. */
+function ReceiptFace({ receipt, face, size = 16 }: { receipt: Receipt; face: Face; size?: number }) {
+  const forgotten = receipt.state === 'forgotten'
+  const [gone, setGone] = useState(forgotten)
+  useEffect(() => {
+    if (!forgotten) {
+      setGone(false)
+      return
+    }
+    const t = setTimeout(() => setGone(true), 1200)
+    return () => clearTimeout(t)
+  }, [forgotten])
+  if (gone) return null
+  if (receipt.state === 'absent')
+    return (
+      <span className="k-avatar k-receipt is-absent" style={{ '--s': `${size}px` } as CSSProperties} title={face.name} aria-hidden="true">
+        {face.name[0]}
+      </span>
+    )
+  return <Avatar item={face.item} name={face.name} size={size} className={`k-receipt is-${receipt.state}`} />
+}
+
+const CALLOUT_ICON = { memory: 'spark', belief: 'help', feeling: 'heart' }
+
+/** What a moment meant to someone, in the engine's words, with its reason below. */
+function CalloutChip({ callout, face }: { callout: Callout; face: (id: number) => Face }) {
+  const who = callout.who[0]
+  return (
+    <>
+      <span className={`k-callout${callout.kind === 'memory' ? '' : ` k-callout--${callout.kind}`}${callout.faded ? ' is-faded' : ''}`}>
+        {who !== undefined && <Avatar item={face(who).item} name={face(who).name} size={20} />}
+        <Icon name={CALLOUT_ICON[callout.kind]} size={13} />
+        {callout.text}
+      </span>
+      {callout.reason && <span className="ka-callout__why">{callout.reason}</span>}
+    </>
+  )
+}
+
+/** What the speaker drew on for this reply, and how clearly it came back. */
+function RecallCard({ recall }: { recall: Recall }) {
+  return (
+    <div className="k-recall" role="note">
+      <div className="ka-recall__title">
+        <Icon name="spark" size={13} />
+        {recall.title}
+      </div>
+      {recall.items.map((x) => (
+        <div key={x.memory_id} className="ka-recall__item">
+          <span className="ka-recall__text">{x.text}</span>
+          <div className="ka-recall__how">
+            <span className="k-clarity" data-level={x.tier} aria-hidden="true"><i /><i /><i /></span>
+            {[x.tier, x.how, x.tier === 'hazy' ? `once sharp: “${x.detail}”` : ''].filter(Boolean).join(' · ')}
+          </div>
+        </div>
+      ))}
+    </div>
   )
 }

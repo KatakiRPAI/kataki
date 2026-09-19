@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { api, stream, type Cast, type CastEntity, type ContextLog, type Message, type Story, type TurnMeta, type Version } from '../api'
+import { api, stream, type Cast, type CastEntity, type ContextLog, type Message, type Signals, type Story, type TurnMeta, type Version } from '../api'
 import { paletteOf, SunArc } from '../art'
 import { lastSky, rise, useAction, useLibrary, useLoad, usePoll, type Moving } from '../hooks'
 import { Dialog, ErrorLine, Field, Icon, Menu } from '../ui'
@@ -29,13 +29,21 @@ function meterOf(used: number, budget: number, recalled: number): Meter {
 export default function Scene({ id, line }: { id: number; line?: number }) {
   const { byId } = useLibrary()
   // One guarded load of everything the scene shows; every change calls it again.
+  // The version this data was loaded at: the poll compares with it, so a memory read that lands
+  // any time after a load (even before the first tick) refreshes the scene.
+  const version = useRef('')
   const [data, refreshAll, error] = useLoad(
     () =>
       Promise.all([
+        api<Version>(`/stories/${id}/version`),
         api<Story>(`/stories/${id}`),
         api<Message[]>(`/stories/${id}/messages`),
         api<Cast>(`/stories/${id}/cast`),
-      ]).then(([story, messages, cast]) => ({ story, messages, cast })),
+        api<Signals>(`/stories/${id}/signals`),
+      ]).then(([at, story, messages, cast, signals]) => {
+        version.current = `${at.v}|${at.waiting}`
+        return { story, messages, cast, signals }
+      }),
     [id],
   )
   const [live, setLive] = useState<Live | null>(null)
@@ -94,16 +102,15 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
 
   // Memory reads in the background: when the version moves, what the scene shows may have too.
   // Not while a reply streams: the fresh lines would double the ones on screen.
-  const version = useRef('')
   const [tick, setTick] = useState(0) // Backstage reloads when this moves
   usePoll(() => {
     api<Version>(`/stories/${id}/version`).then(({ v, waiting }) => {
       const now = `${v}|${waiting}` // lines waiting to be read count too (Backstage shows them)
       if (version.current && now !== version.current) {
+        version.current = now // the refresh below will confirm it
         refreshAll()
         setTick((t) => t + 1)
       }
-      version.current = now
     }, () => {})
   }, 3000, !live)
   const [backstage, setBackstage] = useState(false)
@@ -189,7 +196,7 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
       </div>
     )
   }
-  const { story, messages, cast } = data
+  const { story, messages, cast, signals } = data
   const people = onStage(cast, messages, arriving)
   const away = cast.entities.filter((e) => !e.present && e.is_ai && e.kind === 'character')
   const missing = !!line && !messages.some((m) => m.id === line)
@@ -241,9 +248,12 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
       </header>
       <div className="k-convo-scrim" />
       <div className="k-convo ka-convo" ref={convo}>
-        <Lines story={story} messages={shown} cast={cast} flash={line} busy={!!live} onChange={refreshAll} onRetake={retake} />
+        <Lines story={story} messages={shown} cast={cast} signals={signals} flash={line} busy={!!live} onChange={refreshAll} onRetake={retake} />
         {missing && <p className="k-sysnote">That line is no longer in this version of the story.</p>}
-        {said && <SaidLine who={story.persona?.name ?? 'You'} text={said.text} audience={said.audience} />}
+        {said && (
+          <SaidLine who={story.persona?.name ?? 'You'} text={said.text} audience={said.audience}
+            hearers={said.audience === null ? people : people.filter((e) => said.audience!.includes(e.id))} />
+        )}
         {live && <LiveLine live={live} item={writerItem} ink={writer ? paletteOf(writerItem, writer.name).ink : undefined} />}
         <ErrorLine error={failed || actError || error} />
       </div>

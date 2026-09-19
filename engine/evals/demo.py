@@ -406,8 +406,9 @@ def serve_model(port: int, delay: float, think: bool) -> None:
             size = int(self.headers.get("Content-Length") or 0)
             body = json.loads(self.rfile.read(size) or b"{}")
             usage = {"prompt_tokens": size // 4, "completion_tokens": 40}
-            if not body.get("stream"):  # a memory read: nothing new
-                message = {"role": "assistant", "content": "{}"}
+            if not body.get("stream"):  # a memory read: what the demo's reader would file
+                transcript = (body.get("messages") or [{}])[-1].get("content") or ""
+                message = {"role": "assistant", "content": json.dumps(read_memory(transcript))}
                 self.send(200, {"choices": [{"message": message}], "usage": usage})
                 return
             self.send_response(200)
