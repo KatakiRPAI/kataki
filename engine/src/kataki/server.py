@@ -13,7 +13,7 @@ import json
 import sqlite3
 from typing import Literal
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
@@ -491,6 +491,16 @@ def create_app(
         ).fetchone()
         return dict(row) if row else None
 
+    def new_events(story: dict) -> int:
+        """How much of this story's Activity you have not seen. The feed is only worked out
+        when a read has finished since you last looked, which is the rare case."""
+        newest = conn.execute(
+            "SELECT max(id) FROM extraction_runs WHERE story_id=? AND status='ok'", (story["id"],)
+        ).fetchone()[0]
+        if not newest or newest <= story["seen_run_id"]:
+            return 0
+        return sum(e["new"] for e in signals.activity(conn, story["id"], limit=None))
+
     def standing(story: dict) -> dict:
         """Where a story stands now: its clock, who you play, where, and who is there."""
         path = chat.active_path(conn, story["id"])
@@ -517,6 +527,8 @@ def create_app(
             "scene_title": scene["title"] if scene else None,
             "cast": [{**dict(e), "present": e["id"] in here} for e in ai],
             "last_line": last and {"speaker": speaker and speaker["name"], "text": last["text"]},
+            "new_events": new_events(story),
+            "waiting": len(extract.pending(conn, story["id"])),
         }
 
     @app.get("/stories")
@@ -590,6 +602,15 @@ def create_app(
     async def remove_story(story_id: int):
         with conn:
             conn.execute("DELETE FROM stories WHERE id=?", (story_id,))
+
+    @app.get("/activity")
+    async def activity(
+        story_id: int | None = None,
+        kind: str | None = None,
+        limit: int = Query(100, ge=1, le=500),
+    ):
+        """What the stories have signalled, newest first: memory, belief, feeling, time."""
+        return signals.activity(conn, story_id, kind, limit)
 
     @app.get("/stories/{story_id}/signals")
     async def get_signals(story_id: int):

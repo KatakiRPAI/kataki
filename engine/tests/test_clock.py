@@ -1,6 +1,6 @@
 import pytest
 
-from kataki.clock import label, parse_skip
+from kataki.clock import label, parse_skip, spell
 
 H, D = 60, 1440
 W, MO, Y = 7 * D, 30 * D, 365 * D
@@ -78,3 +78,19 @@ def test_label_reads_like_a_story_clock():
     assert label(20 * H) == "Day 2, 04:00"
     assert label(6 * Y + 90) == "Year 7, Day 1, 09:30"
     assert label(0, epoch_offset_min=0) == "Day 1, 00:00"
+
+
+@pytest.mark.parametrize(
+    ("minutes", "said"),
+    [
+        (H, "An hour"),
+        (D, "A day"),
+        (2 * D, "Two days"),
+        (W, "A week"),
+        (MO, "A month"),
+        (6 * Y, "Six years"),
+        (40 * Y, "40 years"),
+    ],
+)
+def test_how_long_it_was_in_words(minutes, said):
+    assert spell(minutes) == said

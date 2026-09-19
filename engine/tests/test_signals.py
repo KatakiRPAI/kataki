@@ -143,8 +143,9 @@ def test_after_six_years_the_trivial_is_gone_and_the_important_is_hazy_and_faded
     nod = line(conn, story, "*nods*", who="Mira")
     read(conn, story, apron, nod, [event(conn, "Tobin wore green.", 2, 1), ledger(conn, 2)])
     callout = {
-        "kind": "memory", "who": [mira], "text": "Mira will remember this", "reason": None,
-        "faded": False, "memory_id": memory_id(conn, DETAIL),
+        "key": f"m{memory_id(conn, DETAIL)}", "kind": "memory", "who": [mira],
+        "text": "Mira will remember this", "reason": None, "faded": False,
+        "memory_id": memory_id(conn, DETAIL),
     }  # fmt: skip
     fresh = signals.signals(conn, story)["lines"]
     assert fresh[secret]["callouts"] == [callout]
@@ -188,6 +189,30 @@ def test_a_lie_on_your_line_says_whether_she_believed_it_and_why(conn, story, re
     assert belief["reason"] == f"Mira remembers it clearly: “{DETAIL}”"
 
 
+def test_two_hearers_of_one_lie_get_a_callout_each(conn, story):
+    mira, tobin = eid(conn, "Mira"), eid(conn, "Tobin")
+    secret = line(conn, story, "The ledger is under the third floorboard.")
+    nod = line(conn, story, "*nods*", who="Mira")
+    read(conn, story, secret, nod, [ledger(conn, 1)])
+    lie_line = line(conn, story, "It was never there. I buried it by the lighthouse.")
+    frown = line(conn, story, "*frowns*", who="Mira")
+    lie = {
+        "kind": "claim", "detail": "Aren says the ledger is buried by the lighthouse.",
+        "gist": "Aren says the ledger is elsewhere.", "importance": 6, "line": 1,
+        "asserted_by": f"E{eid(conn, 'Aren')}", "heard_by": [f"E{mira}", f"E{tobin}"],
+    }  # fmt: skip
+    clash = {
+        "claim": 0, "contradicts": f"M{memory_id(conn, DETAIL)}", "hearer": f"E{mira}",
+        "resolution": "challenged",
+    }  # fmt: skip
+    read(conn, story, lie_line, frown, [lie], contradictions=[clash])
+    claim = conn.execute("SELECT id FROM memories ORDER BY id DESC LIMIT 1").fetchone()["id"]
+    beliefs = signals.signals(conn, story)["lines"][lie_line]["callouts"]
+    assert [c["key"] for c in beliefs] == [f"b{claim}.{mira}", f"b{claim}.{tobin}"]
+    assert [c["text"] for c in beliefs] == ["Mira knows that's not true", "Tobin believed you"]
+    assert len({e["key"] for e in signals.activity(conn, story, kind="belief")}) == 2
+
+
 def test_a_feeling_lands_on_the_line_they_share_or_else_the_last_line_read(conn, story):
     mira, tobin = eid(conn, "Mira"), eid(conn, "Tobin")
     evening = line(conn, story, "Evening, both of you.")
@@ -201,11 +226,14 @@ def test_a_feeling_lands_on_the_line_they_share_or_else_the_last_line_read(conn,
     ]  # fmt: skip
     read(conn, story, evening, grin, [sent], edges=edges)
     lines = signals.signals(conn, story)["lines"]
-    assert lines[fetch]["callouts"] == [
-        {"kind": "feeling", "who": [tobin], "text": "Tobin didn't like that",
-         "reason": "Sent off like a servant.", "faded": False,
-         "memory_id": memory_id(conn, "Aren sent Tobin to fetch a round.")},
-    ]  # fmt: skip
+    [feeling] = lines[fetch]["callouts"]
+    edge_id = conn.execute("SELECT id FROM edges WHERE rel='resents'").fetchone()["id"]
+    assert feeling["key"] == f"f{edge_id}"  # the edge it came from
+    assert {k: v for k, v in feeling.items() if k != "key"} == {
+        "kind": "feeling", "who": [tobin], "text": "Tobin didn't like that",
+        "reason": "Sent off like a servant.", "faded": False,
+        "memory_id": memory_id(conn, "Aren sent Tobin to fetch a round."),
+    }  # fmt: skip
     [trust] = lines[grin]["callouts"]  # nothing they share in this read: its last line
     assert (trust["who"], trust["text"], trust["memory_id"]) == (
         [mira], "Mira trusts you a little more", None,
@@ -230,3 +258,118 @@ def test_a_skip_of_a_day_or_more_reports_what_each_character_let_go(conn, story)
     assert (report["from_clock"], report["to_clock"]) == ("Day 1, 08:06", "Year 7, Day 1, 08:08")
     assert report["faded"] == [{"id": mira, "hazy": 1, "gone": 2}]
     assert report["text"] == "1 of Mira's memories is going hazy. 2 are fading out."
+
+
+# --- activity: the same signals, as a feed -------------------------------------------------
+
+
+def test_activity_lists_what_happened_newest_first(conn, story):
+    mira = eid(conn, "Mira")
+    line(conn, story, "Evening, both of you.")  # Tobin hears this much, then goes to the bar
+    chat.set_presence(conn, story, eid(conn, "Tobin"), False)
+    secret = line(conn, story, "The ledger is under the third floorboard.")
+    nod = line(conn, story, "*nods*", who="Mira")
+    read(conn, story, secret, nod, [ledger(conn, 1)])
+    truth = memory_id(conn, DETAIL)
+    lie_line = line(conn, story, "It was never there. I buried it by the lighthouse.")
+    frown = line(conn, story, "*frowns*", who="Mira")
+    lie = {
+        "kind": "claim", "detail": "Aren says the ledger is buried by the lighthouse.",
+        "gist": "Aren says the ledger is elsewhere.", "importance": 6, "line": 1,
+        "asserted_by": f"E{eid(conn, 'Aren')}", "heard_by": [f"E{mira}"],
+    }  # fmt: skip
+    clash = {"claim": 0, "contradicts": f"M{truth}", "hearer": f"E{mira}", "resolution": "doubted"}
+    read(conn, story, lie_line, frown, [lie], contradictions=[clash])
+
+    events = signals.activity(conn)
+    assert [e["kind"] for e in events] == ["belief", "memory"]  # the lie is the newer line
+    remembered = events[-1]
+    assert remembered["key"] == f"m{truth}"
+    assert remembered["text"] == f"Mira will remember that {GIST}"
+    assert remembered["sub"] == "Mira will remember · Tobin wasn't there"
+    from_library = conn.execute("SELECT lib_item_id FROM entities WHERE id=?", (mira,)).fetchone()[
+        0
+    ]
+    assert remembered["who"] == [{"id": mira, "name": "Mira", "lib_item_id": from_library}]
+    assert remembered["line"] == {
+        "speaker": "Aren",
+        "text": "The ledger is under the third floorboard.",
+    }
+    assert (remembered["story_id"], remembered["story"]) == (story, "Low Tide")
+    assert remembered["message_id"] == secret and remembered["clock"].startswith("Day 1, ")
+    assert all(e["new"] for e in events)  # nothing has been seen yet
+    assert [e["kind"] for e in signals.activity(conn, kind="memory")] == ["memory"]
+    assert signals.activity(conn, story_id=story + 999) == []
+
+
+def test_activity_stops_being_new_once_the_story_is_seen(conn, story):
+    first = line(conn, story, "The ledger is under the third floorboard.")
+    nod = line(conn, story, "*nods*", who="Mira")
+    read(conn, story, first, nod, [ledger(conn, 1)])
+    assert [e["new"] for e in signals.activity(conn)] == [True]
+    conn.execute(
+        "UPDATE stories SET seen_run_id=(SELECT max(id) FROM extraction_runs) WHERE id=?", (story,)
+    )
+    assert [e["new"] for e in signals.activity(conn)] == [False]
+
+
+def test_only_what_a_read_you_have_not_seen_wrote_is_new(conn, story):
+    first = line(conn, story, "The ledger is under the third floorboard.")
+    nod = line(conn, story, "*nods*", who="Mira")
+    read(conn, story, first, nod, [ledger(conn, 1)])
+    conn.execute(
+        "UPDATE stories SET seen_run_id=(SELECT max(id) FROM extraction_runs) WHERE id=?", (story,)
+    )
+    later = line(conn, story, "And the key is in the lamp, while I think of it.")
+    shrug = line(conn, story, "*shrugs*", who="Mira")
+    read(conn, story, later, shrug, [event(conn, "Aren hid the key in the lamp.", 8, 1)])
+    feed = signals.activity(conn)
+    assert [(e["message_id"], e["new"]) for e in feed] == [(later, True), (first, False)]
+    assert len(signals.activity(conn, limit=1)) == 1  # the cap is the newest, not the oldest
+    assert signals.activity(conn, limit=1)[0]["message_id"] == later
+    assert len(signals.activity(conn, limit=None)) == 2
+
+
+def test_the_feed_runs_across_stories_newest_first(conn, story):
+    other = library.create_story(
+        conn, "Frost", character_ids=[
+            conn.execute("SELECT lib_item_id FROM entities WHERE name='Mira'").fetchone()[0]
+        ],
+    )  # fmt: skip
+    first = line(conn, story, "The ledger is under the third floorboard.")
+    nod = line(conn, story, "*nods*", who="Mira")
+    read(conn, story, first, nod, [ledger(conn, 1)])
+    mira_there = conn.execute(
+        "SELECT id FROM entities WHERE story_id=? AND name='Mira'", (other,)
+    ).fetchone()["id"]
+    told = chat.append_message(conn, other, "user", "The pass is closed.", None)
+    seen = chat.append_message(conn, other, "assistant", "*nods*", mira_there)
+    run_id = extract.open_run(conn, other, told, seen, "cadence")
+    extract.apply(conn, run_id, {"memories": [{
+        "kind": "event", "detail": "The pass closed in the night.", "gist": "The pass closed.",
+        "importance": 8, "line": 1, "participants": [{"ref": f"E{mira_there}", "role": "witness"}],
+    }]})  # fmt: skip
+
+    feed = signals.activity(conn)
+    assert [e["story"] for e in feed] == ["Frost", "Low Tide"]  # the later lines come first
+    assert [e["story_id"] for e in signals.activity(conn, story_id=story)] == [story]
+    # a gist that opens with no name is folded in lower case
+    assert feed[0]["text"] == "Mira will remember that the pass closed."
+
+
+def test_a_time_event_says_what_the_years_cost(conn, story):
+    chat.set_presence(conn, story, eid(conn, "Tobin"), False)
+    first = line(conn, story, "The ledger is under the third floorboard.")
+    line(conn, story, "And the key is in the lamp.")
+    nod = line(conn, story, "*nods*", who="Mira")
+    memories = [ledger(conn, 1), event(conn, "The key is in the lamp.", 5, 2),
+                event(conn, "Aren said it quietly.", 2, 2)]  # fmt: skip
+    read(conn, story, first, nod, memories)
+    turns.say(conn, story, skip="six years later")
+    [passing] = [e for e in signals.activity(conn) if e["kind"] == "time"]
+    assert (
+        passing["text"]
+        == "Six years passed in Low Tide. 1 of Mira's memories went hazy. 2 faded out."
+    )
+    assert passing["new"] is False  # time passing is never news
+    assert passing["who"] == []

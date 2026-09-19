@@ -104,3 +104,18 @@ def label(story_time: int, epoch_offset_min: int = 8 * HOUR) -> str:
     years, day = divmod(days, 365)
     clock = f"Day {day + 1}, {minute // HOUR:02d}:{minute % HOUR:02d}"
     return f"Year {years + 1}, {clock}" if years else clock
+
+
+COUNTS = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"]
+SPANS = [(365 * DAY, "year"), (30 * DAY, "month"), (7 * DAY, "week"), (DAY, "day"), (HOUR, "hour"),
+         (MINUTE, "minute")]  # fmt: skip
+
+
+def spell(minutes: int) -> str:
+    """How long, in words: 'Six years', 'A week', 'An hour'."""
+    size, unit = next(((s, u) for s, u in SPANS if minutes >= s), SPANS[-1])
+    count = round(minutes / size)
+    if count == 1:
+        return f"{'An' if unit == 'hour' else 'A'} {unit}"
+    spelled = COUNTS[count] if count < len(COUNTS) else str(count)
+    return f"{spelled} {unit}s"

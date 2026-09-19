@@ -43,6 +43,7 @@ class Scene:
     names: dict[int, str]
     hearing: dict[int, dict[int, str]]  # character -> message -> said/heard/away/whisper/thought
     clarity: dict[int, dict[int, str]]  # character -> memory -> tier, as of now
+    from_library: dict[int, int | None]  # entity -> the library item it came from
     live: set[int]
     read_to: int
 
@@ -129,10 +130,21 @@ def _callouts(s: Scene) -> dict[int, list[dict]]:
     on_path = {m["id"]: m for m in s.path}
     out: dict[int, list[dict]] = {}
 
-    def add(message_id, kind, who, text, reason=None, faded=False, memory_id=None):
+    def add(
+        key,
+        message_id,
+        kind,
+        who,
+        text,
+        reason=None,
+        faded=False,
+        memory_id=None,
+        run=None,
+        gist=None,
+    ):
         out.setdefault(message_id, []).append(
-            {"kind": kind, "who": who, "text": text, "reason": reason, "faded": faded,
-             "memory_id": memory_id}
+            {"key": key, "kind": kind, "who": who, "text": text, "reason": reason, "faded": faded,
+             "memory_id": memory_id, "run": run, "gist": gist}
         )  # fmt: skip
 
     # memory: the most important thing on the line that someone will keep
@@ -146,7 +158,8 @@ def _callouts(s: Scene) -> dict[int, list[dict]]:
     for message_id, (_, m, who) in best.items():
         faded = not any(s.clarity[c][m["id"]] == "sharp" for c in who)
         text = f"{listed([s.names[c] for c in who])} will remember this"
-        add(message_id, "memory", who, text, faded=faded, memory_id=m["id"])
+        add(f"m{m['id']}", message_id, "memory", who, text, faded=faded, memory_id=m["id"],
+            run=m["run_id"], gist=m["gist"])  # fmt: skip
 
     # belief: a lie on your line, and how each hearer took it
     know_sql, know_args = db.live_filter(s.live)
@@ -178,7 +191,9 @@ def _callouts(s: Scene) -> dict[int, list[dict]]:
                 else hazy if tier == "hazy"
                 else f"{name} has no memory of it."
             )  # fmt: skip
-            add(line["id"], "belief", [c], text, reason, memory_id=claim["id"])
+            # one per hearer, so the key carries them both
+            add(f"b{claim['id']}.{c}", line["id"], "belief", [c], text, reason,
+                memory_id=claim["id"], run=claim["run_id"], gist=claim["gist"])  # fmt: skip
 
     # feeling: an AI character's feeling about someone, on the line they shared in that read
     run_sql, run_args = db.live_filter(s.live, "e.run_id")
@@ -207,7 +222,16 @@ def _callouts(s: Scene) -> dict[int, list[dict]]:
             text = next(
                 (t for starts, t in FEELINGS if rel.startswith(starts)), "{src} {rel} {dst}"
             ).format(src=src, dst=dst, rel=rel)
-        add(at, "feeling", [edge["src_id"]], text, edge["note"], memory_id=shared and shared["id"])
+        add(
+            f"f{edge['id']}",
+            at,
+            "feeling",
+            [edge["src_id"]],
+            text,
+            edge["note"],
+            memory_id=shared and shared["id"],
+            run=edge["run_id"],
+        )
     return out
 
 
@@ -318,10 +342,9 @@ def _skips(s: Scene) -> dict[int, dict]:
     return out
 
 
-def signals(conn: sqlite3.Connection, story_id: int) -> dict:
-    """`{"read_to": <last line a live run has read>, "lines": {message id: {summary, receipts,
-    callouts, recall, skip}}}`; a line carries only the parts it has."""
-    story = conn.execute("SELECT * FROM stories WHERE id=?", (story_id,)).fetchone()
+def scene(conn: sqlite3.Connection, story: sqlite3.Row) -> Scene:
+    """Everything one story's signals are worked out from."""
+    story_id = story["id"]
     path = chat.active_path(conn, story_id)
     live = db.live_runs(conn, story_id)
     marks = ",".join("?" * len(live))
@@ -335,12 +358,15 @@ def signals(conn: sqlite3.Connection, story_id: int) -> dict:
             (story_id,),
         )
     ]
-    s = Scene(
+    return Scene(
         conn=conn,
         story=story,
         path=path,
         ai=ai,
         names=dict(conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,))),
+        from_library=dict(
+            conn.execute("SELECT id, lib_item_id FROM entities WHERE story_id=?", (story_id,))
+        ),
         hearing={c: chat.hearing(conn, path, c) for c in ai},
         clarity={
             c: {x["memory_id"]: x["tier"] for x in retrieve.inspect(conn, story_id, c)} for c in ai
@@ -348,10 +374,116 @@ def signals(conn: sqlite3.Connection, story_id: int) -> dict:
         live=live,
         read_to=ends or 0,
     )
+
+
+def signals(conn: sqlite3.Connection, story_id: int) -> dict:
+    """`{"read_to": <last line a live run has read>, "lines": {message id: {summary, receipts,
+    callouts, recall, skip}}}`; a line carries only the parts it has."""
+    s = scene(conn, conn.execute("SELECT * FROM stories WHERE id=?", (story_id,)).fetchone())
     lines: dict[int, dict] = {}
     for message_id, receipts in _receipts(s).items():
         lines[message_id] = {"summary": summary(receipts, s.names), "receipts": receipts}
     for key, parts in (("callouts", _callouts(s)), ("recall", _recall(s)), ("skip", _skips(s))):
         for message_id, part in parts.items():
+            if key == "callouts":  # `run` and `gist` are the feed's plumbing, not the Scene's
+                part = [{k: v for k, v in c.items() if k not in ("run", "gist")} for c in part]
             lines.setdefault(message_id, {})[key] = part
     return {"read_to": s.read_to, "lines": lines}
+
+
+def _clause(text: str, names: dict[int, str]) -> str:
+    """A sentence folded into another one: 'Master Oren paid the debt.' keeps the name it opens
+    with (and "Mira's coat…" the possessive), 'The ledger was hidden.' loses its capital."""
+    named = any(text.startswith(n) for n in names.values()) or text.startswith("I ")
+    return text if named else text[:1].lower() + text[1:]
+
+
+def _cost(faded: list[dict], names: dict[int, str]) -> str:
+    """What a skip took, in the past tense: "1 of Mira's memories went hazy. 2 faded out." """
+    said = []
+    for f in faded:
+        name, parts = names[f["id"]], []
+        if f["hazy"]:
+            parts.append(f"{f['hazy']} of {name}'s memories went hazy")
+        if f["gone"]:
+            more = (
+                f"{f['gone']} faded out" if parts else f"{f['gone']} of {name}'s memories faded out"
+            )
+            parts.append(more)
+        if parts:
+            said.append(". ".join(parts) + ".")
+    return " ".join(said)
+
+
+def _who(s: Scene, ids: list[int]) -> list[dict]:
+    return [
+        {"id": i, "name": s.names.get(i, "someone"), "lib_item_id": s.from_library.get(i)}
+        for i in ids
+    ]
+
+
+def activity(
+    conn: sqlite3.Connection,
+    story_id: int | None = None,
+    kind: str | None = None,
+    limit: int | None = 100,
+) -> list[dict]:
+    """The same signals as a feed, newest first: what someone will remember, what they made of
+    a claim, how they felt, and what time cost them. `new` means a read you have not seen wrote
+    it; time passing is never new.
+
+    ponytail: every story is worked out from scratch on each call; cache per story version if a
+    library ever holds hundreds of stories.
+    """
+    rows = conn.execute(
+        "SELECT * FROM stories" + (" WHERE id=?" if story_id is not None else " ORDER BY id"),
+        (story_id,) if story_id is not None else (),
+    ).fetchall()
+    events: list[dict] = []
+    for story in rows:
+        s = scene(conn, story)
+        lines = {m["id"]: m for m in s.path}
+        heard = {m: summary(r, s.names) for m, r in _receipts(s).items()}
+        for message_id, callouts in _callouts(s).items():
+            line = lines[message_id]
+            for c in callouts:
+                text = c["text"]
+                if c["kind"] == "memory":
+                    text = f"{text.removesuffix(' this')} that {_clause(c['gist'], s.names)}"
+                events.append(
+                    {
+                        "key": c["key"],
+                        "kind": c["kind"],
+                        "story_id": story["id"],
+                        "story": story["title"],
+                        "message_id": message_id,
+                        "clock": clock.label(line["story_time"], story["epoch_offset_min"]),
+                        "who": _who(s, c["who"]),
+                        "text": text,
+                        "sub": c["reason"] or heard.get(message_id, ""),
+                        "line": {"speaker": s.names.get(line["speaker_id"]), "text": line["text"]},
+                        "new": c["run"] is not None and c["run"] > story["seen_run_id"],
+                    }
+                )
+        for message_id, skip in _skips(s).items():
+            line = lines[message_id]
+            passed = f"{clock.spell(skip['minutes'])} passed in {story['title']}."
+            events.append(
+                {
+                    "key": f"t{message_id}",
+                    "kind": "time",
+                    "story_id": story["id"],
+                    "story": story["title"],
+                    "message_id": message_id,
+                    "clock": skip["to_clock"],
+                    "who": [],
+                    "text": f"{passed} {_cost(skip['faded'], s.names)}".strip(),
+                    "sub": f"{skip['from_clock']} to {skip['to_clock']}",
+                    "line": {"speaker": s.names.get(line["speaker_id"]), "text": line["text"]},
+                    "new": False,
+                }
+            )
+    if kind:
+        events = [e for e in events if e["kind"] == kind]
+    events.sort(key=lambda e: e["message_id"], reverse=True)  # ids grow with the telling
+    return events[:limit] if limit is not None else events

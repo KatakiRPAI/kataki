@@ -9,7 +9,7 @@ gives the same library. It ends by checking that the memory story came out as th
 it, and exits non-zero naming anything that didn't.
 
 `serve-model` answers the app like a model server would: replies stream word by word (with
-optional thinking first); memory reads get an empty result.
+optional thinking first), and memory reads get what the demo's own reader would file.
 """
 
 import argparse
@@ -287,6 +287,12 @@ async def build(path: Path, model_url: str) -> None:
     chat.set_presence(conn, story, who("Tobin"), False)  # sent to the bar
     await say(conn, llm, story, SECRET_LINE, who("Mira"))
     await read(conn, llm, story)  # run 1: the evening so far, up to the secret
+    with conn:  # you have read Activity up to here, so what follows is new
+        conn.execute(
+            "UPDATE stories SET seen_run_id=(SELECT max(id) FROM extraction_runs WHERE story_id=?)"
+            " WHERE id=?",
+            (story, story),
+        )
     turns.say(conn, story, skip="six years later")
     await say(conn, llm, story, None, who("Mira"))  # run 2 reads the past before she answers
     await say(conn, llm, story, "It was never behind the bar. I buried it by the lighthouse, "
@@ -367,6 +373,16 @@ def check(conn, story: int) -> list[str]:
         problems.append("Mira's reply at 19:18 has no recall spark")
     if "skip" not in signal("Year 7, Day 1, 19:16"):
         problems.append("the six-years marker has no skip report")
+
+    # Activity: the feed the Sky shows, and what is new since you last read it
+    feed = signals.activity(conn, story)
+    kinds = {e["kind"] for e in feed}
+    if not {"memory", "belief", "feeling", "time"} <= kinds:
+        problems.append(f"the activity feed is missing kinds: {kinds}")
+    if not any(e["new"] for e in feed):
+        problems.append("nothing in the activity feed is new, though the story was seen at run 1")
+    if any(e["new"] for e in feed if e["kind"] == "time"):
+        problems.append("time passing is marked new")
     return problems
 
 

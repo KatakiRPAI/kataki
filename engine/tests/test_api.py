@@ -443,6 +443,34 @@ def test_signals_say_who_heard_each_line(api, story, backend):
     assert api.get("/stories/999/signals").status_code == 404
 
 
+def test_activity_and_the_story_list_say_what_is_new(api, story, backend, conn):
+    who = cast(api, story)
+    backend.say("Hm.")
+    api.post(f"/stories/{story}/turn", json={"text": "Mira, the ledger is under the floorboard."})
+    memory = {
+        "memories": [
+            {"kind": "event", "detail": "Aren hid the ledger under the floorboard.",
+             "gist": "Aren hid the ledger.", "importance": 8, "line": 1,
+             "participants": [{"ref": f"E{who['Aren']['id']}", "role": "actor"},
+                              {"ref": f"E{who['Mira']['id']}", "role": "target"}]}
+        ]
+    }  # fmt: skip
+    backend.say(json.dumps(memory))
+    api.post(f"/stories/{story}/extract")
+
+    events = api.get("/activity").json()
+    assert events[0]["kind"] == "memory" and events[0]["new"] is True
+    assert events[0]["text"].startswith("Mira")
+    assert api.get("/activity?kind=belief").json() == []
+    listed = next(s for s in api.get("/stories").json() if s["id"] == story)
+    assert (listed["new_events"], listed["waiting"]) == (1, 0)  # the read drained what waited
+    assert api.get("/activity?limit=-1").status_code == 422
+
+    api.post(f"/stories/{story}/seen")
+    assert api.get("/activity").json()[0]["new"] is False
+    assert next(s for s in api.get("/stories").json() if s["id"] == story)["new_events"] == 0
+
+
 def test_a_turn_without_a_model_explains_what_to_set(api):
     mira = api.post("/library", json={"kind": "character", "name": "Mira"}).json()["id"]
     story = api.post("/stories", json={"title": "x", "character_ids": [mira]}).json()["id"]
