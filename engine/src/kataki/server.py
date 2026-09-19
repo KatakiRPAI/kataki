@@ -86,9 +86,15 @@ class StoryPatch(BaseModel):
 class TurnIn(BaseModel):
     text: str | None = None
     speaker: int | Literal["narrator"] | None = None
-    audience: list[int] | None = (
-        None  # who the user's line is for: None = all present, [] = a thought
-    )
+    # who the user's line is for: None = all present, [] = a thought
+    audience: list[int] | None = None
+    skip: str | None = None  # time that passes first, in words: "the next morning"
+
+
+class LineIn(BaseModel):
+    text: str | None = None
+    audience: list[int] | None = None
+    skip: str | None = None
 
 
 class SwipeIn(BaseModel):
@@ -242,6 +248,8 @@ def create_app(
                     "reasoning": gen.get("reasoning"),
                     "finish": gen.get("finish"),
                     "model": gen.get("model"),
+                    "audience": chat.audience_of(m),
+                    "think_ms": gen.get("think_ms"),
                 }
             )
         return out
@@ -605,8 +613,23 @@ def create_app(
         check_audience(story_id, t.audience)
         make_way(story_id)
         return stream(
-            story_id, turns.turn(conn, llm, story_id, t.text, t.speaker, get_key, t.audience)
+            story_id,
+            turns.turn(conn, llm, story_id, t.text, t.speaker, get_key, t.audience, t.skip),
         )
+
+    @app.post("/stories/{story_id}/line", status_code=201)
+    async def add_line(story_id: int, line: LineIn):
+        """A line with no reply (a thought, an action), or time passing. Never calls a model."""
+        story_row(story_id)
+        check_audience(story_id, line.audience)
+        try:
+            written = turns.say(conn, story_id, line.text, line.audience, line.skip)
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from None
+        if written is None:
+            raise HTTPException(422, "Say something, or let some time pass.")
+        worker.poke(story_id)  # the story may now have lines worth remembering
+        return messages(story_id)
 
     @app.post("/stories/{story_id}/regenerate")
     async def regenerate(story_id: int):

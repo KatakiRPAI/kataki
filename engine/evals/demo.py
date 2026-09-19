@@ -29,7 +29,6 @@ from kataki.llm import LLM
 
 DEFAULT_DB = Path(__file__).resolve().parents[2] / ".dev" / "demo.db"
 NO_KEY = lambda _: None  # noqa: E731  the demo never touches the OS keychain
-YEAR = 365 * clock.DAY
 
 # the design's backdrop pairs and speaker inks (docs/specs/2026-09-19-ui-redesign.md, 1.5)
 PALETTES = [
@@ -288,8 +287,7 @@ async def build(path: Path, model_url: str) -> None:
     chat.set_presence(conn, story, who("Tobin"), False)  # sent to the bar
     await say(conn, llm, story, SECRET_LINE, who("Mira"))
     await read(conn, llm, story)  # run 1: the evening so far, up to the secret
-    # ponytail: a bare system line until task 17's turns.say writes skip markers
-    chat.append_message(conn, story, "system", "— Six years later —", None, 6 * YEAR)
+    turns.say(conn, story, skip="six years later")
     await say(conn, llm, story, None, who("Mira"))  # run 2 reads the past before she answers
     await say(conn, llm, story, "It was never behind the bar. I buried it by the lighthouse, "
               "remember?", who("Mira"))  # fmt: skip

@@ -10,6 +10,7 @@ Events: ("meta", {...}) first, then ("thought" | "token", text)..., then ("done"
 import json
 import re
 import sqlite3
+import time
 from collections.abc import AsyncIterator, Callable
 from contextlib import aclosing
 from typing import Any
@@ -159,6 +160,7 @@ async def _generate(
     )
 
     built = context.build(conn, story_id, speaker_id, ep, leaf_id=parent_id)
+    built_recalled: list = []
     if speaker_id is not None:
         heard = chat.heard_by(conn, path, speaker_id)  # a whisper to someone else cues nothing
         recent = "\n".join(m["text"] for m in [m for m in path if m["id"] in heard][-2:])
@@ -174,9 +176,14 @@ async def _generate(
         )
         if recalled:
             built = context.build(conn, story_id, speaker_id, ep, recalled, leaf_id=parent_id)
+            built_recalled = list(recalled)
     log_id = context.log(conn, story_id, None, speaker_id, built)
 
     name = names.get(speaker_id)
+    parent = chat.get_message(conn, parent_id) if parent_id else None
+    then = parent["story_time"] if parent else 0  # the clock of the line being answered
+    jump = parent["skip_minutes"] if parent else 0
+    epoch = story["epoch_offset_min"]
     yield (
         "meta",
         {
@@ -185,6 +192,12 @@ async def _generate(
             "model": ep.model,
             "thinks": ep.thinks,
             "parent_id": parent_id,
+            # time that just passed, for the time-skip sequence: before it, and at this reply
+            "skip": jump,
+            "from_clock": clock.label(then - jump, epoch),
+            "clock": clock.label(then + story["minutes_per_turn"], epoch),
+            # an effortful recall was rolled: the UI says "trying to remember"
+            "strained": any(m.breakdown.get("effortful") is not None for m in built_recalled),
             "context": {
                 "est_tokens": built.est_tokens,
                 "budget": built.budget,
@@ -202,14 +215,17 @@ async def _generate(
     parts, thoughts, done = [], [], {}
     prefix = _Prefix(name or "Narrator")
     finish, error, message_id, text, skip = "stopped", None, None, "", 0
+    first_thought = first_token = None  # for think_ms: from the first thought to the first word
     try:
         stream = llm.chat_stream(ep, built.messages, stop=stops, max_tokens=built.response_reserve)
         async with aclosing(stream) as stream:
             async for kind, value in stream:
                 if kind == "thought":
+                    first_thought = first_thought or time.monotonic()
                     thoughts.append(value)
                     yield ("thought", value)
                 elif kind == "token":
+                    first_token = first_token or time.monotonic()
                     if value := prefix.feed(value):
                         parts.append(value)
                         yield ("token", value)
@@ -233,6 +249,8 @@ async def _generate(
                 "reasoning": "".join(thoughts) or None,
                 "usage": done.get("usage"),
             }
+            if first_thought:  # stopped mid-thought: the thinking ran until now
+                gen["think_ms"] = round(1000 * ((first_token or time.monotonic()) - first_thought))
             message_id = chat.add_child(
                 conn, story_id, parent_id, "assistant", text, speaker_id, skip, gen
             )
@@ -259,6 +277,36 @@ async def _generate(
         )
 
 
+def say(
+    conn: sqlite3.Connection,
+    story_id: int,
+    text: str | None = None,
+    audience: list[int] | None = None,
+    skip: str | None = None,
+) -> int | None:
+    """Write what the user adds, with no reply and no model call: their line (as the persona,
+    or unattributed when directing), a pass of time, or both. Time comes from both the line
+    ("six years later, Aren returns") and `skip` ("the next morning"). With only a pass of time,
+    a marker line carries it: "— The next morning —". Returns the new message id, or None."""
+    text, skip = (text or "").strip(), (skip or "").strip()
+    if not text and not skip:
+        return None
+    story = _story(conn, story_id)
+    leaf = story["active_leaf_id"]
+    minute = _minute_of_day(story, chat.get_message(conn, leaf)["story_time"] if leaf else 0)
+    passed = clock.parse_skip(skip, minute) if skip else 0
+    if skip and not passed:
+        raise ValueError(f"I can't tell how much time passes in “{skip}”.")
+    if text:
+        passed += clock.parse_skip(text, minute)
+        persona = story["persona_entity_id"]
+        return chat.append_message(conn, story_id, "user", text, persona, passed, audience)
+    marker = skip.rstrip(".")
+    return chat.append_message(
+        conn, story_id, "system", f"— {marker[0].upper()}{marker[1:]} —", None, passed
+    )
+
+
 async def turn(
     conn: sqlite3.Connection,
     llm: LLM,
@@ -267,9 +315,9 @@ async def turn(
     speaker: int | str | None = None,  # entity id, "narrator", or None to pick automatically
     get_key: Callable[[str], str | None] = roles.get_key,
     audience: list[int] | None = None,  # the user's line: None = everyone present, [] = a thought
+    skip: str | None = None,  # time that passes first, in words: "the next morning"
 ) -> AsyncIterator[Event]:
     """The user says something (or nothing, to let the story continue) and someone replies."""
-    story = _story(conn, story_id)
     if isinstance(speaker, int):  # asked by name: they must be here, or nothing is written
         path = chat.active_path(conn, story_id)
         if speaker not in {e["id"] for e in _cast(conn, story_id, path)}:
@@ -277,13 +325,11 @@ async def turn(
             name = row["name"] if row else "They"
             yield ("error", {"message": f"{name} isn't in the scene. Bring them in first."})
             return
-    if text and text.strip():
-        leaf = story["active_leaf_id"]
-        parent_time = chat.get_message(conn, leaf)["story_time"] if leaf else 0
-        skip = clock.parse_skip(text, _minute_of_day(story, parent_time))
-        chat.append_message(
-            conn, story_id, "user", text.strip(), story["persona_entity_id"], skip, audience
-        )
+    try:
+        say(conn, story_id, text, audience, skip)
+    except ValueError as e:
+        yield ("error", {"message": str(e)})
+        return
     speaker_id = select_speaker(conn, story_id, speaker)
     parent = _story(conn, story_id)["active_leaf_id"]
     async with aclosing(_generate(conn, llm, story_id, parent, speaker_id, get_key)) as events:

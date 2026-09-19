@@ -261,6 +261,29 @@ def test_a_whisper_is_kept_with_its_line_and_foreign_listeners_are_refused(api, 
     assert json.loads(row["audience"]) == [mira]
 
 
+def test_a_line_can_be_added_without_asking_anyone_to_reply(api, story, backend):
+    made = api.post(f"/stories/{story}/line", json={"text": "*sits down*"})
+    assert made.status_code == 201 and made.json()[-1]["text"] == "*sits down*"
+    assert backend.requests == []
+    assert api.post(f"/stories/{story}/line", json={}).status_code == 422
+
+
+def test_passing_time_alone_writes_a_marker_and_moves_the_clock(api, story, backend):
+    marker = api.post(f"/stories/{story}/line", json={"skip": "six years later"}).json()[-1]
+    assert (marker["role"], marker["text"], marker["skip_minutes"]) == (
+        "system",
+        "— Six years later —",
+        3_153_600,
+    )
+    assert marker["clock"].startswith("Year 7") and backend.requests == []
+    assert api.post(f"/stories/{story}/line", json={"skip": "whenever"}).status_code == 422
+
+
+def test_a_thought_is_a_line_for_no_one(api, story):
+    said = api.post(f"/stories/{story}/line", json={"text": "I don't trust him.", "audience": []})
+    assert said.json()[-1]["audience"] == [] and said.json()[-1]["think_ms"] is None
+
+
 def test_regenerate_then_swipe_back_and_forth(api, story, backend):
     backend.say("First.", "Second.")
     api.post(f"/stories/{story}/turn", json={"text": "Mira?"})

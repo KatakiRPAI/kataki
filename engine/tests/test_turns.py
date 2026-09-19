@@ -5,7 +5,8 @@ import json
 import httpx2
 import pytest
 
-from kataki import chat, context, extract, library, turns
+from kataki import chat, context, extract, library, retrieve, turns
+from kataki.context import Recalled
 
 pytestmark = pytest.mark.anyio
 
@@ -256,3 +257,49 @@ async def test_a_reply_signed_with_the_speakers_own_name_loses_the_signature(
     backend.say(reply)
     await play(turns.turn(conn, backend.llm, story, "Mira?"))
     assert path(conn, story)[-1][2] == kept
+
+
+# --- passing time, meta, thinking time ----------------------------------------------------
+
+
+async def test_passing_time_then_continuing_writes_a_marker_and_meta_says_how_far(
+    conn, story, backend
+):
+    backend.say("You look older.")
+    events = await play(
+        turns.turn(conn, backend.llm, story, None, eid(conn, "Mira"), skip="six years later")
+    )
+    meta = events[0][1]
+    assert meta["skip"] == 6 * 365 * 24 * 60 == 3_153_600
+    assert (meta["from_clock"], meta["clock"]) == ("Day 1, 08:02", "Year 7, Day 1, 08:04")
+    marker = chat.active_path(conn, story)[-2]
+    assert (marker["role"], marker["text"], marker["skip_minutes"]) == (
+        "system",
+        "— Six years later —",
+        3_153_600,
+    )
+
+
+async def test_a_skip_in_the_users_own_line_shows_in_meta(conn, story, backend):
+    backend.say("Welcome back.")
+    events = await play(turns.turn(conn, backend.llm, story, "Six years later, Aren returns."))
+    assert events[0][1]["skip"] == 3_153_600 and events[0][1]["strained"] is False
+
+
+async def test_meta_says_when_the_speaker_strained_to_recall(conn, story, backend, monkeypatch):
+    rolled = Recalled(
+        1, "sharp", "Aren hid the ledger under the floorboard.", breakdown={"effortful": True}
+    )
+    monkeypatch.setattr(retrieve, "recall", lambda *args, **kwargs: [rolled])
+    backend.say("Under... the floorboard?")
+    events = await play(turns.turn(conn, backend.llm, story, "Mira, where is it?"))
+    assert events[0][1]["strained"] is True
+
+
+async def test_the_time_spent_thinking_is_kept_with_the_reply(conn, story, backend):
+    backend.say({"reasoning_content": "She weighs it.", "content": "Fine."}, "Again.")
+    await play(turns.turn(conn, backend.llm, story, "Mira?"))
+    gen = json.loads(chat.active_path(conn, story)[-1]["gen"])
+    assert isinstance(gen["think_ms"], int) and gen["think_ms"] >= 0
+    await play(turns.turn(conn, backend.llm, story, "And?"))  # no thinking, no time
+    assert json.loads(chat.active_path(conn, story)[-1]["gen"]).get("think_ms") is None
