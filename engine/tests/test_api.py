@@ -136,6 +136,15 @@ def test_library_items_round_trip(api):
     assert api.get(f"/library/{item['id']}").status_code == 404
 
 
+def test_deleting_a_character_a_story_uses_leaves_the_story_its_copy(api, story, conn):
+    mira = next(i for i in api.get("/library").json() if i["name"] == "Mira")
+    assert api.delete(f"/library/{mira['id']}").status_code == 204
+    assert api.get(f"/library/{mira['id']}").status_code == 404
+    assert "Mira" in cast(api, story)
+    row = conn.execute("SELECT lib_item_id FROM entities WHERE name='Mira'").fetchone()
+    assert row["lib_item_id"] is None
+
+
 def test_a_story_cannot_be_made_from_missing_items(api):
     assert api.post("/stories", json={"title": "x", "character_ids": [999]}).status_code == 422
 

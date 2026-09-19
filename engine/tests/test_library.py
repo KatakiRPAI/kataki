@@ -80,6 +80,12 @@ def test_a_story_snapshots_its_cast_so_later_library_edits_do_not_rewrite_it(con
     assert (mira["lib_item_id"], mira["is_ai"], mira["run_id"]) == (cast["mira"], 1, None)
 
 
+def test_deleting_an_item_a_story_uses_unlinks_it_and_the_story_keeps_its_copy(conn, cast, story):
+    library.delete_item(conn, cast["mira"])
+    mira = entity(conn, story, "Mira")
+    assert (mira["description"], mira["lib_item_id"]) == ("A guild courier.", None)
+
+
 def test_the_persona_is_an_ordinary_entity_the_ai_does_not_play(conn, story):
     aren = entity(conn, story, "Aren")
     row = conn.execute("SELECT persona_entity_id FROM stories WHERE id=?", (story,)).fetchone()

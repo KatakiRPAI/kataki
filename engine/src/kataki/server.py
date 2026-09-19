@@ -13,12 +13,12 @@ import json
 import sqlite3
 from typing import Literal
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
-from kataki import __version__, chat, clock, extract, library, retrieve, roles, turns
+from kataki import __version__, chat, clock, extract, library, media, retrieve, roles, turns
 from kataki.llm import LLM, LLMError
 
 LOCAL_SERVERS = {  # where the first-run wizard looks for a model already running here
@@ -176,9 +176,17 @@ def create_app(
     worker = extract.Worker(conn, llm, get_key, delay=worker_delay)
     extract.recover(conn)
 
-    def require_token(authorization: str = Header("")):
-        if not hmac.compare_digest(authorization.encode(), f"Bearer {token}".encode()):
-            raise HTTPException(401, "missing or invalid token")
+    expected = f"Bearer {token}".encode()
+
+    def require_token(request: Request, authorization: str = Header("")):
+        if hmac.compare_digest(authorization.encode(), expected):
+            return
+        # An <img> can't send a header, so media alone also takes the token in the query.
+        query = request.query_params.get("token")
+        if request.url.path.startswith("/media/") and query is not None:
+            if hmac.compare_digest(f"Bearer {query}".encode(), expected):
+                return
+        raise HTTPException(401, "missing or invalid token")
 
     app = FastAPI(
         title="Kataki RPAI engine", version=__version__, dependencies=[Depends(require_token)]
@@ -413,6 +421,30 @@ def create_app(
     @app.delete("/library/{item_id}", status_code=204)
     async def remove_item(item_id: int):
         library.delete_item(conn, item_id)
+
+    # --- media: portraits and place images ------------------------------------------------
+
+    @app.post("/media", status_code=201)
+    async def add_media(request: Request):
+        data = await request.body()
+        if len(data) > media.MAX_BYTES:
+            raise HTTPException(413, "Images can be at most 10 MB.")
+        if (ext := media.sniff(data)) is None:
+            raise HTTPException(415, "Only PNG, JPEG, GIF or WebP images.")
+        return {"name": media.save(conn, data, ext), "bytes": len(data)}
+
+    @app.get("/media/{name}")
+    async def get_media(name: str):
+        if (path := media.find(conn, name)) is None:
+            raise HTTPException(404, "not found")
+        return FileResponse(
+            path,
+            media_type=media.TYPES[path.suffix[1:]],
+            headers={
+                "Cache-Control": "private, max-age=31536000, immutable",
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
 
     # --- stories ---------------------------------------------------------------------------
 

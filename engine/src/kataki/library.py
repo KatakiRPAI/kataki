@@ -1,4 +1,10 @@
-"""Library templates (characters, places, scenarios), tags, and starting a story from them."""
+"""Library templates (characters, places, scenarios), tags, and starting a story from them.
+
+An item's `data` is a JSON object. The engine reads `aliases`, `first_message` and
+`example_dialogue`; the rest belongs to the app and the engine only stores it: `persona` and
+`favourite` (bools), `pronouns` ("she" | "he" | "they"), `palette` ({bg: [from, to], ink}),
+`portrait` and `image` (media names, see media.py).
+"""
 
 import json
 import sqlite3
@@ -87,7 +93,15 @@ def update_item(conn: sqlite3.Connection, item_id: int, **fields) -> None:
 
 
 def delete_item(conn: sqlite3.Connection, item_id: int) -> None:
+    """Stories keep their copies: they only lose the link back to the library. A story that
+    used the item as its plot keeps its premise (copied now if it didn't have one yet)."""
     with conn:
+        conn.execute(
+            "UPDATE stories SET scenario_id=NULL, overrides=json_insert(overrides, '$.premise',"
+            " (SELECT description FROM lib_items WHERE id=?)) WHERE scenario_id=?",
+            (item_id, item_id),
+        )
+        conn.execute("UPDATE entities SET lib_item_id=NULL WHERE lib_item_id=?", (item_id,))
         set_tags(conn, "lib_item", item_id, [])  # taggings are polymorphic, so no FK cascade
         conn.execute("DELETE FROM lib_items WHERE id=?", (item_id,))
 
@@ -121,9 +135,13 @@ def create_story(
     persona_id: int | None = None,  # None = director mode: the user plays no one
     scenario_id: int | None = None,
 ) -> int:
+    scenario = get_item(conn, scenario_id) if scenario_id is not None else None
+    # The premise is copied too, so editing the plot in the library never rewrites this story.
+    overrides = {"premise": scenario["description"]} if scenario else {}
     with conn:
         story_id = conn.execute(
-            "INSERT INTO stories(title, scenario_id) VALUES(?, ?)", (title, scenario_id)
+            "INSERT INTO stories(title, scenario_id, overrides) VALUES(?, ?, ?)",
+            (title, scenario_id, json.dumps(overrides)),
         ).lastrowid
         cast = [(get_item(conn, i), True) for i in character_ids]
         if persona_id is not None:
@@ -148,7 +166,6 @@ def create_story(
             )
 
         # The opening line: the scenario's (narrated), else the first AI character's greeting.
-        scenario = get_item(conn, scenario_id) if scenario_id is not None else None
         opening = (None, scenario["data"].get("first_message")) if scenario else (None, None)
         if not opening[1]:
             greeters = (

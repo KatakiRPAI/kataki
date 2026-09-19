@@ -136,12 +136,15 @@ def _system(conn, story, persona, present, place) -> tuple[str, str]:
     cards = [f"## {e['name']}\n{e['description'] or ''}".strip() for e in present]
     if place:
         cards.append(f"## Place: {place['name']}\n{place['description'] or ''}".strip())
-    if story["scenario_id"]:
+    # The premise the story started with; stories from before it was copied read the plot live.
+    premise = json.loads(story["overrides"]).get("premise")
+    if premise is None and story["scenario_id"]:
         scenario = conn.execute(
             "SELECT description FROM lib_items WHERE id=?", (story["scenario_id"],)
         ).fetchone()
-        if scenario and scenario["description"]:
-            cards.insert(0, f"## Scenario\n{scenario['description']}")
+        premise = scenario and scenario["description"]
+    if premise:
+        cards.insert(0, f"## Scenario\n{premise}")
     pinned = conn.execute(
         "SELECT detail FROM memories WHERE story_id=? AND pinned=1 AND hidden=0 ORDER BY id",
         (story["id"],),

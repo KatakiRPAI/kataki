@@ -283,3 +283,35 @@ def test_a_long_time_skip_closes_the_verbatim_window_once_the_past_is_in_memory(
     assert "third floorboard" not in flat(built.messages)  # six years on, only memory has it
     assert "Six years later" in flat(built.messages) and built.window_start == skip
     assert run
+
+
+def test_a_story_keeps_the_premise_it_started_with(conn):
+    mira = library.create_item(conn, "character", "Mira")
+    plot = library.create_item(
+        conn, "scenario", "The Missing Ledger", description="The guild ledger has vanished."
+    )
+    story = library.create_story(conn, "s", character_ids=[mira], scenario_id=plot)
+
+    def system():
+        return context.build(conn, story, eid(conn, "Mira"), EP).messages[0]["content"]
+
+    assert "## Scenario\nThe guild ledger has vanished." in system()
+    library.update_item(conn, plot, description="Rewritten in the library.")
+    assert "The guild ledger has vanished." in system() and "Rewritten" not in system()
+    library.delete_item(conn, plot)
+    assert "The guild ledger has vanished." in system()
+
+
+def test_deleting_the_plot_of_an_older_story_copies_its_premise_into_the_story_first(conn):
+    mira = library.create_item(conn, "character", "Mira")
+    plot = library.create_item(conn, "scenario", "Frost", description="The pass is snowed in.")
+    story = library.create_story(conn, "s", character_ids=[mira], scenario_id=plot)
+    with conn:  # a story from before premises were copied reads the library row
+        conn.execute("UPDATE stories SET overrides='{}' WHERE id=?", (story,))
+    library.delete_item(conn, plot)
+    row = conn.execute("SELECT scenario_id, overrides FROM stories").fetchone()
+    assert row["scenario_id"] is None and json.loads(row["overrides"]) == {
+        "premise": "The pass is snowed in."
+    }
+    prompt = context.build(conn, story, eid(conn, "Mira"), EP).messages[0]["content"]
+    assert "## Scenario\nThe pass is snowed in." in prompt
