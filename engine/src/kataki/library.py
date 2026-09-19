@@ -134,14 +134,16 @@ def create_story(
     place_id: int | None = None,
     persona_id: int | None = None,  # None = director mode: the user plays no one
     scenario_id: int | None = None,
+    epoch_offset_min: int = 480,  # the clock at story time 0: Day 1, 08:00
 ) -> int:
     scenario = get_item(conn, scenario_id) if scenario_id is not None else None
     # The premise is copied too, so editing the plot in the library never rewrites this story.
     overrides = {"premise": scenario["description"]} if scenario else {}
     with conn:
         story_id = conn.execute(
-            "INSERT INTO stories(title, scenario_id, overrides) VALUES(?, ?, ?)",
-            (title, scenario_id, json.dumps(overrides)),
+            "INSERT INTO stories(title, scenario_id, overrides, epoch_offset_min)"
+            " VALUES(?, ?, ?, ?)",
+            (title, scenario_id, json.dumps(overrides), epoch_offset_min),
         ).lastrowid
         cast = [(get_item(conn, i), True) for i in character_ids]
         if persona_id is not None:

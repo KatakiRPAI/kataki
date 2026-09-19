@@ -149,6 +149,90 @@ def test_a_story_cannot_be_made_from_missing_items(api):
     assert api.post("/stories", json={"title": "x", "character_ids": [999]}).status_code == 422
 
 
+# --- stories as the Sky lists them -----------------------------------------------------------
+
+
+def test_the_story_list_shows_each_story_with_its_people_place_and_last_line(api, story, backend):
+    backend.say("*frowns* The lighthouse?")
+    api.post(f"/stories/{story}/turn", json={"text": "Evening, Mira."})
+    tobin = cast(api, story)["Tobin"]["id"]
+    api.post(f"/stories/{story}/presence", json={"entity_id": tobin, "present": False})
+
+    [entry] = api.get("/stories").json()
+    ids = {name: e["id"] for name, e in cast(api, story).items()}
+    lib = {i["name"]: i["id"] for i in api.get("/library").json()}
+    assert entry["id"] == story and entry["title"] == "Low Tide" and entry["pinned"] is False
+    assert entry["messages"] == 2 and entry["last_at"] and entry["created_at"]
+    assert (entry["clock"], entry["minute_of_day"]) == ("Day 1, 08:04", 484)
+    assert entry["persona"] == {"id": ids["Aren"], "name": "Aren", "lib_item_id": lib["Aren"]}
+    assert entry["place"] == {
+        "id": ids["The Gull"],
+        "name": "The Gull",
+        "lib_item_id": lib["The Gull"],
+    }
+    assert entry["cast"] == [
+        {"id": ids["Mira"], "name": "Mira", "lib_item_id": lib["Mira"], "present": True},
+        {"id": ids["Tobin"], "name": "Tobin", "lib_item_id": lib["Tobin"], "present": False},
+    ]
+    assert entry["last_line"] == {"speaker": "Mira", "text": "*frowns* The lighthouse?"}
+
+
+def test_pinned_stories_come_first_then_the_most_recently_played(api, story, backend):
+    mira = next(i["id"] for i in api.get("/library").json() if i["name"] == "Mira")
+    older = api.post("/stories", json={"title": "Older", "character_ids": [mira]}).json()["id"]
+    newer = api.post("/stories", json={"title": "Newer", "character_ids": [mira]}).json()["id"]
+    backend.say("Back again.")
+    api.post(f"/stories/{story}/turn", json={"text": "Mira?"})  # Low Tide was played last
+    assert [s["title"] for s in api.get("/stories").json()] == ["Low Tide", "Newer", "Older"]
+
+    assert api.patch(f"/stories/{older}", json={"pinned": True}).json()["pinned"] is True
+    assert [s["title"] for s in api.get("/stories").json()] == ["Older", "Low Tide", "Newer"]
+    assert [s["last_line"] for s in api.get("/stories").json()][2] is None
+    assert newer
+
+
+def test_a_story_can_start_at_any_time_of_day_and_says_where_its_clock_began(api):
+    mira = api.post("/library", json={"kind": "character", "name": "Mira"}).json()["id"]
+    dusk = api.post(
+        "/stories", json={"title": "Dusk", "character_ids": [mira], "epoch_offset_min": 1140}
+    ).json()
+    assert (dusk["clock"], dusk["minute_of_day"], dusk["story_time"]) == ("Day 1, 19:00", 1140, 0)
+    assert dusk["start_clock"] == "Day 1, 19:00" and dusk["epoch_offset_min"] == 1140
+    frost = api.post(
+        "/stories", json={"title": "Frost", "character_ids": [mira], "epoch_offset_min": 1840}
+    ).json()
+    assert (frost["start_clock"], frost["minute_of_day"]) == ("Day 2, 06:40", 400)
+    assert api.post("/stories", json={"title": "x", "epoch_offset_min": -5}).status_code == 422
+
+
+def test_a_story_says_who_you_play_where_you_are_and_what_the_scene_is_called(api, story):
+    gull = cast(api, story)["The Gull"]["id"]
+    api.post(f"/stories/{story}/scene", json={"present": [], "place_id": gull, "title": "Night"})
+    got = api.get(f"/stories/{story}").json()
+    assert got["persona"]["name"] == "Aren" and got["place"]["name"] == "The Gull"
+    assert got["scene_title"] == "Night" and got["pinned"] is False
+    # the scene marker is a line, so it takes a turn's minutes; the start stays where it was
+    assert (got["story_time"], got["clock"], got["start_clock"]) == (
+        2,
+        "Day 1, 08:02",
+        "Day 1, 08:00",
+    )
+
+
+def test_seen_marks_the_newest_memory_read_so_later_ones_count_as_new(api, story, conn):
+    with conn:
+        conn.execute(
+            "INSERT INTO extraction_runs(story_id, from_message_id, to_message_id, trigger)"
+            " VALUES(?, 0, 0, 'manual')",
+            (story,),
+        )
+    newest = conn.execute("SELECT max(id) FROM extraction_runs").fetchone()[0]
+    assert api.post(f"/stories/{story}/seen").status_code == 204
+    row = conn.execute("SELECT seen_run_id FROM stories WHERE id=?", (story,)).fetchone()
+    assert row[0] == newest
+    assert api.post("/stories/999/seen").status_code == 404
+
+
 # --- playing ---------------------------------------------------------------------------------
 
 

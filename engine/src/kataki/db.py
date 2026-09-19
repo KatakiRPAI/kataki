@@ -4,10 +4,14 @@ import sqlite3
 from importlib.resources import files
 from pathlib import Path
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 # version -> the SQL that brings a library up from the version before it; schema.sql is v1
 MIGRATIONS = {
     2: "ALTER TABLE entities ADD COLUMN examples TEXT NOT NULL DEFAULT ''",  # example dialogue
+    3: (  # the Sky: pinned stories, and the newest memory read the user has seen
+        "ALTER TABLE stories ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;"
+        "ALTER TABLE stories ADD COLUMN seen_run_id INTEGER NOT NULL DEFAULT 0;"
+    ),
 }
 
 

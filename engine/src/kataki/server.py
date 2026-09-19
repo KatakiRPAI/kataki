@@ -16,7 +16,7 @@ from typing import Literal
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from kataki import __version__, chat, clock, extract, library, media, retrieve, roles, turns
 from kataki.llm import LLM, LLMError
@@ -73,11 +73,13 @@ class StoryIn(BaseModel):
     place_id: int | None = None
     persona_id: int | None = None
     scenario_id: int | None = None
+    epoch_offset_min: int = Field(480, ge=0)  # the clock at the start: 480 = Day 1, 08:00
 
 
 class StoryPatch(BaseModel):
     title: str | None = None
     minutes_per_turn: int | None = None
+    pinned: bool | None = None
     roles: dict | None = None  # per-story role overrides, same shape as PUT /roles/{role}
 
 
@@ -448,13 +450,62 @@ def create_app(
 
     # --- stories ---------------------------------------------------------------------------
 
+    def ref(entity_id: int | None) -> dict | None:
+        """An entity as the Sky shows it: enough to find its portrait in the library."""
+        row = conn.execute(
+            "SELECT id, name, lib_item_id FROM entities WHERE id IS ?", (entity_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+    def standing(story: dict) -> dict:
+        """Where a story stands now: its clock, who you play, where, and who is there."""
+        path = chat.active_path(conn, story["id"])
+        now = path[-1]["story_time"] if path else 0
+        scene_id = chat.scene_of(conn, story["id"], path)
+        scene = conn.execute(
+            "SELECT place_id, title FROM scenes WHERE id IS ?", (scene_id,)
+        ).fetchone()
+        here = {e["id"] for e in chat.present_entities(conn, scene_id, path)}
+        ai = conn.execute(
+            "SELECT id, name, lib_item_id FROM entities"
+            " WHERE story_id=? AND is_ai=1 AND hidden=0 ORDER BY id",
+            (story["id"],),
+        )
+        last = next((m for m in reversed(path) if m["role"] != "system" and not m["hidden"]), None)
+        speaker = ref(last["speaker_id"]) if last else None
+        return {
+            "pinned": bool(story["pinned"]),
+            "clock": clock.label(now, story["epoch_offset_min"]),
+            "story_time": now,
+            "minute_of_day": (now + story["epoch_offset_min"]) % clock.DAY,
+            "persona": ref(story["persona_entity_id"]),
+            "place": ref(scene["place_id"]) if scene else None,
+            "scene_title": scene["title"] if scene else None,
+            "cast": [{**dict(e), "present": e["id"] in here} for e in ai],
+            "last_line": last and {"speaker": speaker and speaker["name"], "text": last["text"]},
+        }
+
     @app.get("/stories")
     async def list_stories():
+        """Pinned first, then the most recently played. ponytail: one path walk per story;
+        cache per story version if a library ever holds hundreds of stories."""
         rows = conn.execute(
-            "SELECT s.id, s.title, s.created_at, count(m.id) AS messages FROM stories s"
-            " LEFT JOIN messages m ON m.story_id=s.id GROUP BY s.id ORDER BY s.id DESC"
-        )
-        return [dict(r) for r in rows]
+            "SELECT s.*, count(m.id) AS messages,"
+            " coalesce(max(m.created_at), s.created_at) AS last_at, max(m.id) AS last_id"
+            " FROM stories s LEFT JOIN messages m ON m.story_id=s.id GROUP BY s.id"
+            " ORDER BY s.pinned DESC, last_at DESC, coalesce(last_id, 0) DESC, s.id DESC"
+        ).fetchall()
+        return [
+            {
+                "id": r["id"],
+                "title": r["title"],
+                "created_at": r["created_at"],
+                "last_at": r["last_at"],
+                "messages": r["messages"],
+                **standing(dict(r)),
+            }
+            for r in rows
+        ]
 
     @app.post("/stories", status_code=201)
     async def add_story(s: StoryIn):
@@ -467,16 +518,16 @@ def create_app(
     @app.get("/stories/{story_id}")
     async def get_story(story_id: int):
         story = story_row(story_id)
-        path = chat.active_path(conn, story_id)
-        now = path[-1]["story_time"] if path else 0
         overrides = json.loads(story["overrides"])
         return {
             "id": story["id"],
             "title": story["title"],
             "persona_id": story["persona_entity_id"],
             "minutes_per_turn": story["minutes_per_turn"],
-            "clock": clock.label(now, story["epoch_offset_min"]),
+            "epoch_offset_min": story["epoch_offset_min"],
+            "start_clock": clock.label(0, story["epoch_offset_min"]),  # for the opening card
             "roles": overrides.get("roles", {}),
+            **standing(story),
         }
 
     @app.patch("/stories/{story_id}")
@@ -489,6 +540,17 @@ def create_app(
             fields["overrides"] = json.dumps(overrides)
         _patch(conn, "stories", story_id, fields)
         return await get_story(story_id)
+
+    @app.post("/stories/{story_id}/seen", status_code=204)
+    async def mark_seen(story_id: int):
+        """The user has looked at this story: memory reads up to now are no longer new."""
+        story_row(story_id)
+        with conn:
+            conn.execute(
+                "UPDATE stories SET seen_run_id="
+                "(SELECT coalesce(max(id), 0) FROM extraction_runs WHERE story_id=?) WHERE id=?",
+                (story_id, story_id),
+            )
 
     @app.delete("/stories/{story_id}", status_code=204)
     async def remove_story(story_id: int):
