@@ -24,7 +24,7 @@ from pathlib import Path
 
 import httpx2
 
-from kataki import chat, clock, db, embed, extract, library, retrieve, turns
+from kataki import chat, clock, db, embed, extract, library, retrieve, signals, turns
 from kataki.llm import LLM
 
 DEFAULT_DB = Path(__file__).resolve().parents[2] / ".dev" / "demo.db"
@@ -345,6 +345,28 @@ def check(conn, story: int) -> list[str]:
     marker = next((m for m in path if m["role"] == "system" and m["skip_minutes"]), None)
     if marker is None or at.get("Year 7, Day 1, 19:16") is not marker:
         problems.append("the six-years marker isn't at Year 7, Day 1, 19:16")
+
+    # the Scene's memory signals
+    lines = signals.signals(conn, story)["lines"]
+
+    def signal(label: str) -> dict:
+        return lines.get(at[label]["id"], {}) if label in at else {}
+
+    def callouts(label: str) -> list[str]:
+        return [c["text"] for c in signal(label).get("callouts", [])]
+
+    if not any(c["kind"] == "memory" for c in signal("Day 1, 19:12").get("callouts", [])):
+        problems.append("the secret line (19:12) has no memory callout")
+    if "Tobin didn't like that" not in callouts("Day 1, 19:08"):
+        problems.append(f"19:08 doesn't say Tobin didn't like that: {callouts('Day 1, 19:08')}")
+    if "Mira has her doubts" not in callouts("Year 7, Day 1, 19:20"):
+        problems.append(
+            f"19:20 doesn't say Mira has her doubts: {callouts('Year 7, Day 1, 19:20')}"
+        )
+    if "recall" not in signal("Year 7, Day 1, 19:18"):
+        problems.append("Mira's reply at 19:18 has no recall spark")
+    if "skip" not in signal("Year 7, Day 1, 19:16"):
+        problems.append("the six-years marker has no skip report")
     return problems
 
 
