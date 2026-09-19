@@ -431,6 +431,18 @@ def test_the_version_changes_when_memory_reads_the_story(api, story, backend):
     assert after == {"v": f"{run['id']}:1:1:0", "waiting": 0}
 
 
+def test_signals_say_who_heard_each_line(api, story, backend):
+    backend.say("Hm.")
+    api.post(f"/stories/{story}/turn", json={"text": "Evening, Mira."})
+    said = api.get(f"/stories/{story}/messages").json()[-2]
+    got = api.get(f"/stories/{story}/signals")
+    assert got.status_code == 200
+    mira = cast(api, story)["Mira"]["id"]
+    receipts = got.json()["lines"][str(said["id"])]["receipts"]
+    assert {"id": mira, "state": "heard", "pending": True} in receipts
+    assert api.get("/stories/999/signals").status_code == 404
+
+
 def test_a_turn_without_a_model_explains_what_to_set(api):
     mira = api.post("/library", json={"kind": "character", "name": "Mira"}).json()["id"]
     story = api.post("/stories", json={"title": "x", "character_ids": [mira]}).json()["id"]

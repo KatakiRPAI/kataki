@@ -74,24 +74,35 @@ def audience_of(message) -> list[int] | None:
     return None if message["audience"] is None else json.loads(message["audience"])
 
 
-def heard_by(conn: sqlite3.Connection, path: list, entity_id: int) -> set[int]:
-    """The messages on this path that reached the entity: what they said, and what was said
-    while they were there, unless it was whispered to someone else or only thought."""
+def hearing(conn: sqlite3.Connection, path: list, entity_id: int) -> dict[int, str]:
+    """How each message on this path reached the entity: 'said' it, 'heard' it (said while
+    they were there), or not: 'away', a 'whisper' to someone else, or a 'thought'."""
     rows = conn.execute(
         "SELECT scene_id, message_id, present FROM presence WHERE entity_id=? ORDER BY id",
         (entity_id,),
     ).fetchall()
     opening = {r["scene_id"]: r["present"] for r in rows if r["message_id"] is None}
     changes = {r["message_id"]: r["present"] for r in rows if r["message_id"] is not None}
-    heard, scene, here = set(), object(), False
+    how, scene, here = {}, object(), False
     for m in path:
         if m["scene_id"] != scene:
             scene, here = m["scene_id"], bool(opening.get(m["scene_id"]))
         audience = audience_of(m)
-        if m["speaker_id"] == entity_id or (here and (audience is None or entity_id in audience)):
-            heard.add(m["id"])
+        how[m["id"]] = (
+            "said" if m["speaker_id"] == entity_id
+            else "away" if not here
+            else "heard" if audience is None or entity_id in audience
+            else "thought" if audience == []
+            else "whisper"
+        )  # fmt: skip
         here = bool(changes.get(m["id"], here))
-    return heard
+    return how
+
+
+def heard_by(conn: sqlite3.Connection, path: list, entity_id: int) -> set[int]:
+    """The messages on this path that reached the entity: what they said, and what was said
+    while they were there, unless it was whispered to someone else or only thought."""
+    return {m for m, how in hearing(conn, path, entity_id).items() if how in ("said", "heard")}
 
 
 def presence_changes(conn: sqlite3.Connection, story_id: int, path: list) -> list[dict]:

@@ -18,7 +18,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
-from kataki import __version__, chat, clock, extract, library, media, retrieve, roles, turns
+from kataki import (
+    __version__,
+    chat,
+    clock,
+    extract,
+    library,
+    media,
+    retrieve,
+    roles,
+    signals,
+    turns,
+)
 from kataki.llm import LLM, LLMError
 
 LOCAL_SERVERS = {  # where the first-run wizard looks for a model already running here
@@ -579,6 +590,12 @@ def create_app(
     async def remove_story(story_id: int):
         with conn:
             conn.execute("DELETE FROM stories WHERE id=?", (story_id,))
+
+    @app.get("/stories/{story_id}/signals")
+    async def get_signals(story_id: int):
+        """Per line: who heard it and how clearly they will remember it; what a reply recalled."""
+        story_row(story_id)
+        return signals.signals(conn, story_id)
 
     @app.get("/stories/{story_id}/messages")
     async def get_messages(story_id: int):
