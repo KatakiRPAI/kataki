@@ -46,6 +46,15 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
       }),
     [id],
   )
+  // Playing a story is looking at it: what the reader wrote is no longer new, here or in the Sky.
+  // Again on the way out, for the reads that landed while you played.
+  useEffect(() => {
+    const seen = () => api(`/stories/${id}/seen`, 'POST').catch(() => {})
+    seen()
+    return () => {
+      seen()
+    }
+  }, [id])
   const [live, setLive] = useState<Live | null>(null)
   const [said, setSaid] = useState<{ text: string; audience: number[] | null } | null>(null)
   const [settling, setSettling] = useState(false) // the reply ended; keep it shown until fresh data lands
@@ -244,12 +253,37 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
   // Open at the newest line, or at the deep-linked one; follow a reply as it is written.
   const convo = useRef<HTMLDivElement>(null)
   const count = data?.messages.length ?? 0
+  const landed = useRef<number>(undefined) // the deep-linked line we have already come to rest on
   useEffect(() => {
+    if (line && landed.current === line) return // a line you send after is not a reason to go back
     const target = line ? document.getElementById(`line-${line}`) : null
-    if (target) {
-      target.scrollIntoView({ block: 'center' })
-    } else if (convo.current) {
-      convo.current.scrollTop = convo.current.scrollHeight
+    if (!target) {
+      if (convo.current) convo.current.scrollTop = convo.current.scrollHeight
+      return
+    }
+    landed.current = line
+    // Arriving through the dive, the lines are still settling (fonts, portraits, receipts), and
+    // the one we came for drifts away under them. Hold it in the middle until they stop moving,
+    // or until you scroll for yourself.
+    let frame = 0
+    let tall = -1
+    let raf = 0
+    const hold = () => {
+      const now = convo.current?.scrollHeight ?? 0
+      if (now !== tall) {
+        tall = now
+        target.scrollIntoView({ block: 'center' })
+      }
+      if (++frame < 90) raf = requestAnimationFrame(hold)
+    }
+    raf = requestAnimationFrame(hold)
+    const stop = () => cancelAnimationFrame(raf)
+    addEventListener('wheel', stop, { passive: true })
+    addEventListener('pointerdown', stop)
+    return () => {
+      stop()
+      removeEventListener('wheel', stop)
+      removeEventListener('pointerdown', stop)
     }
   }, [line, count, backstage])
   useEffect(() => {

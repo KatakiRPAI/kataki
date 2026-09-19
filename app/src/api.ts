@@ -80,6 +80,23 @@ export type Standing = {
   scene_title: string | null
   cast: (Ref & { present: boolean })[] // the AI characters
   last_line: { speaker: string | null; text: string } | null
+  new_events: number // Activity you have not seen
+  waiting: number // lines the memory reader has not read yet
+}
+
+/** One thing a memory read (or a time skip) wrote, for the Activity feed. */
+export type ActivityEvent = {
+  key: string
+  kind: 'memory' | 'belief' | 'feeling' | 'time'
+  story_id: number
+  story: string
+  message_id: number
+  clock: string
+  who: Ref[]
+  text: string
+  sub: string
+  line: { speaker: string | null; text: string }
+  new: boolean
 }
 
 export type StorySummary = Standing & {

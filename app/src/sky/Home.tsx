@@ -1,8 +1,9 @@
 import { useId, useState, type CSSProperties } from 'react'
-import { api, type Item, type StorySummary } from '../api'
+import { api, type ActivityEvent, type Item, type StorySummary } from '../api'
 import { Avatar, Figure, Orb, paletteOf, Room } from '../art'
 import { diveLink, href, useLibrary, useLoad } from '../hooks'
-import { ErrorLine, Icon, Prose } from '../ui'
+import { ErrorLine, Glass, Icon, Prose } from '../ui'
+import { EventLink } from './Activity'
 import Friends from './Friends'
 
 type Settings = { persona?: number | null }
@@ -94,7 +95,9 @@ function Continue({ story, byId }: { story: StorySummary; byId: Map<number, Item
       <div className="ka-continue__text">
         <span className="ka-glass-chip">
           <Icon name="spark" size={13} />
-          Continue
+          {story.new_events > 0
+            ? `Continue · ${story.new_events} new memory event${story.new_events === 1 ? '' : 's'}`
+            : 'Continue'}
         </span>
         <span className="ka-continue__title">{story.title}</span>
         <span className="ka-continue__meta">{meta.filter(Boolean).join(' · ')}</span>
@@ -153,8 +156,10 @@ export default function Home() {
   const { items, byId } = useLibrary()
   const [settings, reloadSettings, settingsError] = useLoad(() => api<Settings>('/settings'), [])
   const [stories, , storiesError] = useLoad(() => api<StorySummary[]>('/stories'), [])
+  const [recent] = useLoad(() => api<ActivityEvent[]>('/activity?limit=3'), [])
   const [q, setQ] = useState('')
   const [error, setError] = useState('')
+  const unseen = (stories ?? []).reduce((n, s) => n + s.new_events, 0)
 
   const personas = items.filter((i) => i.kind === 'character' && i.data.persona).sort((a, b) => a.id - b.id)
   const me = personas.find((p) => p.id === settings?.persona)
@@ -178,6 +183,10 @@ export default function Home() {
             <span className="k-sr">Search</span>
             <input type="search" placeholder="Search friends, stories, places" value={q} onChange={(e) => setQ(e.target.value)} />
           </label>
+          <a className="k-glass ka-bell" href={href('/activity')} aria-label={unseen ? `Activity, ${unseen} new` : 'Activity'}>
+            <Icon name="bell" size={20} />
+            {unseen > 0 && <span className="k-badge-count">{unseen}</span>}
+          </a>
           <a className="k-btn k-btn--dark k-btn--lg" href={href('/friends/new')}>
             <Icon name="plus" size={17} />
             Add a friend
@@ -189,7 +198,20 @@ export default function Home() {
         <Results q={q.trim()} items={items} stories={stories ?? []} />
       ) : (
         <>
-          {last && <Continue story={last} byId={byId} />}
+          <div className="ka-home-row">
+            {last && <Continue story={last} byId={byId} />}
+            <Glass
+              title="Activity"
+              action={<a className="ka-link ka-m0" href={href('/activity')}>See all</a>}
+              className="ka-home-activity"
+            >
+              {recent?.length ? (
+                recent.map((e) => <EventLink key={e.key} e={e} />)
+              ) : (
+                <p className="ka-muted ka-m0">What your friends make of a scene lands here.</p>
+              )}
+            </Glass>
+          </div>
           <section className="ka-stack ka-stack--18" aria-label="Friends">
             <Friends section />
           </section>

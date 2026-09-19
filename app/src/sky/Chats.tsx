@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { api, type StorySummary } from '../api'
+import { api, type ActivityEvent, type StorySummary } from '../api'
 import { Avatar, AvatarStack, Figure, Orb, Room } from '../art'
 import { dive, diveLink, go, href, useAction, useLibrary, useLoad } from '../hooks'
 import { Chip, Dialog, ErrorLine, Icon, Menu } from '../ui'
+import { EventLink } from './Activity'
 import NewChat, { type Preset } from './NewChat'
 
 type Filter = 'all' | 'one' | 'group'
@@ -29,6 +30,13 @@ export default function Chats({ selected }: { selected?: number }) {
   const all = stories ?? []
   const shown = all.filter((s) => filter === 'all' || (filter === 'one' ? s.cast.length === 1 : s.cast.length >= 2))
   const current = all.find((s) => s.id === selected) ?? all[0]
+  // What the reader wrote while you were away; the Scene marks a story seen as you play it.
+  const [feed] = useLoad(
+    () => (current ? api<ActivityEvent[]>(`/activity?story_id=${current.id}&limit=20`) : Promise.resolve([])),
+    [current?.id],
+  )
+  // by story too: picking another chat keeps the last answer until the new one lands
+  const since = (feed ?? []).filter((e) => e.new && e.story_id === current?.id).slice(0, 3)
   const people = (s: StorySummary) => s.cast.map((c) => ({ item: byId.get(c.lib_item_id ?? -1), name: c.name }))
 
   const pin = (s: StorySummary) =>
@@ -58,7 +66,15 @@ export default function Chats({ selected }: { selected?: number }) {
             </span>
             <span className="ka-thread__clock">{s.clock}</span>
           </span>
-          <span className="ka-thread__line">{preview(s)}</span>
+          <span className="ka-thread__mid">
+            <span className="ka-thread__line">{preview(s)}</span>
+            {s.new_events > 0 && (
+              <span className="ka-mem-badge" aria-label={`${s.new_events} new memory event${s.new_events === 1 ? '' : 's'}`}>
+                <Icon name="spark" size={11} />
+                {s.new_events}
+              </span>
+            )}
+          </span>
           <span className="ka-thread__as">{playing(s)}</span>
         </span>
         <Menu label={`More for ${s.title}`} className="k-btn k-btn--ghost k-btn--sm ka-thread__menu">
@@ -152,6 +168,12 @@ export default function Chats({ selected }: { selected?: number }) {
                 </button>
               )}
             </div>
+            {since.length > 0 && (
+              <div className="ka-stack ka-stack--tight">
+                <h2 className="k-eyebrow ka-eyebrow">New since you left</h2>
+                {since.map((e) => <EventLink key={e.key} e={e} sub={e.clock} />)}
+              </div>
+            )}
           </div>
         </section>
       )}

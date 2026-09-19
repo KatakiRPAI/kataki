@@ -219,17 +219,25 @@ def test_a_story_says_who_you_play_where_you_are_and_what_the_scene_is_called(ap
     )
 
 
-def test_seen_marks_the_newest_memory_read_so_later_ones_count_as_new(api, story, conn):
-    with conn:
-        conn.execute(
-            "INSERT INTO extraction_runs(story_id, from_message_id, to_message_id, trigger)"
-            " VALUES(?, 0, 0, 'manual')",
-            (story,),
-        )
-    newest = conn.execute("SELECT max(id) FROM extraction_runs").fetchone()[0]
+def test_seen_marks_the_newest_finished_read_and_leaves_one_still_running(api, story, conn):
+    """A read that has not finished has written nothing yet, so seeing the story now must not
+    swallow what it is about to write: leaving a scene while the reader works is the usual way
+    out of one."""
+
+    def run(upto, status):
+        with conn:
+            conn.execute(
+                "INSERT INTO extraction_runs(story_id, from_message_id, to_message_id, trigger,"
+                " status) VALUES(?, 0, ?, 'manual', ?)",
+                (story, upto, status),
+            )
+        return conn.execute("SELECT max(id) FROM extraction_runs").fetchone()[0]
+
+    done = run(1, "ok")
+    working = run(2, "running")
     assert api.post(f"/stories/{story}/seen").status_code == 204
     row = conn.execute("SELECT seen_run_id FROM stories WHERE id=?", (story,)).fetchone()
-    assert row[0] == newest
+    assert row[0] == done < working
     assert api.post("/stories/999/seen").status_code == 404
 
 

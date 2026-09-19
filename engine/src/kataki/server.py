@@ -589,12 +589,15 @@ def create_app(
 
     @app.post("/stories/{story_id}/seen", status_code=204)
     async def mark_seen(story_id: int):
-        """The user has looked at this story: memory reads up to now are no longer new."""
+        """The user has looked at this story: reads that have finished are no longer new. One
+        still working has written nothing to look at, so it stays ahead of the mark — leaving a
+        scene mid-read is the usual way out of one."""
         story_row(story_id)
         with conn:
             conn.execute(
                 "UPDATE stories SET seen_run_id="
-                "(SELECT coalesce(max(id), 0) FROM extraction_runs WHERE story_id=?) WHERE id=?",
+                "(SELECT coalesce(max(id), 0) FROM extraction_runs"
+                " WHERE story_id=? AND status='ok') WHERE id=?",
                 (story_id, story_id),
             )
 
