@@ -453,3 +453,29 @@ span.k-orb { display: block; }
 .ka-writing { color: var(--k-scene-amber); }
 .ka-thought { align-self: flex-start; margin-top: 8px; height: 26px; padding: 0 10px; border-radius: 13px; border: 1px solid rgba(255,236,210,.2); background: none; color: var(--k-scene-muted); font-size: 12px; display: inline-flex; align-items: center; gap: 6px; }
 .ka-notes { margin: 8px 0 0; max-height: 220px; overflow: auto; padding: 10px 12px; border-radius: 12px; background: rgba(0,0,0,.25); font: 13px/1.5 var(--k-font-mono); color: var(--k-scene-muted); white-space: pre-wrap; }
+
+/* ---- line tools, the story menu's dialogs, reading mode ---- */
+.k-line__tools button:disabled { opacity: .4; cursor: default; }
+.ka-takes { font-size: 12px; color: var(--k-scene-muted); font-variant-numeric: tabular-nums; }
+.ka-tools__rule { width: 1px; height: 18px; margin: 0 2px; background: rgba(255,255,255,.14); }
+.ka-edit { margin-top: 6px; display: flex; flex-direction: column; gap: 8px; }
+.ka-edit textarea { width: 100%; box-sizing: border-box; padding: 10px 12px; resize: vertical; border-radius: 12px; border: 1px solid var(--k-scene-glass-border); background: rgba(0,0,0,.28); color: var(--k-scene-ink); font: 18px/1.45 var(--k-font-story); }
+.ka-sbtn--primary { border-color: transparent; background: var(--k-scene-amber); color: var(--k-scene-amber-ink); }
+.ka-sbtn--danger { border-color: color-mix(in srgb, var(--k-scene-rose) 50%, transparent); color: var(--k-scene-rose); }
+:is(.ka-sbtn--primary, .ka-sbtn--danger):disabled { opacity: .45; cursor: default; }
+.ka-scene .ka-dialog { background: rgba(26,19,15,.96); border-color: var(--k-scene-glass-border); box-shadow: 0 30px 70px rgba(0,0,0,.55); }
+.ka-scene .ka-dialog::backdrop { background: rgba(0,0,0,.45); }
+.ka-scene .ka-dialog .k-btn--ghost { background: none; border-color: transparent; box-shadow: none; color: var(--k-scene-ink); }
+.ka-scene .ka-dialog :is(.ka-muted, .k-field > span) { color: var(--k-scene-muted); }
+.ka-scene .ka-dialog .k-input { background: rgba(0,0,0,.28); border-color: var(--k-scene-glass-border); color: var(--k-scene-ink); }
+.ka-topbar .k-scene-round[aria-pressed="true"] { background: rgba(240,179,90,.2); color: var(--k-scene-amber); }
+
+/* reading: the column widens and centres over the stage, which blurs (statically: filters are
+   never animated, 1.7) under a veil that fades; the top bar fades until the pointer moves */
+.ka-veil { position: absolute; inset: 0; z-index: 1; background: rgba(14,10,8,.55); opacity: 0; pointer-events: none; transition: opacity var(--k-dur-slow) var(--k-ease-standard); }
+.ka-scene.is-reading .ka-veil { opacity: 1; }
+.ka-scene.is-reading .ka-stage { filter: blur(10px); }
+.ka-scene.is-reading .k-convo-scrim { opacity: 0; }
+.ka-scene.is-reading .k-convo { right: 50%; margin-right: 0; transform: translateX(50%); width: min(720px, 56vw); }
+.ka-scene.is-reading .k-composer { right: 50%; transform: translateX(50%); width: min(748px, 58vw); }
+.ka-scene.is-reading:is(.is-awake) .k-topbar, .ka-scene.is-reading .k-topbar:is(:hover, :focus-within) { opacity: 1; }

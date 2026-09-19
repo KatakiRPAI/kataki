@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { api, stream, type Cast, type CastEntity, type ContextLog, type Message, type Story, type TurnMeta, type Version } from '../api'
 import { paletteOf, SunArc } from '../art'
-import { href, rise, useLibrary, useLoad, usePoll } from '../hooks'
-import { ErrorLine, Icon, Menu } from '../ui'
+import { href, lastSky, rise, useAction, useLibrary, useLoad, usePoll } from '../hooks'
+import { Dialog, ErrorLine, Field, Icon, Menu } from '../ui'
 import Composer, { type Meter, type Send } from './Composer'
 import Lines, { LiveLine, SaidLine, type Live } from './Lines'
 import Stage from './Stage'
@@ -67,12 +67,12 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
     }, () => {})
   }, 3000, !live)
 
-  const generate = async (body: object) => {
+  const generate = async (path: string, body: object, replacing?: number) => {
     const ctl = new AbortController()
     controller.current = ctl
-    setLive({ speaker: '', speakerId: null, text: '', thoughts: '', strained: false })
+    setLive({ speaker: '', speakerId: null, text: '', thoughts: '', strained: false, replacing })
     try {
-      await stream(`/stories/${id}/turn`, body, (kind, value) => {
+      await stream(path, body, (kind, value) => {
         if (kind === 'meta') {
           const meta = value as TurnMeta
           setLive((l) => l && { ...l, speaker: meta.speaker?.name ?? 'The narrator', speakerId: meta.speaker?.id ?? null, strained: meta.strained, clock: meta.clock, from: meta.from_clock })
@@ -99,7 +99,7 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
   const send = async (s: Send) => {
     setFailed('')
     if (s.text) setSaid({ text: s.text, audience: s.audience })
-    if (s.reply) return generate({ text: s.text, speaker: s.speaker, audience: s.audience, skip: s.skip })
+    if (s.reply) return generate(`/stories/${id}/turn`, { text: s.text, speaker: s.speaker, audience: s.audience, skip: s.skip })
     try {
       await api(`/stories/${id}/line`, 'POST', { text: s.text, audience: s.audience, skip: s.skip })
     } catch (e) {
@@ -108,6 +108,23 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
     setSettling(true)
     refreshAll()
   }
+
+  // Reading mode: the controls fade until the pointer moves or focus lands on them; Esc leaves.
+  const [reading, setReading] = useState(false)
+  const [awake, setAwake] = useState(false)
+  const sleepTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const wake = () => {
+    setAwake(true)
+    clearTimeout(sleepTimer.current)
+    sleepTimer.current = setTimeout(() => setAwake(false), 2500)
+  }
+  useEffect(() => {
+    if (!reading) return
+    const leave = (e: KeyboardEvent) => e.key === 'Escape' && !document.querySelector('dialog[open], :popover-open') && setReading(false)
+    addEventListener('keydown', leave)
+    return () => removeEventListener('keydown', leave)
+  }, [reading])
+  useEffect(() => () => clearTimeout(sleepTimer.current), [])
 
   // Open at the newest line, or at the deep-linked one; follow a reply as it is written.
   const convo = useRef<HTMLDivElement>(null)
@@ -141,10 +158,14 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
   ].join(' · ')
   const writer = cast.entities.find((e) => e.id === live?.speakerId)
   const writerItem = writer?.lib_item_id ? byId.get(writer.lib_item_id) : undefined
+  const shown = live?.replacing ? messages.filter((m) => m.id !== live.replacing) : messages
+  const newest = messages.at(-1)
+  const retake = () => newest && generate(`/stories/${id}/regenerate`, {}, newest.id)
 
   return (
-    <div className="k-scene ka-scene">
+    <div className={`k-scene ka-scene${reading ? ' is-reading' : ''}${awake ? ' is-awake' : ''}`} onPointerMove={reading ? wake : undefined}>
       <Stage story={story} people={people} />
+      <div className="ka-veil" />
       <header className="k-topbar ka-topbar">
         <div className="ka-topbar__side">
           <button type="button" className="k-scene-round k-sglass" onClick={rise} aria-label="Float back up to the Sky">
@@ -161,14 +182,16 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
           <span className="ka-topbar__clock">{story.clock}</span>
         </div>
         <div className="ka-topbar__side ka-topbar__side--end">
-          <Menu label="Story menu" className="k-scene-round k-sglass">
-            <a href={href('/classic')}>Open in classic view</a>
-          </Menu>
+          <button type="button" className="k-scene-round k-sglass" aria-label="Reading mode" aria-pressed={reading}
+            onClick={() => setReading((r) => !r)}>
+            <Icon name="book" size={18} />
+          </button>
+          <StoryMenu story={story} onChange={refreshAll} />
         </div>
       </header>
       <div className="k-convo-scrim" />
       <div className="k-convo ka-convo" ref={convo}>
-        <Lines story={story} messages={messages} cast={cast} flash={line} onChange={refreshAll} />
+        <Lines story={story} messages={shown} cast={cast} flash={line} busy={!!live} onChange={refreshAll} onRetake={retake} />
         {missing && <p className="k-sysnote">That line is no longer in this version of the story.</p>}
         {said && <SaidLine who={story.persona?.name ?? 'You'} text={said.text} audience={said.audience} />}
         {live && <LiveLine live={live} item={writerItem} ink={writer ? paletteOf(writerItem, writer.name).ink : undefined} />}
@@ -185,5 +208,96 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
         onStop={() => controller.current?.abort()}
       />
     </div>
+  )
+}
+
+type Dialogs = 'rename' | 'minutes' | 'delete' | null
+
+/** The story menu: rename, minutes per turn, pin, delete (with a confirm). */
+function StoryMenu({ story, onChange }: { story: Story; onChange: () => void }) {
+  const [open, setOpen] = useState<Dialogs>(null)
+  const [run, error, busy] = useAction()
+  const close = () => setOpen(null)
+  const save = (body: object) =>
+    run(async () => {
+      await api(`/stories/${story.id}`, 'PATCH', body)
+      close()
+      onChange()
+    })
+  const remove = () =>
+    run(async () => {
+      await api(`/stories/${story.id}`, 'DELETE')
+      close()
+      lastSky.path = '/chats' // the story is gone; float up to the list of chats
+      rise()
+    })
+  return (
+    <>
+      <Menu label="Story menu" className="k-scene-round k-sglass">
+        <button type="button" onClick={() => setOpen('rename')}>
+          <Icon name="edit" size={16} />
+          Rename…
+        </button>
+        <button type="button" onClick={() => setOpen('minutes')}>
+          <Icon name="clock" size={16} />
+          Minutes per turn…
+        </button>
+        <button type="button" onClick={() => save({ pinned: !story.pinned })}>
+          <Icon name="pin" size={16} />
+          {story.pinned ? 'Unpin story' : 'Pin story'}
+        </button>
+        <a href={href('/classic')}>
+          <Icon name="grid" size={16} />
+          Open in classic view
+        </a>
+        <button type="button" onClick={() => setOpen('delete')}>
+          <Icon name="x" size={16} />
+          Delete story…
+        </button>
+      </Menu>
+      <Dialog open={open === 'rename'} onClose={close} title="Rename this story">
+        <OneField label="Title" initial={story.title} busy={busy} error={error} onSave={(title) => save({ title })} />
+      </Dialog>
+      <Dialog open={open === 'minutes'} onClose={close} title="Minutes per turn">
+        <p className="ka-muted">How far the story clock moves with each line. Skips come on top.</p>
+        <OneField label="Minutes" initial={String(story.minutes_per_turn)} number busy={busy} error={error}
+          onSave={(v) => save({ minutes_per_turn: Math.max(1, Math.round(Number(v))) })} />
+      </Dialog>
+      <Dialog open={open === 'delete'} onClose={close} title="Delete this story?">
+        <p className="ka-muted">
+          “{story.title}” and everything its characters remember of it will be gone. This can't be undone.
+        </p>
+        <ErrorLine error={error} />
+        <div className="ka-row ka-row--end">
+          <button type="button" className="k-sbtn" onClick={close}>Keep it</button>
+          <button type="button" className="k-sbtn ka-sbtn--danger" disabled={busy} onClick={remove}>Delete story</button>
+        </div>
+      </Dialog>
+    </>
+  )
+}
+
+/** One field and Save: mounted fresh each time its dialog opens. */
+function OneField({ label, initial, number, busy, error, onSave }: {
+  label: string
+  initial: string
+  number?: boolean
+  busy: boolean
+  error: string
+  onSave: (value: string) => void
+}) {
+  const [value, setValue] = useState(initial)
+  const ok = number ? Number(value) >= 1 : !!value.trim()
+  return (
+    <form className="ka-stack" onSubmit={(e) => { e.preventDefault(); if (ok) onSave(value.trim()) }}>
+      <Field label={label}>
+        <input className="k-input" autoFocus value={value} onChange={(e) => setValue(e.target.value)}
+          {...(number ? { type: 'number', min: 1, max: 1440 } : {})} />
+      </Field>
+      <ErrorLine error={error} />
+      <div className="ka-row ka-row--end">
+        <button type="submit" className="k-sbtn ka-sbtn--primary" disabled={busy || !ok}>Save</button>
+      </div>
+    </form>
   )
 }

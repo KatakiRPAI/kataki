@@ -74,7 +74,11 @@ export function Dialog({ open, onClose, title, className = '', children }: {
   const ref = useRef<HTMLDialogElement>(null)
   useEffect(() => {
     const d = ref.current!
-    if (open && !d.open) d.showModal()
+    if (open && !d.open) {
+      d.showModal()
+      // showModal focuses the close button; a form should start in its first field
+      d.querySelector<HTMLElement>('input:not([type=hidden]), textarea, select')?.focus()
+    }
     if (!open && d.open) d.close()
   }, [open])
   return (
