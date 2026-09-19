@@ -1,0 +1,43 @@
+/* The app layer over the vendored design system (design/*.css, never edited). Only ka- classes,
+   plus the page base. Layouts here must hold from 1280 to 1920 px wide. */
+
+html, body, #root { height: 100%; margin: 0; }
+body { background: var(--k-sky-bg-solid); font-family: var(--k-font-ui); }
+
+.ka-error { margin: 0; font-size: 13px; font-weight: 600; color: var(--k-sky-danger); }
+.k-scene .ka-error { color: var(--k-scene-rose); }
+.k-backstage .ka-error { color: var(--k-bs-error); }
+.ka-prose { white-space: pre-line; }
+
+.ka-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ka-card-head > h3 { margin: 0; font-size: 16px; font-weight: 800; }
+
+.ka-sky-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.ka-sky-header > h1 { margin: 0; font-size: 44px; }
+.ka-sky-header__actions { display: flex; align-items: center; gap: 12px; }
+
+/* Dialogs and menus render in the top layer but inherit font and colour from where they mount. */
+.ka-dialog {
+  width: min(560px, calc(100vw - 48px)); max-height: calc(100vh - 48px); box-sizing: border-box;
+  padding: 24px; border-radius: var(--k-radius-card); color: inherit;
+  background: var(--k-sky-glass-strong); border: 1px solid var(--k-sky-glass-border);
+  box-shadow: 0 30px 70px rgba(30,50,120,.3); backdrop-filter: blur(var(--k-sky-glass-blur));
+}
+.ka-dialog[open] { display: flex; flex-direction: column; gap: 16px; }
+.ka-dialog::backdrop { background: rgba(20,38,77,.28); }
+.ka-dialog__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ka-dialog__head > h2 { margin: 0; font-size: 22px; font-weight: 800; }
+
+.ka-menu {
+  inset: auto; margin: 6px 0 0; position-area: bottom span-left; position-try-fallbacks: flip-block;
+  min-width: 200px; padding: 6px; box-sizing: border-box; border-radius: 18px; color: inherit;
+  background: var(--k-sky-glass-strong); border: 1px solid var(--k-sky-glass-border);
+  box-shadow: 0 14px 34px rgba(62,92,170,.2); backdrop-filter: blur(var(--k-sky-glass-blur));
+}
+.ka-menu:popover-open { display: flex; flex-direction: column; gap: 2px; }
+.ka-menu > button, .ka-menu > a {
+  height: 40px; padding: 0 12px; border: 0; border-radius: 12px; background: none; color: inherit;
+  display: flex; align-items: center; gap: 10px; font: inherit; font-size: 14px; font-weight: 600;
+  text-align: left; text-decoration: none; cursor: pointer;
+}
+.ka-menu > button:hover, .ka-menu > a:hover, .ka-menu > :focus-visible { background: #fff; }

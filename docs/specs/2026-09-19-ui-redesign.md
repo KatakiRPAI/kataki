@@ -51,7 +51,7 @@ a line, who will remember it and how clearly, and characters forgetting across a
 (The loop ticks a box and adds a note line `YYYY-MM-DD · task n · what landed · deviations` in the same commit.
 A pass's box is ticked once all its tasks are; a task is done when its number carries `[x]`.)
 
-- [ ] **Pass 0**: [x] 1 file the handoff and plan · 2 design base layer and foundation
+- [x] **Pass 0**: [x] 1 file the handoff and plan · [x] 2 design base layer and foundation
 - [ ] **Pass 1**: 3 media and library · 4 stories for the Sky · 5 demo library and fake model · 6 Sky shell and Friends · 7 Chats · 8 New chat · 9 Add a friend / edit · 10 friend profile · 11 Home and persona switcher · 12 Places and Plots · 13 You · 14 Settings and Models · 15 First run, flip, dive
 - [ ] **Pass 2**: 16 audience (Whisper/Think) · 17 lines, pass time, meta · 18 scene support · 19 Scene frame · 20 composer and streaming · 21 line tools, story menu, reading mode · 22 presence and new scene · 23 Backstage · 24 retire classic
 - [ ] **Pass 3**: 25 exact line and clarity · 26 signals I · 27 signals II · 28 receipts, callouts, spark · 29 time-skip sequence · 30 activity engine · 31 Activity UI and badges · 32 people and profiles engine · 33 peek card · 34 living profile and "Who knows you"
@@ -61,6 +61,7 @@ Blocked: none. Later (ideas deliberately not built): none yet.
 
 Notes:
 - 2026-09-19 · task 1 · design handoff (`docs/kataki-design/`, `docs/design-brief.md`) and this plan committed; `docs/*.zip` ignored; font/image types marked binary; root scripts call `corepack pnpm`; `.dev/library.db` backed up to `.dev/library.pre-ui.db` · no deviations
+- 2026-09-19 · task 2 · design CSS, sprite, clouds and fonts vendored in `app/src/design/` (fonts from google/fonts, all `00 01 00 00`, 41–496 KB, bundled into `dist/assets`); old screens in `classic/` with `classic.css` scoped under `.classic`; `api.ts` (query-param dev connection, `upload`, `mediaUrl`, typed item data, log, memory and stream payloads), `hooks.tsx` (race-guarded `useLoad`, `useAction`, `usePoll`, hash router), `ui.tsx` primitives; `App.tsx` sets `data-engine` and routes `#/dev/kit` (in its own `Kit.tsx`, deleted in task 38), everything else to classic; smoke watches `data-engine`. Verified: typecheck, build, smoke PASS; kit shot vs `components.html` matches; walk: 66 symbols, `document.fonts.check` true for all four families, dialog Esc returns focus, menu anchors under its button, classic Library opens · deviations: `LibraryContext` waits for task 6, where it is first used; `Menu` places itself with CSS anchor positioning (the popover's invoker is its implicit anchor); `ErrorLine` emits `ka-error` (classic.css styles it); `Prose` keeps single line breaks (`white-space: pre-line`), in classic too
 
 ---
 

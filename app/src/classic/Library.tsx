@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { api, type Item, type ItemKind } from './api'
-import { ErrorLine, useAction, useLoad } from './ui'
+import { api, type Item, type ItemKind } from '../api'
+import { useAction, useLoad } from '../hooks'
+import { ErrorLine } from '../ui'
 
 const KINDS: { kind: ItemKind; label: string }[] = [
   { kind: 'character', label: 'Characters' },

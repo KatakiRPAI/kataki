@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { api, stream, type Cast, type Item, type Message, type Story } from './api'
+import { api, stream, type Cast, type Item, type Message, type Story } from '../api'
 import Inspector from './Inspector'
-import { ErrorLine, Prose, useAction, useLoad } from './ui'
+import { useAction, useLoad } from '../hooks'
+import { ErrorLine, Prose } from '../ui'
 
 type Live = { speaker: string; text: string; thoughts: string }
 type Meter = { est_tokens: number; budget: number; reserve: number; recalled: number }

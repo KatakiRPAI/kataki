@@ -65,13 +65,14 @@ async function createWindow(port: number, token: string): Promise<BrowserWindow>
 }
 
 async function runSmoke(win: BrowserWindow): Promise<void> {
-  let text = ''
-  for (let i = 0; i < 60 && !text.includes('engine ok'); i++) {
+  // The renderer marks <html data-engine="ok|down"> after its health check.
+  let state = ''
+  for (let i = 0; i < 60 && !state; i++) {
     await sleep(250)
-    text = await win.webContents.executeJavaScript('document.body.innerText')
+    state = await win.webContents.executeJavaScript('document.documentElement.dataset.engine ?? ""')
   }
-  const ok = text.includes('engine ok')
-  console.log(`SMOKE ${ok ? 'PASS' : 'FAIL'}: ${text.replaceAll('\n', ' | ')}`)
+  const ok = state === 'ok'
+  console.log(`SMOKE ${ok ? 'PASS' : 'FAIL'}: engine ${state || 'never answered'}`)
   process.exitCode = ok ? 0 : 1
   app.quit() // the normal quit path, so engine shutdown is exercised too
 }

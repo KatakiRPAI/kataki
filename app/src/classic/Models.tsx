@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { api, type Kind, type Provider, type RoleRow } from './api'
-import { ErrorLine, useAction, useLoad } from './ui'
+import { api, type Kind, type Provider, type RoleRow } from '../api'
+import { useAction, useLoad } from '../hooks'
+import { ErrorLine } from '../ui'
 
 const PRESETS = [
   { name: 'OpenRouter', base_url: 'https://openrouter.ai/api/v1', key: true },

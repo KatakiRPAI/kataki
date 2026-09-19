@@ -1,0 +1,9 @@
+/* Local copies of the Kataki fonts, from github.com/google/fonts: Chewy is Apache 2.0, Figtree,
+   Newsreader and JetBrains Mono are SIL Open Font License 1.1 (texts beside this file).
+   Bundle these with the app: Kataki is local-first and must render without a network. */
+@font-face { font-family: "Chewy"; src: url("Chewy-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Figtree"; src: url("Figtree-Variable.ttf") format("truetype"); font-weight: 300 900; font-style: normal; font-display: swap; }
+@font-face { font-family: "Figtree"; src: url("Figtree-Italic-Variable.ttf") format("truetype"); font-weight: 300 900; font-style: italic; font-display: swap; }
+@font-face { font-family: "Newsreader"; src: url("Newsreader-Variable.ttf") format("truetype"); font-weight: 200 800; font-style: normal; font-display: swap; }
+@font-face { font-family: "Newsreader"; src: url("Newsreader-Italic-Variable.ttf") format("truetype"); font-weight: 200 800; font-style: italic; font-display: swap; }
+@font-face { font-family: "JetBrains Mono"; src: url("JetBrainsMono-Variable.ttf") format("truetype"); font-weight: 100 800; font-style: normal; font-display: swap; }

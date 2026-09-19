@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { api, type Item } from './api'
-import { ErrorLine, useAction, useLoad } from './ui'
+import { api, type Item } from '../api'
+import { useAction, useLoad } from '../hooks'
+import { ErrorLine } from '../ui'
 
 export function NewStory({ onCreated }: { onCreated: (id: number) => void }) {
   const [items, , error] = useLoad(() => api<Item[]>('/library'), [])

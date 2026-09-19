@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { api, type Cast, type ContextLog, type Entity, type KnownMemory, type Run } from './api'
-import { ErrorLine, useAction, useLoad } from './ui'
+import { api, type Cast, type ContextLog, type Entity, type KnownMemory, type Run } from '../api'
+import { useAction, useLoad } from '../hooks'
+import { ErrorLine } from '../ui'
 
 type Tab = 'memory' | 'context' | 'entities' | 'runs'
 

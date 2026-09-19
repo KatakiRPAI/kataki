@@ -1,11 +1,11 @@
 // The engine's HTTP API. Every call carries the per-launch token: from the preload script in
-// the desktop app, or from the URL hash (#port=…&token=…) in a plain browser. A hash is never
-// sent to any server, so the token stays out of requests and logs.
+// the desktop app, or from query params (?port=…&token=…) in a plain browser during development.
+// The hash belongs to the router. The engine binds 127.0.0.1, so the token never leaves the machine.
 
 function connection(): { baseUrl: string; token: string } {
   if (window.kataki) return window.kataki
-  const hash = new URLSearchParams(location.hash.slice(1))
-  return { baseUrl: `http://127.0.0.1:${hash.get('port')}`, token: hash.get('token') ?? '' }
+  const query = new URLSearchParams(location.search)
+  return { baseUrl: `http://127.0.0.1:${query.get('port')}`, token: query.get('token') ?? '' }
 }
 
 const { baseUrl, token } = connection()
@@ -29,13 +29,30 @@ export type RoleRow = {
 
 export type ItemKind = 'character' | 'place' | 'scenario'
 
+export type Pronouns = 'she' | 'he' | 'they'
+
+export type Palette = { bg: [string, string]; ink: string }
+
+/** Opaque to the engine; the UI owns every key after the first three. */
+export type ItemData = {
+  aliases?: string[]
+  first_message?: string
+  example_dialogue?: string
+  persona?: boolean
+  favourite?: boolean
+  pronouns?: Pronouns
+  palette?: Palette
+  portrait?: string // media name (characters, personas)
+  image?: string // media name (places)
+}
+
 export type Item = {
   id: number
   kind: ItemKind
   name: string
   description: string
   private: string
-  data: { aliases?: string[]; first_message?: string; example_dialogue?: string }
+  data: ItemData
   tags: string[]
 }
 
@@ -54,6 +71,9 @@ export type Message = {
   edited: boolean
   skip_minutes: number
   clock: string
+  scene_id: number | null
+  audience?: number[] | null // who could hear it: null = everyone present, [] = a thought
+  think_ms?: number | null
   swipe: [number, number]
   reasoning: string | null
   finish: string | null
@@ -74,15 +94,37 @@ export type Cast = { scene: { id: number; place_id: number | null; title: string
 
 export type Section = { name: string; tokens: number; cap: number; evicted: number }
 
+/** One recalled memory as the prompt used it, with the numbers behind its score. */
+export type LoggedMemory = {
+  memory_id: number
+  tier: 'sharp' | 'hazy'
+  rendered: string // how it went in, or "dropped" when the memory section ran out of room
+  tokens: number
+  A: number
+  A_detail: number
+  B: number
+  S: number
+  G: number
+  imp: number
+  F: number
+  noise: number
+  superseded: boolean
+  effortful: boolean | null
+}
+
 export type ContextLog = {
   id: number
+  story_id: number
+  message_id: number | null
+  speaker_id: number | null
   budget: number
   est_tokens: number
   actual_tokens: number | null
   cached_tokens: number | null
   sections: Section[]
-  memories: Record<string, number | string | boolean | null>[]
+  memories: LoggedMemory[]
   prompt: { role: string; content: string }[] | null
+  created_at: string
 }
 
 export type KnownMemory = {
@@ -98,7 +140,10 @@ export type KnownMemory = {
   belief: number
   tier: 'sharp' | 'hazy' | 'forgotten'
   A: number
+  A_detail: number
+  B: number
   superseded: boolean
+  story_time: number
 }
 
 export type Run = {
@@ -126,6 +171,24 @@ export type Entity = {
   flags: { key: string; value: string | null; story_time: number; private: number }[]
 }
 
+/** A turn's stream: meta first, then thought and token text, then done or error. */
+export type TurnMeta = {
+  speaker: { id: number; name: string } | null
+  role: string
+  model: string
+  thinks: boolean
+  parent_id: number | null
+  context: { est_tokens: number; budget: number; reserve: number; sections: Section[]; recalled: number }
+}
+export type TurnDone = {
+  message_id: number
+  text: string
+  skip_minutes: number
+  clock: string
+  usage: Record<string, number> | null
+}
+export type TurnError = { message: string; message_id?: number }
+
 function headers(json: boolean): Record<string, string> {
   return { Authorization: `Bearer ${token}`, ...(json ? { 'Content-Type': 'application/json' } : {}) }
 }
@@ -145,6 +208,16 @@ export async function api<T>(path: string, method = 'GET', json?: unknown): Prom
   if (!r.ok) throw await failure(r)
   return (r.status === 204 ? undefined : await r.json()) as T
 }
+
+/** Store an image with the library; the engine names it by its content. */
+export async function upload(blob: Blob): Promise<{ name: string; bytes: number }> {
+  const r = await fetch(baseUrl + '/media', { method: 'POST', headers: headers(false), body: blob })
+  if (!r.ok) throw await failure(r)
+  return r.json()
+}
+
+/** A media file as an <img> src. An image request can't carry headers, so the token goes in the query. */
+export const mediaUrl = (name: string) => `${baseUrl}/media/${name}?token=${encodeURIComponent(token)}`
 
 /** POST and read server-sent events until the stream ends. Aborting the signal stops the model;
  *  the engine keeps whatever was already written. */
