@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { api, upload, type Item } from '../api'
 import { Room } from '../art'
-import { go, useAction, useLibrary } from '../hooks'
+import { dive, useAction, useLibrary } from '../hooks'
 import { Dialog, ErrorLine, Field, Icon, Prose, SkyHeader } from '../ui'
 import NewChat, { type Preset } from './NewChat'
 
@@ -184,7 +184,7 @@ export default function Places() {
         onClose={() => setNewChat((c) => ({ n: c.n }))}
         onCreated={(story) => {
           setNewChat((c) => ({ n: c.n }))
-          go(`/chats/${story.id}`) // until the Scene lands (task 20)
+          dive(`/story/${story.id}`)
         }}
       />
     </>

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { api, type StorySummary } from '../api'
 import { Avatar, AvatarStack, Figure, Orb, Room } from '../art'
-import { diveLink, go, href, useAction, useLibrary, useLoad } from '../hooks'
+import { dive, diveLink, go, href, useAction, useLibrary, useLoad } from '../hooks'
 import { Chip, Dialog, ErrorLine, Icon, Menu } from '../ui'
 import NewChat, { type Preset } from './NewChat'
 
@@ -129,8 +129,7 @@ export default function Chats({ selected }: { selected?: number }) {
               <span className="ka-still__title">{current.title}</span>
               <span className="ka-still__meta">{[current.place?.name, current.clock, playing(current)].filter(Boolean).join(' · ')}</span>
             </div>
-            {/* until the Scene lands (task 20), stories open in the classic view */}
-            <a className="ka-still__dive" {...diveLink('/classic')}>
+            <a className="ka-still__dive" {...diveLink(`/story/${current.id}`)}>
               Dive in
               <Orb size={70} />
             </a>
@@ -165,7 +164,7 @@ export default function Chats({ selected }: { selected?: number }) {
         onCreated={(story) => {
           setNewChat((c) => ({ n: c.n }))
           reload()
-          go(`/chats/${story.id}`) // until the Scene lands (task 20), a new story waits in Chats
+          dive(`/story/${story.id}`)
         }}
       />
       <Dialog open={!!deleting} onClose={() => setDeleting(undefined)} title="Delete this story?">

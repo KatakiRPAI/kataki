@@ -1,9 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { api, type Provider } from './api'
+import { api, type Provider, type StorySummary } from './api'
 import { Orb } from './art'
 import Classic from './classic/Classic'
 import clouds from './design/clouds.svg'
-import { diveLink, go, href, lastSky, LibraryProvider, useRoute } from './hooks'
+import { diveLink, go, href, lastSky, LibraryProvider, useLoad, useRoute } from './hooks'
 import Kit from './Kit'
 import Scene from './scene/Scene'
 import Chats from './sky/Chats'
@@ -28,6 +28,8 @@ const RAIL: [string, string, string][] = [
 
 /** The Sky: bright glass over clouds, with the rail on the left. */
 function Sky({ at, children }: { at: string; children: ReactNode }) {
+  const [stories] = useLoad(() => api<StorySummary[]>('/stories'), [])
+  const last = stories?.reduce<StorySummary | undefined>((a, s) => (!a || s.last_at > a.last_at ? s : a), undefined)
   return (
     <div className="k-sky ka-sky">
       <img className="ka-clouds" src={clouds} alt="" />
@@ -48,8 +50,7 @@ function Sky({ at, children }: { at: string; children: ReactNode }) {
           <Icon name="settings" size={19} />
           Settings
         </a>
-        {/* until the Scene lands (task 20), stories open in the classic view */}
-        <a className="ka-rail__dive" {...diveLink('/classic')} aria-label="Dive into your last scene">
+        <a className="ka-rail__dive" {...diveLink(last ? `/story/${last.id}` : '/chats')} aria-label="Dive into your last scene">
           <Orb size={54} />
           <span aria-hidden="true">Dive in</span>
         </a>

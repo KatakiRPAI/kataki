@@ -409,7 +409,8 @@ span.k-orb { display: block; }
 .ka-scene .ka-menu > button:hover, .ka-scene .ka-menu > a:hover, .ka-scene .ka-menu > :focus-visible { background: rgba(255,255,255,.08); }
 
 .ka-scene .k-convo-scrim { left: 51.4vw; }
-.ka-scene .k-convo { left: auto; right: 44px; width: min(560px, 39vw); justify-content: flex-start; z-index: 2; }
+/* room at the sides for the lines' -14px hover margins, so nothing scrolls sideways */
+.ka-scene .k-convo { left: auto; right: 44px; width: min(560px, 39vw); padding-inline: 14px; margin-right: -14px; overflow-x: hidden; justify-content: flex-start; z-index: 2; scrollbar-width: thin; scrollbar-color: rgba(255,236,210,.2) transparent; }
 .ka-convo > :first-child { margin-top: auto; } /* short stories sit at the bottom; long ones scroll */
 .ka-line { content-visibility: auto; contain-intrinsic-size: auto 110px; }
 .ka-line .k-line__body > p { margin: 0; }
@@ -424,3 +425,31 @@ span.k-orb { display: block; }
 /* rising out of a scene: the sky comes back and the clouds close in */
 .ka-dive--up .ka-dive__scene { background: var(--k-sky-bg); }
 .ka-dive--up .ka-dive__cloud { animation-direction: reverse; }
+
+/* ---- the composer, the live reply ---- */
+.ka-scene .k-composer { left: auto; right: 24px; width: min(594px, 41.25vw); z-index: 3; }
+.ka-composer__row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ka-composer__actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.ka-composer__text { display: flex; flex-direction: column; }
+.ka-composer :is(.k-sbtn, .k-send):disabled { opacity: .45; cursor: default; }
+.ka-composer__hint { font-size: 11.5px; color: var(--k-scene-muted); }
+.ka-hears { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.ka-hears__faces { display: flex; gap: 6px; }
+.ka-hears__line { font-size: 13px; font-weight: 600; white-space: nowrap; }
+.ka-away { display: flex; align-items: center; gap: 6px; margin-left: 6px; font-size: 12px; color: var(--k-scene-muted); white-space: nowrap; }
+.ka-away .ka-avatar { opacity: .55; }
+.ka-pick { padding-left: 6px; }
+.ka-pending { border-color: rgba(240,179,90,.55); background: rgba(240,179,90,.14); }
+.ka-pending > button { display: inline-flex; margin-left: 2px; padding: 0; border: 0; background: none; color: inherit; }
+.ka-answers { justify-content: flex-start; gap: 6px; padding-top: 12px; border-top: 1px solid rgba(255,236,210,.08); }
+.ka-answers__label { margin-right: 4px; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--k-scene-muted); white-space: nowrap; }
+.ka-years { display: flex; align-items: center; gap: 8px; padding: 6px 6px 4px 12px; font-size: 14px; font-weight: 600; }
+.ka-years input { width: 58px; height: 32px; box-sizing: border-box; padding: 0 8px; border-radius: 10px; border: 1px solid var(--k-scene-glass-border); background: rgba(0,0,0,.25); color: inherit; font: inherit; }
+.ka-years button { height: 32px; padding: 0 12px; border: 0; border-radius: 16px; background: var(--k-scene-amber); color: var(--k-scene-amber-ink); font-weight: 700; }
+.ka-thinking .k-sysnote { background: none; padding-inline: 0; }
+.ka-thinking .k-thinking__dots { margin-left: auto; }
+.ka-thinking__doing { font-size: 18px; }
+.ka-notes-link { padding: 0; border: 0; background: none; color: var(--k-scene-amber); font: inherit; cursor: pointer; }
+.ka-writing { color: var(--k-scene-amber); }
+.ka-thought { align-self: flex-start; margin-top: 8px; height: 26px; padding: 0 10px; border-radius: 13px; border: 1px solid rgba(255,236,210,.2); background: none; color: var(--k-scene-muted); font-size: 12px; display: inline-flex; align-items: center; gap: 6px; }
+.ka-notes { margin: 8px 0 0; max-height: 220px; overflow: auto; padding: 10px 12px; border-radius: 12px; background: rgba(0,0,0,.25); font: 13px/1.5 var(--k-font-mono); color: var(--k-scene-muted); white-space: pre-wrap; }

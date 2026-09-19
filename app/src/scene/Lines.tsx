@@ -1,6 +1,6 @@
-import type { CSSProperties, ReactNode } from 'react'
-import { api, type Cast, type Message, type Story } from '../api'
-import { Avatar, paletteOf } from '../art'
+import { useState, type CSSProperties, type ReactNode } from 'react'
+import { api, type Cast, type Item, type Message, type Story } from '../api'
+import { Avatar, paletteOf, pronounsOf } from '../art'
 import { useAction, useLibrary } from '../hooks'
 import { ErrorLine, Icon, Prose } from '../ui'
 
@@ -112,6 +112,7 @@ export default function Lines({ story, messages, cast, flash, onChange }: {
           <div className="k-line__body">
             <Prose text={m.text} />
           </div>
+          {m.think_ms != null && m.reasoning && <Thought ms={m.think_ms} notes={m.reasoning} />}
         </article>,
       )
     }
@@ -139,4 +140,90 @@ export default function Lines({ story, messages, cast, flash, onChange }: {
 
 function Card({ children }: { children: ReactNode }) {
   return <div className="k-titlecard">{children}</div>
+}
+
+/** "Thought for 4 s": opens the reply's notes (inline until Backstage lands). */
+function Thought({ ms, notes }: { ms: number; notes: string }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button type="button" className="ka-thought" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <Icon name="thought" size={13} />
+        Thought for {Math.max(1, Math.round(ms / 1000))} s
+      </button>
+      {open && <p className="ka-notes">{notes}</p>}
+    </>
+  )
+}
+
+/** A reply being written: who, thinking or writing, and the text so far. */
+export type Live = {
+  speaker: string // '' until the engine says who answers
+  speakerId: number | null
+  text: string
+  thoughts: string
+  strained: boolean // they are reaching for a memory
+  clock?: string // the reply's, and the one before any time passed (from meta)
+  from?: string
+  thoughtAt?: number // performance.now() of the first thought
+  thinkMs?: number // first thought to first word
+}
+
+const POSSESSIVE = { she: 'Her', he: 'His', they: 'Their' }
+
+export function LiveLine({ live, item, ink }: { live: Live; item?: Item; ink?: string }) {
+  const [open, setOpen] = useState(false)
+  const name = live.speaker
+  if (!live.text) {
+    const doing = live.strained ? 'is trying to remember…' : 'is thinking…'
+    return (
+      <div className="ka-thinking" role="status">
+        <div className="k-sysnote ka-note">
+          <Avatar item={item} name={name || '?'} size={36} />
+          <span className="ka-note__text">
+            <span className="ka-thinking__doing">{name ? `${name} ${doing}` : 'Thinking…'}</span>
+            {live.thoughts && (
+              <small>
+                {POSSESSIVE[pronounsOf(item)]} notes stay backstage ·{' '}
+                <button type="button" className="ka-notes-link" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+                  {open ? 'hide them' : 'read them'}
+                </button>
+              </small>
+            )}
+          </span>
+          <span className="k-thinking__dots"><i /><i /><i /></span>
+        </div>
+        {open && <p className="ka-notes">{live.thoughts}</p>}
+      </div>
+    )
+  }
+  return (
+    <article className="k-line ka-line ka-line--live" style={{ '--speaker': ink } as CSSProperties} aria-busy="true">
+      <div className="k-line__head">
+        <span className="k-line__who">{live.speakerId === null ? 'Narrator' : name}</span>
+        {live.clock && live.from && <span className="k-line__stamp">{stampOf(live.clock, dayOf(live.from))}</span>}
+        <span className="k-line__stamp ka-writing">writing…</span>
+      </div>
+      <div className="k-line__body">
+        <Prose text={live.text} tail={<span className="k-caret" />} />
+      </div>
+      {live.thinkMs != null && <Thought ms={live.thinkMs} notes={live.thoughts} />}
+    </article>
+  )
+}
+
+/** The user's line, shown the moment it is sent, until the engine's copy arrives. */
+export function SaidLine({ who, text, audience }: { who: string; text: string; audience: number[] | null }) {
+  return (
+    <article className="k-line ka-line" style={{ '--speaker': 'var(--k-speaker-aren)' } as CSSProperties}>
+      <div className="k-line__head">
+        <span className="k-line__who">{who}</span>
+        {audience?.length === 0 && <span className="k-line__mark">thought</span>}
+        {!!audience?.length && <span className="k-line__mark">whispered</span>}
+      </div>
+      <div className="k-line__body">
+        <Prose text={text} />
+      </div>
+    </article>
+  )
 }

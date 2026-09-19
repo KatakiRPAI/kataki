@@ -91,17 +91,20 @@ export function Dialog({ open, onClose, title, className = '', children }: {
 }
 
 /** A popover menu under its button. Clicking outside or pressing Esc closes it. */
-export function Menu({ label, icon = 'dots', className = 'k-btn k-btn--ghost k-btn--sm', children }: {
+export function Menu({ label, icon = 'dots', text, className = 'k-btn k-btn--ghost k-btn--sm', disabled, children }: {
   label: string
   icon?: string
+  text?: ReactNode // shown beside the icon; the label still names the button
   className?: string
+  disabled?: boolean
   children: ReactNode
 }) {
   const id = useId()
   return (
     <>
-      <button type="button" className={className} popoverTarget={id} aria-label={label}>
+      <button type="button" className={className} popoverTarget={id} aria-label={label} disabled={disabled}>
         <Icon name={icon} />
+        {text}
       </button>
       <div id={id} popover="auto" className="ka-menu" onClick={(e) => (e.target as Element).closest('button') && e.currentTarget.hidePopover()}>
         {children}
@@ -129,17 +132,20 @@ export function ErrorLine({ error }: { error: string }) {
   return error ? <p className="ka-error" role="alert">{error}</p> : null
 }
 
-/** Story text: paragraphs, *actions* and **emphasis**. Rendered as elements, never as HTML. */
-export function Prose({ text }: { text: string }) {
+/** Story text: paragraphs, *actions* and **emphasis**. Rendered as elements, never as HTML.
+ *  `tail` goes at the end of the last paragraph (the caret while a reply is written). */
+export function Prose({ text, tail }: { text: string; tail?: ReactNode }) {
+  const paras = text.split(/\n{2,}/)
   return (
     <>
-      {text.split(/\n{2,}/).map((para, i) => (
+      {paras.map((para, i) => (
         <p key={i} className="ka-prose">
           {para.split(/(\*\*[^*]+\*\*|\*[^*\n]+\*)/).map((part, j): ReactNode => {
             if (part.startsWith('**') && part.endsWith('**') && part.length > 4) return <strong key={j}>{part.slice(2, -2)}</strong>
             if (part.startsWith('*') && part.endsWith('*') && part.length > 2) return <em key={j}>{part.slice(1, -1)}</em>
             return part
           })}
+          {i === paras.length - 1 && tail}
         </p>
       ))}
     </>

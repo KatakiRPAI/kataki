@@ -105,8 +105,7 @@ function Continue({ story, byId }: { story: StorySummary; byId: Map<number, Item
           </div>
         )}
       </div>
-      {/* until the Scene lands (task 20), stories open in the classic view */}
-      <a className="ka-continue__dive" {...diveLink('/classic')}>
+      <a className="ka-continue__dive" {...diveLink(`/story/${story.id}`)}>
         Dive back in
         <Orb size={74} />
       </a>

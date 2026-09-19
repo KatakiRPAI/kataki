@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { api, type Item, type StorySummary } from '../api'
 import { Avatar, Orb, Portrait, pronounsOf, Room } from '../art'
-import { go, href, useLibrary, useLoad } from '../hooks'
+import { dive, href, useLibrary, useLoad } from '../hooks'
 import { Candy, ErrorLine, Glass, Icon, Prose } from '../ui'
 import { status, storiesWith } from './Friends'
 import NewChat, { type Preset } from './NewChat'
@@ -182,7 +182,7 @@ export default function Profile({ id }: { id: number }) {
         onCreated={(story) => {
           setNewChat((c) => ({ n: c.n }))
           reload()
-          go(`/chats/${story.id}`) // until the Scene lands (task 20)
+          dive(`/story/${story.id}`)
         }}
       />
     </>

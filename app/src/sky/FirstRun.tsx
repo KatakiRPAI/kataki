@@ -270,7 +270,7 @@ export default function FirstRun() {
         <NewChat open={chat} preset={{ friends: [friend.id] }} onClose={() => setChat(false)}
           onCreated={(story) => {
             setChat(false)
-            dive(`/chats/${story.id}`) // until the Scene lands (task 20), the new story waits in Chats
+            dive(`/story/${story.id}`)
           }} />
       )}
     </div>
