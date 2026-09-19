@@ -1,7 +1,7 @@
 import { useId, useState, type CSSProperties } from 'react'
 import { api, type Item, type StorySummary } from '../api'
 import { Avatar, Figure, Orb, paletteOf, Room } from '../art'
-import { href, useLibrary, useLoad } from '../hooks'
+import { diveLink, href, useLibrary, useLoad } from '../hooks'
 import { ErrorLine, Icon, Prose } from '../ui'
 import Friends from './Friends'
 
@@ -106,7 +106,7 @@ function Continue({ story, byId }: { story: StorySummary; byId: Map<number, Item
         )}
       </div>
       {/* until the Scene lands (task 20), stories open in the classic view */}
-      <a className="ka-continue__dive" href={href('/classic')}>
+      <a className="ka-continue__dive" {...diveLink('/classic')}>
         Dive back in
         <Orb size={74} />
       </a>

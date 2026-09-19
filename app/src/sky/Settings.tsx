@@ -239,13 +239,13 @@ function Servers({ providers, roles, onChange }: { providers: Provider[]; roles:
         ))}
       </div>
       <ErrorLine error={error} />
-      <AddApi key={adding.n} open={adding.open} onClose={() => setAdding((a) => ({ ...a, open: false }))} onAdd={(n, u, k) => add(n, u, k)} busy={busy} error={error} />
+      <AddApi key={`api-${adding.n}`} open={adding.open} onClose={() => setAdding((a) => ({ ...a, open: false }))} onAdd={(n, u, k) => add(n, u, k)} busy={busy} error={error} />
       <KeyDialog provider={keyFor} onClose={() => setKeyFor(undefined)} onSaved={onChange} />
     </section>
   )
 }
 
-function AddApi({ open, onClose, onAdd, busy, error }: { open: boolean; onClose: () => void; onAdd: (name: string, url: string, key: string) => void; busy: boolean; error: string }) {
+export function AddApi({ open, onClose, onAdd, busy, error }: { open: boolean; onClose: () => void; onAdd: (name: string, url: string, key: string) => void; busy: boolean; error: string }) {
   const [draft, setDraft] = useState({ name: '', base_url: '', api_key: '' })
   return (
     <Dialog open={open} onClose={onClose} title="Add an API">

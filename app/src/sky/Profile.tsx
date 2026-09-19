@@ -175,7 +175,7 @@ export default function Profile({ id }: { id: number }) {
         </div>
       </div>
       <NewChat
-        key={newChat.n}
+        key={`chat-${newChat.n}`}
         open={!!newChat.preset}
         preset={newChat.preset ?? {}}
         onClose={() => setNewChat((c) => ({ n: c.n }))}

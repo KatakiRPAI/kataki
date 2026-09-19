@@ -176,9 +176,9 @@ export default function Places() {
         {plots.length === 0 && <p className="ka-muted">No plots yet. A plot is a premise every character knows, and how the story opens.</p>}
       </div>
 
-      <ItemDialog key={editing.n} open={editing.open} kind={editing.kind} item={editing.item} onClose={() => setEditing((e) => ({ ...e, open: false }))} />
+      <ItemDialog key={`item-${editing.n}`} open={editing.open} kind={editing.kind} item={editing.item} onClose={() => setEditing((e) => ({ ...e, open: false }))} />
       <NewChat
-        key={newChat.n}
+        key={`chat-${newChat.n}`}
         open={!!newChat.preset}
         preset={newChat.preset ?? {}}
         onClose={() => setNewChat((c) => ({ n: c.n }))}

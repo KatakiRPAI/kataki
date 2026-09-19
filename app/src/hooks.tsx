@@ -104,3 +104,15 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
 }
 
 export const useLibrary = () => useContext(LibraryContext)
+
+/** Dive into a scene: App plays the clouds parting, then goes to `to`. */
+export const dive = (to: string) => dispatchEvent(new CustomEvent('ka-dive', { detail: to }))
+
+/** Props that make a link dive instead of jumping (it still has a real href). */
+export const diveLink = (to: string) => ({
+  href: href(to),
+  onClick: (e: { preventDefault: () => void }) => {
+    e.preventDefault()
+    dive(to)
+  },
+})

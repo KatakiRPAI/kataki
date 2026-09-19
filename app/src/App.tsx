@@ -1,12 +1,13 @@
-import { useEffect, type ReactNode } from 'react'
-import { api } from './api'
+import { useEffect, useState, type ReactNode } from 'react'
+import { api, type Provider } from './api'
 import { Orb } from './art'
 import Classic from './classic/Classic'
 import clouds from './design/clouds.svg'
-import { href, LibraryProvider, useRoute } from './hooks'
+import { diveLink, go, href, LibraryProvider, useRoute } from './hooks'
 import Kit from './Kit'
 import Chats from './sky/Chats'
 import Editor from './sky/Editor'
+import FirstRun from './sky/FirstRun'
 import Friends from './sky/Friends'
 import Home from './sky/Home'
 import Places from './sky/Places'
@@ -47,7 +48,7 @@ function Sky({ at, children }: { at: string; children: ReactNode }) {
           Settings
         </a>
         {/* until the Scene lands (task 20), stories open in the classic view */}
-        <a className="ka-rail__dive" href={href('/classic')} aria-label="Dive into your last scene">
+        <a className="ka-rail__dive" {...diveLink('/classic')} aria-label="Dive into your last scene">
           <Orb size={54} />
           <span aria-hidden="true">Dive in</span>
         </a>
@@ -57,18 +58,66 @@ function Sky({ at, children }: { at: string; children: ReactNode }) {
   )
 }
 
+/** The dive: the clouds part and the scene's dark comes up, then the page changes under it. */
+function Dive({ to, onDone }: { to: string; onDone: () => void }) {
+  const [landed, setLanded] = useState(false)
+  useEffect(() => {
+    const quick = matchMedia('(prefers-reduced-motion: reduce)').matches
+    const arrive = setTimeout(() => {
+      go(to)
+      setLanded(true)
+    }, quick ? 200 : 900)
+    const end = setTimeout(onDone, quick ? 400 : 1200)
+    return () => {
+      clearTimeout(arrive)
+      clearTimeout(end)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <div className={`ka-dive${landed ? ' is-landed' : ''}`} aria-hidden="true">
+      <span className="ka-dive__scene" />
+      <img className="ka-dive__cloud ka-dive__cloud--left" src={clouds} alt="" />
+      <img className="ka-dive__cloud ka-dive__cloud--right" src={clouds} alt="" />
+    </div>
+  )
+}
+
+// With no model connected, everything but these sends you to First run.
+const OPEN_WITHOUT_A_MODEL = ['welcome', 'settings', 'classic', 'dev']
+
 export default function App() {
   const route = useRoute()
-  const [at] = route.parts
+  const [at = 'home', second, third] = route.parts
+  const [model, setModel] = useState<{ path: string; has: boolean }>()
+  const [diving, setDiving] = useState<string>()
 
   // The smoke check (and later the offline card) read this instead of visible text.
   useEffect(() => {
     const mark = (state: string) => (document.documentElement.dataset.engine = state)
     api('/health').then(() => mark('ok'), () => mark('down'))
   }, [])
+  // Until a model is connected, check again on every route: First run connects one, then leaves.
+  // An answer counts only for the route it was asked on, so a stale "no" can't bounce you back.
+  useEffect(() => {
+    if (model?.has) return
+    let live = true
+    const answer = (has: boolean) => live && setModel({ path: route.path, has })
+    api<Provider[]>('/providers').then((p) => answer(p.length > 0), () => answer(true)) // down: let pages say so
+    return () => {
+      live = false
+    }
+  }, [route.path]) // eslint-disable-line react-hooks/exhaustive-deps
+  const hasModel = model?.has ? true : model?.path === route.path ? model.has : undefined
+  const gated = !OPEN_WITHOUT_A_MODEL.includes(at)
+  useEffect(() => {
+    if (hasModel === false && gated) location.replace('#/welcome')
+  }, [hasModel, gated])
+  useEffect(() => {
+    const onDive = (e: Event) => setDiving((e as CustomEvent<string>).detail)
+    addEventListener('ka-dive', onDive)
+    return () => removeEventListener('ka-dive', onDive)
+  }, [])
 
-  if (route.path === '/dev/kit') return <Kit />
-  const [, second, third] = route.parts
   const page =
     at === 'home' ? <Home />
     : at === 'friends' && second === 'new' ? <Editor key={route.path} />
@@ -80,16 +129,29 @@ export default function App() {
     : at === 'chats' ? <Chats selected={Number(second) || undefined} />
     : at === 'places' ? <Places />
     : at === 'settings' ? <Settings page={second} />
-    : null
-  if (page)
-    return (
+    : <Home />
+  const view =
+    route.path === '/dev/kit' ? <Kit />
+    : at === 'classic' ? (
+      <div className="classic">
+        <Classic />
+      </div>
+    )
+    : gated && hasModel !== true ? null // until we know a model is connected
+    : at === 'welcome' ? (
+      <LibraryProvider>
+        <FirstRun />
+      </LibraryProvider>
+    )
+    : (
       <LibraryProvider>
         <Sky at={at === 'friend' ? 'friends' : at}>{page}</Sky>
       </LibraryProvider>
     )
   return (
-    <div className="classic">
-      <Classic />
-    </div>
+    <>
+      {view}
+      {diving && <Dive key={diving} to={diving} onDone={() => setDiving(undefined)} />}
+    </>
   )
 }

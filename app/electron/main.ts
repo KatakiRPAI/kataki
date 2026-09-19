@@ -5,7 +5,7 @@ import { dirname, join, resolve } from 'node:path'
 import { createInterface } from 'node:readline'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
-import { app, BrowserWindow, dialog } from 'electron'
+import { app, BrowserWindow, dialog, screen } from 'electron'
 
 const here = dirname(fileURLToPath(import.meta.url)) // app/dist-electron
 const appRoot = join(here, '..')
@@ -40,9 +40,11 @@ async function startEngine(token: string): Promise<number> {
 }
 
 async function createWindow(port: number, token: string): Promise<BrowserWindow> {
+  const work = screen.getPrimaryDisplay().workAreaSize // the design's 1440x900, capped to the screen
   const win = new BrowserWindow({
-    width: 1280,
-    height: 800,
+    width: Math.min(1440, work.width),
+    height: Math.min(900, work.height),
+    backgroundColor: '#c3dafc', // the Sky, so the first frame isn't white
     show: !smoke,
     webPreferences: {
       preload: join(here, 'preload.cjs'),

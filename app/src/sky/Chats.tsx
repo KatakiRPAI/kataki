@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { api, type StorySummary } from '../api'
 import { Avatar, AvatarStack, Figure, Orb, Room } from '../art'
-import { go, href, useAction, useLibrary, useLoad } from '../hooks'
+import { diveLink, go, href, useAction, useLibrary, useLoad } from '../hooks'
 import { Chip, Dialog, ErrorLine, Icon, Menu } from '../ui'
 import NewChat, { type Preset } from './NewChat'
 
@@ -130,7 +130,7 @@ export default function Chats({ selected }: { selected?: number }) {
               <span className="ka-still__meta">{[current.place?.name, current.clock, playing(current)].filter(Boolean).join(' · ')}</span>
             </div>
             {/* until the Scene lands (task 20), stories open in the classic view */}
-            <a className="ka-still__dive" href={href('/classic')}>
+            <a className="ka-still__dive" {...diveLink('/classic')}>
               Dive in
               <Orb size={70} />
             </a>
@@ -158,7 +158,7 @@ export default function Chats({ selected }: { selected?: number }) {
       )}
 
       <NewChat
-        key={newChat.n}
+        key={`chat-${newChat.n}`}
         open={!!newChat.preset}
         preset={newChat.preset ?? {}}
         onClose={() => setNewChat((c) => ({ n: c.n }))}
