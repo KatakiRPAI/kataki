@@ -54,11 +54,43 @@ export type Item = {
   private: string
   data: ItemData
   tags: string[]
+  created_at: string // SQLite UTC, "YYYY-MM-DD HH:MM:SS"
+  updated_at: string | null
 }
 
-export type StorySummary = { id: number; title: string; created_at: string; messages: number }
+/** An entity in a story, with the library item it came from (for its portrait and palette). */
+export type Ref = { id: number; name: string; lib_item_id: number | null }
 
-export type Story = { id: number; title: string; persona_id: number | null; clock: string }
+/** Where a story stands now; both the story list and a single story carry it. */
+export type Standing = {
+  pinned: boolean
+  clock: string
+  story_time: number
+  minute_of_day: number
+  persona: Ref | null
+  place: Ref | null
+  scene_title: string | null
+  cast: (Ref & { present: boolean })[] // the AI characters
+  last_line: { speaker: string | null; text: string } | null
+}
+
+export type StorySummary = Standing & {
+  id: number
+  title: string
+  created_at: string
+  last_at: string
+  messages: number
+}
+
+export type Story = Standing & {
+  id: number
+  title: string
+  persona_id: number | null
+  minutes_per_turn: number
+  epoch_offset_min: number
+  start_clock: string
+  roles: Record<string, unknown>
+}
 
 export type Message = {
   id: number

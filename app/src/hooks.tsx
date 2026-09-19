@@ -1,4 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from 'react'
+import { api, type Item } from './api'
 
 /** Load data, with a reload function and the last error. Only the newest load may land, so a
  *  slow early response can never overwrite a later one. */
@@ -76,3 +87,20 @@ export function useRoute(): Route {
   const hash = useSyncExternalStore(onHashChange, () => location.hash)
   return useMemo(() => parse(hash), [hash])
 }
+
+// ---- the library: every item, loaded once and reloaded after any edit ----
+
+type Library = { items: Item[]; byId: Map<number, Item>; reload: () => void; error: string }
+
+const LibraryContext = createContext<Library>({ items: [], byId: new Map(), reload: () => {}, error: '' })
+
+export function LibraryProvider({ children }: { children: ReactNode }) {
+  const [items, reload, error] = useLoad(() => api<Item[]>('/library'), [])
+  const value = useMemo(
+    () => ({ items: items ?? [], byId: new Map((items ?? []).map((i) => [i.id, i])), reload, error }),
+    [items, reload, error],
+  )
+  return <LibraryContext.Provider value={value}>{children}</LibraryContext.Provider>
+}
+
+export const useLibrary = () => useContext(LibraryContext)
