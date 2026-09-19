@@ -5,11 +5,15 @@ import Classic from './classic/Classic'
 import clouds from './design/clouds.svg'
 import { href, LibraryProvider, useRoute } from './hooks'
 import Kit from './Kit'
+import Chats from './sky/Chats'
 import Friends from './sky/Friends'
 import { Icon } from './ui'
 
 // The rail grows as each Sky screen lands: [route, icon, label].
-const RAIL: [string, string, string][] = [['friends', 'users', 'Friends']]
+const RAIL: [string, string, string][] = [
+  ['friends', 'users', 'Friends'],
+  ['chats', 'chat', 'Chats'],
+]
 
 /** The Sky: bright glass over clouds, with the rail on the left. */
 function Sky({ at, children }: { at: string; children: ReactNode }) {
@@ -56,12 +60,11 @@ export default function App() {
   }, [])
 
   if (route.path === '/dev/kit') return <Kit />
-  if (at === 'friends')
+  const page = at === 'friends' ? <Friends /> : at === 'chats' ? <Chats selected={Number(route.parts[1]) || undefined} /> : null
+  if (page)
     return (
       <LibraryProvider>
-        <Sky at={at}>
-          <Friends />
-        </Sky>
+        <Sky at={at}>{page}</Sky>
       </LibraryProvider>
     )
   return (
