@@ -1,7 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { api, type Provider, type StorySummary } from './api'
 import { Orb } from './art'
-import Classic from './classic/Classic'
 import clouds from './design/clouds.svg'
 import { diveLink, go, href, lastSky, LibraryProvider, useLoad, useRoute } from './hooks'
 import Kit from './Kit'
@@ -86,7 +85,7 @@ function Dive({ to, up, onDone }: { to: string; up: boolean; onDone: () => void 
 }
 
 // With no model connected, everything but these sends you to First run.
-const OPEN_WITHOUT_A_MODEL = ['welcome', 'settings', 'classic', 'dev']
+const OPEN_WITHOUT_A_MODEL = ['welcome', 'settings', 'dev']
 
 export default function App() {
   const route = useRoute()
@@ -124,7 +123,7 @@ export default function App() {
       removeEventListener('ka-rise', onDive)
     }
   }, [])
-  const inSky = !['story', 'classic', 'dev', 'welcome'].includes(at)
+  const inSky = !['story', 'dev', 'welcome'].includes(at)
   useEffect(() => {
     if (inSky) lastSky.path = location.hash.slice(1) || '/home'
   }, [inSky, route])
@@ -143,11 +142,6 @@ export default function App() {
     : <Home />
   const view =
     route.path === '/dev/kit' ? <Kit />
-    : at === 'classic' ? (
-      <div className="classic">
-        <Classic />
-      </div>
-    )
     : gated && hasModel !== true ? null // until we know a model is connected
     : at === 'welcome' ? (
       <LibraryProvider>
@@ -161,7 +155,7 @@ export default function App() {
     )
     : (
       <LibraryProvider>
-        <Sky at={at === 'friend' ? 'friends' : at}>{page}</Sky>
+        <Sky at={at === 'friend' ? 'friends' : at === 'settings' || RAIL.some(([r]) => r === at) ? at : 'home'}>{page}</Sky>
       </LibraryProvider>
     )
   return (

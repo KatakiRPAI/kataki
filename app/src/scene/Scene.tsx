@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { api, stream, type Cast, type CastEntity, type ContextLog, type Message, type Story, type TurnMeta, type Version } from '../api'
 import { paletteOf, SunArc } from '../art'
-import { href, lastSky, rise, useAction, useLibrary, useLoad, usePoll, type Moving } from '../hooks'
+import { lastSky, rise, useAction, useLibrary, useLoad, usePoll, type Moving } from '../hooks'
 import { Dialog, ErrorLine, Field, Icon, Menu } from '../ui'
 import Composer, { type Meter, type Send } from './Composer'
 import Lines, { LiveLine, SaidLine, type Live } from './Lines'
@@ -302,10 +302,6 @@ function StoryMenu({ story, onChange, onNewScene }: { story: Story; onChange: ()
           <Icon name="pin" size={16} />
           {story.pinned ? 'Unpin story' : 'Pin story'}
         </button>
-        <a href={href('/classic')}>
-          <Icon name="grid" size={16} />
-          Open in classic view
-        </a>
         <button type="button" onClick={() => setOpen('delete')}>
           <Icon name="x" size={16} />
           Delete story…
