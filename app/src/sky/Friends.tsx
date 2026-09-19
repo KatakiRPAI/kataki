@@ -19,11 +19,11 @@ const WEEK = 7 * 24 * 3600 * 1000
 const addedAt = (item: Item) => Date.parse(item.created_at.replace(' ', 'T') + 'Z')
 
 /** The stories a friend is in, most recently played first. */
-const storiesWith = (friend: Item, stories: StorySummary[]) =>
+export const storiesWith = (friend: Item, stories: StorySummary[]) =>
   stories.filter((s) => s.cast.some((c) => c.lib_item_id === friend.id)).sort((a, b) => b.last_at.localeCompare(a.last_at))
 
 /** "At The Gull · Year 7", "Left The Gull · Year 7", "In a story · Day 5", or not in one yet. */
-function status(friend: Item, stories: StorySummary[]): { text: string; idle: boolean } {
+export function status(friend: Item, stories: StorySummary[]): { text: string; idle: boolean } {
   const latest = storiesWith(friend, stories)[0]
   if (!latest) return { text: 'Not in a story yet', idle: true }
   const here = latest.cast.find((c) => c.lib_item_id === friend.id)?.present

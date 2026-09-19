@@ -8,6 +8,7 @@ import Kit from './Kit'
 import Chats from './sky/Chats'
 import Editor from './sky/Editor'
 import Friends from './sky/Friends'
+import Profile from './sky/Profile'
 import { Icon } from './ui'
 
 // The rail grows as each Sky screen lands: [route, icon, label].
@@ -66,6 +67,7 @@ export default function App() {
     at === 'friends' && second === 'new' ? <Editor key={route.path} />
     : at === 'friends' ? <Friends />
     : at === 'friend' && third === 'edit' ? <Editor key={route.path} id={Number(second)} step={Number(route.query.get('step')) || 1} />
+    : at === 'friend' && !third ? <Profile key={second} id={Number(second)} />
     : at === 'you' && second === 'new' ? <Editor key={route.path} persona />
     : at === 'chats' ? <Chats selected={Number(second) || undefined} />
     : null
