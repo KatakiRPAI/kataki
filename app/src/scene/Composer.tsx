@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from 'react'
-import type { CastEntity, Story } from '../api'
+import { SKIPS, type CastEntity, type Story } from '../api'
 import { Avatar } from '../art'
 import { useLibrary } from '../hooks'
 import { Icon, Menu } from '../ui'
@@ -18,13 +18,6 @@ const MODES: [Mode, string, string][] = [
   ['do', 'hand', 'Do'],
   ['whisper', 'ear', 'Whisper'],
   ['think', 'thought', 'Think'],
-]
-
-// Phrases the engine's clock reads (clock.parse_skip); the label is also the marker line.
-const SKIPS: [string, string][] = [
-  ['a few hours later', 'A few hours later'],
-  ['the next morning', 'The next morning'],
-  ['a week later', 'A week later'],
 ]
 
 const listed = (names: string[]) =>

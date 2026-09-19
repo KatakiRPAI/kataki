@@ -58,6 +58,14 @@ export type Item = {
   updated_at: string | null
 }
 
+/** Time passing, in words the engine's clock reads (clock.parse_skip): [phrase, label]. The label
+ *  is also what a skip-only marker line says. */
+export const SKIPS: [string, string][] = [
+  ['a few hours later', 'A few hours later'],
+  ['the next morning', 'The next morning'],
+  ['a week later', 'A week later'],
+]
+
 /** An entity in a story, with the library item it came from (for its portrait and palette). */
 export type Ref = { id: number; name: string; lib_item_id: number | null }
 

@@ -1,17 +1,19 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { api, stream, type Cast, type CastEntity, type ContextLog, type Message, type Story, type TurnMeta, type Version } from '../api'
 import { paletteOf, SunArc } from '../art'
-import { href, lastSky, rise, useAction, useLibrary, useLoad, usePoll } from '../hooks'
+import { href, lastSky, rise, useAction, useLibrary, useLoad, usePoll, type Moving } from '../hooks'
 import { Dialog, ErrorLine, Field, Icon, Menu } from '../ui'
 import Composer, { type Meter, type Send } from './Composer'
 import Lines, { LiveLine, SaidLine, type Live } from './Lines'
+import { Nearby, NewScene, type SceneBody } from './Nearby'
 import Stage from './Stage'
 
-/** Who is on stage: the AI characters present, the last to speak first. */
-function onStage(cast: Cast, messages: Message[]): CastEntity[] {
+/** Who is on stage: the AI characters present, whoever just arrived or else the last to speak
+ *  first. */
+function onStage(cast: Cast, messages: Message[], arriving?: number): CastEntity[] {
   const present = cast.entities.filter((e) => e.present && e.is_ai && e.kind === 'character')
   const spoke = messages.findLast((m) => m.role === 'assistant' && present.some((e) => e.id === m.speaker_id))
-  const lead = present.find((e) => e.id === spoke?.speaker_id) ?? present[0]
+  const lead = present.find((e) => e.id === arriving) ?? present.find((e) => e.id === spoke?.speaker_id) ?? present[0]
   return lead ? [lead, ...present.filter((e) => e !== lead)] : []
 }
 
@@ -39,6 +41,38 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
   const [said, setSaid] = useState<{ text: string; audience: number[] | null } | null>(null)
   const [settling, setSettling] = useState(false) // the reply ended; keep it shown until fresh data lands
   const [failed, setFailed] = useState('')
+  const [act, actError, acting] = useAction()
+  const [arriving, setArriving] = useState<number>()
+  const [cutting, setCutting] = useState(false)
+  const [newScene, setNewScene] = useState(false)
+  const arrivalTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  useEffect(() => () => clearTimeout(arrivalTimer.current), [])
+
+  // In and out of the scene: a friend from the library joins the story; someone away comes back;
+  // someone here goes. Whoever arrives steps in with a name card for 3 s.
+  const move = (m: Moving) =>
+    act(async () => {
+      let arrived: number | undefined = m.kind === 'away' ? m.id : undefined
+      if (m.kind === 'friend') {
+        const after = await api<Cast>(`/stories/${id}/cast`, 'POST', { library_id: m.id })
+        arrived = after.entities.find((e) => e.lib_item_id === m.id)?.id
+      } else {
+        await api(`/stories/${id}/presence`, 'POST', { entity_id: m.id, present: m.kind === 'away' })
+      }
+      refreshAll()
+      if (arrived) {
+        setArriving(arrived)
+        clearTimeout(arrivalTimer.current)
+        arrivalTimer.current = setTimeout(() => setArriving(undefined), 3000)
+      }
+    })
+  // A new scene: cut through black, the story changing under it.
+  const cut = async (body: SceneBody) => {
+    await api(`/stories/${id}/scene`, 'POST', body)
+    setCutting(true)
+    setTimeout(refreshAll, 300)
+    setTimeout(() => setCutting(false), 600)
+  }
   const [meter, setMeter] = useState<Meter>()
   const controller = useRef<AbortController | null>(null)
 
@@ -149,7 +183,7 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
     )
   }
   const { story, messages, cast } = data
-  const people = onStage(cast, messages)
+  const people = onStage(cast, messages, arriving)
   const away = cast.entities.filter((e) => !e.present && e.is_ai && e.kind === 'character')
   const missing = !!line && !messages.some((m) => m.id === line)
   const who = [
@@ -164,8 +198,9 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
 
   return (
     <div className={`k-scene ka-scene${reading ? ' is-reading' : ''}${awake ? ' is-awake' : ''}`} onPointerMove={reading ? wake : undefined}>
-      <Stage story={story} people={people} />
+      <Stage story={story} people={people} arriving={arriving} busy={acting || !!live} onMove={move} />
       <div className="ka-veil" />
+      <Nearby cast={cast} busy={acting || !!live} onMove={move} />
       <header className="k-topbar ka-topbar">
         <div className="ka-topbar__side">
           <button type="button" className="k-scene-round k-sglass" onClick={rise} aria-label="Float back up to the Sky">
@@ -186,7 +221,7 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
             onClick={() => setReading((r) => !r)}>
             <Icon name="book" size={18} />
           </button>
-          <StoryMenu story={story} onChange={refreshAll} />
+          <StoryMenu story={story} onChange={refreshAll} onNewScene={() => setNewScene(true)} />
         </div>
       </header>
       <div className="k-convo-scrim" />
@@ -195,7 +230,7 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
         {missing && <p className="k-sysnote">That line is no longer in this version of the story.</p>}
         {said && <SaidLine who={story.persona?.name ?? 'You'} text={said.text} audience={said.audience} />}
         {live && <LiveLine live={live} item={writerItem} ink={writer ? paletteOf(writerItem, writer.name).ink : undefined} />}
-        <ErrorLine error={failed || error} />
+        <ErrorLine error={failed || actError || error} />
       </div>
       <Composer
         story={story}
@@ -207,6 +242,8 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
         onSend={send}
         onStop={() => controller.current?.abort()}
       />
+      <NewScene open={newScene} story={story} cast={cast} onClose={() => setNewScene(false)} onCut={cut} />
+      {cutting && <div className="ka-cut" aria-hidden="true" />}
     </div>
   )
 }
@@ -214,7 +251,7 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
 type Dialogs = 'rename' | 'minutes' | 'delete' | null
 
 /** The story menu: rename, minutes per turn, pin, delete (with a confirm). */
-function StoryMenu({ story, onChange }: { story: Story; onChange: () => void }) {
+function StoryMenu({ story, onChange, onNewScene }: { story: Story; onChange: () => void; onNewScene: () => void }) {
   const [open, setOpen] = useState<Dialogs>(null)
   const [run, error, busy] = useAction()
   const close = () => setOpen(null)
@@ -234,6 +271,10 @@ function StoryMenu({ story, onChange }: { story: Story; onChange: () => void }) 
   return (
     <>
       <Menu label="Story menu" className="k-scene-round k-sglass">
+        <button type="button" onClick={onNewScene}>
+          <Icon name="film" size={16} />
+          New scene…
+        </button>
         <button type="button" onClick={() => setOpen('rename')}>
           <Icon name="edit" size={16} />
           Rename…

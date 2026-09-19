@@ -72,6 +72,12 @@ export default function Lines({ story, messages, cast, flash, busy, onChange, on
       onChange()
     })
 
+  const undoPresence = (presenceId: number) =>
+    run(async () => {
+      await api(`/presence/${presenceId}`, 'DELETE')
+      onChange()
+    })
+
   const scenes = messages.some((m, i) => i > 0 && m.role === 'system' && m.scene_id !== messages[i - 1].scene_id)
   const opening = [scenes ? null : (story.place?.name ?? story.scene_title), story.start_clock].filter(Boolean).join(' · ')
   const out: ReactNode[] = [<Card key="opening">{opening}</Card>]
@@ -113,15 +119,22 @@ export default function Lines({ story, messages, cast, flash, busy, onChange, on
       )
     }
     for (const c of cast.changes.filter((c) => c.message_id === m.id)) {
-      const who = entity(c.entity_id)
-      const name = who?.name ?? 'Someone'
+      const item = itemOf(c.entity_id)
+      const name = entity(c.entity_id)?.name ?? 'Someone'
+      const [they, hear] = { she: ['she', 'hears'], he: ['he', 'hears'], they: ['they', 'hear'] }[pronounsOf(item)]
+      const They = they[0].toUpperCase() + they.slice(1)
+      const by = c.found ? 'Noticed in the story' : 'Brought in by you'
       out.push(
-        <div key={`change-${c.id}`} className="k-sysnote ka-note">
-          <Avatar item={itemOf(c.entity_id)} name={name} size={24} />
+        <div key={`change-${c.id}`} className={`k-sysnote ka-note${c.present ? '' : ' ka-note--left'}`}>
+          <Avatar item={item} name={name} size={24} />
           <span className="ka-note__text">
-            <span>{name} {c.present ? 'joins' : 'leaves'}</span>
-            <small>{c.found ? 'Noticed in the story' : c.present ? 'Brought in by you' : 'Sent away by you'} · {c.clock}</small>
+            <span>{c.present ? `${name} joins` : `${name} left. ${They} won't hear what's said now.`}</span>
+            {(c.present || c.found) && <small>{c.present ? `${by} · ${they} ${hear} everything from here on` : by}</small>}
           </span>
+          <button type="button" className="ka-note__undo" disabled={busy} onClick={() => undoPresence(c.id)}>
+            <Icon name="undo" size={12} />
+            Undo
+          </button>
         </div>,
       )
     }
