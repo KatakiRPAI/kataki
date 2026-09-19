@@ -29,3 +29,6 @@ Thumbs.db
 
 # local model runtime and model files (large, never committed)
 .runtime/
+
+# design handoff archive (the unpacked folder is committed)
+docs/*.zip

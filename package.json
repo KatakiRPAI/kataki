@@ -3,10 +3,10 @@
   "private": true,
   "packageManager": "pnpm@12.4.2",
   "scripts": {
-    "check": "pnpm run check:engine && pnpm run check:app",
+    "check": "corepack pnpm run check:engine && corepack pnpm run check:app",
     "check:engine": "cd engine && uv run ruff check . && uv run ruff format --check . && uv run pytest -q",
-    "check:app": "pnpm -C app typecheck",
-    "dev": "pnpm -C app dev",
-    "smoke": "pnpm -C app smoke"
+    "check:app": "corepack pnpm -C app typecheck",
+    "dev": "corepack pnpm -C app dev",
+    "smoke": "corepack pnpm -C app smoke"
   }
 }

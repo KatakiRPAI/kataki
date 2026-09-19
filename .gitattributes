@@ -3,3 +3,7 @@
 *.jpg binary
 *.ogg binary
 *.mp3 binary
+*.ttf binary
+*.woff2 binary
+*.gif binary
+*.webp binary

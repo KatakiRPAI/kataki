@@ -1,0 +1,808 @@
+# Kataki RPAI — Milestone 1 UI: the Sky, the Scene and the memory signals
+
+> The master plan (M0–M5) and the M0/M1 engine spec with its Progress section live in the repo at
+> `docs/specs/2026-09-18-m0-m1-design.md`. This file plans the M1 UI rebuild. It is **the source of
+> truth** (task 1 copied it here from the approved plan) and its Progress list is where the loop
+> records work.
+>
+> Start the loop with:
+> `/loop Continue the Kataki UI rebuild: follow the loop protocol in docs/specs/2026-09-19-ui-redesign.md and do the next unchecked task (if that file does not exist yet, read C:\Users\user\.claude\plans\openroleplayai-openrpai-orpai-is-inherited-wadler.md and do task 1 first).`
+
+## Context
+
+Milestone 1 (chat + the full memory engine) works and was verified against a real model, but its UI
+is a plain, text-only set of screens (~1,700 lines: App, Story, Inspector, Models, Library, Stories).
+The user commissioned design concepts, now in `docs/kataki-design/kataki-design/` (design system,
+17 mockups, placeholder art), written from `docs/design-brief.md`. The concepts are a reference, not
+a 1:1 spec. The user wants the M1 UI rebuilt in that design before Milestone 2, and approved:
+
+1. **Scope:** the full M1 UI **including the memory signals** (per-line receipts, callouts, the
+   recall spark, the time-skip sequence, Activity, living profiles), plus the small engine endpoints
+   they need. Left out, as room rather than fake placeholders: generated art, expressions and
+   Moments (M3); music and Sound settings (M4); the Places map and books (M2); import/export;
+   phone layouts.
+2. **Art:** image uploads for characters, personas and places (stored locally with the library);
+   anything without one gets a generated stand-in.
+3. **Approach A:** vendor the design system's own CSS, fonts and icon sprite; thin React components
+   emit its `k-*` classes; native `<dialog>`/popover; a tiny hash router; **no new dependencies**.
+4. **Structure:** the Sky (rail: Home, Friends, Chats, Places, Activity, You, Settings, orb "Dive
+   in") and the Scene (stage, conversation, composer; the Backstage switch shows today's Inspector
+   as a blueprint lens). Library characters → Friends (AI) and personas (under You); places →
+   Places, with scenarios as Plots; stories → Chats; Models → Settings; first launch → First run.
+5. Everything else: "I approve everything, don't wait for my approval, plan with your best choices."
+   Built in passes: foundation + Sky, Scene + Backstage, memory signals, polish.
+
+Outcome: the app looks and behaves like the concepts. Every feature listed in the brief's
+"Reference: what the app does today" stays reachable. The memory system becomes visible: who heard
+a line, who will remember it and how clearly, and characters forgetting across a time skip.
+
+## Ground rules
+- No new npm or Python dependencies. The vendored design files are never edited; changes go in
+  `app/src/app.css` under `ka-` classes.
+- The old UI (renamed "classic") stays mounted and working until task 24 retires it, so the app is
+  usable at every commit.
+- Engine work is test-first. Every task leaves the engine suite, typecheck, build and smoke green.
+- The loop never starts the user's GPU model server (llama-server). The demo's fake model covers UI
+  work. If llama-server is **already** running on :8080, the loop may use it for an optional check.
+
+---
+
+## Progress
+(The loop ticks a box and adds a note line `YYYY-MM-DD · task n · what landed · deviations` in the same commit.
+A pass's box is ticked once all its tasks are; a task is done when its number carries `[x]`.)
+
+- [ ] **Pass 0**: [x] 1 file the handoff and plan · 2 design base layer and foundation
+- [ ] **Pass 1**: 3 media and library · 4 stories for the Sky · 5 demo library and fake model · 6 Sky shell and Friends · 7 Chats · 8 New chat · 9 Add a friend / edit · 10 friend profile · 11 Home and persona switcher · 12 Places and Plots · 13 You · 14 Settings and Models · 15 First run, flip, dive
+- [ ] **Pass 2**: 16 audience (Whisper/Think) · 17 lines, pass time, meta · 18 scene support · 19 Scene frame · 20 composer and streaming · 21 line tools, story menu, reading mode · 22 presence and new scene · 23 Backstage · 24 retire classic
+- [ ] **Pass 3**: 25 exact line and clarity · 26 signals I · 27 signals II · 28 receipts, callouts, spark · 29 time-skip sequence · 30 activity engine · 31 Activity UI and badges · 32 people and profiles engine · 33 peek card · 34 living profile and "Who knows you"
+- [ ] **Pass 4**: 35 responsive and motion · 36 accessibility and keyboard · 37 empty and error states · 38 cleanup, docs, final verification
+
+Blocked: none. Later (ideas deliberately not built): none yet.
+
+Notes:
+- 2026-09-19 · task 1 · design handoff (`docs/kataki-design/`, `docs/design-brief.md`) and this plan committed; `docs/*.zip` ignored; font/image types marked binary; root scripts call `corepack pnpm`; `.dev/library.db` backed up to `.dev/library.pre-ui.db` · no deviations
+
+---
+
+## 1. App architecture
+
+### 1.1 Files in `app/src` (few, focused)
+| File | Holds |
+|---|---|
+| `main.tsx` | Boot. Imports CSS in order: `design/tokens.css`, `design/components.css`, `design/fonts/fonts.css`, `app.css`. Injects the icon sprite once. Renders `<App/>`. |
+| `api.ts` | Keep `connection`, `api()`, `failure()`, `stream()`. Dev fallback moves from the URL hash to **query params** (`?port=&token=`), because the hash now belongs to the router. Add `upload(blob)`, `mediaUrl(name)` (`…/media/<name>?token=`), and complete the payload types (Message.scene_id/audience/think_ms; ContextLog message_id, speaker_id and per-memory `rendered/A_detail/effortful/tokens`; KnownMemory `A_detail/B/story_time`; typed `Item.data` flags; SSE event payloads). |
+| `hooks.tsx` | `useLoad` (race-guarded with a sequence ref; same `[data, reload, error]` shape), `useAction`, `usePoll(fn, ms, enabled)` (skips while the document is hidden), the router (`parse`, `href`, `go`, `useRoute`), `LibraryContext`/`useLibrary()`. |
+| `ui.tsx` | `Icon` (`<svg class="k-icon"><use href="#i-name"/></svg>`, aria-hidden), `Candy`, `Chip`, `Seg` (aria-pressed), `Glass` (`.k-card`), `Dialog` (native `<dialog>` + `showModal`, Esc closes, focus returns), `Menu` (`popovertarget` + `popover`), `Field`, `Tier` (`.k-tier` / `.k-bs-tier`), `ErrorLine`, `Prose` (`*em*`, `**strong**`, paragraphs; add `white-space: pre-line`), `SkyHeader`. |
+| `art.tsx` | `PALETTES`, `paletteOf`, `pronounsOf`, `initials`, `timeOfDay`; `Avatar`, `AvatarStack`, `Portrait` (+ nameplate), `Figure` (stage), `Room` (place stand-in), `SunArc`, `Orb`. |
+| `App.tsx` | Health check (sets `document.documentElement.dataset.engine = 'ok' / 'down'`), first-run gate, route switch, Sky frame and rail, dive overlay, remembers the last Sky route. |
+| `sky/*.tsx` | `Friends`, `Editor` (add/edit a friend or persona), `Profile`, `Chats`, `NewChat` (dialog), `Home`, `Places`, `You`, `Settings`, `FirstRun`, `Activity`. |
+| `scene/*.tsx` | `Scene` (data, streaming, polling, top bar, tray, time skip), `Lines` (lines, title cards, notes, receipts, callouts, recall), `Composer`, `Stage` (layers, figures, peek), `Backstage`. |
+| `design/` | Vendored copies (never edited): `tokens.css`, `components.css`, `sprite.svg`, `clouds.svg`, `fonts/` (`fonts.css` + 6 `.ttf` + licence texts), `README.md` (provenance). |
+| `app.css` | The app layer (`ka-` classes). It turns the design's fixed 1440 px positions into layouts that hold from 1280 to 1920 px. |
+| `classic/` | Temporary (removed in task 24): the old `App` as `Classic.tsx`, `Story`, `Inspector`, `Library`, `Stories`, `Models`, and `classic.css` (the old `styles.css` with every selector scoped under `.classic`). |
+
+### 1.2 Vendoring
+- CSS: `tokens.css` and `components.css` copied verbatim, imported globally.
+- Fonts: the files sit next to `fonts.css`, so its relative `url()` resolves and Vite bundles them
+  (`base: './'` keeps `file://` working). Fix the header comment: Chewy is Apache 2.0, the others OFL.
+- Sprite: `import sprite from './design/sprite.svg?raw'` and `document.body.insertAdjacentHTML('afterbegin', sprite)` once.
+- Clouds: `import clouds from './design/clouds.svg'` (a URL for `<img>`).
+- Never use root-absolute asset paths: they break under `file://`.
+
+### 1.3 Router (hash, about 50 lines)
+| Hash | Screen |
+|---|---|
+| `#/` | Classic until task 15, then Home |
+| `#/home` · `#/friends` · `#/friends/new` · `#/friend/:id` · `#/friend/:id/edit?step=n` | Home, Friends, editor, profile |
+| `#/you` · `#/you/:id` · `#/you/new` | Your persona, one persona, new persona |
+| `#/chats` · `#/chats/:id` | Threads, selected thread |
+| `#/places` · `#/activity` · `#/settings` · `#/settings/about` · `#/welcome` | Places and Plots, Activity (Pass 3), Models, About, First run |
+| `#/story/:id` · `#/story/:id/line/:mid` | Scene; the deep link scrolls to the line and flashes it. If the line is off the active branch: "That line is no longer in this version of the story." |
+| `#/classic…` · `#/dev/kit` | Old UI and the design kit check page (both temporary) |
+
+- The Scene's cloud button returns to the last Sky route.
+- Gate: with no provider, every route except welcome, settings and classic goes to `#/welcome`.
+
+### 1.4 Data
+- `LibraryContext`: every library item, loaded once and reloaded after any library edit. The engine
+  returns `lib_item_id` on entities; the UI resolves portrait, palette and pronouns from it.
+- The current persona is `settings.persona` (a library id, or null for Director), stored with the
+  existing `GET/PUT /settings`.
+- `PATCH /library/{id}` replaces `data` whole, so the UI always sends `{...item.data, ...changes}`.
+
+### 1.5 Art and light
+- **Palette:** stored at creation in `data.palette = {bg:[from,to], ink}`, taking the least-used
+  entry. Entities with no library item (found by the reader) hash their name onto the list. In a
+  scene the persona's lines always use `--k-speaker-aren` #a9c8ff.
+
+  | # | backdrop (160deg) | ink |
+  |---|---|---|
+  | 1 | #c4ece4 → #6fb7c9 | #f2b870 |
+  | 2 | #ffe3bf → #f2a468 | #e8cc6a |
+  | 3 | #f8d8ec → #c3a0ea | #f0a58a |
+  | 4 | #dbf2d4 → #8cc79a | #e2c48c |
+  | 5 | #fff3bf → #f4c35a | #f5b98a |
+  | 6 | #f6ccd2 → #c77886 | #eeb4a0 |
+  | 7 | #d3e3ff → #7ea4f0 | #e9c08f |
+  | 8 | #e4f0ff → #b9b3f2 | #f2c98a |
+
+- **Stand-ins:**
+  - avatar and portrait: up to 2 initials (Figtree 800, white) on the backdrop gradient
+  - stage figure: an inline SVG head-and-shoulders silhouette, filled with the darkened backdrop, with an ink-coloured rim light
+  - place: `Room`, a CSS lit room (wall gradient, a window whose sky follows the time of day, lamp glow, floor)
+- **Uploads:** `data.portrait` (characters and personas) and `data.image` (places) hold media names.
+  - Avatar and portrait images: `object-fit: cover; object-position: 50% 22%`.
+  - Stage figure: the image with a radial `mask-image`, so its edges melt into the room.
+  - Place image: `object-fit: cover` plus a time-of-day tint layer.
+- **Time of day** from `minute_of_day`: dawn 05:00–07:59, day 08:00–16:59, dusk 17:00–19:59, night 20:00–04:59.
+  - `Room[data-tod]` swaps CSS variables.
+  - Relighting crossfades two stacked layers over 600 ms (opacity only).
+  - `SunArc`: the dashed 44×24 arc. The sun is placed by the clock from 06:00 to 18:00, the moon over the night half.
+- **New chat time of day** sets `epoch_offset_min`: Dawn 360, Day 720, Dusk 1140, Night 1320.
+
+### 1.6 Scene state flow
+- **State:** `story`, `messages`, `cast` (Pass 2); `signals`, `people` (Pass 3).
+  `live = {speaker, text, thoughts, strained, t0, thinkMs} | null`. `said` is the optimistic line.
+- **`refreshAll()`:** one sequence-guarded `Promise.all` of story, messages, cast (+ signals). Every
+  mutation calls it. This fixes today's stale header clock and cast after a swipe or undo.
+- **`generate()`** (one at a time; Send is disabled while `live`):
+  - Keep the abort ref, abort-aware errors, and the **400 ms wait after Stop** (the engine saves the partial reply).
+  - Unmounting aborts the stream (fixes today's leak).
+  - `meta` sets the speaker and the meter, and plays the time skip if `meta.skip ≥ 1440`.
+- **Background reads:** while the Scene is visible, `usePoll` hits `GET /stories/{id}/version` every
+  3 s. When `v` changes, refetch signals and cast, plus runs if Backstage is open.
+- **Seen marker:** `POST /stories/{id}/seen` on mount and on unmount (Pass 3).
+
+### 1.7 Motion and GPU rules (the model shares an 8 GB GPU)
+- Animate only `transform` and `opacity`. Never animate `filter` or `backdrop-filter`. Glass only on static layers.
+- The only endless loops are the orb's breathing, the thinking dots and the caret.
+- **Dive (900 ms):** two `clouds.svg` layers (one mirrored) scale to 1.2 and part while the sky fades. The stage enters from opacity 0 at scale 1.02. The UI fades in last.
+- **Leaving a scene** floats up (the reverse).
+- **Reduced motion:** 200 ms crossfades only.
+- **Time skip:** crossfade to a statically blurred copy of the stage.
+- `content-visibility: auto` on conversation lines.
+
+---
+
+## 2. Engine additions (tests first; new code in `media.py` and `signals.py`, the rest in existing modules)
+
+Migrations are additive entries in `db.MIGRATIONS`, bumping `SCHEMA_VERSION` (use the next free
+number if tasks move). Each one extends the migration test in `tests/test_db.py`. JSON goes in
+`TEXT` columns. Reuse `chat.heard_by`, `retrieve.inspect`/`_assess`, `db.live_runs`/`live_filter`,
+`library.*` and `context_log`.
+
+| Task | Routes | Change |
+|---|---|---|
+| 3 | `POST /media` · `GET /media/{name}?token=` · safe `DELETE /library/{id}` | Media store; library data flags; premise snapshot |
+| 4 | `GET/POST/PATCH /stories…` · `POST /stories/{id}/seen` | Summaries, time fields, pinned, seen. Migration 3 |
+| 16 | `POST …/turn` (+`audience`) | Whisper/Think; hearing gaps; speaker guard. Migration 4 |
+| 17 | `POST /stories/{id}/line` · `…/turn` (+`skip`) · `meta` | Line without a reply, pass time, meta fields, `think_ms` |
+| 18 | `GET …/cast` · `DELETE /presence/{id}` · `POST …/scene` (+`skip`) · `GET …/version` · runs `filed` | Scene support. Migration 5 |
+| 25 | `GET …/memories?knower=` | Exact line, contradiction link, clarity. Migration 6 |
+| 26–27 | `GET /stories/{id}/signals` | Receipts, recall, callouts, skip reports |
+| 30 | `GET /activity` · `GET /stories` (+`new_events`, `waiting`) | Activity feed |
+| 32 | `GET /stories/{id}/people` · `GET /library/{id}/profile` | Peek, living profile, "Who knows you" |
+
+### 2.1 Media and library (task 3)
+- **`POST /media`** (raw body) → `201 {"name":"<sha256>.png","bytes":48211}`.
+  - Format by magic bytes: PNG `\x89PNG\r\n\x1a\n`, JPEG `\xff\xd8\xff`, `GIF87a`/`GIF89a`, WebP `RIFF????WEBP`.
+  - Anything else, SVG included: `415` "Only PNG, JPEG, GIF or WebP images." Over 10 MiB: `413`.
+  - Stored at `<folder of the library db>/blobs/<name>` (folder from `PRAGMA database_list`), via a temp file and `os.replace`. Identical bytes get the same name.
+  - `ponytail:` no sweep of unreferenced blobs.
+- **`GET /media/{name}`:**
+  - `404` unless the name matches `^[0-9a-f]{64}\.(png|jpg|gif|webp)$` and the file exists.
+  - Headers: `Content-Type` from the extension, `Cache-Control: private, max-age=31536000, immutable`, `X-Content-Type-Options: nosniff`.
+  - Auth: `require_token` also accepts `?token=` **only** for paths under `/media/`.
+- **Library `data` keys** (documented in `library.py`, opaque to the engine):
+  - `persona: bool`, `favourite: bool`, `pronouns: "she"|"he"|"they"` (default they)
+  - `palette: {bg:[a,b], ink}`, `portrait` / `image` (media names)
+  - existing: `aliases`, `first_message`, `example_dialogue`
+- **Safe delete** (one transaction):
+  - Stories using the item as their scenario get its description copied into `stories.overrides.premise`, and `scenario_id` becomes NULL.
+  - `entities.lib_item_id` becomes NULL where it pointed at the item.
+  - Then the item is deleted. This fixes today's 500.
+- **Premise snapshot:** `create_story` copies the scenario description into `overrides.premise`, and `context._system` reads it first, falling back to the live row. (The brief: "editing the library never rewrites a story in progress".)
+- **Tests:**
+  - PNG round trip with the query token; the same name for the same bytes.
+  - SVG, HTML and text give 415; oversize gives 413.
+  - Bad names and traversal give 404; `?token=` elsewhere still gives 401.
+  - The file lands under `blobs/`.
+  - Deleting a character that a story uses gives 204, and the story keeps its copy.
+  - Editing or deleting a scenario leaves the story's premise unchanged.
+
+### 2.2 Stories for the Sky (task 4, migration 3: `stories.pinned INTEGER NOT NULL DEFAULT 0`, `stories.seen_run_id INTEGER NOT NULL DEFAULT 0`)
+- **`POST /stories`** accepts `epoch_offset_min` (default 480).
+- **`PATCH /stories/{id}`** accepts `pinned`.
+- **`POST /stories/{id}/seen`** → 204 and sets `seen_run_id` to the story's newest run id.
+- **`GET /stories`:** pinned first, then newest message first. Each entry:
+  ```json
+  {"id":12,"title":"The Third Floorboard","created_at":"…","last_at":"…","messages":14,"pinned":true,
+   "clock":"Year 7, Day 1, 19:22","minute_of_day":1162,
+   "persona":{"id":31,"name":"Aren","lib_item_id":3},"place":{"id":33,"name":"The Gull","lib_item_id":8},
+   "cast":[{"id":29,"name":"Mira","lib_item_id":1,"present":true}],
+   "last_line":{"speaker":"Mira","text":"*frowns* The lighthouse? I could have sworn…"}}
+  ```
+  - `cast` = AI characters, with presence in the current scene.
+  - `last_line` = the last visible non-system line on the active path.
+- **`GET /stories/{id}`** adds `pinned`, `persona`, `place`, `scene_title`, `story_time`, `minute_of_day`, `epoch_offset_min`, and `start_clock` (the label at time 0, for the opening title card).
+- **Tests:** shape and order, pinning, `minute_of_day` for a 19:00 epoch, `seen`, a "Day 2" epoch labels correctly.
+
+### 2.3 Whisper, Think and hearing (task 16, migration 4: `messages.audience TEXT`, a JSON list of entity ids; NULL = everyone present, `[]` = a thought)
+- **Threading:** `audience` goes through `chat._insert` / `add_child` / `append_message` (and `append_sibling` copies it), `TurnIn.audience` (ids must belong to the story, else 422) and `turns.turn(..., audience=None)`.
+- **Rule** (in `chat.heard_by`, so every caller gets it): a line reaches an entity if they said it, or if they are present and (`audience` is NULL or they are in it).
+- **The four gaps:**
+  1. **Recall cue:** the last two lines *the speaker heard* (not the raw `path[-2:]`).
+  2. **`select_speaker`:** chooses among present AI characters who heard the pending line, for both addressed-by-name and the fallback. If nobody heard it (a thought), it uses the quietest present character.
+  3. **Extraction:**
+     - Transcript lines are marked `(whispering to Mira)` / `(thinking; no one hears)`.
+     - The applier caps the model's participants/heard_by to those who were there (`there_for(line)`); the asserter always knows. The model can no longer hand a secret to someone absent.
+  4. **Narrator:** its history leaves out thoughts and renders a whisper as "Aren whispers to Mira." with no content.
+- **Speaker guard:** a requested int speaker who is not present gets, before anything is written, `("error", {"message": "Tobin isn't in the scene. Bring them in first."})`.
+- **Tests:**
+  - A whisper is heard only by the chosen character.
+  - A thought reaches no prompt, the narrator's included.
+  - Whisper content is absent from Tobin's and the narrator's prompts.
+  - The speaker is chosen among hearers.
+  - A whispered claim never reaches Tobin even when the model lists him.
+  - An absent speaker gets an error and no new line.
+  - If an existing test asserts the old leaky behaviour, change it and explain in the commit.
+
+### 2.4 Lines without a reply, pass time, meta (task 17)
+- **`turns.say(conn, story_id, text, audience, skip)`** is shared by `turn()` and `/line`.
+  - It appends the persona's line (director mode: speaker NULL) with skip = `parse_skip(text) + parse_skip(skip)`.
+  - With no text but a skip, it appends a system marker such as "— The next morning —" that carries the skip.
+- **`POST /stories/{id}/line {text?, audience?, skip?}`** → `201` with the messages list; `422` if neither is given. It pokes the worker and never calls the model.
+- **`TurnIn.skip`** uses the same path, so Pass time followed by Continue works.
+- **`meta`** gains `skip`, `from_clock`, `clock`, and `strained` (an effortful recall roll happened).
+- **`gen.think_ms`** = time from the first thought to the first token. The messages payload gains `audience` and `think_ms`.
+- **Tests:**
+  - `/line` makes no model request.
+  - A skip-only request writes the marker, and the clock moves by six years.
+  - `meta.skip` is 3,153,600 for "six years later".
+  - `strained` is set when a pressed hazy memory rolls.
+  - `think_ms` is recorded.
+
+### 2.5 Scene support (task 18, migration 5: `presence.run_id INTEGER REFERENCES extraction_runs(id) ON DELETE CASCADE`)
+- The applier sets `run_id` on the presence rows it writes, so a reread no longer duplicates reader-found presence (today's bug).
+- **`chat.presence_changes(conn, story_id, path)`:** the arrivals and departures that actually change who is there, in order.
+- **`GET …/cast`:** entities gain `lib_item_id`, and the response gains `"changes":[{"id","message_id","entity_id","present","found","clock"}]` (`found` = inferred by the reader).
+- **`DELETE /presence/{id}`** → the cast (Undo). `SceneIn.skip` gives a new scene a time skip.
+- **`GET /stories/{id}/version`** → `{"v":"<max run id>:<runs>:<ok>:<pending+running>","waiting":<len(extract.pending)>}`.
+- **Runs** gain `filed`: memories written by the run.
+- **Tests:** rereading twice leaves one presence row; changes list only real transitions; Undo; `v` changes after a run; `filed`.
+
+### 2.6 Exact line and clarity (task 25, migration 6)
+- **Migration:**
+  ```sql
+  ALTER TABLE memories ADD COLUMN message_id INTEGER;
+  ALTER TABLE memories ADD COLUMN contradicts_id INTEGER;
+  UPDATE memories SET message_id = to_message_id WHERE run_id IS NOT NULL;
+  ```
+- The applier stores the exact line (`where["id"]`) and the first contradicted live memory. `from_message_id`/`to_message_id` keep the run range.
+- **Clarity**, one definition used on every screen: the tier a memory would have for this character *if it came up* at story time T.
+  - `retrieve.inspect(conn, story_id, knower_id, *, now=None)` scores with `CLARITY_CUE`: S = 0.5, G = 1.0, no noise.
+  - It counts only knowledge learned by T and accesses up to T. T defaults to the active leaf.
+  - Replies keep using the real cue of the moment.
+  - Resulting behaviour:
+    - importance 5: fresh is sharp, hazy after about a month, forgotten after about four years
+    - importance 9: hazy after six years
+    - importance 2: gone after six years
+    - a lie told just now is sharp
+  - Backstage Memory uses clarity, with the note "As each memory would come back if it came up now."
+- **Tests:** the exact line; `contradicts_id`; the tier table above; `inspect(now=before)` excludes later knowledge.
+
+### 2.7 Signals: `GET /stories/{id}/signals` (tasks 26–27, `signals.py`)
+**Response shape:**
+```json
+{"read_to":350,"lines":{"345":{
+  "summary":"Mira will remember · Tobin wasn't there",
+  "receipts":[{"id":29,"state":"sharp"},{"id":30,"state":"absent","why":"away"}],
+  "callouts":[{"kind":"memory","who":[29],"text":"Mira will remember this","reason":null,"faded":false,"memory_id":88}],
+  "recall":{"speaker":29,"title":"Mira remembered, vaguely","items":[{"memory_id":88,"tier":"hazy","text":"Aren hid the guild ledger somewhere behind the bar.","how":"witnessed Day 1, 19:12","detail":"…under the third floorboard…"}]},
+  "skip":{"minutes":3153600,"from_clock":"Day 1, 19:14","to_clock":"Year 7, Day 1, 19:16","faded":[{"id":29,"hazy":12,"gone":3}],"text":"12 of Mira's memories are going hazy. 3 are fading out."}}}}
+```
+
+**Receipts** (AI characters only; none on hidden or system lines):
+- `heard` + `pending` until a live run covers the line (the lag rule keeps the newest reply pending).
+- Then the best clarity among the memories anchored to that line which they know: `sharp` / `hazy` / `forgotten` (the UI drops forgotten faces). If nothing is anchored, it stays `heard` without the dots.
+- `absent`, only on the persona's lines: the character didn't hear it but heard an earlier line in the same scene since the last skip of a day or more. `why` is `away`, or `whisper`.
+- The engine writes the quiet `summary` sentence.
+
+**Callouts** (the engine writes the text; pronouns from `data.pronouns`; "you" = the persona):
+- **memory:**
+  - When: importance ≥ 7, not a claim, known at sharp or hazy clarity.
+  - One per line, the most important. `faded` when nobody is sharp.
+  - Text: "Mira will remember this" / "Mira and Tobin will remember this".
+- **belief:** a claim on your line with `is_true = 0`, one per hearer.
+  - Text by belief: below 0.3 "Mira knows that's not true"; below 0.7 "Mira has her doubts"; otherwise "Mira believed you".
+  - Reason, from the clarity of `contradicts_id`:
+    - sharp: "Mira remembers it clearly: “{detail}”"
+    - hazy: "Her memory of it has gone hazy, so she can be talked out of it."
+    - none: "Mira has no memory of it."
+- **feeling:** a live edge from an AI character. It anchors to the same run's latest memory involving both, otherwise to the run's last line.
+  - trust: "Mira trusts you a little more"
+  - distrust or suspicious: "Tobin is suspicious of you"
+  - dislike, resent, annoyed, angry or hate: "Tobin didn't like that"
+  - like, fond, grateful or warm: "Mira warmed to you"
+  - ended: "X no longer {rel} Y"; anything else: "X {rel} Y"
+  - The edge note becomes the reason.
+
+**Recall:**
+- From the `context_log` row of that reply.
+- A spark shows when a recalled, rendered memory is hazy, effortful, or importance ≥ 7.
+- Up to 3 items. `how` comes from the speaker's knowledge row.
+- Title: "…remembered, clearly" / "…vaguely" / "…after straining".
+
+**Skip report:**
+- For lines that skip a day or more, per present AI character: clarity at `story_time − skip` versus `story_time`, over memories learned before the skip.
+- `hazy` counts sharp→hazy; `gone` counts →forgotten. Plurals are correct.
+- `ponytail:` recomputed per request; batch the queries if the demo takes over 150 ms.
+
+**Tests** (`tests/test_signals.py`, a small ledger scene):
+- pending → sharp after the read
+- Tobin absent on the secret only; a whisper gives `why: whisper`
+- after six years: importance 2 forgotten; importance 9 hazy, with a faded callout
+- the three belief wordings
+- a feeling anchored to the shared line
+- recall on the reply after the skip
+- skip report counts
+- one HTTP test
+
+### 2.8 Activity (task 30)
+- **`GET /activity?story_id=&kind=&limit=100`**, newest first:
+  ```json
+  [{"key":"m88","kind":"memory","story_id":12,"story":"The Third Floorboard","message_id":345,"clock":"Day 1, 19:12",
+    "who":[{"id":29,"name":"Mira","lib_item_id":1}],
+    "text":"Mira will remember that Aren hid the guild ledger somewhere behind the bar.",
+    "sub":"Heard by Mira · Tobin wasn't there","line":{"speaker":"Aren","text":"Quickly, while he's gone…"},"new":true}]
+  ```
+- Kinds: memory (from callouts), belief, feeling, time ("Six years passed in The Third Floorboard. 12 of Mira's memories went hazy.").
+- `new` = `run_id > seen_run_id` (time events are never new).
+- `GET /stories` gains `new_events` and `waiting`.
+- **Tests:** order, filters, `new` flips after `/seen`, texts.
+
+### 2.9 People and profiles (task 32)
+- **`GET /stories/{id}/people`**, one entry per AI character:
+  ```json
+  {"id":29,"name":"Mira","lib_item_id":1,"present":true,"since":"Day 1, 19:10","where":"The Gull",
+   "state":[{"key":"holding","value":"a mug she hasn't touched","private":false}],
+   "on_mind":{"tier":"hazy","text":"The ledger is somewhere behind the bar."},
+   "about_you":{"count":38,"sharp":23,"hazy":12,"forgotten":3,"samples":[{"memory_id":91,"tier":"sharp","text":"…","belief":0.5}]},
+   "remembers":41,"relationships":[{"rel":"trusts","other_id":31,"other":"Aren","you":true,"since":"Day 1"}],
+   "secret":"She reads every letter she carries."}
+  ```
+  - `about_you` = memories linked to or asserted by the persona. It is null in director mode.
+- **`GET /library/{id}/profile`:**
+  - `stories`: role `ai` carries the `person` entry above; role `persona` carries `known_by: [{id, name, lib_item_id, count, sharp, hazy, forgotten}]`.
+  - `places`: where they have been.
+- **Tests** for both routes against the ledger scene.
+
+---
+
+## 3. Tasks
+
+"**Standard app check**" = `corepack pnpm -C app typecheck` + `corepack pnpm -C app build` + `corepack pnpm -C app smoke`.
+
+"**Shot**" = headless-Chrome screenshots of the app route and of the named mockup at the same size. Read both and compare layout, hierarchy and copy; the art differs by design. Fix gaps or note them.
+
+"**Walk**" = the built-in browser pane (navigate, find, clicks, get_page_text, javascript_tool). Its screenshots time out on this machine.
+
+### Pass 0: set-up
+**1. File the handoff and this plan.**
+- `.gitignore`: add `docs/*.zip`.
+- `.gitattributes`: add `*.ttf binary`, `*.woff2 binary`, `*.gif binary`, `*.webp binary`.
+- Root `package.json`: nested scripts call `corepack pnpm …`, so `corepack pnpm check` works despite the broken global pnpm shim.
+- Copy this plan to `docs/specs/2026-09-19-ui-redesign.md` and add a pointer line to the master spec's Progress.
+- Back up `.dev/library.db` → `.dev/library.pre-ui.db`.
+- Commit `docs/kataki-design/**`, `docs/design-brief.md`, the plan and the config.
+- Verify: `git status` is clean; `git show --stat HEAD` has no zip.
+
+**2. Design base layer and foundation.**
+- **Vendor** as in 1.2.
+- **Fonts:** download from the official google/fonts repo and check each `.ttf` starts with `00 01 00 00` and is over 20 KB.
+  ```
+  G=https://raw.githubusercontent.com/google/fonts/main; D=D:/OpenRolePlayAI/app/src/design/fonts
+  curl -fL -o $D/Chewy-Regular.ttf              $G/apache/chewy/Chewy-Regular.ttf                  # 41 KB
+  curl -fL -o $D/LICENSE-Chewy.txt              $G/apache/chewy/LICENSE.txt
+  curl -fL -o $D/Figtree-Variable.ttf           "$G/ofl/figtree/Figtree%5Bwght%5D.ttf"               # 63 KB
+  curl -fL -o $D/Figtree-Italic-Variable.ttf    "$G/ofl/figtree/Figtree-Italic%5Bwght%5D.ttf"        # 63 KB
+  curl -fL -o $D/OFL-Figtree.txt                $G/ofl/figtree/OFL.txt
+  curl -fL -o $D/Newsreader-Variable.ttf        "$G/ofl/newsreader/Newsreader%5Bopsz%2Cwght%5D.ttf"  # 452 KB
+  curl -fL -o $D/Newsreader-Italic-Variable.ttf "$G/ofl/newsreader/Newsreader-Italic%5Bopsz%2Cwght%5D.ttf"  # 496 KB
+  curl -fL -o $D/OFL-Newsreader.txt             $G/ofl/newsreader/OFL.txt
+  curl -fL -o $D/JetBrainsMono-Variable.ttf     "$G/ofl/jetbrainsmono/JetBrainsMono%5Bwght%5D.ttf"   # 187 KB
+  curl -fL -o $D/OFL-JetBrainsMono.txt          $G/ofl/jetbrainsmono/OFL.txt
+  ```
+- **Classic:** `git mv` the old screens into `classic/` (App → `Classic.tsx`). Scope `styles.css` → `classic/classic.css` under `.classic`, by hand.
+- **Foundation:** `api.ts` (query params, upload, types), `hooks.tsx`, `ui.tsx`, `main.tsx`.
+- **New `App.tsx`:**
+  - sets `data-engine`
+  - `#/` and `#/classic*` render `<div class="classic"><Classic/></div>`
+  - `#/dev/kit` shows the 4 fonts, all 66 icons, buttons, chips, candy tiles, the orb and a glass card
+- **Electron:** the smoke check waits for `document.documentElement.dataset.engine === 'ok'` (15 s) and still prints `SMOKE PASS/FAIL`.
+- **README:** the `?port=&token=` dev URL.
+- Done when: classic works as before and the kit renders.
+- Verify:
+  - Standard app check; fonts land in `dist/assets`.
+  - Shot `#/dev/kit` against `design-system/components.html`.
+  - Walk: 66 `<symbol>`s; `document.fonts.check` is true for all four families; the classic Library opens.
+
+### Pass 1: engine for the Sky, demo, Sky screens
+**3. Engine: media and library (2.1).** Files: new `media.py`; `server.py`, `library.py`, `context.py`; tests. Verify: engine checks.
+
+**4. Engine: stories for the Sky (2.2), migration 3.** Files: `db.py`, `library.py`, `server.py`; tests. Verify: engine checks.
+
+**5. Demo library and fake model.** `engine/evals/demo.py`:
+- **`build [--db ../.dev/demo.db] [--model-url …]`**
+  - Rebuilds deterministically through the real code paths (`library.*`, `turns.turn`, `extract.run_due`, `chat.set_presence`).
+  - Uses an in-process scripted `httpx2.MockTransport` (a copy of the test FakeBackend), `embed.builtin = lambda: None` and `get_key=lambda _: None`.
+- **Library:** personas Aren and Sable; friends Mira (every field from the brief), Tobin, Ilsa, Master Oren, Wren (partial); places The Gull, The Lighthouse, Harbour Market; plots "The Missing Ledger" and "Frost on the Pass".
+- **"The Third Floorboard"** (pinned; as Aren at The Gull; epoch 1140), following the brief's sample conversation:
+  - Mira greets; Tobin joins; Aren asks Tobin to fetch a round; Tobin is sent away; the secret at 19:12.
+  - Mira at 19:14 says "ledger", so the recall after the skip is certain.
+  - Run 1 files the memories:
+    - the arrival (importance 4); the green apron (2); sent to the bar (3); the secret (9)
+    - the ledger as an item
+    - edges Tobin→Aren "resents" and Mira→Aren "trusts"
+    - Mira's holding/wearing flags
+  - "Six years later"; Mira at Year 7 19:18 (run 2 reads the past first); the lie at 19:20; Mira at 19:22; run 3 files the claim with a doubted contradiction.
+- **Other stories:** "Frost on the Pass" (Ilsa, as Sable, epoch 1840), "The Clockmaker's Debt" (Oren, as Aren), "Letters for the Guild" (Mira, as Sable).
+- **`check()`** exits non-zero, naming what is missing:
+  - the clock reads Year 7, Day 1, 19:22; 3 ok runs
+  - Mira knows the secret and Tobin doesn't
+  - the 19:18 context_log rendered the ledger memory
+  - the skip marker is at Year 7, Day 1, 19:16
+- **`serve-model [--port 8099] [--delay 0.08] [--think]`:** a stdlib `ThreadingHTTPServer` with `/v1/models` (`fake`) and `/v1/chat/completions`.
+  - Streaming: optional `reasoning_content`, then canned lines word by word.
+  - Non-streaming: `"{}"`.
+- **Electron:** `KATAKI_DB` overrides the dev database. README: demo commands.
+- Verify: engine checks (ruff covers `evals/`); two `build` runs print identical summaries; `curl` streams from the fake model.
+
+**6. Sky shell and Friends.** Files: `App.tsx`, `hooks.tsx` (LibraryContext), `art.tsx` (palettes, pronouns, initials, Avatar, AvatarStack, Portrait, Orb), `sky/Friends.tsx`, `app.css`.
+- Shell: `.k-sky` with static clouds; `.k-rail` with logo, the items that exist so far, Settings, and the orb "Dive in" (latest story; classic for now).
+- `#/friends` candy filters: All, Favourites, In a story, New (≤ 7 days), Groups (a story with ≥ 2 AI characters).
+- Friend cards: portrait, heart (`data.favourite`), name, tagline (the description's first line, else "Just added. Finish their profile."), status ("At The Gull · Year 7" / "Left The Gull · Day 1" / "Not in a story yet").
+- Verify: standard app check; shot vs the Friends section of `Sky-Home.html` (1440×1190); walk: filters and heart persist.
+
+**7. Chats.** Files: `sky/Chats.tsx`; `art.tsx` gains `Room`, `Figure`, `SunArc`.
+- Thread list:
+  - filters: All / One-to-one / Groups; sections Pinned and All stories
+  - each row: stacked avatars, title, pin, story clock, last line, "as Aren"
+  - row menu: Pin/Unpin, Delete (confirm dialog)
+- Preview: a Room + Figure last-moment composition, the Dive in orb, "In this story" (On stage / Away), and "Start a fresh story with X".
+- Verify: standard app check; shot vs `Sky-Chats.html`; walk: select, pin, delete.
+
+**8. New chat dialog.** `sky/NewChat.tsx`:
+- Fields: friends (one, or several for a group scene), place, plot, time of day, "You play" (defaults to `settings.persona`; "No one: I direct the story"), title (default "Mira at The Gull" or the plot name).
+- Presets come from callers. `POST /stories`, then dive in.
+- Entry points: Chats "New chat" / "New group scene", "Start a fresh story".
+- Verify: standard app check; walk: create a story and it opens.
+
+**9. Add a friend / edit.** `sky/Editor.tsx`:
+- Six `.k-step` steps, saved as you go:
+  1. name and portrait (upload), pronouns, favourite, "This is me" (persona)
+  2. who they are
+  3. their secret
+  4. how they talk
+  5. how they say hi
+  6. other names and tags
+- "Stuck? Start from" prompt chips per step.
+- A live profile card with a completeness ring (filled steps ÷ 6) and a nudge ("Add a secret to make Wren more real").
+- The palette is auto-assigned. Delete (confirm; safe delete).
+- Routes: `#/friends/new`, `#/friend/:id/edit`, `#/you/new`. The "Add a friend" button and card appear from here on.
+- Verify: standard app check; shot vs `Sky-AddFriend.html`; walk: create Wren, upload a PNG, step through, reload and it persists.
+
+**10. Friend profile (static parts).** `sky/Profile.tsx` (`#/friend/:id`):
+- Big portrait with name plate, status and tags.
+- Actions: "Message Mira" (latest story with her, else New chat preset), "Start a new story", "Start a group scene", "Edit profile".
+- Stat tile: "N stories together".
+- Cards: About, Also known as, How she talks (bubbles from example dialogue), How she says hi, Secret (blurred, "Reveal as author"), Stories together.
+- Verify: standard app check; shot vs `Sky-Profile-Mira.html` (1440×1500).
+
+**11. Home and persona switcher.** `sky/Home.tsx`:
+- Header:
+  - greeting by local time ("Good evening, Aren")
+  - avatar opening the switcher popover: personas with a tick, "Director · Play no one", "+ New persona", and the footnote "Each chat keeps the persona it started with…"; writes `settings.persona`
+  - search that filters friends, chats and places
+  - "Add a friend"
+- Continue card: Room + Figure, scrim, title, place · clock · persona, last line, orb "Dive back in".
+- The Friends grid (bell and activity arrive in task 31).
+- Verify: standard app check; shot vs `Sky-Home.html` (1440×1190); walk: switch persona, and New chat defaults to it.
+
+**12. Places and Plots.** `sky/Places.tsx`:
+- Place cards: image or Room at dusk; "Start a scene here".
+- Plot cards: premise and opening narration; "Start this plot".
+- Add and edit dialogs:
+  - place: name, description, other names, tags, image
+  - plot: name, premise ("every character knows this"), opening narration, tags
+- Verify: standard app check; walk: add a place with an image and start a scene there.
+
+**13. You.** `sky/You.tsx`:
+- "You are playing": the persona profile with a "Played by you" badge, Edit, and that persona's chats.
+- "Who are you in new chats?" list: switcher semantics, Director, New persona.
+- "Who knows Aren" arrives in task 34.
+- Verify: standard app check; shot vs `Sky-You.html`.
+
+**14. Settings: Models and About.** `sky/Settings.tsx` ports every field of `classic/Models.tsx`:
+- Subnav: Models, About.
+- Server cards:
+  - candy tile, host in mono
+  - status from an auto-test on mount: "connected"/"unreachable", "{model} loaded", "key stored"
+  - Test, Remove (confirm)
+  - "Change key" via the existing `PATCH /providers/{id}`
+- "Look for model servers on this computer" (detected rows disappear once added); "Add an API" dialog with presets.
+- Job cards: collapsed ("Same as Characters" / model + detail line), or expanded with every field (server, model, context size, thinking, room to think, effort, kind, Detect now, sampler presets, JSON box). The embed row keeps "Built-in".
+- About: "engine ok · v · schema".
+- Verify: standard app check; shot vs `Sky-Models.html` (1440×1000); walk: add the fake provider, set Characters, Detect now.
+
+**15. First run, flip, dive.** Files: `sky/FirstRun.tsx`, `App.tsx`, `app.css`, `electron/main.ts`.
+- `#/welcome`, in three steps:
+  1. Connect a model: detect, "Use this" (adds the provider and sets `rp`), "Look again", "Add an API".
+  2. Make yourself: name, portrait, one line (creates a persona and sets it current).
+  3. Add your first friend: the compact editor, then New chat, then dive.
+- Privacy line: "Everything runs on your computer. Text only leaves it for the models you connect."
+- Gate. `#/` becomes Home (classic at `#/classic`).
+- Dive overlay (1.7) on every Dive in (classic story for now).
+- Electron window 1440×900 capped to the work area, `backgroundColor '#c3dafc'`.
+- Verify: standard app check (a fresh `.dev` library shows welcome); shot vs `Sky-FirstRun.html`; walk the whole Sky on the demo library.
+
+### Pass 2: Scene and Backstage
+**16. Engine: audience and hearing (2.3), migration 4.** Verify: engine checks. Run `live_eval` only if llama-server is already up.
+
+**17. Engine: lines, pass time, meta (2.4).** Also switch `demo.py` to `turns.say` for the six-years marker. Verify: engine checks; `demo.py build`.
+
+**18. Engine: scene support (2.5), migration 5.** Verify: engine checks.
+
+**19. Scene frame (read-only).** `scene/Scene.tsx`, `Stage.tsx`, `Lines.tsx`, `app.css`; `#/story/:id`.
+- **Stage:**
+  - Room or place image by time of day
+  - up to 3 Figures: one-to-one large (about 44vw); the speaker lit in front, others `.is-softened`; an avatar row beyond 3
+  - vignette
+- **Top bar:** cloud (floats up to the last Sky route); title + "with Mira · as Aren"; place + clock pill with SunArc; menu with "Open in classic view" (temporary).
+- **Conversation (`.k-convo`):**
+  - Lines: speaker ink, HH:MM stamp (full label on a new day or year), Prose, marks (edited, stopped, "whispered to Mira", "thought").
+  - Title cards: the opening "The Gull · Day 1, 19:00", scene markers, and skips as "{duration} later · Year 7" with Undo (`PATCH skip_minutes: 0`; skip-only markers are also hidden).
+  - System notes from `cast.changes`.
+- `refreshAll()`, version polling, line deep links.
+- Verify: standard app check; shot of the demo story vs `Scene-OneToOne.html`; walk a deep link.
+
+**20. Composer and streaming.** `scene/Composer.tsx`; the lifecycle in 1.6.
+- **Row 1:**
+  - who hears: avatars + "Only Mira will hear this" / "Mira and Tobin will hear this"; a greyed "Tobin is away"
+  - Whisper → a picker of who hears; Think → "No one will hear this"
+  - on the right: Pass time menu (a few hours, next morning, a week, "N years"), shown as a pending chip and sent as `skip`; Continue
+- **Textarea:** Newsreader 18; "Speak or act as Aren…" / "Direct the story…"; Enter sends, Shift+Enter adds a new line.
+- **Modes:**
+  - Say
+  - Do (wraps in `*…*`)
+  - Whisper (`audience`)
+  - Think (`POST /line` with `audience: []`, no reply)
+- **Send / Stop**, plus "Stopping keeps what Mira has written so far."
+- **Who answers:** Whoever fits, one chip per present character, Narrator.
+- **Token meter:** `--used` from `meta.context`, initial value from `GET /context`. Its tooltip and aria-label give "~7,300 / 16,384 tokens · 3 memories recalled".
+- **Live states:**
+  - "Mira is thinking…" (dots) + "Her notes stay backstage · read them"
+  - "Mira is trying to remember…" when `strained`
+  - streaming text with `.k-caret` and the stamp "writing…"
+  - a "Thought for N s" chip that opens the notes
+- The optimistic line appears instantly. Every Dive in now goes to `#/story/:id`.
+- Verify:
+  - Standard app check.
+  - Demo with `serve-model --think --delay 0.15`.
+  - Walk: send, Stop mid-reply (the partial is kept), Continue, Whisper, Think (no model request), pass time "6 years".
+  - Shots vs `Scene-Reply-Thinking.html` and `Scene-Reply-Streaming.html`.
+
+**21. Line tools, story menu, reading mode.**
+- Tools pill (`.k-line__tools`, on hover and focus-within):
+  - takes `‹ i/n ›`; the last arrow on the newest reply makes a new take via `/regenerate`
+  - inline Edit
+  - Hide/Unhide (`.is-hidden`)
+- Story menu: rename, minutes per turn, pin, delete story (confirm).
+- Reading mode: `.k-scene.is-reading` (tray and top bar fade; the column widens over a statically blurred stage).
+- Verify: standard app check; walk: swipe both ways (the header clock and cast update), edit, hide, delete.
+
+**22. Presence and new scene.**
+- **Tray "Nearby":**
+  - away story characters ("away · since Day 1") and library friends not in the story ("could join")
+  - "Bring someone in"
+  - drag onto or off the stage (HTML5 DnD), with button equivalents
+- **Arrival:** figure `.is-entering` + a name card for 3 s ("Tobin joins", tagline).
+- **Notes:**
+  - "Tobin joins · Brought in by you · he hears everything from here on · Undo"
+  - "Tobin left. He won't hear what's said now." (greyscale avatar)
+  - reader-found changes also get Undo (`DELETE /presence`)
+- **New scene dialog:** "Where to?" filmstrip of story and library places, who is there, title, optional "later" skip; cut through black (600 ms).
+- Verify: standard app check; shots vs `Scene-Group-Joins.html` and `Scene-Group-Secret.html`; walk: bring Tobin in, send him away, Undo, cut to The Lighthouse.
+
+**23. Backstage lens.** `scene/Backstage.tsx`: the top-bar `.k-switch` swaps the stage, conversation and composer for `.k-backstage` panels (Memory about 820 px on the left; Prompt, Cast and Reading stacked on the right).
+- **Memory:**
+  - character tabs; tier filters with counts
+  - `.k-bs-row` columns:
+    - tier
+    - text + story time (hazy rows add the struck "was sharp: …")
+    - how learned + "doubted" + recall A
+    - `.k-importance`
+    - Pin/Hide
+  - footer "Pinned facts sit in every prompt"; the Write a memory form
+- **Prompt:**
+  - "~7,300 / 16,384 tokens", counted tokens and cache reuse
+  - `.k-tokenbar` with a legend of each part against its limit
+  - recalled memories with scores, what was cut, and a "full prompt" dialog
+- **Cast:** kind, current flags, "found", aliases, merge.
+- **Reading:**
+  - runs with status dot, trigger, job + model, attempts, filed/skipped counts, stale, errors
+  - "Read what is waiting now", "Read again carefully"
+- Verify: standard app check; shot vs `Scene-Backstage.html`; walk: pin, write a memory, merge, read now.
+
+**24. Retire classic.** Walk every line of the brief's "Reference: what the app does today" in the new UI and record the result in the Progress note. Then delete `classic/`, its routes and links. Verify: standard app check.
+
+### Pass 3: memory signals
+**25. Engine: exact line and clarity (2.6), migration 6.** Update the Backstage note copy. Verify: engine checks; `demo.py build`.
+
+**26. Engine: signals I (receipts, recall, route; 2.7).** Verify: engine checks.
+
+**27. Engine: signals II (callouts, skip reports; 2.7).** Extend `demo.check()`:
+- the secret line has the memory callout
+- 19:08 has "Tobin didn't like that"
+- 19:20 has "Mira has her doubts"
+- 19:18 has the spark
+- the skip report exists
+
+Verify: engine checks; the demo check passes.
+
+**28. UI: receipts, callouts, spark.** `scene/Lines.tsx`:
+- **Receipts:**
+  - the `.k-receipts` row with the engine's summary
+  - 16 px faces `.k-receipt.is-heard|is-sharp|is-hazy|is-absent`; forgotten faces fade out and are removed; pending dots
+  - `.k-receipt-chip` chips on hover
+  - instant `heard` for the optimistic line
+  - transitions: 600 ms to sharp, 1.2 s to hazy
+- **Callouts:** `.k-callout` (`--feeling`, `--belief`, `.is-faded`) with the reason below.
+- **Spark:** `.k-spark`; on hover or focus, the `.k-recall` card with `.k-clarity[data-level]` and "hazy · witnessed Day 1, 19:12 · once sharp: “…”".
+- Refetch on version change.
+- Verify: standard app check; shots vs `Scene-Group-Secret.html` and `Scene-AfterSkip.html`; walk: a new line goes from heard (dots) to lit once `v` changes.
+
+**29. UI: time-skip sequence.**
+- Trigger: `meta.skip ≥ 1440`, or `done.skip_minutes`.
+- The `.k-timeskip` overlay (≥ 1800 ms):
+  - "Six years later" (Newsreader italic 76)
+  - the old clock struck through → the new clock
+  - the report pill ("12 of Mira's memories are going hazy. 3 are fading out.")
+  - "Undo the time skip"
+- Then: the clock rolls, the Room relights by crossfade, and receipts animate on refetch. Reduced motion: a crossfade.
+- Verify: standard app check; shots vs `Scene-TimeSkip.html` and `Scene-AfterSkip.html` (fake model, pass time "6 years").
+
+**30. Engine: activity (2.8).** The demo marks the story seen after run 1, so "new" events exist. Verify: engine checks; the demo check passes.
+
+**31. UI: Activity and badges.**
+- `sky/Activity.tsx` (`#/activity`; the rail item is added):
+  - groups by story and year ("THE THIRD FLOORBOARD · YEAR 7"), kind filters, `.k-event--memory|feeling|belief|time`
+  - an item expands to the quoted line and "Open the line" (deep link)
+  - side cards: "Still being read" (`waiting`, Read now) and "How receipts fade"
+- Home: activity preview (3), bell `.k-badge-count`, the Continue chip "N new memory events".
+- Chats: memory badge and "New since you left".
+- The Scene posts `/seen` on mount and unmount.
+- Verify: standard app check; shots vs `Sky-Activity.html`, `Sky-Home.html`, `Sky-Chats.html`.
+
+**32. Engine: people and profiles (2.9).** Verify: engine checks.
+
+**33. UI: peek card and "In this story".**
+- Clicking a figure or avatar opens `.k-peek`:
+  - avatar, name, "role · present"
+  - Right now: Holding, Wearing, Where, Injury, other flags
+  - On her mind (tier + text)
+  - What she knows about you (count, 2 samples with tiers, a link to Backstage Memory)
+  - relationship chips; the secret with Reveal
+- Actions: "Let her answer next" (sets Who answers), "Send away" / "Bring back", "Edit".
+- No expression chip (M3).
+- Chats "In this story": "On stage · remembers 38 things about you".
+- Verify: standard app check; shot vs `Scene-Peek.html`.
+
+**34. UI: living profile and "Who knows you".**
+- Profile stat tiles:
+  - "N stories together" / "as Aren and as Sable"
+  - "Remembers N things" / "about Aren"
+  - "Last seen: The Gull" / "Year 7, Day 1, 19:22"
+- "Right now" with the "In {story} ▾" selector:
+  - rows: Last seen, Holding, Wearing, Feels about you
+  - memory bar: sharp solid, hazy striped, forgotten as the remainder
+- Also: Relationships per story, Stories together, Places she's been.
+- You: "Who knows Aren" (per character per story, with the hazy count).
+- Verify: standard app check; shots vs `Sky-Profile-Mira.html` and `Sky-You.html`.
+
+### Pass 4: polish
+**35. Responsive and motion.**
+- Shots of every screen at 1280×800, 1440×900 and 1920×1080.
+- At 1280 the figure shrinks and the column moves left. At 1920 the stage grows and the column stays ≤ 600 px.
+- Reduced-motion audit (headless Chrome `--force-prefers-reduced-motion`). Audit the GPU rules (1.7).
+
+**36. Accessibility and keyboard.**
+- Real buttons, links and labels; visible focus in all three worlds; 44 px targets.
+- `aria-label` on icon buttons; `aria-current` on the rail and steps; `aria-pressed` on chips and segmented controls; `role=tablist` for Backstage tabs; `aria-live=polite` on the streaming line.
+- Esc/Enter in dialogs. Walk the whole app by keyboard.
+
+**37. Empty and error states** (the design leaves these open; use its language):
+- no friends yet (an invitation to "Add a friend")
+- a story not started: "The story has not started. Say something, or press Continue."
+- model server unreachable: an inline card with "Check Models"
+- engine unreachable: a full-screen glass card with Retry
+- a shimmer only for loads over 300 ms
+
+**38. Cleanup, docs, final verification.** Remove the kit route, dead code and unused `app.css`. Update the README (screens, demo, fake model, dev URL) and the Progress sections of both specs. Then run the final verification in section 6.
+
+---
+
+## 4. Loop protocol (one task per iteration)
+
+**Tools and servers**
+```
+UV=C:/Users/user/AppData/Local/Microsoft/WinGet/Packages/astral-sh.uv_Microsoft.Winget.Source_8wekyb3d8bbwe/uv.exe
+PY=D:/OpenRolePlayAI/engine/.venv/Scripts/python.exe
+engine checks:  cd D:/OpenRolePlayAI/engine && "$UV" run ruff check . && "$UV" run ruff format --check . && "$UV" run pytest -q
+demo:           cd D:/OpenRolePlayAI/engine && "$UV" run python evals/demo.py build --db ../.dev/demo.db
+background (run_in_background, stop with TaskStop when done):
+  "$PY" D:/OpenRolePlayAI/engine/evals/demo.py serve-model --port 8099
+  KATAKI_TOKEN=dev KATAKI_HOME=D:/OpenRolePlayAI/.dev "$PY" -m kataki serve --db D:/OpenRolePlayAI/.dev/demo.db --port 8765
+  corepack pnpm -C D:/OpenRolePlayAI/app exec vite --port 5173 --strictPort
+screenshot:     "C:/Program Files/Google/Chrome/Application/chrome.exe" --headless=new --hide-scrollbars --window-size=1440,900 --virtual-time-budget=5000 --screenshot=D:/OpenRolePlayAI/.dev/shots/<name>.png "http://localhost:5173/?port=8765&token=dev#/<route>"
+mockups:        file:///D:/OpenRolePlayAI/docs/kataki-design/kataki-design/screens/html/<Name>.html
+```
+
+**Each iteration**
+1. **Orient.** Run `git status --short` and `git log --oneline -5`, and read Progress, Blocked and the notes.
+   - Uncommitted changes that belong to the next task: continue that task.
+   - Anything else unexpected: stop and report.
+   - Never `reset --hard` or `checkout --` work you did not make.
+2. **Pick** the first unchecked task whose dependencies are done. If it will clearly exceed about 800 changed lines (excluding vendored, binary and deleted files), split it into a/b in Progress and do only a.
+3. **Read** the task, its mockup (HTML text plus a shot), the relevant `DESIGN-SYSTEM.md` section, and the code it touches.
+4. **Build.**
+   - Engine: failing test first, then the code.
+   - App: build on the design classes; new classes go only in `app.css` (`ka-`).
+   - Use the Edit/Write tools for any text containing backslashes (Bash heredocs here collapse them).
+   - Use `corepack pnpm`, never bare `pnpm`.
+5. **Verify** exactly as the task says, and fix until green.
+   - Never weaken a test to pass.
+   - If an existing test asserts old buggy behaviour, change it and explain in the commit.
+   - Keep the effect-cleanup rule: never return `scrollIntoView()` from an effect.
+6. **Record:** tick the box and add the note line, in the same commit.
+7. **Commit locally.**
+   - `git add <paths>`. Never `-A`, and never anything from `.dev/`, `dist/` or `blobs/`.
+   - Message: `feat(app|engine): …`, a 2-5 line body, and the final line `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`.
+   - Never push, amend, or use `--no-verify`.
+8. **Clean up:** stop every background process this iteration started.
+9. **Report** in three lines: the task, how it was verified, the next task.
+
+**Blockers.**
+- After two honest attempts at the same failure, mark the task `[!] blocked: …` under Blocked and continue with the next task that doesn't depend on it.
+- If this plan doesn't answer a product question, take the simplest option consistent with `DESIGN-SYSTEM.md` and note it.
+- If the answer would change memory, presence or story semantics, stop and ask the user.
+
+**Stop** when task 38's final verification passes. Also stop if every remaining task depends on a blocked one; report the blocker and the question for the user.
+
+---
+
+## 5. Risks and containment
+| Risk | Containment |
+|---|---|
+| The app breaks mid-rebuild | Classic stays whole (its CSS scoped under `.classic`) until task 24's parity walk. Every task ends with the standard app check green. |
+| Scope creep in the Scene | The cut list in Context. One concern per task, capped at about 800 lines. New ideas go under "Later". |
+| The GPU is shared with the model | The rules in 1.7. Polling is one cheap SQL query every 3 s, only while the Scene is visible. Audited in task 35. |
+| The smoke check is flaky | It watches the `data-engine` attribute, not visible text. |
+| Hearing changes cause memory regressions | Tests first. The rule lives in `chat.heard_by` for every caller. The full suite runs each time. |
+| Signal wording and cost | The engine writes the sentences, so pytest pins them. Recomputed only when the version changes; 150 ms budget. |
+| Migrations on real libraries | Additive `ALTER`s plus one backfill, each tested. The loop only opens `.dev/*.db`. The backup is `.dev/library.pre-ui.db`. |
+| Tokens in URLs | Only the dev query fallback and `GET /media`. The engine binds 127.0.0.1. |
+| The design's fixed 1440 px layout | Vendored files stay untouched and `app.css` overrides them. Checked at 1440 every task, and at three widths in task 35. |
+
+## 6. Final verification (task 38)
+1. Engine checks (ruff, format, pytest) and `demo.py build` with `check()`.
+2. The standard app check, plus `corepack pnpm check` at the root.
+3. Shots of all 17 mockup states against the demo library, with differences reviewed.
+4. A full walk through the brief's sample story, driven by the fake model:
+   - Tobin joins, gets sent to the bar, the secret, the whisper and the thought
+   - the six-year skip plays and receipts fade
+   - the lie is doubted
+   - peek, Backstage, Activity "Open the line", the profile's "Right now", "Who knows Aren"
+5. A keyboard-only pass.
+6. After the smoke test, `tasklist` shows no stray `python.exe` or `electron.exe`.
+7. Optional, only if llama-server is already running on :8080: one short real-model session through the Electron app with `KATAKI_DB` pointing at the demo library.
