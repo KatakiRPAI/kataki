@@ -216,6 +216,7 @@ export type Entity = {
   summary: string
   hidden: number
   run_id: number | null
+  lib_item_id: number | null
   aliases: string[]
   flags: { key: string; value: string | null; story_time: number; private: number }[]
 }

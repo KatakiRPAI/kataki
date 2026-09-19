@@ -6,6 +6,7 @@ import { Dialog, ErrorLine, Field, Icon, Menu } from '../ui'
 import Composer, { type Meter, type Send } from './Composer'
 import Lines, { LiveLine, SaidLine, type Live } from './Lines'
 import { Nearby, NewScene, type SceneBody } from './Nearby'
+import Backstage from './Backstage'
 import Stage from './Stage'
 
 /** Who is on stage: the AI characters present, whoever just arrived or else the last to speak
@@ -94,12 +95,18 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
   // Memory reads in the background: when the version moves, what the scene shows may have too.
   // Not while a reply streams: the fresh lines would double the ones on screen.
   const version = useRef('')
+  const [tick, setTick] = useState(0) // Backstage reloads when this moves
   usePoll(() => {
-    api<Version>(`/stories/${id}/version`).then(({ v }) => {
-      if (version.current && v !== version.current) refreshAll()
-      version.current = v
+    api<Version>(`/stories/${id}/version`).then(({ v, waiting }) => {
+      const now = `${v}|${waiting}` // lines waiting to be read count too (Backstage shows them)
+      if (version.current && now !== version.current) {
+        refreshAll()
+        setTick((t) => t + 1)
+      }
+      version.current = now
     }, () => {})
   }, 3000, !live)
+  const [backstage, setBackstage] = useState(false)
 
   const generate = async (path: string, body: object, replacing?: number) => {
     const ctl = new AbortController()
@@ -170,7 +177,7 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
     } else if (convo.current) {
       convo.current.scrollTop = convo.current.scrollHeight
     }
-  }, [line, count])
+  }, [line, count, backstage])
   useEffect(() => {
     if (convo.current && (live || said)) convo.current.scrollTop = convo.current.scrollHeight
   }, [live, said])
@@ -197,7 +204,9 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
   const retake = () => newest && generate(`/stories/${id}/regenerate`, {}, newest.id)
 
   return (
-    <div className={`k-scene ka-scene${reading ? ' is-reading' : ''}${awake ? ' is-awake' : ''}`} onPointerMove={reading ? wake : undefined}>
+    <div className={`k-scene ka-scene${reading && !backstage ? ' is-reading' : ''}${awake ? ' is-awake' : ''}${backstage ? ' is-backstage' : ''}`}
+      onPointerMove={reading ? wake : undefined}>
+      {backstage && <Backstage story={story} cast={cast} tick={tick} onChange={refreshAll} />}
       <Stage story={story} people={people} arriving={arriving} busy={acting || !!live} onMove={move} />
       <div className="ka-veil" />
       <Nearby cast={cast} busy={acting || !!live} onMove={move} />
@@ -217,7 +226,13 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
           <span className="ka-topbar__clock">{story.clock}</span>
         </div>
         <div className="ka-topbar__side ka-topbar__side--end">
-          <button type="button" className="k-scene-round k-sglass" aria-label="Reading mode" aria-pressed={reading}
+          <button type="button" role="switch" aria-checked={backstage} className="k-scene-pill k-sglass ka-bs-toggle"
+            onClick={() => setBackstage((b) => !b)}>
+            <Icon name="layers" size={16} />
+            Backstage
+            <span className={`k-switch${backstage ? ' is-on' : ''}`} aria-hidden="true" />
+          </button>
+          <button type="button" className="k-scene-round k-sglass" aria-label="Reading mode" aria-pressed={reading} disabled={backstage}
             onClick={() => setReading((r) => !r)}>
             <Icon name="book" size={18} />
           </button>
