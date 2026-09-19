@@ -10,6 +10,7 @@ import Editor from './sky/Editor'
 import Friends from './sky/Friends'
 import Home from './sky/Home'
 import Places from './sky/Places'
+import Settings from './sky/Settings'
 import You from './sky/You'
 import Profile from './sky/Profile'
 import { Icon } from './ui'
@@ -41,8 +42,7 @@ function Sky({ at, children }: { at: string; children: ReactNode }) {
           </a>
         ))}
         <div className="ka-grow" />
-        {/* until Settings lands (task 14), the classic Models page */}
-        <a className="k-rail__item ka-rail__small" href={href('/classic')}>
+        <a className="k-rail__item ka-rail__small" href={href('/settings')} aria-current={at === 'settings' ? 'page' : undefined}>
           <Icon name="settings" size={19} />
           Settings
         </a>
@@ -79,6 +79,7 @@ export default function App() {
     : at === 'you' ? <You key={route.path} id={second ? Number(second) : undefined} />
     : at === 'chats' ? <Chats selected={Number(second) || undefined} />
     : at === 'places' ? <Places />
+    : at === 'settings' ? <Settings page={second} />
     : null
   if (page)
     return (
