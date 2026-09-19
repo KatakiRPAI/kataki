@@ -130,4 +130,6 @@ def test_an_older_library_is_migrated_forward_without_losing_anything(tmp_path):
     assert "examples" in columns
     story = conn.execute("SELECT pinned, seen_run_id FROM stories").fetchone()  # v3
     assert (story["pinned"], story["seen_run_id"]) == (0, 0)
+    columns = {c["name"] for c in conn.execute("PRAGMA table_info(messages)")}
+    assert "audience" in columns  # v4
     conn.close()

@@ -180,6 +180,10 @@ class _Applier:
             audience = involved | {self.entity(ref) for ref in item.heard_by} - {None}
             if not item.covert:
                 audience |= self.there_for(where["id"])
+            # Only those the line reached can learn it, whatever the reader claims: a whisper
+            # or a secret told while someone was away never reaches them (the asserter is
+            # added below, since they know what they said).
+            audience &= self.there_for(where["id"])
             belief = {self.entity(c.hearer): BELIEF[c.resolution] for c in clashes}
             when = where["story_time"]
             for knower in sorted(e for e in audience if e != asserter and self.is_character(e)):
@@ -424,8 +428,17 @@ def prompt(conn: sqlite3.Connection, story_id: int, chunk: list) -> tuple[list[d
         conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)).fetchall()
     )
     new = [f"N{i}" for i in range(1, 9)]
+
+    def how(m) -> str:  # who a line reached, when it wasn't everyone there
+        audience = chat.audience_of(m)
+        if audience is None:
+            return ""
+        if not audience:
+            return " (thinking; no one hears)"
+        return f" (whispering to {' and '.join(names.get(i, 'someone') for i in audience)})"
+
     transcript = "\n".join(
-        f"[{i}] {names.get(m['speaker_id'], 'Narration')}: {m['text']}"
+        f"[{i}] {names.get(m['speaker_id'], 'Narration')}{how(m)}: {m['text']}"
         for i, m in enumerate(chunk, 1)
     )
     body = "Roster:\n" + "\n".join(entity_lines)

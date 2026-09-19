@@ -154,8 +154,14 @@ def _system(conn, story, persona, present, place) -> tuple[str, str]:
     return rules, "\n\n".join(cards)
 
 
-def _line(message, names: dict[int, str]) -> str:
+def _line(message, names: dict[int, str], narrator: bool = False) -> str:
     name = names.get(message["speaker_id"])
+    audience = chat.audience_of(message)
+    if audience:  # a whisper: the narrator only knows it happened
+        to = " and ".join(names.get(i, "someone") for i in audience)
+        if narrator:
+            return f"{name or 'Someone'} whispers to {to}."
+        name = f"{name or 'Someone'} (whispering to {to})"
     return f"{name}: {message['text']}" if name else message["text"]
 
 
@@ -245,12 +251,14 @@ def build(
     system = "\n\n".join(part for part in (rules, cards) if part)
 
     # 3. history: whatever is left after the fixed blocks and the tail's reserved room.
-    # A character only sees what was said while they were there; the narrator sees it all.
-    shown = path
+    # A character only sees what reached them (chat.heard_by); the narrator sees everything
+    # said aloud, that a whisper happened but not its words, and no thoughts at all.
     if speaker_id is not None:
         heard = chat.heard_by(conn, path, speaker_id)
         shown = [m for m in path if m["id"] in heard]
-    lines = [_line(m, names) for m in shown]
+    else:
+        shown = [m for m in path if chat.audience_of(m) != []]
+    lines = [_line(m, names, narrator=speaker_id is None) for m in shown]
     # the tail's room is reserved whoever speaks, so the history window never moves with them
     tail_room = caps["memory"] + caps["flags"] + caps["examples"]
     history_cap = ctx - reserve - estimate(system, ratio) - tail_room

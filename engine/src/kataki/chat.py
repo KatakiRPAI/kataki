@@ -69,8 +69,14 @@ def present_entities(conn: sqlite3.Connection, scene_id: int | None, path: list)
     return [r for r in state.values() if r["present"]]
 
 
+def audience_of(message) -> list[int] | None:
+    """Who a line was for: None = everyone present, a list = a whisper, [] = a thought."""
+    return None if message["audience"] is None else json.loads(message["audience"])
+
+
 def heard_by(conn: sqlite3.Connection, path: list, entity_id: int) -> set[int]:
-    """The messages on this path the entity was there for (plus anything they said)."""
+    """The messages on this path that reached the entity: what they said, and what was said
+    while they were there, unless it was whispered to someone else or only thought."""
     rows = conn.execute(
         "SELECT scene_id, message_id, present FROM presence WHERE entity_id=? ORDER BY id",
         (entity_id,),
@@ -81,7 +87,8 @@ def heard_by(conn: sqlite3.Connection, path: list, entity_id: int) -> set[int]:
     for m in path:
         if m["scene_id"] != scene:
             scene, here = m["scene_id"], bool(opening.get(m["scene_id"]))
-        if here or m["speaker_id"] == entity_id:
+        audience = audience_of(m)
+        if m["speaker_id"] == entity_id or (here and (audience is None or entity_id in audience)):
             heard.add(m["id"])
         here = bool(changes.get(m["id"], here))
     return heard
@@ -97,11 +104,13 @@ def set_presence(conn: sqlite3.Connection, story_id: int, entity_id: int, presen
         )
 
 
-def _insert(conn, story_id, parent_id, role, speaker_id, text, story_time, skip, scene, gen):
+def _insert(
+    conn, story_id, parent_id, role, speaker_id, text, story_time, skip, scene, gen, audience
+):
     message_id = conn.execute(
         "INSERT INTO messages(story_id, parent_id, role, speaker_id, text, story_time,"
-        " skip_minutes, scene_id, gen) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (story_id, parent_id, role, speaker_id, text, story_time, skip, scene, gen),
+        " skip_minutes, scene_id, gen, audience) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (story_id, parent_id, role, speaker_id, text, story_time, skip, scene, gen, audience),
     ).lastrowid
     _set_active(conn, story_id, message_id)
     return message_id
@@ -117,6 +126,7 @@ def add_child(
     skip_minutes: int = 0,
     gen: dict | None = None,
     scene_id: int | None = None,  # default: the parent's scene
+    audience: list[int] | None = None,  # None = everyone present; see audience_of
 ) -> int:
     """Add a message under `parent_id` and make it the active leaf. The story clock moves
     one tick past the parent, plus any skip."""
@@ -136,6 +146,7 @@ def add_child(
             skip_minutes,
             scene,
             json.dumps(gen) if gen else None,
+            None if audience is None else json.dumps(audience),
         )
 
 
@@ -146,10 +157,13 @@ def append_message(
     text: str,
     speaker_id: int | None = None,
     skip_minutes: int = 0,
+    audience: list[int] | None = None,
 ) -> int:
     """Add a message under the active leaf."""
     leaf = conn.execute("SELECT active_leaf_id FROM stories WHERE id=?", (story_id,)).fetchone()
-    return add_child(conn, story_id, leaf[0], role, text, speaker_id, skip_minutes)
+    return add_child(
+        conn, story_id, leaf[0], role, text, speaker_id, skip_minutes, audience=audience
+    )
 
 
 def append_sibling(conn: sqlite3.Connection, message_id: int, text: str) -> int:
@@ -167,6 +181,7 @@ def append_sibling(conn: sqlite3.Connection, message_id: int, text: str) -> int:
             m["skip_minutes"],
             m["scene_id"],
             None,
+            m["audience"],  # another take on a whisper is still a whisper
         )
 
 

@@ -250,6 +250,17 @@ def test_a_turn_streams_and_the_story_shows_it(api, story, backend):
     assert shown[-1]["swipe"] == [1, 1] and shown[-1]["clock"] == "Day 1, 08:04"
 
 
+def test_a_whisper_is_kept_with_its_line_and_foreign_listeners_are_refused(api, story, conn):
+    mira = cast(api, story)["Mira"]["id"]
+    assert (
+        api.post(f"/stories/{story}/turn", json={"text": "psst", "audience": [9999]}).status_code
+        == 422
+    )
+    api.post(f"/stories/{story}/turn", json={"text": "psst", "audience": [mira]})
+    row = conn.execute("SELECT audience FROM messages WHERE text='psst'").fetchone()
+    assert json.loads(row["audience"]) == [mira]
+
+
 def test_regenerate_then_swipe_back_and_forth(api, story, backend):
     backend.say("First.", "Second.")
     api.post(f"/stories/{story}/turn", json={"text": "Mira?"})

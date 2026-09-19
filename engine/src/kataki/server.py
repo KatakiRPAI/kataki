@@ -86,6 +86,9 @@ class StoryPatch(BaseModel):
 class TurnIn(BaseModel):
     text: str | None = None
     speaker: int | Literal["narrator"] | None = None
+    audience: list[int] | None = (
+        None  # who the user's line is for: None = all present, [] = a thought
+    )
 
 
 class SwipeIn(BaseModel):
@@ -201,6 +204,17 @@ def create_app(
 
     def story_row(story_id: int) -> dict:
         return _row(conn, "SELECT * FROM stories WHERE id=?", (story_id,))
+
+    def check_audience(story_id: int, audience: list[int] | None) -> None:
+        """A whisper can only be for people in this story."""
+        if audience:
+            marks = ",".join("?" * len(audience))
+            found = conn.execute(
+                f"SELECT count(*) FROM entities WHERE story_id=? AND id IN ({marks})",
+                (story_id, *audience),
+            ).fetchone()[0]
+            if found != len(set(audience)):
+                raise HTTPException(422, "a whisper can only be for people in this story")
 
     def messages(story_id: int) -> list[dict]:
         story = story_row(story_id)
@@ -588,8 +602,11 @@ def create_app(
     @app.post("/stories/{story_id}/turn")
     async def take_turn(story_id: int, t: TurnIn):
         story_row(story_id)
+        check_audience(story_id, t.audience)
         make_way(story_id)
-        return stream(story_id, turns.turn(conn, llm, story_id, t.text, t.speaker, get_key))
+        return stream(
+            story_id, turns.turn(conn, llm, story_id, t.text, t.speaker, get_key, t.audience)
+        )
 
     @app.post("/stories/{story_id}/regenerate")
     async def regenerate(story_id: int):
