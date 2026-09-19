@@ -94,6 +94,40 @@ def heard_by(conn: sqlite3.Connection, path: list, entity_id: int) -> set[int]:
     return heard
 
 
+def presence_changes(conn: sqlite3.Connection, story_id: int, path: list) -> list[dict]:
+    """The arrivals and departures along this path that change who is there, in order. A
+    scene's opening roster is not a change; `found` means the memory reader inferred it."""
+    rows = conn.execute(
+        "SELECT p.* FROM presence p JOIN scenes s ON s.id=p.scene_id WHERE s.story_id=?"
+        " ORDER BY p.id",
+        (story_id,),
+    ).fetchall()
+    opening, keyed = {}, {}
+    for r in rows:
+        if r["message_id"] is None:
+            opening.setdefault(r["scene_id"], {})[r["entity_id"]] = bool(r["present"])
+        else:
+            keyed.setdefault(r["message_id"], []).append(r)
+    changes, scene, here = [], object(), {}
+    for m in path:
+        if m["scene_id"] != scene:
+            scene, here = m["scene_id"], dict(opening.get(m["scene_id"], {}))
+        for r in keyed.get(m["id"], []):
+            present = bool(r["present"])
+            if r["scene_id"] == scene and present != here.get(r["entity_id"], False):
+                here[r["entity_id"]] = present
+                changes.append(
+                    {
+                        "id": r["id"],
+                        "message_id": m["id"],
+                        "entity_id": r["entity_id"],
+                        "present": present,
+                        "found": r["run_id"] is not None,
+                    }
+                )
+    return changes
+
+
 def set_presence(conn: sqlite3.Connection, story_id: int, entity_id: int, present: bool) -> None:
     """Someone arrives or leaves now: the change takes effect after the current message."""
     path = active_path(conn, story_id)
@@ -271,9 +305,11 @@ def new_scene(
     present: list[int],
     place_id: int | None = None,
     title: str | None = None,
+    skip_minutes: int = 0,
 ) -> int:
     """Cut to a new scene. It starts with a marker line in the story, so it belongs to this
-    branch like any message, and `present` is its opening roster."""
+    branch like any message, and `present` is its opening roster. The marker carries any time
+    that passes before it."""
     place = conn.execute("SELECT name FROM entities WHERE id=?", (place_id,)).fetchone()
     label = title or (place["name"] if place else "A new scene")
     leaf = conn.execute("SELECT active_leaf_id FROM stories WHERE id=?", (story_id,)).fetchone()[0]
@@ -287,7 +323,9 @@ def new_scene(
                 "INSERT INTO presence(scene_id, entity_id, present) VALUES(?, ?, 1)",
                 (scene_id, entity_id),
             )
-    marker = add_child(conn, story_id, leaf, "system", f"— {label} —", scene_id=scene_id)
+    marker = add_child(
+        conn, story_id, leaf, "system", f"— {label} —", None, skip_minutes, scene_id=scene_id
+    )
     with conn:
         conn.execute(
             "UPDATE scenes SET start_message_id=?, start_story_time="

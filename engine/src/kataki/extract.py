@@ -250,8 +250,9 @@ class _Applier:
                 self.warnings.append(f"presence[{i}] skipped: unknown reference")
                 continue
             self.conn.execute(
-                "INSERT INTO presence(scene_id, entity_id, message_id, present) VALUES(?, ?, ?, ?)",
-                (self.scene_id, entity_id, self.run["to_message_id"], p.present),
+                "INSERT INTO presence(scene_id, entity_id, message_id, present, run_id)"
+                " VALUES(?, ?, ?, ?, ?)",
+                (self.scene_id, entity_id, self.run["to_message_id"], p.present, self.run_id),
             )
         if parsed["scene_summary"]:
             self.conn.execute(

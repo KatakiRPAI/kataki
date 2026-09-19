@@ -352,6 +352,85 @@ def test_a_library_character_joins_mid_story_and_a_scene_moves_to_a_new_place(ap
     assert api.get(f"/stories/{story}/messages").json()[-1]["text"] == "— The Docks —"
 
 
+def test_the_cast_lists_only_real_arrivals_and_departures_and_one_can_be_undone(api, story):
+    tobin = cast(api, story)["Tobin"]["id"]
+    api.post(f"/stories/{story}/line", json={"text": "Tobin, a round from the bar?"})
+    api.post(f"/stories/{story}/presence", json={"entity_id": tobin, "present": False})
+    api.post(f"/stories/{story}/presence", json={"entity_id": tobin, "present": False})  # no-op
+    api.post(f"/stories/{story}/line", json={"text": "*waits*"})
+    back = api.post(f"/stories/{story}/presence", json={"entity_id": tobin, "present": True})
+    changes = back.json()["changes"]
+    assert [(c["entity_id"], c["present"], c["found"]) for c in changes] == [
+        (tobin, False, False),
+        (tobin, True, False),
+    ]
+    assert changes[0]["clock"] == "Day 1, 08:02"  # two minutes a line
+    assert all(e["lib_item_id"] for e in back.json()["entities"])
+
+    undone = api.delete(f"/presence/{changes[1]['id']}")
+    assert undone.status_code == 200
+    assert {e["name"]: e["present"] for e in undone.json()["entities"]}["Tobin"] is False
+    assert len(undone.json()["changes"]) == 1
+    assert api.delete(f"/presence/{changes[1]['id']}").status_code == 404
+
+
+def test_a_new_scene_can_start_after_time_passes(api, story):
+    gull = cast(api, story)["The Gull"]["id"]
+    scene = api.post(
+        f"/stories/{story}/scene",
+        json={"present": [], "place_id": gull, "skip": "the next morning"},
+    )
+    assert scene.status_code == 201
+    marker = api.get(f"/stories/{story}/messages").json()[-1]
+    assert marker["text"] == "— The Gull —" and marker["skip_minutes"] > 0
+    assert marker["clock"].startswith("Day 2, ")
+    whenever = api.post(f"/stories/{story}/scene", json={"present": [], "skip": "whenever"})
+    assert whenever.status_code == 422
+
+
+def test_rereading_twice_leaves_one_presence_row_and_runs_say_what_they_filed(
+    api, story, backend, conn
+):
+    who = cast(api, story)
+    backend.say("Hm.")
+    api.post(f"/stories/{story}/turn", json={"text": "Tobin, fetch a round from the bar."})
+    found = {
+        "memories": [
+            {"kind": "event", "detail": "Aren sent Tobin to the bar.",
+             "gist": "Tobin was sent off.", "importance": 3, "line": 1,
+             "participants": [{"ref": f"E{who['Aren']['id']}", "role": "actor"},
+                              {"ref": f"E{who['Tobin']['id']}", "role": "target"}]}
+        ],
+        "presence": [{"entity": f"E{who['Tobin']['id']}", "present": False}],
+    }  # fmt: skip
+    backend.say(json.dumps(found), json.dumps(found), json.dumps(found))
+    run = api.post(f"/stories/{story}/extract").json()["run"]
+    assert run["filed"] == 1
+    again = api.post(f"/runs/{run['id']}/reread", json={}).json()
+    again = api.post(f"/runs/{again['id']}/reread", json={}).json()
+    rows = conn.execute(
+        "SELECT run_id FROM presence WHERE entity_id=? AND message_id IS NOT NULL",
+        (who["Tobin"]["id"],),
+    ).fetchall()
+    assert [r[0] for r in rows] == [again["id"]]
+    assert api.get(f"/stories/{story}/runs").json()[0]["filed"] == 1
+    changes = api.get(f"/stories/{story}/cast").json()["changes"]
+    assert [(c["entity_id"], c["present"], c["found"]) for c in changes] == [
+        (who["Tobin"]["id"], False, True)
+    ]
+
+
+def test_the_version_changes_when_memory_reads_the_story(api, story, backend):
+    backend.say("Hm.")
+    api.post(f"/stories/{story}/turn", json={"text": "Mira, the ledger is under the floorboard."})
+    before = api.get(f"/stories/{story}/version").json()
+    assert before == {"v": "0:0:0:0", "waiting": 1}
+    backend.say(json.dumps({"memories": []}))
+    run = api.post(f"/stories/{story}/extract").json()["run"]
+    after = api.get(f"/stories/{story}/version").json()
+    assert after == {"v": f"{run['id']}:1:1:0", "waiting": 0}
+
+
 def test_a_turn_without_a_model_explains_what_to_set(api):
     mira = api.post("/library", json={"kind": "character", "name": "Mira"}).json()["id"]
     story = api.post("/stories", json={"title": "x", "character_ids": [mira]}).json()["id"]

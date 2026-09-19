@@ -277,6 +277,19 @@ async def _generate(
         )
 
 
+def _minute_now(conn: sqlite3.Connection, story: sqlite3.Row) -> int:
+    leaf = story["active_leaf_id"]
+    return _minute_of_day(story, chat.get_message(conn, leaf)["story_time"] if leaf else 0)
+
+
+def read_skip(conn: sqlite3.Connection, story_id: int, words: str) -> int:
+    """The minutes that pass in `words` ("the next morning"), read against the story's clock.
+    Raises ValueError when no time can be read from them."""
+    if not (minutes := clock.parse_skip(words, _minute_now(conn, _story(conn, story_id)))):
+        raise ValueError(f"I can't tell how much time passes in “{words}”.")
+    return minutes
+
+
 def say(
     conn: sqlite3.Connection,
     story_id: int,
@@ -292,13 +305,9 @@ def say(
     if not text and not skip:
         return None
     story = _story(conn, story_id)
-    leaf = story["active_leaf_id"]
-    minute = _minute_of_day(story, chat.get_message(conn, leaf)["story_time"] if leaf else 0)
-    passed = clock.parse_skip(skip, minute) if skip else 0
-    if skip and not passed:
-        raise ValueError(f"I can't tell how much time passes in “{skip}”.")
+    passed = read_skip(conn, story_id, skip) if skip else 0
     if text:
-        passed += clock.parse_skip(text, minute)
+        passed += clock.parse_skip(text, _minute_now(conn, story))
         persona = story["persona_entity_id"]
         return chat.append_message(conn, story_id, "user", text, persona, passed, audience)
     marker = skip.rstrip(".")

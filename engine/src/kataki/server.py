@@ -118,6 +118,7 @@ class SceneIn(BaseModel):
     place_id: int | None = None  # a place already in the story
     library_place_id: int | None = None  # or one from the library, brought in
     title: str | None = None
+    skip: str | None = None  # time that passes before it, in words: "the next morning"
 
 
 class JoinIn(BaseModel):
@@ -589,9 +590,10 @@ def create_app(
         path = chat.active_path(conn, story_id)
         scene_id = chat.scene_of(conn, story_id, path)
         here = {e["id"] for e in chat.present_entities(conn, scene_id, path)}
+        times = {m["id"]: m["story_time"] for m in path}
         scene = conn.execute("SELECT * FROM scenes WHERE id IS ?", (scene_id,)).fetchone()
         rows = conn.execute(
-            "SELECT id, kind, name, summary, is_ai FROM entities"
+            "SELECT id, kind, name, summary, is_ai, lib_item_id FROM entities"
             " WHERE story_id=? AND hidden=0 ORDER BY kind, name",
             (story_id,),
         )
@@ -604,6 +606,10 @@ def create_app(
                     "persona": r["id"] == story["persona_entity_id"],
                 }
                 for r in rows
+            ],
+            "changes": [
+                {**c, "clock": clock.label(times[c["message_id"]], story["epoch_offset_min"])}
+                for c in chat.presence_changes(conn, story_id, path)
             ],
         }
 
@@ -669,6 +675,18 @@ def create_app(
         chat.set_presence(conn, story_id, p.entity_id, p.present)
         return await get_cast(story_id)
 
+    @app.delete("/presence/{presence_id}")
+    async def undo_presence(presence_id: int):
+        """Undo an arrival or departure, whoever wrote it."""
+        row = _row(
+            conn,
+            "SELECT s.story_id FROM presence p JOIN scenes s ON s.id=p.scene_id WHERE p.id=?",
+            (presence_id,),
+        )
+        with conn:
+            conn.execute("DELETE FROM presence WHERE id=?", (presence_id,))
+        return await get_cast(row["story_id"])
+
     @app.post("/stories/{story_id}/cast", status_code=201)
     async def join(story_id: int, j: JoinIn):
         """Bring a library character into the story; they arrive in the current scene."""
@@ -691,7 +709,11 @@ def create_app(
             if library.get_item(conn, s.library_place_id) is None:
                 raise HTTPException(422, f"no library item {s.library_place_id}")
             place_id = library.add_to_story(conn, story_id, s.library_place_id)
-        chat.new_scene(conn, story_id, s.present, place_id, s.title)
+        try:
+            skip = turns.read_skip(conn, story_id, s.skip) if s.skip and s.skip.strip() else 0
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from None
+        chat.new_scene(conn, story_id, s.present, place_id, s.title, skip)
         worker.poke(story_id)  # the closed scene is worth a careful read
         return await get_cast(story_id)
 
@@ -701,7 +723,21 @@ def create_app(
         out = dict(row)
         out["warnings"] = json.loads(row["warnings"]) if row["warnings"] else []
         out.pop("raw")
+        count = "SELECT count(*) FROM memories WHERE run_id=?"
+        out["filed"] = conn.execute(count, (row["id"],)).fetchone()[0]
         return out
+
+    @app.get("/stories/{story_id}/version")
+    async def version(story_id: int):
+        """Cheap to poll: changes whenever a memory read starts, finishes or goes away."""
+        story_row(story_id)
+        top, runs, ok, busy = conn.execute(
+            "SELECT coalesce(max(id), 0), count(*), coalesce(sum(status='ok'), 0),"
+            " coalesce(sum(status IN ('pending', 'running')), 0)"
+            " FROM extraction_runs WHERE story_id=?",
+            (story_id,),
+        ).fetchone()
+        return {"v": f"{top}:{runs}:{ok}:{busy}", "waiting": len(extract.pending(conn, story_id))}
 
     @app.post("/stories/{story_id}/extract")
     async def extract_now(story_id: int):

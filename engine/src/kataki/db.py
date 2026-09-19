@@ -4,7 +4,7 @@ import sqlite3
 from importlib.resources import files
 from pathlib import Path
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 # version -> the SQL that brings a library up from the version before it; schema.sql is v1
 MIGRATIONS = {
     2: "ALTER TABLE entities ADD COLUMN examples TEXT NOT NULL DEFAULT ''",  # example dialogue
@@ -14,6 +14,11 @@ MIGRATIONS = {
     ),
     # who a line was for: NULL = everyone present, a JSON list = a whisper, [] = a thought
     4: "ALTER TABLE messages ADD COLUMN audience TEXT",
+    # presence the memory reader found goes when its run does, so a reread can't duplicate it
+    5: (
+        "ALTER TABLE presence ADD COLUMN"
+        " run_id INTEGER REFERENCES extraction_runs ON DELETE CASCADE"
+    ),
 }
 
 
