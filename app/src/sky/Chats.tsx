@@ -3,6 +3,7 @@ import { api, type StorySummary } from '../api'
 import { Avatar, AvatarStack, Figure, Orb, Room } from '../art'
 import { go, href, useAction, useLibrary, useLoad } from '../hooks'
 import { Chip, Dialog, ErrorLine, Icon, Menu } from '../ui'
+import NewChat, { type Preset } from './NewChat'
 
 type Filter = 'all' | 'one' | 'group'
 
@@ -21,6 +22,8 @@ export default function Chats({ selected }: { selected?: number }) {
   const [stories, reload, error] = useLoad(() => api<StorySummary[]>('/stories'), [])
   const [filter, setFilter] = useState<Filter>('all')
   const [deleting, setDeleting] = useState<StorySummary>()
+  const [newChat, setNewChat] = useState<{ preset?: Preset; n: number }>({ n: 0 }) // n remounts the form fresh
+  const startNew = (preset: Preset) => setNewChat((c) => ({ preset, n: c.n + 1 }))
   const [run, actionError, busy] = useAction()
 
   const all = stories ?? []
@@ -75,11 +78,22 @@ export default function Chats({ selected }: { selected?: number }) {
   const pinned = shown.filter((s) => s.pinned)
   const rest = shown.filter((s) => !s.pinned)
   const speaker = current?.cast.find((c) => c.name === current.last_line?.speaker) ?? current?.cast.find((c) => c.present) ?? current?.cast[0]
+  const lead = speaker?.lib_item_id ? speaker : current?.cast.find((c) => c.lib_item_id) // "Start a fresh story with…"
 
   return (
     <div className="ka-chats">
       <section className="k-glass ka-chats__list" aria-label="Stories">
         <h1 className="k-display ka-page-title">Chats</h1>
+        <div className="ka-row ka-row--gap">
+          <button type="button" className="k-btn k-btn--dark" onClick={() => startNew({})}>
+            <Icon name="plus" size={17} />
+            New chat
+          </button>
+          <button type="button" className="k-btn" onClick={() => startNew({ group: true })}>
+            <Icon name="users" size={17} />
+            New group scene
+          </button>
+        </div>
         <div className="ka-row" role="group" aria-label="Show">
           <Chip pressed={filter === 'all'} onClick={() => setFilter('all')}>All</Chip>
           <Chip pressed={filter === 'one'} onClick={() => setFilter('one')}>One-to-one</Chip>
@@ -133,11 +147,27 @@ export default function Chats({ selected }: { selected?: number }) {
                   </span>
                 </div>
               ))}
+              {lead?.lib_item_id && (
+                <button type="button" className="ka-link" onClick={() => startNew({ friends: [lead.lib_item_id!] })}>
+                  Start a fresh story with {lead.name}
+                </button>
+              )}
             </div>
           </div>
         </section>
       )}
 
+      <NewChat
+        key={newChat.n}
+        open={!!newChat.preset}
+        preset={newChat.preset ?? {}}
+        onClose={() => setNewChat((c) => ({ n: c.n }))}
+        onCreated={(story) => {
+          setNewChat((c) => ({ n: c.n }))
+          reload()
+          go(`/chats/${story.id}`) // until the Scene lands (task 20), a new story waits in Chats
+        }}
+      />
       <Dialog open={!!deleting} onClose={() => setDeleting(undefined)} title="Delete this story?">
         <p className="ka-muted">
           “{deleting?.title}” and everything its characters remember of it will be gone. This can't be undone.
