@@ -31,7 +31,8 @@ export function status(friend: Item, stories: StorySummary[]): { text: string; i
   return { text: `${where} · ${latest.clock.split(',')[0]}`, idle: false }
 }
 
-export default function Friends() {
+/** The Friends page, or (as a section) the Friends grid on Home. */
+export default function Friends({ section = false }: { section?: boolean }) {
   const { items, reload, error } = useLibrary()
   const [stories, , storiesError] = useLoad(() => api<StorySummary[]>('/stories'), [])
   const [filter, setFilter] = useState<Filter>('all')
@@ -53,22 +54,33 @@ export default function Friends() {
       reload()
     })
 
+  const filters = (
+    <div className="ka-filters" role="group" aria-label="Show">
+      {FILTERS.map(([key, label, icon, color]) => (
+        <button key={key} type="button" className="k-candy-filter" aria-pressed={filter === key} onClick={() => setFilter(key)}>
+          <Candy icon={icon} color={color} />
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+
   return (
     <>
-      <SkyHeader title="Friends">
-        <div className="ka-filters" role="group" aria-label="Show">
-          {FILTERS.map(([key, label, icon, color]) => (
-            <button key={key} type="button" className="k-candy-filter" aria-pressed={filter === key} onClick={() => setFilter(key)}>
-              <Candy icon={icon} color={color} />
-              {label}
-            </button>
-          ))}
+      {section ? (
+        <div className="ka-section-head">
+          <h2>Friends</h2>
+          {filters}
         </div>
-        <a className="k-btn k-btn--dark k-btn--lg" href={href('/friends/new')}>
-          <Icon name="plus" size={17} />
-          Add a friend
-        </a>
-      </SkyHeader>
+      ) : (
+        <SkyHeader title="Friends">
+          {filters}
+          <a className="k-btn k-btn--dark k-btn--lg" href={href('/friends/new')}>
+            <Icon name="plus" size={17} />
+            Add a friend
+          </a>
+        </SkyHeader>
+      )}
       <ErrorLine error={error || storiesError || actionError} />
       <div className="ka-friends">
         {shown.map((f) => {

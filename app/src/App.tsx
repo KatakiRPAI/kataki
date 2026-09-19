@@ -8,11 +8,13 @@ import Kit from './Kit'
 import Chats from './sky/Chats'
 import Editor from './sky/Editor'
 import Friends from './sky/Friends'
+import Home from './sky/Home'
 import Profile from './sky/Profile'
 import { Icon } from './ui'
 
 // The rail grows as each Sky screen lands: [route, icon, label].
 const RAIL: [string, string, string][] = [
+  ['home', 'home', 'Home'],
   ['friends', 'users', 'Friends'],
   ['chats', 'chat', 'Chats'],
 ]
@@ -64,7 +66,8 @@ export default function App() {
   if (route.path === '/dev/kit') return <Kit />
   const [, second, third] = route.parts
   const page =
-    at === 'friends' && second === 'new' ? <Editor key={route.path} />
+    at === 'home' ? <Home />
+    : at === 'friends' && second === 'new' ? <Editor key={route.path} />
     : at === 'friends' ? <Friends />
     : at === 'friend' && third === 'edit' ? <Editor key={route.path} id={Number(second)} step={Number(route.query.get('step')) || 1} />
     : at === 'friend' && !third ? <Profile key={second} id={Number(second)} />
