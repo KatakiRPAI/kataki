@@ -33,6 +33,12 @@ The engine also runs on its own:
 - `uv run kataki serve` prints `{"token", "port"}`. Open the renderer in any browser with `?port=<port>&token=<token>` after the address (the `#…` part is the app's route). For a fixed dev setup: `KATAKI_TOKEN=dev uv run kataki serve --port 8765`, `corepack pnpm -C app exec vite --port 5173`, then `http://localhost:5173/?port=8765&token=dev#/`.
 - `uv run kataki chat --db <library.db>` plays the newest story in the terminal.
 
+A demo library and a fake model let you try the whole app without a GPU (from `engine/`):
+
+- `uv run python evals/demo.py build` writes `.dev/demo.db` from scratch: the design brief's friends, places, plots and four stories, including "The Third Floorboard" played through to the six-year skip, with its memories read. It checks the result and exits non-zero if something is off.
+- `uv run python evals/demo.py serve-model --think` answers on `http://127.0.0.1:8099/v1` (model `fake`) with streamed lines, and some thinking first with `--think`. The demo library already points at it.
+- `KATAKI_DB=.dev/demo.db pnpm dev` opens the desktop app on the demo library; with `kataki serve --db ../.dev/demo.db` any browser can use it.
+
 ## Connecting a model
 
 Kataki talks to anything with an OpenAI-compatible `/v1` endpoint. The Models page can find llama.cpp, Ollama, LM Studio, KoboldCpp, vLLM and TabbyAPI when they are already running on this computer, and has presets for OpenRouter and HuggingFace. API keys go to the system keychain, never into the library file.

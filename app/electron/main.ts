@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { once } from 'node:events'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { createInterface } from 'node:readline'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
@@ -26,7 +26,9 @@ async function startEngine(token: string): Promise<number> {
   // ponytail: dev layout only (the repo venv). M5 packaging swaps in the bundled runtime path.
   const python = join(repoRoot, 'engine', '.venv', process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python')
   const home = join(repoRoot, '.dev') // the dev library and downloaded models stay in the repo
-  const args = ['-m', 'kataki', 'serve', '--parent-watch', '--db', join(home, 'library.db')]
+  // KATAKI_DB swaps the library, e.g. .dev/demo.db (a relative path is from the repo root)
+  const db = process.env.KATAKI_DB ? resolve(repoRoot, process.env.KATAKI_DB) : join(home, 'library.db')
+  const args = ['-m', 'kataki', 'serve', '--parent-watch', '--db', db]
   // The engine watches its stdin: when this process ends for any reason, the pipe closes and it exits.
   const env = { ...process.env, KATAKI_TOKEN: token, KATAKI_HOME: home }
   engine = spawn(python, args, { env, stdio: ['pipe', 'pipe', 'inherit'] })
