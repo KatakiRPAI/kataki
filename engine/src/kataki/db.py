@@ -4,7 +4,7 @@ import sqlite3
 from importlib.resources import files
 from pathlib import Path
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 # version -> the SQL that brings a library up from the version before it; schema.sql is v1
 MIGRATIONS = {
     2: "ALTER TABLE entities ADD COLUMN examples TEXT NOT NULL DEFAULT ''",  # example dialogue
@@ -18,6 +18,11 @@ MIGRATIONS = {
     5: (
         "ALTER TABLE presence ADD COLUMN"
         " run_id INTEGER REFERENCES extraction_runs ON DELETE CASCADE"
+    ),
+    6: (  # the exact line a memory came from, and what a claim contradicts
+        "ALTER TABLE memories ADD COLUMN message_id INTEGER;"
+        "ALTER TABLE memories ADD COLUMN contradicts_id INTEGER;"
+        "UPDATE memories SET message_id = to_message_id WHERE run_id IS NOT NULL;"
     ),
 }
 

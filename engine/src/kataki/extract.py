@@ -54,6 +54,7 @@ class _Applier:
         ).fetchall()
         self.heard = {c["id"]: chat.heard_by(conn, path, c["id"]) for c in characters}
         self.new: dict[str, int] = {}
+        self.live = db.live_runs(conn, self.story_id, end["id"])
 
     def at(self, line: int | None) -> sqlite3.Row:
         """The message a transcript line points at; the window's end when unsure."""
@@ -89,6 +90,11 @@ class _Applier:
             "SELECT id FROM memories WHERE id=? AND story_id=?", (handle[1:], self.story_id)
         ).fetchone()
         return row["id"] if row else None
+
+    def is_live(self, memory_id: int) -> bool:
+        """Written by the user, or by a run on this branch."""
+        row = self.conn.execute("SELECT run_id FROM memories WHERE id=?", (memory_id,)).fetchone()
+        return row["run_id"] is None or row["run_id"] in self.live
 
     def is_character(self, entity_id: int) -> bool:
         row = self.conn.execute("SELECT kind FROM entities WHERE id=?", (entity_id,)).fetchone()
@@ -146,11 +152,14 @@ class _Applier:
             is_claim = asserter is not None or item.kind == "claim"
             clashes = [c for c in contested.get(index, []) if self.memory(c.contradicts)]
             supersedes = None if is_claim else self.memory(item.supersedes)
+            contradicted = (self.memory(c.contradicts) for c in clashes)
+            contradicts = next((m for m in contradicted if self.is_live(m)), None)
             where = self.at(item.line)
             memory_id = self.conn.execute(
                 "INSERT INTO memories(story_id, kind, story_time, detail, gist, importance,"
                 " emotion, is_true, asserted_by, supersedes_id, covert, tags_text, from_message_id,"
-                " to_message_id, run_id) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " to_message_id, run_id, message_id, contradicts_id)"
+                " VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     self.story_id,
                     "claim" if is_claim else item.kind,
@@ -167,6 +176,8 @@ class _Applier:
                     self.run["from_message_id"],
                     self.run["to_message_id"],
                     self.run_id,
+                    where["id"],  # the exact line; from/to above keep the run's range
+                    contradicts,
                 ),
             ).lastrowid
             for entity_id, role in dict.fromkeys(links):

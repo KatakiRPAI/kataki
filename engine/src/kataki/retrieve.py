@@ -264,11 +264,20 @@ def recall(
     return results
 
 
-def inspect(conn: sqlite3.Connection, story_id: int, knower_id: int) -> list[dict]:
-    """Everything this character knows, and how it would come back right now with no cue at
-    all. The inspector's view: read-only, no noise, nothing logged."""
+# Clarity, one definition on every screen: how a memory would come back if it came up.
+# A cue of middling relevance (S) that touches its people (G), with no noise; replies keep
+# using the real cue of the moment.
+CLARITY_CUE = {"relevance": 0.5, "graph": 1.0}
+
+
+def inspect(
+    conn: sqlite3.Connection, story_id: int, knower_id: int, *, now: int | None = None
+) -> list[dict]:
+    """Everything this character knows at story time `now` (default: the active leaf), and
+    its clarity then. Read-only, nothing logged."""
     path = chat.active_path(conn, story_id)
-    now = path[-1]["story_time"] if path else 0
+    if now is None:
+        now = path[-1]["story_time"] if path else 0
     live = db.live_runs(conn, story_id)
     live_sql, live_args = db.live_filter(live)
     know_sql, know_args = db.live_filter(live, "k.run_id")
@@ -283,14 +292,15 @@ def inspect(conn: sqlite3.Connection, story_id: int, knower_id: int) -> list[dic
     ).fetchall():
         known = conn.execute(
             f"SELECT k.* FROM knowledge k WHERE k.knower_id=? AND k.memory_id=? AND {know_sql}"
-            " ORDER BY k.id DESC LIMIT 1",
-            [knower_id, m["id"], *know_args],
+            " AND k.learned_story_time<=? ORDER BY k.id DESC LIMIT 1",
+            [knower_id, m["id"], *know_args, now],
         ).fetchone()
         if known is None and not m["common"]:
-            continue
+            continue  # not known yet, as of `now`
         source, superseded, s = _assess(
-            conn, m, knower_id, known, now, live_scenes, live, 0.0, 0.0, 0.0, activation.DECAY
-        )
+            conn, m, knower_id, known, now, live_scenes, live,
+            CLARITY_CUE["relevance"], CLARITY_CUE["graph"], 0.0, activation.DECAY,
+        )  # fmt: skip
         out.append(
             {
                 "memory_id": m["id"],

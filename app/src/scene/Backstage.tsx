@@ -60,7 +60,7 @@ function Memory({ story, cast, tick }: { story: Story; cast: Cast; tick: number 
     <section className="k-bs-panel ka-bs-memory" aria-label="Memory">
       <div className="k-bs-title">
         <span>MEMORY</span>
-        <span className="ka-bs-muted">as {she} would recall it now, with no reminder</span>
+        <span className="ka-bs-muted">As each memory would come back if it came up now.</span>
       </div>
       <div className="ka-bs-bar">
         <div className="ka-bs-group" role="group" aria-label="Whose memory">

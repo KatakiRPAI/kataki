@@ -258,6 +258,33 @@ def test_how_the_hearer_reacted_sets_how_much_they_believe(conn, world, resoluti
     assert row["belief"] == belief
 
 
+def test_a_memory_keeps_the_exact_line_it_came_from_and_the_run_keeps_its_range(conn, world):
+    first, last = talk(conn, world, n=3)
+    run(conn, world, {"memories": [betrayal(conn, line=2)]}, window=(first, last))
+    memory = only_memory(conn)
+    second = [m["id"] for m in chat.active_path(conn, world)][-2]
+    assert memory["message_id"] == second
+    assert (memory["from_message_id"], memory["to_message_id"]) == (first, last)
+
+
+def test_a_claim_records_the_memory_it_contradicts(conn, world):
+    run(conn, world, {"memories": [betrayal(conn)]})
+    truth = only_memory(conn)["id"]
+    assert only_memory(conn)["contradicts_id"] is None
+    lie = {
+        "kind": "claim", "detail": "d", "gist": "g", "importance": 5,
+        "asserted_by": h(conn, "Aren"), "heard_by": [h(conn, "Mira")],
+    }  # fmt: skip
+    clash = {
+        "claim": 0,
+        "contradicts": f"M{truth}",
+        "hearer": h(conn, "Mira"),
+        "resolution": "doubted",
+    }
+    run(conn, world, {"memories": [lie], "contradictions": [clash]})
+    assert only_memory(conn)["contradicts_id"] == truth
+
+
 def test_narration_can_supersede_an_earlier_fact(conn, world):
     fact = {
         "kind": "fact",

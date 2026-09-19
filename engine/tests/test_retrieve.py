@@ -222,6 +222,57 @@ def test_user_text_cannot_break_the_full_text_query(conn, world):
     )
 
 
+# --- clarity: how each memory would come back if it came up, the same on every screen ----
+
+
+@pytest.mark.parametrize(
+    ("importance", "later", "tier"),
+    [
+        (5, 0, "sharp"),  # fresh
+        (5, 60 * DAY, "hazy"),  # hazy after about a month
+        (5, 3 * YEAR, "hazy"),
+        (5, 5 * YEAR, "forgotten"),  # forgotten after about four years
+        (9, 6 * YEAR, "hazy"),
+        (2, 6 * YEAR, "forgotten"),
+    ],
+)
+def test_clarity_fades_with_story_time_and_importance(conn, world, importance, later, tier):
+    extracted(conn, world, {"memories": [betrayal(conn, importance=importance)]})
+    say(conn, world, skip=later)
+    [memory] = retrieve.inspect(conn, world, eid(conn, "Mira"))
+    assert memory["tier"] == tier
+
+
+def test_a_lie_told_just_now_is_clear(conn, world):
+    lie = {
+        "kind": "claim", "detail": "Aren insists the ledger is buried by the lighthouse.",
+        "gist": "Aren said something about the ledger.", "importance": 6,
+        "asserted_by": h(conn, "Aren"), "heard_by": [h(conn, "Mira")],
+    }  # fmt: skip
+    extracted(conn, world, {"memories": [lie]})
+    [memory] = retrieve.inspect(conn, world, eid(conn, "Mira"))
+    assert (memory["source"], memory["tier"]) == ("told", "sharp")
+
+
+def test_clarity_at_an_earlier_time_leaves_out_what_was_learned_later(conn, world):
+    covert = betrayal(conn, covert=True, participants=[{"ref": h(conn, "Tobin"), "role": "actor"}])
+    extracted(conn, world, {"memories": [covert]})
+    secret = conn.execute("SELECT id FROM memories").fetchone()["id"]
+    before = chat.active_path(conn, world)[-1]["story_time"]
+    mira = eid(conn, "Mira")
+    assert retrieve.inspect(conn, world, mira) == []  # only Tobin knows, for now
+    say(conn, world, skip=DAY)
+    told = {
+        "knower": h(conn, "Mira"),
+        "memory": f"M{secret}",
+        "source": "told",
+        "told_by": h(conn, "Tobin"),
+    }
+    extracted(conn, world, {"knowledge": [told]})
+    assert [m["memory_id"] for m in retrieve.inspect(conn, world, mira)] == [secret]
+    assert retrieve.inspect(conn, world, mira, now=before) == []
+
+
 def test_common_knowledge_needs_no_knowledge_row(conn, world):
     conn.execute(
         "INSERT INTO memories"

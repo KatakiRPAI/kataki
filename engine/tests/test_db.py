@@ -120,6 +120,18 @@ def test_an_older_library_is_migrated_forward_without_losing_anything(tmp_path):
     old.executescript((db.files("kataki") / "schema.sql").read_text(encoding="utf-8"))
     old.execute("PRAGMA user_version=1")
     old.execute("INSERT INTO stories(title) VALUES('kept')")
+    old.execute(
+        "INSERT INTO extraction_runs(story_id, from_message_id, to_message_id, trigger)"
+        " VALUES(1, 5, 7, 'cadence')"
+    )
+    old.execute(  # read from the story: its line is the end of the run's window
+        "INSERT INTO memories(story_id, kind, story_time, detail, gist, to_message_id, run_id)"
+        " VALUES(1, 'event', 0, 'd', 'g', 7, 1)"
+    )
+    old.execute(  # written by the user: no line
+        "INSERT INTO memories(story_id, kind, story_time, detail, gist)"
+        " VALUES(1, 'fact', 0, 'f', 'f')"
+    )
     old.commit()
     old.close()
 
@@ -134,4 +146,6 @@ def test_an_older_library_is_migrated_forward_without_losing_anything(tmp_path):
     assert "audience" in columns  # v4
     columns = {c["name"] for c in conn.execute("PRAGMA table_info(presence)")}
     assert "run_id" in columns  # v5
+    lines = conn.execute("SELECT message_id, contradicts_id FROM memories ORDER BY id")
+    assert [tuple(r) for r in lines] == [(7, None), (None, None)]  # v6, backfilled
     conn.close()
