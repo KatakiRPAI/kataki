@@ -108,6 +108,12 @@ export const useLibrary = () => useContext(LibraryContext)
 /** Dive into a scene: App plays the clouds parting, then goes to `to`. */
 export const dive = (to: string) => dispatchEvent(new CustomEvent('ka-dive', { detail: to }))
 
+/** Where the Scene's cloud button floats back up to: the last Sky page shown. */
+export const lastSky = { path: '/home' }
+
+/** Leave a scene: the reverse of the dive, up to the last Sky page. */
+export const rise = () => dispatchEvent(new CustomEvent('ka-rise', { detail: lastSky.path }))
+
 /** Props that make a link dive instead of jumping (it still has a real href). */
 export const diveLink = (to: string) => ({
   href: href(to),

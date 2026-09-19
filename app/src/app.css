@@ -381,3 +381,46 @@ span.k-orb { display: block; }
 }
 @keyframes ka-dive-dark-quick { to { opacity: 1; } }
 .ka-teaser { display: flex; align-items: center; gap: 14px; }
+
+/* ---- the Scene: the stage full-bleed, the conversation on the right (the design's 1440 px
+   positions as viewport units, so it holds from 1280 to 1920) ---- */
+.ka-scene { position: relative; height: 100%; overflow: hidden; }
+.ka-stage { position: absolute; inset: 0; }
+.ka-stage__slot { position: absolute; left: 6vw; bottom: -2vh; width: 44vw; z-index: 1; }
+.ka-stage__slot > .ka-figure { position: relative; width: 100%; height: auto; } /* the slot places it, not .k-stage__char */
+.ka-stage[data-count="2"] [data-slot="0"] { left: 24vw; width: 40vw; z-index: 2; }
+.ka-stage[data-count="2"] [data-slot="1"] { left: -4vw; width: 37vw; }
+.ka-stage[data-count="3"] [data-slot="0"] { left: 14vw; width: 36vw; z-index: 2; }
+.ka-stage[data-count="3"] [data-slot="1"] { left: -5vw; width: 30vw; }
+.ka-stage[data-count="3"] [data-slot="2"] { left: 32vw; width: 30vw; }
+.ka-stage .k-stage__char { transition-property: opacity, transform; } /* never animate filter (1.7) */
+.ka-stage .k-stage__char.is-softened { filter: var(--k-scene-softened-filter); }
+.ka-stage__row { position: absolute; left: 24px; bottom: 24px; z-index: 3; display: flex; gap: 8px; }
+
+.ka-topbar { z-index: 5; color: var(--k-scene-ink); }
+.ka-topbar__side { flex: 1; display: flex; align-items: center; gap: 14px; min-width: 0; }
+.ka-topbar__side--end { justify-content: flex-end; }
+.ka-topbar__title { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ka-topbar__title > h1 { margin: 0; font-family: var(--k-font-story); font-style: italic; font-weight: 400; font-size: 19px; line-height: 1.2; }
+.ka-topbar__title > span { font-size: 12px; color: var(--k-scene-muted); letter-spacing: .02em; }
+.ka-topbar .k-scene-pill strong { font-weight: 600; }
+.ka-topbar__clock { color: var(--k-scene-muted); font-variant-numeric: tabular-nums; }
+.ka-scene .ka-menu { background: rgba(30,22,17,.94); border-color: var(--k-scene-glass-border); box-shadow: 0 14px 34px rgba(0,0,0,.45); }
+.ka-scene .ka-menu > button:hover, .ka-scene .ka-menu > a:hover, .ka-scene .ka-menu > :focus-visible { background: rgba(255,255,255,.08); }
+
+.ka-scene .k-convo-scrim { left: 51.4vw; }
+.ka-scene .k-convo { left: auto; right: 44px; width: min(560px, 39vw); justify-content: flex-start; z-index: 2; }
+.ka-convo > :first-child { margin-top: auto; } /* short stories sit at the bottom; long ones scroll */
+.ka-line { content-visibility: auto; contain-intrinsic-size: auto 110px; }
+.ka-line .k-line__body > p { margin: 0; }
+.ka-line .k-line__body > p + p { margin-top: .6em; }
+.ka-line.is-flash::after { content: ""; position: absolute; inset: 0; border-radius: 14px; background: rgba(240,179,90,.16); box-shadow: 0 0 0 1px rgba(240,179,90,.5); opacity: 0; pointer-events: none; animation: ka-flash 1.8s var(--k-ease-standard); }
+@keyframes ka-flash { 0%, 35% { opacity: 1; } 100% { opacity: 0; } }
+.ka-card-undo { height: 24px; padding: 0 9px; border-radius: 12px; border: 1px solid rgba(255,236,210,.25); background: none; color: var(--k-scene-muted); font: 11px var(--k-font-ui); letter-spacing: 0; text-transform: none; display: inline-flex; align-items: center; gap: 4px; }
+.ka-card-undo:hover { color: var(--k-scene-ink); border-color: rgba(255,236,210,.45); }
+.ka-note__text { display: flex; flex-direction: column; gap: 1px; }
+.ka-note__text small { font: 12px var(--k-font-ui); color: var(--k-scene-muted); }
+
+/* rising out of a scene: the sky comes back and the clouds close in */
+.ka-dive--up .ka-dive__scene { background: var(--k-sky-bg); }
+.ka-dive--up .ka-dive__cloud { animation-direction: reverse; }

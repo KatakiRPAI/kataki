@@ -120,9 +120,17 @@ export type CastEntity = {
   is_ai: number
   present: boolean
   persona: boolean
+  lib_item_id: number | null
 }
 
-export type Cast = { scene: { id: number; place_id: number | null; title: string | null } | null; entities: CastEntity[] }
+/** An arrival or departure that changed who is there; `found` = the memory reader inferred it. */
+export type PresenceChange = { id: number; message_id: number; entity_id: number; present: boolean; found: boolean; clock: string }
+
+export type Cast = {
+  scene: { id: number; place_id: number | null; title: string | null } | null
+  entities: CastEntity[]
+  changes: PresenceChange[]
+}
 
 export type Section = { name: string; tokens: number; cap: number; evicted: number }
 
@@ -190,6 +198,7 @@ export type Run = {
   model: string | null
   warnings: string[]
   error: string | null
+  filed: number // memories the run wrote
 }
 
 export type Entity = {
@@ -210,8 +219,15 @@ export type TurnMeta = {
   model: string
   thinks: boolean
   parent_id: number | null
+  skip: number // minutes that passed just before this reply
+  from_clock: string
+  clock: string // the reply's
+  strained: boolean // the speaker had to reach for a memory
   context: { est_tokens: number; budget: number; reserve: number; sections: Section[]; recalled: number }
 }
+
+/** `GET /stories/{id}/version`: changes whenever a memory read starts, ends or goes away. */
+export type Version = { v: string; waiting: number }
 export type TurnDone = {
   message_id: number
   text: string

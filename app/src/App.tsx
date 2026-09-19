@@ -3,8 +3,9 @@ import { api, type Provider } from './api'
 import { Orb } from './art'
 import Classic from './classic/Classic'
 import clouds from './design/clouds.svg'
-import { diveLink, go, href, LibraryProvider, useRoute } from './hooks'
+import { diveLink, go, href, lastSky, LibraryProvider, useRoute } from './hooks'
 import Kit from './Kit'
+import Scene from './scene/Scene'
 import Chats from './sky/Chats'
 import Editor from './sky/Editor'
 import FirstRun from './sky/FirstRun'
@@ -58,8 +59,9 @@ function Sky({ at, children }: { at: string; children: ReactNode }) {
   )
 }
 
-/** The dive: the clouds part and the scene's dark comes up, then the page changes under it. */
-function Dive({ to, onDone }: { to: string; onDone: () => void }) {
+/** The dive: the clouds part and the scene's dark comes up, then the page changes under it.
+ *  Rising out of a scene plays it backwards: the clouds close in over the sky. */
+function Dive({ to, up, onDone }: { to: string; up: boolean; onDone: () => void }) {
   const [landed, setLanded] = useState(false)
   useEffect(() => {
     const quick = matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -74,7 +76,7 @@ function Dive({ to, onDone }: { to: string; onDone: () => void }) {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <div className={`ka-dive${landed ? ' is-landed' : ''}`} aria-hidden="true">
+    <div className={`ka-dive${up ? ' ka-dive--up' : ''}${landed ? ' is-landed' : ''}`} aria-hidden="true">
       <span className="ka-dive__scene" />
       <img className="ka-dive__cloud ka-dive__cloud--left" src={clouds} alt="" />
       <img className="ka-dive__cloud ka-dive__cloud--right" src={clouds} alt="" />
@@ -89,7 +91,7 @@ export default function App() {
   const route = useRoute()
   const [at = 'home', second, third] = route.parts
   const [model, setModel] = useState<{ path: string; has: boolean }>()
-  const [diving, setDiving] = useState<string>()
+  const [diving, setDiving] = useState<{ to: string; up: boolean }>()
 
   // The smoke check (and later the offline card) read this instead of visible text.
   useEffect(() => {
@@ -113,10 +115,18 @@ export default function App() {
     if (hasModel === false && gated) location.replace('#/welcome')
   }, [hasModel, gated])
   useEffect(() => {
-    const onDive = (e: Event) => setDiving((e as CustomEvent<string>).detail)
+    const onDive = (e: Event) => setDiving({ to: (e as CustomEvent<string>).detail, up: e.type === 'ka-rise' })
     addEventListener('ka-dive', onDive)
-    return () => removeEventListener('ka-dive', onDive)
+    addEventListener('ka-rise', onDive)
+    return () => {
+      removeEventListener('ka-dive', onDive)
+      removeEventListener('ka-rise', onDive)
+    }
   }, [])
+  const inSky = !['story', 'classic', 'dev', 'welcome'].includes(at)
+  useEffect(() => {
+    if (inSky) lastSky.path = location.hash.slice(1) || '/home'
+  }, [inSky, route])
 
   const page =
     at === 'home' ? <Home />
@@ -143,6 +153,11 @@ export default function App() {
         <FirstRun />
       </LibraryProvider>
     )
+    : at === 'story' ? (
+      <LibraryProvider>
+        <Scene key={second} id={Number(second)} line={third === 'line' ? Number(route.parts[3]) : undefined} />
+      </LibraryProvider>
+    )
     : (
       <LibraryProvider>
         <Sky at={at === 'friend' ? 'friends' : at}>{page}</Sky>
@@ -151,7 +166,7 @@ export default function App() {
   return (
     <>
       {view}
-      {diving && <Dive key={diving} to={diving} onDone={() => setDiving(undefined)} />}
+      {diving && <Dive key={diving.to} to={diving.to} up={diving.up} onDone={() => setDiving(undefined)} />}
     </>
   )
 }

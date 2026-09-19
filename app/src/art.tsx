@@ -130,3 +130,17 @@ export function Figure({ item, name = item?.name ?? '', className = '' }: { item
     </svg>
   )
 }
+
+/** The dashed arc in the clock pill: the sun crosses it from 06:00 to 18:00, the moon by night. */
+export function SunArc({ minute }: { minute: number }) {
+  const day = minute >= 360 && minute < 1080
+  const t = (((minute - (day ? 360 : 1080)) % 1440) + 1440) % 1440 / 720
+  const a = Math.PI * (1 - t)
+  return (
+    <svg className="ka-sunarc" width="44" height="22" viewBox="0 0 44 22" aria-hidden="true">
+      <path d="M3 20 A19 19 0 0 1 41 20" fill="none" stroke="rgba(255,255,255,.35)" strokeWidth="1.5" strokeDasharray="2 3" />
+      <path d="M1 20h42" stroke="rgba(255,255,255,.25)" />
+      <circle cx={22 + 19 * Math.cos(a)} cy={20 - 19 * Math.sin(a)} r="4" fill={day ? '#ffb35a' : '#f3f1e6'} />
+    </svg>
+  )
+}
