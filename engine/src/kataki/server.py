@@ -10,16 +10,21 @@ import asyncio
 import contextlib
 import hmac
 import json
+import shutil
 import sqlite3
+import tempfile
+from pathlib import Path
 from typing import Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
+from starlette.background import BackgroundTask
 
 from kataki import (
     __version__,
+    archive,
     cards,
     chat,
     chats,
@@ -531,6 +536,30 @@ def create_app(
         except cards.BadCard as e:
             raise HTTPException(422, str(e)) from None
 
+    @app.get("/export/library")
+    async def export_library():
+        """The whole library as a `.kataki`: the database, the pictures and a manifest."""
+        made = Path(tempfile.mkdtemp(prefix="kataki-")) / "library.kataki"
+        try:
+            archive.dump(conn, made)
+        except BaseException:
+            shutil.rmtree(made.parent, ignore_errors=True)  # nothing will come to clean it up
+            raise
+        return FileResponse(
+            made,
+            media_type="application/zip",
+            filename="library.kataki",
+            background=BackgroundTask(shutil.rmtree, made.parent, ignore_errors=True),
+        )
+
+    @app.post("/import/kataki", status_code=201)
+    async def import_kataki(request: Request):
+        """A `.kataki` poured into this library, which must be empty."""
+        try:
+            return archive.restore(conn, await request.body())
+        except archive.BadArchive as e:
+            raise HTTPException(422, str(e)) from None
+
     @app.post("/import/chat", status_code=201)
     async def import_chat(
         request: Request,
@@ -695,7 +724,8 @@ def create_app(
         story = story_row(story_id)
         fields = s.model_dump(exclude_unset=True, exclude={"roles", "book_id", "tags"})
         if s.tags is not None:
-            library.set_tags(conn, "story", story_id, s.tags)
+            with conn:  # its own commit: a patch of tags alone writes nothing else
+                library.set_tags(conn, "story", story_id, s.tags)
         if s.roles is not None:
             overrides = json.loads(story["overrides"])
             overrides["roles"] = s.roles

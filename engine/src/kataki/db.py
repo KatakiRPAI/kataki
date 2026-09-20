@@ -52,15 +52,19 @@ def connect(path: str | Path) -> sqlite3.Connection:
     # ponytail: one shared connection; per-thread connections if lock contention ever shows up
     conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")  # per-connection, so every connect, not just migration
-    version = conn.execute("PRAGMA user_version").fetchone()[0]
-    if version == 0:
-        conn.executescript(files("kataki").joinpath("schema.sql").read_text(encoding="utf-8"))
-        version = 1
-    for target in range(version + 1, SCHEMA_VERSION + 1):
-        conn.executescript(MIGRATIONS[target])
-    conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")  # the first read of the file, and so the first
+        conn.execute("PRAGMA foreign_keys=ON")  # per-connection, not just per migration
+        version = conn.execute("PRAGMA user_version").fetchone()[0]
+        if version == 0:
+            conn.executescript(files("kataki").joinpath("schema.sql").read_text(encoding="utf-8"))
+            version = 1
+        for target in range(version + 1, SCHEMA_VERSION + 1):
+            conn.executescript(MIGRATIONS[target])
+        conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+    except BaseException:
+        conn.close()  # a library that cannot be opened is not a file left open
+        raise
     return conn
 
 
