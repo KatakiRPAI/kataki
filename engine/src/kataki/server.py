@@ -102,6 +102,17 @@ class BookOrder(BaseModel):
     story_ids: list[int]
 
 
+class ChapterIn(BaseModel):
+    title: str
+    from_message_id: int
+
+
+class ChapterPatch(BaseModel):
+    title: str | None = None
+    to_message_id: int | None = None
+    open: bool | None = None  # true reopens it: it runs to the newest line again
+
+
 class StoryPatch(BaseModel):
     title: str | None = None
     minutes_per_turn: int | None = None
@@ -616,6 +627,55 @@ def create_app(
                 raise HTTPException(422, str(e)) from None
         _patch(conn, "stories", story_id, fields)
         return await get_story(story_id)
+
+    # --- chapters -----------------------------------------------------------------------------
+
+    def chapter_out(story: dict, c: dict) -> dict:
+        """A chapter with the clocks it runs between, for the list and the story's top bar."""
+        clock_of = lambda mid: (  # noqa: E731
+            (row := conn.execute("SELECT story_time FROM messages WHERE id=?", (mid,)).fetchone())
+            and clock.label(row["story_time"], story["epoch_offset_min"])
+        )
+        return {
+            **c,
+            "from_clock": clock_of(c["from_message_id"]),
+            "to_clock": c["ends_at"] and clock_of(c["ends_at"]),
+        }
+
+    @app.get("/stories/{story_id}/chapters")
+    async def list_chapters(story_id: int):
+        story = story_row(story_id)
+        return [chapter_out(story, c) for c in library.chapters(conn, story_id)]
+
+    @app.post("/stories/{story_id}/chapters", status_code=201)
+    async def add_chapter(story_id: int, c: ChapterIn):
+        """Start a chapter here. Whatever was running ends at the line before."""
+        story = story_row(story_id)
+        try:
+            chapter_id = library.open_chapter(conn, story_id, c.title, c.from_message_id)
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from None
+        made = next(c for c in library.chapters(conn, story_id) if c["id"] == chapter_id)
+        return chapter_out(story, made)
+
+    def chapter_row(chapter_id: int) -> dict:
+        return _row(conn, "SELECT * FROM chapters WHERE id=?", (chapter_id,))
+
+    @app.patch("/chapters/{chapter_id}")
+    async def edit_chapter(chapter_id: int, c: ChapterPatch):
+        row = chapter_row(chapter_id)
+        story = story_row(row["story_id"])
+        if c.title is not None:
+            _patch(conn, "chapters", chapter_id, {"title": c.title})
+        if "to_message_id" in c.model_fields_set or c.open is not None:
+            library.close_chapter(conn, chapter_id, None if c.open else c.to_message_id)
+        made = next(x for x in library.chapters(conn, row["story_id"]) if x["id"] == chapter_id)
+        return chapter_out(story, made)
+
+    @app.delete("/chapters/{chapter_id}", status_code=204)
+    async def remove_chapter(chapter_id: int):
+        chapter_row(chapter_id)
+        library.delete_chapter(conn, chapter_id)
 
     # --- books --------------------------------------------------------------------------------
 

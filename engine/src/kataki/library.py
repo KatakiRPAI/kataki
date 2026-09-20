@@ -338,3 +338,71 @@ def book_stories(conn: sqlite3.Connection, book_id: int) -> list[dict]:
         "SELECT id, title FROM stories WHERE book_id=? ORDER BY book_order, id", (book_id,)
     )
     return [dict(r) for r in rows]
+
+
+# --- chapters: a stretch of one story's own lines -----------------------------------------------
+
+
+def open_chapter(conn: sqlite3.Connection, story_id: int, title: str, from_message_id: int) -> int:
+    """Start a chapter at a line. Whatever chapter was running ends at the line before it."""
+    line = conn.execute(
+        "SELECT id FROM messages WHERE id=? AND story_id=?", (from_message_id, story_id)
+    ).fetchone()
+    if line is None:
+        raise ValueError(f"no line {from_message_id} in this story")
+    with conn:
+        conn.execute(
+            "UPDATE chapters SET to_message_id="
+            "(SELECT max(id) FROM messages WHERE story_id=? AND id<?)"
+            " WHERE story_id=? AND to_message_id IS NULL AND from_message_id<?",
+            (story_id, from_message_id, story_id, from_message_id),
+        )
+        cur = conn.execute(
+            "INSERT INTO chapters(story_id, title, from_message_id) VALUES(?, ?, ?)",
+            (story_id, title, from_message_id),
+        )
+    return cur.lastrowid
+
+
+def chapters(conn: sqlite3.Connection, story_id: int) -> list[dict]:
+    """Every chapter of this story, in order. The last one is open unless it was closed: it runs
+    to whatever the newest line is, and says so as it grows."""
+    rows = conn.execute(
+        "SELECT * FROM chapters WHERE story_id=? ORDER BY from_message_id, id", (story_id,)
+    ).fetchall()
+    newest = conn.execute("SELECT max(id) FROM messages WHERE story_id=?", (story_id,)).fetchone()[
+        0
+    ]
+    out = []
+    for r in rows:
+        ends = r["to_message_id"] or newest
+        lines = conn.execute(
+            "SELECT count(*) FROM messages WHERE story_id=? AND id>=? AND id<=?",
+            (story_id, r["from_message_id"], ends if ends is not None else r["from_message_id"]),
+        ).fetchone()[0]
+        out.append({**dict(r), "open": r["to_message_id"] is None, "ends_at": ends, "lines": lines})
+    return out
+
+
+def close_chapter(conn: sqlite3.Connection, chapter_id: int, to_message_id: int | None) -> None:
+    with conn:
+        conn.execute("UPDATE chapters SET to_message_id=? WHERE id=?", (to_message_id, chapter_id))
+
+
+def delete_chapter(conn: sqlite3.Connection, chapter_id: int) -> None:
+    """The chapter goes; the one before it runs on into the space it left."""
+    row = conn.execute("SELECT * FROM chapters WHERE id=?", (chapter_id,)).fetchone()
+    if row is None:
+        return
+    with conn:
+        conn.execute("DELETE FROM chapters WHERE id=?", (chapter_id,))
+        before = conn.execute(
+            "SELECT id FROM chapters WHERE story_id=? AND from_message_id<?"
+            " ORDER BY from_message_id DESC LIMIT 1",
+            (row["story_id"], row["from_message_id"]),
+        ).fetchone()
+        if before:
+            conn.execute(
+                "UPDATE chapters SET to_message_id=? WHERE id=?",
+                (row["to_message_id"], before["id"]),
+            )

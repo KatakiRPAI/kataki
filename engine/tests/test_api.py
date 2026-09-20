@@ -880,3 +880,53 @@ def test_books_gather_stories_and_the_list_says_which_book_a_story_is_in(api, st
     assert next(s for s in api.get("/stories").json() if s["id"] == story)["book"] is None
     assert api.get("/books/999").status_code == 404
     assert api.patch(f"/stories/{story}", json={"book_id": 999}).status_code == 422
+
+
+def test_chapters_are_stretches_of_the_story_and_the_open_one_runs_to_the_newest_line(
+    api, story, backend
+):
+    backend.say("Evening.", "Still here.", "The tide turned.")
+    for text in ("Mira?", "Anything?", "And now?"):
+        api.post(f"/stories/{story}/turn", json={"text": text})
+    lines = api.get(f"/stories/{story}/messages").json()
+    assert len(lines) == 6
+
+    opened = api.post(
+        f"/stories/{story}/chapters",
+        json={"title": "The first night", "from_message_id": lines[0]["id"]},
+    ).json()
+    assert (opened["title"], opened["from_message_id"], opened["to_message_id"]) == (
+        "The first night",
+        lines[0]["id"],
+        None,
+    )
+    # while it is open it runs to the newest line, and says how far it reaches
+    [listed] = api.get(f"/stories/{story}/chapters").json()
+    assert (listed["open"], listed["to_message_id"], listed["lines"]) == (True, None, 6)
+    assert listed["from_clock"] == "Day 1, 08:02" and listed["to_clock"] == "Day 1, 08:12"
+
+    second = api.post(
+        f"/stories/{story}/chapters",
+        json={"title": "What came after", "from_message_id": lines[4]["id"]},
+    ).json()
+    # opening a chapter closes the one before it, at the line before this one
+    both = api.get(f"/stories/{story}/chapters").json()
+    assert [c["title"] for c in both] == ["The first night", "What came after"]
+    assert both[0]["to_message_id"] == lines[3]["id"] and both[0]["open"] is False
+    assert both[0]["lines"] == 4 and both[1]["lines"] == 2
+
+    assert (
+        api.patch(f"/chapters/{second['id']}", json={"title": "After"}).json()["title"] == "After"
+    )
+    assert api.delete(f"/chapters/{second['id']}").status_code == 204
+    # the one before it opens again, since nothing follows it now
+    [again] = api.get(f"/stories/{story}/chapters").json()
+    assert again["open"] is True and again["lines"] == 6
+
+    assert (
+        api.post(
+            f"/stories/{story}/chapters", json={"title": "x", "from_message_id": 9999}
+        ).status_code
+        == 422
+    )
+    assert api.get("/stories/999/chapters").status_code == 404
