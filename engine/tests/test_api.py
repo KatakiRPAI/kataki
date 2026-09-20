@@ -1013,3 +1013,46 @@ def test_where_else_this_person_is_and_adopting_one_the_reader_found(api, story,
     # adopting twice is not two Wrens
     assert api.post(f"/entities/{wren['id']}/adopt").json()["id"] == adopted["id"]
     assert len([i for i in api.get("/library").json() if i["name"] == "Wren"]) == 1
+
+
+def test_two_stories_linked_and_played_through(api, story, backend, conn):
+    """The whole path a link touches: the routes, a turn that recalls across it, the prompt log
+    it writes, and the signals the Scene reads back."""
+    lib = {i["name"]: i["id"] for i in api.get("/library").json()}
+    backend.say("*leans in* I hid the ledger under the third floorboard.")
+    api.post(f"/stories/{story}/turn", json={"text": "Where did you put it?"})
+    memory = {
+        "memories": [{
+            "kind": "event", "detail": "Aren hid the guild ledger under the third floorboard.",
+            "gist": "Aren hid the ledger.", "importance": 9, "line": 1,
+            "participants": [{"ref": f"E{cast(api, story)['Mira']['id']}", "role": "witness"}],
+        }]
+    }  # fmt: skip
+    backend.say(json.dumps(memory))
+    assert api.post(f"/stories/{story}/extract").json()["run"]["status"] == "ok"
+
+    later = api.post(
+        "/stories", json={"title": "Frost on the Pass", "character_ids": [lib["Mira"]],
+                          "persona_id": lib["Aren"]}
+    ).json()["id"]  # fmt: skip
+    made = api.post(
+        f"/stories/{later}/links", json={"to_story_id": story, "offset_min": 1440}
+    ).json()
+    assert [(link_["kind"], link_["direction"], link_["to_title"]) for link_ in made] == [
+        ("continuation", "back", "Low Tide")
+    ]
+    assert api.get(f"/stories/{story}/links").json()[0]["direction"] == "forward"
+    assert api.post(f"/stories/{later}/links", json={"to_story_id": later}).status_code == 422
+
+    # a turn in the second story: she answers with what she holds from the first
+    backend.say("*nods slowly* The floorboard. I remember.")
+    events_ = events(api.post(f"/stories/{later}/turn", json={"text": "The ledger. Where was it?"}))
+    assert events_[-1][0] == "done"
+    context = api.get(f"/stories/{later}/context").json()
+    [across] = [m for m in context["memories"] if m.get("elsewhere") == story]
+    assert across["rendered"] != "dropped"
+    assert "(from Low Tide)" in json.dumps(context["prompt"])
+    assert api.get(f"/stories/{later}/signals").status_code == 200  # reads the same log
+
+    api.delete(f"/links/{made[0]['id']}")
+    assert api.get(f"/stories/{later}/links").json() == []

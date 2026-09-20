@@ -117,7 +117,8 @@ def recall(
 ) -> list[Recalled]:
     path = chat.path_to(conn, leaf_id) if leaf_id else chat.active_path(conn, story_id)
     if not path:
-        return []
+        # nothing said here yet, but a story it looks back at may still be in her
+        return elsewhere(conn, story_id, knower_id, text, 0)
     now, scene_id = path[-1]["story_time"], path[-1]["scene_id"]
     live = db.live_runs(conn, story_id, leaf_id)
     live_sql, live_args = db.live_filter(live)
@@ -169,7 +170,7 @@ def recall(
 
     candidates = set(graph) | set(ranks) | set(vector_ranks or ())
     if not candidates:
-        return []
+        return elsewhere(conn, story_id, knower_id, text, now)
     marks = ",".join("?" * len(candidates))
     rows = conn.execute(
         f"SELECT * FROM memories WHERE id IN ({marks}) AND story_id=? AND hidden=0"
@@ -240,11 +241,14 @@ def recall(
             )
         )
 
+    results += elsewhere(conn, story_id, knower_id, text, now)
     results.sort(key=lambda r: r.activation, reverse=True)
     results = results[:LIMIT]
     if log and scene_id is not None:
         with conn:
             for r in results:
+                if "elsewhere" in r.breakdown:
+                    continue  # another life's memory: this scene is no rehearsal there
                 won = bool(r.breakdown["effortful"])
                 conn.execute(
                     "INSERT INTO accesses(knower_id, memory_id, scene_id, kind, story_time, sharp,"
@@ -322,3 +326,104 @@ def inspect(
             }
         )
     return sorted(out, key=lambda r: r["A"], reverse=True)
+
+
+# --- what another story, linked to this one, still leaves her with ------------------------------
+
+CARRIES = ("continuation", "shared_universe")  # a reference link is a note, not a memory
+ELSEWHERE_LIMIT = 4  # of a past life, only what is most alive comes up
+# `inspect` asks "if she were asked about this directly?" and hands every memory a fixed cue. Here
+# the cue is the line being said, so that one comes off and the real one goes on, and what is
+# remembered from another life is a step less sure than what was lived here (FIDELITY's "told").
+CLARITY_BONUS = (
+    activation.W_RELEVANCE * CLARITY_CUE["relevance"] + activation.W_GRAPH * CLARITY_CUE["graph"]
+)
+ELSEWHERE_FIDELITY = activation.FIDELITY["told"]
+
+
+def _other_self(conn: sqlite3.Connection, knower_id: int, story_id: int) -> int | None:
+    """The same person in another story: the same library item, or one adopted into it."""
+    me = conn.execute("SELECT * FROM entities WHERE id=?", (knower_id,)).fetchone()
+    if me is None:
+        return None
+    item = me["lib_item_id"]
+    if item is None and me["origin_entity_id"]:
+        item = conn.execute(
+            "SELECT lib_item_id FROM entities WHERE id=?", (me["origin_entity_id"],)
+        ).fetchone()["lib_item_id"]
+    if item is None:
+        return None
+    row = conn.execute(
+        "SELECT id FROM entities WHERE story_id=? AND hidden=0 AND lib_item_id=? LIMIT 1",
+        (story_id, item),
+    ).fetchone()
+    return row["id"] if row else None
+
+
+def elsewhere(
+    conn: sqlite3.Connection, story_id: int, knower_id: int, text: str, now: int
+) -> list[Recalled]:
+    """Memories this character holds in the stories this one points at. The link's offset is how
+    long after that story's last line this one begins, so a year between them is a year of
+    forgetting: what comes back is what that self would still recall by now, and it says where
+    it is from.
+
+    ponytail: one `inspect` per linked story, and the words are matched plainly; if a library
+    ever links dozens of stories, rank these the way `recall` ranks the story's own.
+    """
+    links = conn.execute(
+        "SELECT l.to_story_id, l.kind, l.offset_min, s.title FROM story_links l"
+        " JOIN stories s ON s.id=l.to_story_id WHERE l.from_story_id=?",
+        (story_id,),
+    ).fetchall()
+    words = {w for w in re.findall(r"[^\W_]+", text.lower()) if len(w) > 2 and w not in STOPWORDS}
+    out: list[Recalled] = []
+    seen: set[int] = set()  # a pair linked twice is still one past
+    for link in links:
+        if link["kind"] not in CARRIES:
+            continue
+        other = _other_self(conn, knower_id, link["to_story_id"])
+        if other is None:
+            continue  # she was never there, so there is nothing of hers to remember
+        there = chat.active_path(conn, link["to_story_id"])
+        ended = there[-1]["story_time"] if there else 0
+        since = ended + link["offset_min"] + now  # where we are, on that story's clock
+        for m in inspect(conn, link["to_story_id"], other, now=since):
+            if m["hidden"] or m["memory_id"] in seen:
+                continue
+            said = {w.lower() for w in re.findall(r"[^\W_]+", f"{m['detail']} {m['gist']}")}
+            overlap = len(words & said) / len(words) if words else 0.0
+            if not overlap:
+                continue  # not what is being talked about
+            shift = activation.W_RELEVANCE * overlap - CLARITY_BONUS + ELSEWHERE_FIDELITY
+            a_all, a_detail = m["A"] + shift, m["A_detail"] + shift
+            if a_detail >= activation.SHARP_AT:
+                tier, body = "sharp", m["detail"]
+            elif a_all >= activation.HAZY_AT:
+                tier, body = "hazy", m["gist"]
+            else:
+                continue  # that far back, she has lost it
+            seen.add(m["memory_id"])
+            out.append(
+                Recalled(
+                    memory_id=m["memory_id"],
+                    tier=tier,
+                    text=f"(from {link['title']}) {body}",
+                    gist=m["gist"],
+                    activation=a_all,
+                    breakdown={
+                        "A": round(a_all, 3),
+                        "A_detail": round(a_detail, 3),
+                        "B": m["B"],
+                        "S": round(overlap, 3),
+                        "G": 0.0,
+                        "imp": m["importance"],
+                        "F": ELSEWHERE_FIDELITY,
+                        "effortful": None,
+                        "superseded": m["superseded"],
+                        "elsewhere": link["to_story_id"],
+                    },
+                )
+            )
+    out.sort(key=lambda r: r.activation, reverse=True)
+    return out[:ELSEWHERE_LIMIT]

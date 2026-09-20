@@ -102,6 +102,13 @@ class BookOrder(BaseModel):
     story_ids: list[int]
 
 
+class LinkIn(BaseModel):
+    to_story_id: int
+    kind: Literal["continuation", "shared_universe", "reference"] = "continuation"
+    offset_min: int = 0
+    note: str | None = None
+
+
 class ChapterIn(BaseModel):
     title: str
     from_message_id: int
@@ -645,6 +652,32 @@ def create_app(
                 raise HTTPException(422, str(e)) from None
         _patch(conn, "stories", story_id, fields)
         return await get_story(story_id)
+
+    # --- story links --------------------------------------------------------------------------
+
+    @app.get("/stories/{story_id}/links")
+    async def list_links(story_id: int):
+        """What this story looks back at, and what looks back at it."""
+        story_row(story_id)
+        return library.links_of(conn, story_id)
+
+    @app.post("/stories/{story_id}/links", status_code=201)
+    async def add_link(story_id: int, link: LinkIn):
+        """This story looks back at another, `offset_min` minutes later. Its characters recall
+        what their other selves there would still recall by now."""
+        story_row(story_id)
+        try:
+            library.link_stories(
+                conn, story_id, link.to_story_id, link.kind, link.offset_min, link.note
+            )
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from None
+        return library.links_of(conn, story_id)
+
+    @app.delete("/links/{link_id}", status_code=204)
+    async def remove_link(link_id: int):
+        _row(conn, "SELECT id FROM story_links WHERE id=?", (link_id,))
+        library.unlink_stories(conn, link_id)
 
     # --- chapters -----------------------------------------------------------------------------
 

@@ -461,3 +461,48 @@ def adopt(conn: sqlite3.Connection, entity_id: int) -> int:
     with conn:
         conn.execute("UPDATE entities SET lib_item_id=? WHERE id=?", (item_id, entity_id))
     return item_id
+
+
+# --- story links: how two stories sit in each other's time ---------------------------------------
+
+
+def link_stories(
+    conn: sqlite3.Connection,
+    from_story_id: int,
+    to_story_id: int,
+    kind: str = "continuation",
+    offset_min: int = 0,
+    note: str | None = None,
+) -> int:
+    """`from` looks back at `to`, `offset_min` minutes later. A story cannot look at itself."""
+    if from_story_id == to_story_id:
+        raise ValueError("a story cannot be linked to itself")
+    for sid in (from_story_id, to_story_id):
+        if conn.execute("SELECT 1 FROM stories WHERE id=?", (sid,)).fetchone() is None:
+            raise ValueError(f"no story {sid}")
+    with conn:
+        cur = conn.execute(
+            "INSERT OR REPLACE INTO story_links(from_story_id, to_story_id, kind, offset_min, note)"
+            " VALUES(?, ?, ?, ?, ?)",
+            (from_story_id, to_story_id, kind, offset_min, note),
+        )
+    return cur.lastrowid
+
+
+def links_of(conn: sqlite3.Connection, story_id: int) -> list[dict]:
+    """Both ways: what this story looks back at, and what looks back at it."""
+    rows = conn.execute(
+        "SELECT l.*, f.title AS from_title, t.title AS to_title FROM story_links l"
+        " JOIN stories f ON f.id=l.from_story_id JOIN stories t ON t.id=l.to_story_id"
+        " WHERE l.from_story_id=? OR l.to_story_id=? ORDER BY l.id",
+        (story_id, story_id),
+    )
+    return [
+        {**dict(r), "direction": "back" if r["from_story_id"] == story_id else "forward"}
+        for r in rows
+    ]
+
+
+def unlink_stories(conn: sqlite3.Connection, link_id: int) -> None:
+    with conn:
+        conn.execute("DELETE FROM story_links WHERE id=?", (link_id,))

@@ -69,7 +69,12 @@ def betrayal(conn, **extra):
 
 
 def recall(conn, story, who, text, **kw):
-    return retrieve.recall(conn, story, eid(conn, who), text, noise=False, **kw)
+    """Recall as the person of that name *in that story*: with more than one story about, the
+    same name belongs to more than one entity."""
+    row = conn.execute(
+        "SELECT id FROM entities WHERE story_id=? AND name=?", (story, who)
+    ).fetchone()
+    return retrieve.recall(conn, story, row["id"], text, noise=False, **kw)
 
 
 def texts(recalled):
@@ -284,3 +289,150 @@ def test_common_knowledge_needs_no_knowledge_row(conn, world):
     assert texts(recall(conn, world, "Dara", "Who runs the harbour?")) == [
         "The guild runs the harbour."
     ]
+
+
+# --- M2: two stories, linked ----------------------------------------------------------------
+
+
+@pytest.fixture
+def later(conn, world):
+    """A second story with the same Mira in it, a year after the first, linked to it."""
+    mira = conn.execute(
+        "SELECT lib_item_id FROM entities WHERE name='Mira' AND story_id=?", (world,)
+    ).fetchone()[0]
+    aren = conn.execute(
+        "SELECT lib_item_id FROM entities WHERE name='Aren' AND story_id=?", (world,)
+    ).fetchone()[0]
+    second = library.create_story(conn, "Frost", character_ids=[mira], persona_id=aren)
+    return second
+
+
+def link(conn, from_story, to_story, kind="continuation", offset_min=YEAR):
+    conn.execute(
+        "INSERT INTO story_links(from_story_id, to_story_id, kind, offset_min) VALUES(?, ?, ?, ?)",
+        (from_story, to_story, kind, offset_min),
+    )
+    conn.commit()
+
+
+def test_a_link_lets_her_recall_the_story_it_points_at(conn, world, later):
+    extracted(conn, world, {"memories": [betrayal(conn)]})
+    # without a link, the other story is another life: nothing crosses
+    assert recall(conn, later, "Mira", "What did Tobin say about the guild?") == []
+
+    link(conn, later, world)
+    got = recall(conn, later, "Mira", "What did Tobin say about the guild?")
+    assert [r.text for r in got] == [f"(from Low Tide) {GIST}"]  # a year on, the gist of it
+    assert got[0].tier == "hazy"
+
+
+def in_story(conn, story, name):
+    row = conn.execute(
+        "SELECT id FROM entities WHERE story_id=? AND name=?", (story, name)
+    ).fetchone()
+    return row["id"]
+
+
+def frost(conn, later):
+    """A memory that belongs to the second story alone."""
+    first = chat.append_message(conn, later, "user", "...", in_story(conn, later, "Aren"))
+    last = chat.append_message(conn, later, "user", "...", in_story(conn, later, "Aren"))
+    run_id = extract.open_run(conn, later, first, last, "cadence")
+    extract.apply(
+        conn,
+        run_id,
+        {
+            "memories": [
+                {
+                    "kind": "event",
+                    "detail": "The pass closed in the night and the mail sat frozen at Frost.",
+                    "gist": "The pass closed at Frost.",
+                    "importance": 9,
+                    "participants": [
+                        {"ref": f"E{in_story(conn, later, 'Mira')}", "role": "witness"}
+                    ],
+                }
+            ]
+        },  # fmt: skip
+    )
+    chat.append_message(conn, later, "user", "...", in_story(conn, later, "Aren"))
+
+
+def test_a_link_only_runs_the_way_it_points(conn, world, later):
+    frost(conn, later)
+    link(conn, later, world)  # Frost looks back at Low Tide, not the other way
+    assert "pass closed" in " ".join(
+        r.text for r in recall(conn, later, "Mira", "What happened to the pass?")
+    )
+    said = " ".join(r.text for r in recall(conn, world, "Mira", "What happened to the pass?"))
+    assert "pass closed" not in said
+
+
+def test_only_her_own_other_self_crosses_a_link(conn, world, later):
+    extracted(conn, world, {"memories": [betrayal(conn)]})
+    ilsa = library.create_item(conn, "character", "Ilsa")  # she was never in Low Tide
+    library.add_to_story(conn, later, ilsa)
+    link(conn, later, world)
+    assert recall(conn, later, "Mira", "What did Tobin say about the guild?")  # her own past
+    assert recall(conn, later, "Ilsa", "What did Tobin say about the guild?") == []
+
+
+def test_a_reference_link_carries_no_memory(conn, world, later):
+    extracted(conn, world, {"memories": [betrayal(conn)]})
+    link(conn, later, world, kind="reference")
+    assert recall(conn, later, "Mira", "What did Tobin say about the guild?") == []
+
+
+def test_the_offset_is_how_much_time_has_passed_between_them(conn, world, later):
+    """The gap between two stories is a gap of forgetting: what mattered survives it as a gist,
+    what didn't is gone."""
+    small = {
+        "kind": "fact", "detail": "The Gull keeps a green apron behind the bar.",
+        "gist": "The Gull has an apron.", "importance": 2,
+        "participants": [{"ref": h(conn, "Mira"), "role": "witness"}],
+    }  # fmt: skip
+    extracted(conn, world, {"memories": [betrayal(conn), small]})
+    asked = "What do you remember of the guild and the apron?"
+
+    link(conn, later, world, offset_min=1)  # the next minute: both still there
+    soon = [r.text for r in recall(conn, later, "Mira", asked)]
+    assert any("betray the guild at the docks" in t for t in soon)  # sharp, in full
+    assert any("green apron" in t for t in soon)
+
+    conn.execute("UPDATE story_links SET offset_min=?", (20 * YEAR,))
+    conn.commit()
+    # a lifetime later, across a link and on half a cue, she has lost even the big one
+    assert recall(conn, later, "Mira", asked) == []
+    # and it is still hers where she lived it
+    assert any("betray the guild" in r.text for r in recall(conn, world, "Mira", asked, log=False))
+
+
+def test_what_crosses_a_link_is_a_step_less_sure_than_what_was_lived_here(conn, world, later):
+    """A memory from another life is hazier than the same memory at home, and it is not
+    rehearsed by being recalled here: this scene is no scene of that story's."""
+    extracted(conn, world, {"memories": [betrayal(conn)]})
+    frost(conn, later)  # the second story has lines and memories of its own
+    link(conn, later, world, offset_min=1)
+    asked = "What did Tobin say about the guild?"
+
+    here = recall(conn, world, "Mira", asked, log=False)
+    assert [(r.tier, r.text) for r in here] == [("sharp", DETAIL)]
+
+    across = recall(conn, later, "Mira", asked)  # logging on, as a real turn does
+    [there] = [r for r in across if "elsewhere" in r.breakdown]
+    assert there.text == f"(from Low Tide) {DETAIL}"
+    assert there.breakdown["F"] == -0.5  # one step, as told-by-someone is
+    assert there.activation < here[0].activation
+    assert set(there.breakdown) >= {"A", "B", "S", "G", "imp", "F", "effortful", "elsewhere"}
+    rehearsed = conn.execute(
+        "SELECT count(*) FROM accesses WHERE memory_id=?", (there.memory_id,)
+    ).fetchone()[0]
+    assert rehearsed == 0  # nothing said in Frost rehearses a memory of Low Tide
+
+
+def test_a_pair_linked_twice_is_still_one_past(conn, world, later):
+    extracted(conn, world, {"memories": [betrayal(conn)]})
+    link(conn, later, world, kind="continuation", offset_min=1)
+    link(conn, later, world, kind="shared_universe", offset_min=1)
+    got = recall(conn, later, "Mira", "What did Tobin say about the guild?")
+    assert [r.text for r in got] == [f"(from Low Tide) {DETAIL}"]
