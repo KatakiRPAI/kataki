@@ -930,3 +930,44 @@ def test_chapters_are_stretches_of_the_story_and_the_open_one_runs_to_the_newest
         == 422
     )
     assert api.get("/stories/999/chapters").status_code == 404
+
+
+def test_stories_carry_tags_and_the_library_can_list_them_all(api, story):
+    assert next(s for s in api.get("/stories").json() if s["id"] == story)["tags"] == []
+
+    patched = api.patch(f"/stories/{story}", json={"tags": ["Docks", "slow burn"]}).json()
+    assert patched["tags"] == ["Docks", "slow burn"]  # sorted, the case you wrote
+    assert next(s for s in api.get("/stories").json() if s["id"] == story)["tags"] == [
+        "Docks",
+        "slow burn",
+    ]
+    # a story keeps its own tags: the library item's are untouched
+    mira = next(i for i in api.get("/library").json() if i["name"] == "Mira")
+    api.patch(f"/library/{mira['id']}", json={"tags": ["Docks", "guild"]})
+
+    tags = api.get("/tags").json()
+    assert {t["name"]: (t["items"], t["stories"]) for t in tags} == {
+        "Docks": (1, 1),
+        "guild": (1, 0),
+        "slow burn": (0, 1),
+    }
+    assert [t["name"] for t in tags] == ["Docks", "guild", "slow burn"]  # by name, case-blind
+
+    # the filters people actually use: everything tagged this, of either kind
+    assert [i["name"] for i in api.get("/library?tag=docks").json()] == ["Mira"]
+    assert [s["title"] for s in api.get("/stories?tag=DOCKS").json()] == ["Low Tide"]
+    assert api.get("/stories?tag=nothing").json() == []
+
+    # tags nobody uses any more stop being offered
+    api.patch(f"/stories/{story}", json={"tags": []})
+    api.patch(f"/library/{mira['id']}", json={"tags": []})
+    assert api.get("/tags").json() == []
+
+
+def test_folders_are_saved_views_the_engine_only_keeps(api):
+    folders = [
+        {"name": "The docks", "kind": "story", "tags": ["Docks"]},
+        {"name": "Guild people", "kind": "character", "tags": ["guild", "Docks"]},
+    ]
+    assert api.put("/settings", json={"folders": folders}).json()["folders"] == folders
+    assert api.get("/settings").json()["folders"] == folders

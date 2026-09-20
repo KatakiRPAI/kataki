@@ -406,3 +406,14 @@ def delete_chapter(conn: sqlite3.Connection, chapter_id: int) -> None:
                 "UPDATE chapters SET to_message_id=? WHERE id=?",
                 (row["to_message_id"], before["id"]),
             )
+
+
+def all_tags(conn: sqlite3.Connection) -> list[dict]:
+    """Every tag anything still carries, with how many friends and stories wear it."""
+    rows = conn.execute(
+        "SELECT t.name,"
+        " sum(g.obj='lib_item') AS items, sum(g.obj='story') AS stories"
+        " FROM tags t JOIN taggings g ON g.tag_id=t.id"
+        " GROUP BY t.id ORDER BY t.name COLLATE NOCASE"
+    )
+    return [{"name": r["name"], "items": r["items"], "stories": r["stories"]} for r in rows]

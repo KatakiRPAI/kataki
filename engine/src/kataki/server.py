@@ -118,6 +118,7 @@ class StoryPatch(BaseModel):
     minutes_per_turn: int | None = None
     pinned: bool | None = None
     book_id: int | None = None
+    tags: list[str] | None = None
     roles: dict | None = None  # per-story role overrides, same shape as PUT /roles/{role}
 
 
@@ -565,17 +566,26 @@ def create_app(
             "new_events": new_events(story),
             "waiting": len(extract.pending(conn, story["id"])),
             "book": book and {"id": book["id"], "title": book["title"]},
+            "tags": library.get_tags(conn, "story", story["id"]),
         }
 
     @app.get("/stories")
-    async def list_stories():
-        """Pinned first, then the most recently played. ponytail: one path walk per story;
-        cache per story version if a library ever holds hundreds of stories."""
+    async def list_stories(tag: str | None = None):
+        """Pinned first, then the most recently played; `tag` narrows it to one shelf.
+        ponytail: one path walk per story; cache per story version if a library ever holds
+        hundreds of stories."""
+        shelf = (
+            " WHERE s.id IN (SELECT g.obj_id FROM taggings g JOIN tags t ON t.id=g.tag_id"
+            " WHERE g.obj='story' AND t.name=? COLLATE NOCASE)"
+            if tag is not None
+            else ""
+        )
         rows = conn.execute(
             "SELECT s.*, count(m.id) AS messages,"
             " coalesce(max(m.created_at), s.created_at) AS last_at, max(m.id) AS last_id"
-            " FROM stories s LEFT JOIN messages m ON m.story_id=s.id GROUP BY s.id"
-            " ORDER BY s.pinned DESC, last_at DESC, coalesce(last_id, 0) DESC, s.id DESC"
+            f" FROM stories s LEFT JOIN messages m ON m.story_id=s.id{shelf} GROUP BY s.id"
+            " ORDER BY s.pinned DESC, last_at DESC, coalesce(last_id, 0) DESC, s.id DESC",
+            () if tag is None else (tag,),
         ).fetchall()
         return [
             {
@@ -615,7 +625,9 @@ def create_app(
     @app.patch("/stories/{story_id}")
     async def edit_story(story_id: int, s: StoryPatch):
         story = story_row(story_id)
-        fields = s.model_dump(exclude_unset=True, exclude={"roles", "book_id"})
+        fields = s.model_dump(exclude_unset=True, exclude={"roles", "book_id", "tags"})
+        if s.tags is not None:
+            library.set_tags(conn, "story", story_id, s.tags)
         if s.roles is not None:
             overrides = json.loads(story["overrides"])
             overrides["roles"] = s.roles
@@ -678,6 +690,12 @@ def create_app(
         library.delete_chapter(conn, chapter_id)
 
     # --- books --------------------------------------------------------------------------------
+
+    @app.get("/tags")
+    async def list_tags():
+        """Every tag still in use, and how much wears it. Folders are saved views over these,
+        kept in settings like any other preference."""
+        return library.all_tags(conn)
 
     @app.get("/books")
     async def list_books():
