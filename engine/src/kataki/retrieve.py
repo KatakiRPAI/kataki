@@ -188,6 +188,8 @@ def recall(
     for m in rows:
         if window_start is not None and (m["to_message_id"] or 0) >= window_start:
             continue  # the model can already read this in the chat itself
+        if m["pinned"]:
+            continue  # so can this: a pinned fact is in the stable block of every prompt
         known = conn.execute(
             f"SELECT k.* FROM knowledge k WHERE k.knower_id=? AND k.memory_id=? AND {know_sql}"
             " ORDER BY k.id DESC LIMIT 1",

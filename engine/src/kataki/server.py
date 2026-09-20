@@ -25,6 +25,7 @@ from kataki import (
     clock,
     extract,
     library,
+    lore,
     media,
     people,
     retrieve,
@@ -529,6 +530,16 @@ def create_app(
         except cards.BadCard as e:
             raise HTTPException(422, str(e)) from None
 
+    @app.post("/stories/{story_id}/lorebook", status_code=201)
+    async def import_lorebook(story_id: int, request: Request):
+        """A lorebook file, a World Info export, or any card that carries one, becomes facts
+        this story knows: the constant entries pinned, the rest waiting on their keywords."""
+        story_row(story_id)
+        try:
+            return lore.add(conn, story_id, lore.read(await request.body()))
+        except cards.BadCard as e:
+            raise HTTPException(422, str(e)) from None
+
     @app.get("/media/{name}")
     async def get_media(name: str):
         if (path := media.find(conn, name)) is None:
@@ -630,6 +641,11 @@ def create_app(
             if item_id is not None and library.get_item(conn, item_id) is None:
                 raise HTTPException(422, f"no library item {item_id}")
         story_id = library.create_story(conn, **s.model_dump())
+        # A friend who came from a card brings their own lorebook into the story with them,
+        # which is what a character book is for wherever it was written.
+        for item_id in s.character_ids:
+            if book := lore.of_item(library.get_item(conn, item_id)):
+                lore.add(conn, story_id, book, char=library.get_item(conn, item_id)["name"])
         return await get_story(story_id)
 
     @app.get("/stories/{story_id}")

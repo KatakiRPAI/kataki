@@ -41,6 +41,7 @@ ZIP_TROUBLE = (
     OSError,
     json.JSONDecodeError,
     UnicodeDecodeError,
+    RecursionError,  # JSON nested twenty thousand deep
 )
 CHAR = re.compile(r"\{\{\s*char(?:name)?\s*\}\}|<char>|<bot>", re.I)
 USER = re.compile(r"\{\{\s*user\s*\}\}|<user>", re.I)
@@ -135,7 +136,7 @@ def _wanted(z: zipfile.ZipFile, data: dict) -> dict[str, bytes]:
 def _decode(value: bytes) -> dict:
     try:
         return json.loads(base64.b64decode(value, validate=True))
-    except (binascii.Error, UnicodeDecodeError, json.JSONDecodeError, ValueError) as e:
+    except (binascii.Error, UnicodeDecodeError, json.JSONDecodeError, RecursionError) as e:
         raise BadCard(f"the card in this file could not be read ({e}).") from None
 
 
@@ -179,7 +180,7 @@ def parse(blob: bytes) -> tuple[str, str, dict, dict[str, bytes]]:
         return spec, version, data, files
     try:
         spec, version, data = _unwrap(json.loads(blob))
-    except (json.JSONDecodeError, UnicodeDecodeError):
+    except (json.JSONDecodeError, UnicodeDecodeError, RecursionError):
         raise BadCard("that is not a PNG, a JSON card or a CHARX file.") from None
     return spec, version, data, {}
 

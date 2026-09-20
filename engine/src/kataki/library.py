@@ -215,17 +215,30 @@ def add_memory(
     entity_ids: list[int] | tuple = (),
     common: bool = False,
     pinned: bool = False,
+    tags: list[str] | tuple = (),
 ) -> int:
     """A memory written by the user: true, dated now, known to `knower_ids` (or to everyone
-    if `common`). `pinned` keeps it in the stable part of every prompt, like a lorebook entry."""
+    if `common`). `pinned` keeps it in the stable part of every prompt, like a lorebook entry.
+    `tags` are words that cue it, indexed for recall the same way an extraction's are."""
     path = chat.active_path(conn, story_id)
     now = path[-1]["story_time"] if path else 0
     with conn:
         memory_id = conn.execute(
             "INSERT INTO memories(story_id, kind, story_time, detail, gist, importance, is_true,"
-            " common, pinned) VALUES(?, ?, ?, ?, ?, ?, 1, ?, ?)",
-            (story_id, kind, now, detail, gist or detail, importance, common, pinned),
+            " common, pinned, tags_text) VALUES(?, ?, ?, ?, ?, ?, 1, ?, ?, ?)",
+            (
+                story_id,
+                kind,
+                now,
+                detail,
+                gist or detail,
+                importance,
+                common,
+                pinned,
+                " ".join(tags),
+            ),
         ).lastrowid
+        set_tags(conn, "memory", memory_id, list(tags))
         for entity_id in entity_ids:
             conn.execute(
                 "INSERT INTO memory_entities(memory_id, entity_id, role) VALUES(?, ?, 'subject')",
@@ -415,11 +428,13 @@ def delete_chapter(conn: sqlite3.Connection, chapter_id: int) -> None:
 
 
 def all_tags(conn: sqlite3.Connection) -> list[dict]:
-    """Every tag anything still carries, with how many friends and stories wear it."""
+    """Every tag the library shelves by, with how many friends and stories wear it. A memory's
+    tags are cue words inside one story, not a shelf, so they are not offered here."""
     rows = conn.execute(
         "SELECT t.name,"
         " sum(g.obj='lib_item') AS items, sum(g.obj='story') AS stories"
         " FROM tags t JOIN taggings g ON g.tag_id=t.id"
+        " WHERE g.obj IN ('lib_item','story')"
         " GROUP BY t.id ORDER BY t.name COLLATE NOCASE"
     )
     return [{"name": r["name"], "items": r["items"], "stories": r["stories"]} for r in rows]
