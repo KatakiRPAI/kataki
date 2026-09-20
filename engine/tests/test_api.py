@@ -624,3 +624,231 @@ def test_closing_the_stream_stops_the_model_and_keeps_what_was_written(tmp_path)
     finally:
         server.should_exit = True
         thread.join(5)
+
+
+# --- who is in a story, and what a friend is like ----------------------------------------------
+
+
+def ledger_scene(api, story, backend, conn):
+    """The brief's scene, short: Tobin is sent off, Aren tells Mira the secret, the reader files
+    what it meant. Returns the cast by name."""
+    backend.say("*pockets the coin* Anything for a paying customer.")
+    api.post(f"/stories/{story}/turn", json={"text": "Tobin, fetch us a round from the bar?"})
+    who = cast(api, story)
+    api.post(f"/stories/{story}/presence", json={"entity_id": who["Tobin"]["id"], "present": False})
+    backend.say("*her eyes flick to the bar* Then stop saying it out loud.")
+    api.post(
+        f"/stories/{story}/turn",
+        json={"text": "I hid the guild ledger under the third floorboard.",
+              "audience": [who["Mira"]["id"]]},
+    )  # fmt: skip
+    read = {
+        "memories": [
+            {
+                "kind": "event",
+                "detail": "Aren hid the guild ledger under the third floorboard.",
+                "gist": "Aren hid the ledger behind the bar.",
+                "importance": 9,
+                "line": 3,
+                "participants": [
+                    {"ref": f"E{who['Aren']['id']}", "role": "actor"},
+                    {"ref": f"E{who['Mira']['id']}", "role": "target"},
+                ],
+            },
+            {
+                "kind": "fact",
+                "detail": "The Gull keeps a green apron behind the bar.",
+                "gist": "The Gull has a green apron.",
+                "importance": 2,
+                "line": 1,
+                "participants": [{"ref": f"E{who['Mira']['id']}", "role": "witness"}],
+            },
+        ],
+        "flags": [
+            {
+                "entity": f"E{who['Mira']['id']}",
+                "key": "holding",
+                "value": "a mug she hasn't touched",
+            },
+            {"entity": f"E{who['Mira']['id']}", "key": "wearing", "value": "a green apron"},
+            {
+                "entity": f"E{who['Mira']['id']}",
+                "key": "aches",
+                "value": "an old wrist break",
+                "private": True,
+            },
+        ],  # fmt: skip
+        "edges": [
+            {
+                "src": f"E{who['Mira']['id']}",
+                "dst": f"E{who['Aren']['id']}",
+                "rel": "trusts",
+                "note": "He told her where the ledger is.",
+            },
+            {
+                "src": f"E{who['Tobin']['id']}",
+                "dst": f"E{who['Aren']['id']}",
+                "rel": "resents",
+                "note": "Sent off like a servant.",
+            },
+        ],  # fmt: skip
+    }
+    backend.say(json.dumps(read))
+    assert api.post(f"/stories/{story}/extract").json()["run"]["status"] == "ok"
+    return who
+
+
+def test_the_people_of_a_story_say_what_they_hold_recall_and_feel(api, story, backend, conn):
+    who = ledger_scene(api, story, backend, conn)
+    people = {p["name"]: p for p in api.get(f"/stories/{story}/people").json()}
+    assert list(people) == ["Mira", "Tobin"]  # the AI characters, not you
+
+    mira = people["Mira"]
+    assert (mira["id"], mira["present"], mira["where"]) == (who["Mira"]["id"], True, "The Gull")
+    assert mira["lib_item_id"] and mira["since"] == "Day 1, 08:00"  # there from the opening
+    assert mira["state"] == [
+        {"key": "holding", "value": "a mug she hasn't touched", "private": False},
+        {"key": "wearing", "value": "a green apron", "private": False},
+        {"key": "aches", "value": "an old wrist break", "private": True},
+    ]
+    assert mira["on_mind"] == {
+        "tier": "sharp",
+        "text": "Aren hid the guild ledger under the third floorboard.",
+    }
+    assert mira["remembers"] == 2  # the secret and the apron
+    assert mira["about_you"]["count"] == 1 and mira["about_you"]["sharp"] == 1
+    assert (mira["about_you"]["hazy"], mira["about_you"]["forgotten"]) == (0, 0)
+    [sample] = mira["about_you"]["samples"]
+    assert sample["text"] == "Aren hid the guild ledger under the third floorboard."
+    assert (sample["tier"], sample["belief"]) == ("sharp", 1.0)
+    assert mira["relationships"] == [
+        {"rel": "trusts", "other_id": who["Aren"]["id"], "other": "Aren", "you": True,
+         "note": "He told her where the ledger is.", "since": "Day 1, 08:06"},
+    ]  # fmt: skip
+
+    tobin = people["Tobin"]
+    assert tobin["present"] is False and tobin["since"] == "Day 1, 08:04"  # sent off after line 2
+    assert tobin["about_you"]["count"] == 0  # the secret was whispered past him
+    assert tobin["state"] == []  # Mira's mug and coat are hers, not his
+    assert tobin["remembers"] == 1  # he was at the bar for it, but he did hear about the apron
+    assert tobin["on_mind"] == {
+        "tier": "sharp",
+        "text": "The Gull keeps a green apron behind the bar.",
+    }
+    assert [r["rel"] for r in tobin["relationships"]] == ["resents"]
+
+
+def test_people_in_director_mode_know_nothing_about_you(api, backend, conn):
+    mira = api.post("/library", json={"kind": "character", "name": "Mira"}).json()["id"]
+    story = api.post("/stories", json={"title": "Alone", "character_ids": [mira]}).json()["id"]
+    [person] = api.get(f"/stories/{story}/people").json()
+    assert person["about_you"] is None and person["remembers"] == 0
+    assert (
+        api.get(f"/library/{mira}/profile").json()["places"] == []
+    )  # played nowhere in particular
+    assert api.get("/stories/999/people").status_code == 404
+
+
+def test_a_friends_profile_gathers_her_stories_and_the_places_she_has_been(
+    api, story, backend, conn
+):
+    who = ledger_scene(api, story, backend, conn)
+    lib = {i["name"]: i["id"] for i in api.get("/library").json()}
+    profile = api.get(f"/library/{lib['Mira']}/profile").json()
+
+    [entry] = profile["stories"]
+    assert (entry["id"], entry["title"], entry["role"]) == (story, "Low Tide", "ai")
+    assert entry["person"]["name"] == "Mira" and entry["person"]["remembers"] == 2
+    assert entry["known_by"] is None
+    assert profile["places"] == [
+        {"name": "The Gull", "lib_item_id": lib["The Gull"], "story": "Low Tide",
+         "story_id": story, "clock": "Day 1, 08:08"},
+    ]  # fmt: skip
+
+    mine = api.get(f"/library/{lib['Aren']}/profile").json()
+    [as_me] = mine["stories"]
+    assert as_me["role"] == "persona" and as_me["person"] is None
+    assert as_me["known_by"] == [
+        {"id": who["Mira"]["id"], "name": "Mira", "lib_item_id": lib["Mira"], "count": 1,
+         "sharp": 1, "hazy": 0, "forgotten": 0},
+        {"id": who["Tobin"]["id"], "name": "Tobin", "lib_item_id": lib["Tobin"], "count": 0,
+         "sharp": 0, "hazy": 0, "forgotten": 0},
+    ]  # fmt: skip
+    assert api.get("/library/999/profile").status_code == 404
+
+
+def test_a_new_scene_starts_how_long_they_have_been_here_again(api, story, backend, conn):
+    who = ledger_scene(api, story, backend, conn)
+    docks = api.post("/library", json={"kind": "place", "name": "The Docks"}).json()["id"]
+    api.post(
+        f"/stories/{story}/scene",
+        json={"present": [who["Mira"]["id"], who["Tobin"]["id"]], "library_place_id": docks,
+              "skip": "the next morning"},
+    )  # fmt: skip
+    people = {p["name"]: p for p in api.get(f"/stories/{story}/people").json()}
+    # Tobin was sent off yesterday; he is back, and he has been at the docks since it opened
+    assert (people["Tobin"]["present"], people["Tobin"]["since"]) == (True, "Day 2, 08:00")
+    assert people["Mira"]["since"] == "Day 2, 08:00" and people["Mira"]["where"] == "The Docks"
+
+
+def test_a_feeling_that_ended_is_no_longer_how_she_feels(api, story, backend, conn):
+    who = ledger_scene(api, story, backend, conn)
+    backend.say("*sets the mug down* I'll think about it.")
+    api.post(f"/stories/{story}/turn", json={"text": "You don't believe me?"})
+    backend.say(json.dumps({"edges": [
+        {"src": f"E{who['Mira']['id']}", "dst": f"E{who['Aren']['id']}", "rel": "trusts",
+         "ended": True},
+    ]}))  # fmt: skip
+    assert api.post(f"/stories/{story}/extract").json()["run"]["status"] == "ok"
+    mira = {p["name"]: p for p in api.get(f"/stories/{story}/people").json()}["Mira"]
+    assert mira["relationships"] == []  # the reader saw the trust end
+
+
+def test_what_a_read_on_a_branch_you_took_back_wrote_is_not_who_she_is(api, story, backend, conn):
+    who = ledger_scene(api, story, backend, conn)
+    lib = {i["name"]: i["id"] for i in api.get("/library").json()}
+
+    def mira():
+        return {p["name"]: p for p in api.get(f"/stories/{story}/people").json()}["Mira"]
+
+    def places():
+        return [p["name"] for p in api.get(f"/library/{lib['Mira']}/profile").json()["places"]]
+
+    backend.say("*she says nothing at all*")
+    api.post(f"/stories/{story}/regenerate")  # a second take of her reply
+    taken_again = api.get(f"/stories/{story}/messages").json()[-1]["id"]
+    backend.say("*she turns the letter over*")
+    api.post(f"/stories/{story}/turn", json={"text": "Mira?"})  # the take gets a read of its own
+    backend.say(json.dumps({
+        "flags": [{"entity": f"E{who['Mira']['id']}", "key": "holding", "value": "the letter"}],
+        "edges": [{"src": f"E{who['Mira']['id']}", "dst": f"E{who['Aren']['id']}",
+                   "rel": "doubts", "note": "He went quiet."}],
+    }))  # fmt: skip
+    assert api.post(f"/stories/{story}/extract").json()["run"]["status"] == "ok"
+    docks = api.post("/library", json={"kind": "place", "name": "The Docks"}).json()["id"]
+    api.post(
+        f"/stories/{story}/scene",
+        json={"present": [who["Mira"]["id"]], "library_place_id": docks},
+    )
+    assert mira()["state"][0]["value"] == "the letter"
+    assert [r["rel"] for r in mira()["relationships"]] == ["trusts", "doubts"]
+    assert places() == ["The Gull", "The Docks"]
+
+    api.post(f"/stories/{story}/swipe", json={"message_id": taken_again, "step": -1})
+    backend.say("*she pushes the mug aside*")
+    api.post(f"/stories/{story}/turn", json={"text": "Mira?"})  # on past the moment it was written
+    assert mira()["state"][0]["value"] == "a mug she hasn't touched"  # that take never happened
+    assert [r["rel"] for r in mira()["relationships"]] == ["trusts"]
+    assert places() == ["The Gull"]  # and they were never at the docks
+    assert mira()["remembers"] == 2  # what the first read filed is still hers
+
+
+def test_after_six_years_nothing_small_is_on_his_mind(api, story, backend, conn):
+    ledger_scene(api, story, backend, conn)
+    api.post(f"/stories/{story}/line", json={"text": "", "skip": "six years later"})
+    people = {p["name"]: p for p in api.get(f"/stories/{story}/people").json()}
+    # Tobin only ever knew where the aprons are kept; six years takes that
+    assert people["Tobin"]["on_mind"] is None and people["Tobin"]["remembers"] == 1
+    # the secret is what she was told, and it is still there, if only the shape of it
+    assert people["Mira"]["on_mind"]["tier"] in ("sharp", "hazy")
+    assert people["Mira"]["about_you"]["count"] == 1

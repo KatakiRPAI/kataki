@@ -25,6 +25,7 @@ from kataki import (
     extract,
     library,
     media,
+    people,
     retrieve,
     roles,
     signals,
@@ -448,6 +449,13 @@ def create_app(
             raise HTTPException(404, "not found")
         return item
 
+    @app.get("/library/{item_id}/profile")
+    async def get_profile(item_id: int):
+        """Everywhere this friend has been: their stories, what they are like in each, and the
+        places they have played. For a persona, who knows them and how well."""
+        await get_item(item_id)
+        return people.profile(conn, item_id)
+
     @app.patch("/library/{item_id}")
     async def edit_item(item_id: int, item: ItemPatch):
         await get_item(item_id)
@@ -653,6 +661,12 @@ def create_app(
                 for c in chat.presence_changes(conn, story_id, path)
             ],
         }
+
+    @app.get("/stories/{story_id}/people")
+    async def get_people(story_id: int):
+        """The AI characters as they stand now: where, what they hold, what is on their mind,
+        what they know about you, and how they feel about everyone."""
+        return people.people(conn, story_row(story_id))
 
     @app.post("/stories/{story_id}/turn")
     async def take_turn(story_id: int, t: TurnIn):

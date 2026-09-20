@@ -91,7 +91,7 @@ def _assess(conn, m, knower_id, known, now, live_scenes, live, relevance, graph,
     return source, superseded, s
 
 
-def _live_scenes(conn, story_id: int, path: list) -> set[int]:
+def live_scenes(conn, story_id: int, path: list) -> set[int]:
     return _ids(
         conn.execute(
             "SELECT id FROM scenes WHERE story_id=? AND (start_message_id IS NULL"
@@ -181,7 +181,7 @@ def recall(
     names = dict(
         conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)).fetchall()
     )
-    live_scenes = _live_scenes(conn, story_id, path)
+    ours = live_scenes(conn, story_id, path)
 
     results = []
     for m in rows:
@@ -198,7 +198,7 @@ def recall(
         relevance = relevance_of(m["id"])
         wobble = activation.noise(knower_id, m["id"], scene_id or 0) if noise else 0.0
         source, superseded, s = _assess(
-            conn, m, knower_id, known, now, live_scenes, live, relevance, graph.get(m["id"], 0.0),
+            conn, m, knower_id, known, now, ours, live, relevance, graph.get(m["id"], 0.0),
             wobble, d,
         )  # fmt: skip
         if s.tier is None:
@@ -281,7 +281,7 @@ def inspect(
     live = db.live_runs(conn, story_id)
     live_sql, live_args = db.live_filter(live)
     know_sql, know_args = db.live_filter(live, "k.run_id")
-    live_scenes = _live_scenes(conn, story_id, path)
+    ours = live_scenes(conn, story_id, path)
     names = dict(
         conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)).fetchall()
     )
@@ -298,7 +298,7 @@ def inspect(
         if known is None and not m["common"]:
             continue  # not known yet, as of `now`
         source, superseded, s = _assess(
-            conn, m, knower_id, known, now, live_scenes, live,
+            conn, m, knower_id, known, now, ours, live,
             CLARITY_CUE["relevance"], CLARITY_CUE["graph"], 0.0, activation.DECAY,
         )  # fmt: skip
         out.append(
