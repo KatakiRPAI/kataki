@@ -18,7 +18,7 @@ from typing import Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
 
@@ -34,6 +34,7 @@ from kataki import (
     lore,
     media,
     people,
+    readable,
     retrieve,
     roles,
     signals,
@@ -535,6 +536,27 @@ def create_app(
             return cards.add(conn, await request.body())
         except cards.BadCard as e:
             raise HTTPException(422, str(e)) from None
+
+    @app.get("/stories/{story_id}/export")
+    async def export_story(
+        story_id: int, as_: Literal["markdown", "jsonl"] = Query("markdown", alias="as")
+    ):
+        """One story as a page to read, or a line per message to keep."""
+        story = story_row(story_id)
+        body = (
+            readable.markdown(conn, story_id)
+            if as_ == "markdown"
+            else readable.jsonl(conn, story_id)
+        )
+        kind, suffix = (
+            ("text/markdown", "md") if as_ == "markdown" else ("application/x-ndjson", "jsonl")
+        )
+        name = readable.filename(story["title"], suffix)
+        return Response(
+            body.encode("utf-8"),
+            media_type=f"{kind}; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{name}"'},
+        )
 
     @app.get("/export/library")
     async def export_library():
