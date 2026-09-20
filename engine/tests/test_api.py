@@ -852,3 +852,31 @@ def test_after_six_years_nothing_small_is_on_his_mind(api, story, backend, conn)
     # the secret is what she was told, and it is still there, if only the shape of it
     assert people["Mira"]["on_mind"]["tier"] in ("sharp", "hazy")
     assert people["Mira"]["about_you"]["count"] == 1
+
+
+def test_books_gather_stories_and_the_list_says_which_book_a_story_is_in(api, story):
+    book = api.post("/books", json={"title": "The Gull Years", "blurb": "At the bar"}).json()
+    assert (book["title"], book["stories"]) == ("The Gull Years", 0)
+    assert api.get("/books").json() == [book]
+
+    assert api.patch(f"/stories/{story}", json={"book_id": book["id"]}).status_code == 200
+    listed = next(s for s in api.get("/stories").json() if s["id"] == story)
+    assert listed["book"] == {"id": book["id"], "title": "The Gull Years"}
+    assert api.get("/books").json()[0]["stories"] == 1
+
+    mira = next(i["id"] for i in api.get("/library").json() if i["name"] == "Mira")
+    other = api.post("/stories", json={"title": "Later", "character_ids": [mira]}).json()["id"]
+    api.patch(f"/stories/{other}", json={"book_id": book["id"]})
+    assert api.post(f"/books/{book['id']}/stories", json={"story_ids": [other, story]}).json() == [
+        {"id": other, "title": "Later"},
+        {"id": story, "title": "Low Tide"},
+    ]
+
+    assert (
+        api.patch(f"/books/{book['id']}", json={"title": "The Gull"}).json()["title"] == "The Gull"
+    )
+    assert api.delete(f"/books/{book['id']}").status_code == 204
+    assert api.get("/books").json() == []
+    assert next(s for s in api.get("/stories").json() if s["id"] == story)["book"] is None
+    assert api.get("/books/999").status_code == 404
+    assert api.patch(f"/stories/{story}", json={"book_id": 999}).status_code == 422

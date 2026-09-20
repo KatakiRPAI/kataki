@@ -143,3 +143,47 @@ def test_example_dialogue_is_copied_into_the_story_with_the_character(conn):
     library.update_item(conn, mira, data={"example_dialogue": "changed later"})
     row = conn.execute("SELECT examples FROM entities WHERE story_id=?", (story,)).fetchone()
     assert row["examples"] == "Mira: Coin first. Questions after."
+
+
+# --- books: stories that belong together --------------------------------------------------------
+
+
+def test_a_book_holds_its_stories_in_an_order(conn, cast):
+    first = library.create_story(conn, "One", character_ids=[cast["mira"]])
+    second = library.create_story(conn, "Two", character_ids=[cast["tobin"]])
+    third = library.create_story(conn, "Three", character_ids=[cast["mira"]])
+    book = library.create_book(conn, "The Gull Years", blurb="Everything that happened at the bar")
+
+    library.set_book(conn, second, book)
+    library.set_book(conn, first, book)
+    assert [s["title"] for s in library.book_stories(conn, book)] == ["Two", "One"]  # as added
+
+    library.order_book(conn, book, [first, second])
+    assert [s["title"] for s in library.book_stories(conn, book)] == ["One", "Two"]
+
+    [listed] = library.list_books(conn)
+    assert (listed["title"], listed["blurb"], listed["stories"]) == (
+        "The Gull Years",
+        "Everything that happened at the bar",
+        2,
+    )
+    library.update_book(conn, book, title="The Gull", blurb="")
+    assert library.get_book(conn, book)["title"] == "The Gull"
+
+    # a story leaves a book without leaving the library
+    library.set_book(conn, first, None)
+    assert [s["title"] for s in library.book_stories(conn, book)] == ["Two"]
+    assert conn.execute("SELECT count(*) FROM stories").fetchone()[0] == 3
+
+    # deleting the book keeps every story, unbooked
+    library.delete_book(conn, book)
+    assert library.list_books(conn) == []
+    assert conn.execute("SELECT count(*) FROM stories").fetchone()[0] == 3
+    assert conn.execute("SELECT count(*) FROM stories WHERE book_id IS NOT NULL").fetchone()[0] == 0
+    assert third  # untouched throughout
+
+
+def test_a_story_can_only_join_a_book_that_exists(conn, cast):
+    story = library.create_story(conn, "One", character_ids=[cast["mira"]])
+    with pytest.raises(ValueError):
+        library.set_book(conn, story, 999)

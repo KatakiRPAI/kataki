@@ -265,3 +265,76 @@ def merge_entities(conn: sqlite3.Connection, keep: int, drop: int) -> None:
             "UPDATE OR IGNORE taggings SET obj_id=? WHERE obj='entity' AND obj_id=?", (keep, drop)
         )
         conn.execute("UPDATE entities SET hidden=1, merge_candidate_id=? WHERE id=?", (keep, drop))
+
+
+# --- books: stories that belong together, in an order -------------------------------------------
+
+
+def create_book(conn: sqlite3.Connection, title: str, blurb: str = "") -> int:
+    with conn:
+        cur = conn.execute("INSERT INTO books(title, blurb) VALUES(?, ?)", (title, blurb))
+    return cur.lastrowid
+
+
+def get_book(conn: sqlite3.Connection, book_id: int) -> dict | None:
+    row = conn.execute(
+        "SELECT b.*, (SELECT count(*) FROM stories WHERE book_id=b.id) AS stories"
+        " FROM books b WHERE b.id=?",
+        (book_id,),
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def list_books(conn: sqlite3.Connection) -> list[dict]:
+    rows = conn.execute(
+        "SELECT b.*, (SELECT count(*) FROM stories WHERE book_id=b.id) AS stories"
+        " FROM books b ORDER BY b.title COLLATE NOCASE"
+    )
+    return [dict(r) for r in rows]
+
+
+def update_book(conn: sqlite3.Connection, book_id: int, **fields) -> None:
+    keep = {k: v for k, v in fields.items() if k in ("title", "blurb") and v is not None}
+    if not keep:
+        return
+    sets = ", ".join(f"{k}=?" for k in keep)
+    with conn:
+        conn.execute(f"UPDATE books SET {sets} WHERE id=?", [*keep.values(), book_id])
+
+
+def delete_book(conn: sqlite3.Connection, book_id: int) -> None:
+    """The book goes; its stories stay, unbooked. (`stories.book_id` has no key to cascade: the
+    column is older than the table.)"""
+    with conn:
+        conn.execute("UPDATE stories SET book_id=NULL, book_order=0 WHERE book_id=?", (book_id,))
+        conn.execute("DELETE FROM books WHERE id=?", (book_id,))
+
+
+def set_book(conn: sqlite3.Connection, story_id: int, book_id: int | None) -> None:
+    """Put a story in a book (at the end) or take it out of the one it is in."""
+    if book_id is not None and get_book(conn, book_id) is None:
+        raise ValueError(f"no book {book_id}")
+    last = conn.execute(
+        "SELECT coalesce(max(book_order), 0) FROM stories WHERE book_id=?", (book_id,)
+    ).fetchone()[0]
+    with conn:
+        conn.execute(
+            "UPDATE stories SET book_id=?, book_order=? WHERE id=?",
+            (book_id, 0 if book_id is None else last + 1, story_id),
+        )
+
+
+def order_book(conn: sqlite3.Connection, book_id: int, story_ids: list[int]) -> None:
+    """The order the stories read in; any the caller leaves out keep theirs, after these."""
+    with conn:
+        for i, story_id in enumerate(story_ids, start=1):
+            conn.execute(
+                "UPDATE stories SET book_order=? WHERE id=? AND book_id=?", (i, story_id, book_id)
+            )
+
+
+def book_stories(conn: sqlite3.Connection, book_id: int) -> list[dict]:
+    rows = conn.execute(
+        "SELECT id, title FROM stories WHERE book_id=? ORDER BY book_order, id", (book_id,)
+    )
+    return [dict(r) for r in rows]

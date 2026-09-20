@@ -88,10 +88,25 @@ class StoryIn(BaseModel):
     epoch_offset_min: int = Field(480, ge=0)  # the clock at the start: 480 = Day 1, 08:00
 
 
+class BookIn(BaseModel):
+    title: str
+    blurb: str = ""
+
+
+class BookPatch(BaseModel):
+    title: str | None = None
+    blurb: str | None = None
+
+
+class BookOrder(BaseModel):
+    story_ids: list[int]
+
+
 class StoryPatch(BaseModel):
     title: str | None = None
     minutes_per_turn: int | None = None
     pinned: bool | None = None
+    book_id: int | None = None
     roles: dict | None = None  # per-story role overrides, same shape as PUT /roles/{role}
 
 
@@ -510,7 +525,8 @@ def create_app(
         return sum(e["new"] for e in signals.activity(conn, story["id"], limit=None))
 
     def standing(story: dict) -> dict:
-        """Where a story stands now: its clock, who you play, where, and who is there."""
+        """Where a story stands now: its clock, who you play, where, who is there, its book."""
+        book = story["book_id"] and library.get_book(conn, story["book_id"])
         path = chat.active_path(conn, story["id"])
         now = path[-1]["story_time"] if path else 0
         scene_id = chat.scene_of(conn, story["id"], path)
@@ -537,6 +553,7 @@ def create_app(
             "last_line": last and {"speaker": speaker and speaker["name"], "text": last["text"]},
             "new_events": new_events(story),
             "waiting": len(extract.pending(conn, story["id"])),
+            "book": book and {"id": book["id"], "title": book["title"]},
         }
 
     @app.get("/stories")
@@ -587,13 +604,55 @@ def create_app(
     @app.patch("/stories/{story_id}")
     async def edit_story(story_id: int, s: StoryPatch):
         story = story_row(story_id)
-        fields = s.model_dump(exclude_unset=True, exclude={"roles"})
+        fields = s.model_dump(exclude_unset=True, exclude={"roles", "book_id"})
         if s.roles is not None:
             overrides = json.loads(story["overrides"])
             overrides["roles"] = s.roles
             fields["overrides"] = json.dumps(overrides)
+        if "book_id" in s.model_fields_set:
+            try:
+                library.set_book(conn, story_id, s.book_id)
+            except ValueError as e:
+                raise HTTPException(422, str(e)) from None
         _patch(conn, "stories", story_id, fields)
         return await get_story(story_id)
+
+    # --- books --------------------------------------------------------------------------------
+
+    @app.get("/books")
+    async def list_books():
+        return library.list_books(conn)
+
+    @app.post("/books", status_code=201)
+    async def add_book(b: BookIn):
+        return library.get_book(conn, library.create_book(conn, b.title, b.blurb))
+
+    def book_row(book_id: int) -> dict:
+        if (book := library.get_book(conn, book_id)) is None:
+            raise HTTPException(404, "not found")
+        return book
+
+    @app.get("/books/{book_id}")
+    async def get_book(book_id: int):
+        return book_row(book_id)
+
+    @app.patch("/books/{book_id}")
+    async def edit_book(book_id: int, b: BookPatch):
+        book_row(book_id)
+        library.update_book(conn, book_id, **b.model_dump(exclude_unset=True))
+        return library.get_book(conn, book_id)
+
+    @app.delete("/books/{book_id}", status_code=204)
+    async def remove_book(book_id: int):
+        book_row(book_id)
+        library.delete_book(conn, book_id)
+
+    @app.post("/books/{book_id}/stories")
+    async def order_book(book_id: int, o: BookOrder):
+        """The order this book reads in. Stories left out keep theirs, after these."""
+        book_row(book_id)
+        library.order_book(conn, book_id, o.story_ids)
+        return library.book_stories(conn, book_id)
 
     @app.post("/stories/{story_id}/seen", status_code=204)
     async def mark_seen(story_id: int):
