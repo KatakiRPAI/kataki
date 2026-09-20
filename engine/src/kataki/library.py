@@ -417,3 +417,47 @@ def all_tags(conn: sqlite3.Connection) -> list[dict]:
         " GROUP BY t.id ORDER BY t.name COLLATE NOCASE"
     )
     return [{"name": r["name"], "items": r["items"], "stories": r["stories"]} for r in rows]
+
+
+# --- the same person, in more than one story ----------------------------------------------------
+
+
+def same_person(conn: sqlite3.Connection, item_id: int) -> list[dict]:
+    """Every story this library item plays in, and what that self holds there. Two entities are
+    the same person when they came from the same item, or when one was adopted into it."""
+    rows = conn.execute(
+        "SELECT e.id AS entity_id, e.name, e.story_id, s.title AS story, e.is_ai,"
+        " (SELECT count(*) FROM knowledge k WHERE k.knower_id=e.id) AS remembers"
+        " FROM entities e JOIN stories s ON s.id=e.story_id"
+        " WHERE e.hidden=0 AND (e.lib_item_id=? OR e.origin_entity_id IN"
+        "   (SELECT id FROM entities WHERE lib_item_id=?))"
+        " ORDER BY e.story_id",
+        (item_id, item_id),
+    )
+    return [dict(r) for r in rows]
+
+
+def adopt(conn: sqlite3.Connection, entity_id: int) -> int:
+    """Make a library item out of someone the reader found, and point their story self at it, so
+    they can walk into another story as themselves. Adopting twice is not two people."""
+    e = conn.execute("SELECT * FROM entities WHERE id=?", (entity_id,)).fetchone()
+    if e is None:
+        raise ValueError(f"no entity {entity_id}")
+    if e["lib_item_id"]:
+        return e["lib_item_id"]
+    aliases = [
+        a["alias"]
+        for a in conn.execute("SELECT alias FROM aliases WHERE entity_id=?", (entity_id,))
+        if a["alias"] != e["name"]
+    ]
+    item_id = create_item(
+        conn,
+        e["kind"] if e["kind"] in ("character", "place") else "character",
+        e["name"],
+        description=e["description"] or e["summary"] or "",
+        private=e["private"] or "",
+        data={"aliases": aliases, "example_dialogue": e["examples"] or ""},
+    )
+    with conn:
+        conn.execute("UPDATE entities SET lib_item_id=? WHERE id=?", (item_id, entity_id))
+    return item_id

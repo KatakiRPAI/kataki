@@ -476,6 +476,12 @@ def create_app(
             raise HTTPException(404, "not found")
         return item
 
+    @app.get("/library/{item_id}/same")
+    async def same_person(item_id: int):
+        """Every story this person plays in, and how much that self holds."""
+        await get_item(item_id)
+        return library.same_person(conn, item_id)
+
     @app.get("/library/{item_id}/profile")
     async def get_profile(item_id: int):
         """Everywhere this friend has been: their stories, what they are like in each, and the
@@ -979,6 +985,13 @@ def create_app(
         _row(conn, "SELECT id FROM entities WHERE id=?", (entity_id,))
         _patch(conn, "entities", entity_id, p.model_dump(exclude_unset=True))
         return _row(conn, "SELECT * FROM entities WHERE id=?", (entity_id,))
+
+    @app.post("/entities/{entity_id}/adopt", status_code=201)
+    async def adopt_entity(entity_id: int):
+        """Someone the reader found becomes a friend in the library, and this story's copy
+        becomes their first appearance."""
+        _row(conn, "SELECT id FROM entities WHERE id=?", (entity_id,))
+        return library.get_item(conn, library.adopt(conn, entity_id))
 
     @app.post("/entities/merge")
     async def merge(m: MergeIn):

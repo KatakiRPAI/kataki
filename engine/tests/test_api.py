@@ -971,3 +971,45 @@ def test_folders_are_saved_views_the_engine_only_keeps(api):
     ]
     assert api.put("/settings", json={"folders": folders}).json()["folders"] == folders
     assert api.get("/settings").json()["folders"] == folders
+
+
+def test_where_else_this_person_is_and_adopting_one_the_reader_found(api, story, backend, conn):
+    who = cast(api, story)
+    lib = {i["name"]: i["id"] for i in api.get("/library").json()}
+    api.post("/stories", json={"title": "Frost on the Pass", "character_ids": [lib["Mira"]]})
+
+    same = api.get(f"/library/{lib['Mira']}/same").json()
+    assert [s["story"] for s in same] == ["Low Tide", "Frost on the Pass"]
+    assert same[0]["story_id"] == story and same[0]["entity_id"] == who["Mira"]["id"]
+    assert same[0]["name"] == "Mira" and same[0]["remembers"] == 0
+    assert api.get("/library/999/same").status_code == 404
+
+    # someone the reader found: no library item, just a name in one story
+    backend.say("A woman in a green apron watches from the bar.")
+    api.post(f"/stories/{story}/turn", json={"text": "Who else is here?"})
+    found = {
+        "memories": [{
+            "kind": "event", "detail": "Wren watched from the bar.", "gist": "Wren watched.",
+            "importance": 4, "line": 1,
+            "participants": [{"ref": "N1", "role": "actor"}],
+        }],
+        "new_entities": [
+            {"handle": "N1", "kind": "character", "name": "Wren", "summary": "A watcher."}
+        ],
+    }  # fmt: skip
+    backend.say(json.dumps(found))
+    assert api.post(f"/stories/{story}/extract").json()["run"]["status"] == "ok"
+    wren = conn.execute("SELECT * FROM entities WHERE name='Wren'").fetchone()
+    assert wren["lib_item_id"] is None
+
+    adopted = api.post(f"/entities/{wren['id']}/adopt").json()
+    assert (adopted["name"], adopted["kind"]) == ("Wren", "character")
+    assert adopted["description"] == "A watcher."
+    again = conn.execute("SELECT * FROM entities WHERE id=?", (wren["id"],)).fetchone()
+    assert again["lib_item_id"] == adopted["id"]  # the story's copy now points at the library
+
+    # and she is findable from the library like anyone else
+    assert [s["story"] for s in api.get(f"/library/{adopted['id']}/same").json()] == ["Low Tide"]
+    # adopting twice is not two Wrens
+    assert api.post(f"/entities/{wren['id']}/adopt").json()["id"] == adopted["id"]
+    assert len([i for i in api.get("/library").json() if i["name"] == "Wren"]) == 1
