@@ -22,6 +22,7 @@ from kataki import (
     __version__,
     cards,
     chat,
+    chats,
     clock,
     extract,
     library,
@@ -527,6 +528,32 @@ def create_app(
         the same card twice makes two, which is the only safe thing to do with someone's name."""
         try:
             return cards.add(conn, await request.body())
+        except cards.BadCard as e:
+            raise HTTPException(422, str(e)) from None
+
+    @app.post("/import/chat", status_code=201)
+    async def import_chat(
+        request: Request,
+        character_id: int | None = None,
+        persona_id: int | None = None,
+        title: str | None = None,
+    ):
+        """A SillyTavern chat becomes a new story, swipes and all. Say which friends it is
+        about, or the chat's own two names are made into friends."""
+        for item_id in (character_id, persona_id):
+            item = library.get_item(conn, item_id) if item_id is not None else None
+            if item_id is not None and (item is None or item["kind"] != "character"):
+                raise HTTPException(422, f"library item {item_id} is not a character")
+        if character_id is not None and character_id == persona_id:
+            raise HTTPException(422, "one person cannot be both sides of a chat")
+        try:
+            return chats.add(
+                conn,
+                await request.body(),
+                character_id=character_id,
+                persona_id=persona_id,
+                title=title,
+            )
         except cards.BadCard as e:
             raise HTTPException(422, str(e)) from None
 

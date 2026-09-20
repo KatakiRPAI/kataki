@@ -138,6 +138,7 @@ def create_story(
     persona_id: int | None = None,  # None = director mode: the user plays no one
     scenario_id: int | None = None,
     epoch_offset_min: int = 480,  # the clock at story time 0: Day 1, 08:00
+    opening: bool = True,  # False: a story that already has its first line, as an import does
 ) -> int:
     scenario = get_item(conn, scenario_id) if scenario_id is not None else None
     # The premise is copied too, so editing the plot in the library never rewrites this story.
@@ -171,22 +172,21 @@ def create_story(
             )
 
         # The opening line: the scenario's (narrated), else the first AI character's greeting.
-        opening = (None, scenario["data"].get("first_message")) if scenario else (None, None)
-        if not opening[1]:
+        first = (None, scenario["data"].get("first_message")) if scenario else (None, None)
+        if not first[1]:
             greeters = (
                 (entity_id, item["data"].get("first_message"))
                 for entity_id, (item, is_ai) in zip(entity_ids, cast, strict=True)
                 if is_ai
             )
-            opening = next((g for g in greeters if g[1]), (None, None))
-        if opening[1]:
+            first = next((g for g in greeters if g[1]), (None, None))
+        if opening and first[1]:
             # An imported card says `{{user}}`; here we finally know who that is.
             player = next((item["name"] for item, is_ai in cast if not is_ai), "you")
-            opening = (opening[0], cards.macros(opening[1], user=player))
             leaf = conn.execute(
                 "INSERT INTO messages(story_id, role, speaker_id, text, story_time, scene_id)"
                 " VALUES(?, 'assistant', ?, ?, 0, ?)",
-                (story_id, opening[0], opening[1], scene_id),
+                (story_id, first[0], cards.macros(first[1], user=player), scene_id),
             ).lastrowid
             conn.execute("UPDATE stories SET active_leaf_id=? WHERE id=?", (leaf, story_id))
     return story_id
