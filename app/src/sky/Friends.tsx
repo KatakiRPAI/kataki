@@ -33,7 +33,7 @@ export function status(friend: Item, stories: StorySummary[]): { text: string; i
 
 /** The Friends page, or (as a section) the Friends grid on Home. */
 export default function Friends({ section = false }: { section?: boolean }) {
-  const { items, reload, error } = useLibrary()
+  const { items, loaded, reload, error } = useLibrary()
   const [stories, , storiesError] = useLoad(() => api<StorySummary[]>('/stories'), [])
   const [filter, setFilter] = useState<Filter>('all')
   const [run, actionError] = useAction()
@@ -106,6 +106,11 @@ export default function Friends({ section = false }: { section?: boolean }) {
           )
         })}
         {items.length > 0 && shown.length === 0 && filter !== 'all' && <p className="ka-muted">No one here yet.</p>}
+        {loaded && items.length === 0 && (
+          <p className="ka-muted ka-empty-note">
+            No one to play with yet. Add a friend and they'll remember everything you do together.
+          </p>
+        )}
         {filter === 'all' && (
           <a className="ka-add-card" href={href('/friends/new')}>
             <Candy icon="plus" size={56} />

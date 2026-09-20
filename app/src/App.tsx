@@ -15,7 +15,7 @@ import Places from './sky/Places'
 import Settings from './sky/Settings'
 import You from './sky/You'
 import Profile from './sky/Profile'
-import { Icon } from './ui'
+import { Icon, Trouble } from './ui'
 
 // The rail grows as each Sky screen lands: [route, icon, label].
 const RAIL: [string, string, string][] = [
@@ -95,11 +95,16 @@ export default function App() {
   const [model, setModel] = useState<{ path: string; has: boolean }>()
   const [diving, setDiving] = useState<{ to: string; up: boolean }>()
 
-  // The smoke check (and later the offline card) read this instead of visible text.
+  // The smoke check reads this instead of visible text; so does the card below.
+  const [engine, setEngine] = useState<'ok' | 'down'>()
+  const [tries, setTries] = useState(0)
   useEffect(() => {
-    const mark = (state: string) => (document.documentElement.dataset.engine = state)
+    const mark = (state: 'ok' | 'down') => {
+      document.documentElement.dataset.engine = state
+      setEngine(state)
+    }
     api('/health').then(() => mark('ok'), () => mark('down'))
-  }, [])
+  }, [tries])
   // Until a model is connected, check again on every route: First run connects one, then leaves.
   // An answer counts only for the route it was asked on, so a stale "no" can't bounce you back.
   useEffect(() => {
@@ -161,6 +166,24 @@ export default function App() {
       <LibraryProvider>
         <Sky at={at === 'friend' ? 'friends' : at === 'settings' || RAIL.some(([r]) => r === at) ? at : 'home'}>{page}</Sky>
       </LibraryProvider>
+    )
+  if (engine === 'down')
+    return (
+      <div className="k-sky ka-sky ka-offline">
+        <img className="ka-clouds" src={clouds} alt="" />
+        <Trouble
+          title="Kataki's engine isn't answering"
+          action={
+            <button type="button" className="k-btn k-btn--dark" onClick={() => setTries((t) => t + 1)}>
+              <Icon name="refresh" size={16} />
+              Try again
+            </button>
+          }
+        >
+          Your stories are safe on this computer. The part that reads and writes them has stopped
+          responding — trying again usually brings it back.
+        </Trouble>
+      </div>
     )
   return (
     <>

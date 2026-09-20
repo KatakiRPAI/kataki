@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { api, stream, type Cast, type CastEntity, type ContextLog, type Message, type Signals, type Story, type TurnDone, type TurnMeta, type Version } from '../api'
 import { paletteOf, SunArc } from '../art'
-import { lastSky, rise, useAction, useLibrary, useLoad, usePoll, type Moving } from '../hooks'
-import { Dialog, ErrorLine, Field, Icon, Menu } from '../ui'
+import { href, lastSky, rise, useAction, useLibrary, useLoad, usePoll, type Moving } from '../hooks'
+import { Dialog, ErrorLine, Field, Icon, Menu, Trouble, Waiting } from '../ui'
 import Composer, { type Meter, type Send, type Speaker } from './Composer'
 import Lines, { LiveLine, SaidLine, TimeSkip, type Live } from './Lines'
 import { Nearby, NewScene, type SceneBody } from './Nearby'
@@ -297,8 +297,8 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
 
   if (!data) {
     return (
-      <div className="k-scene ka-scene">
-        <ErrorLine error={error} />
+      <div className="k-scene ka-scene ka-scene--waiting">
+        {error ? <Trouble title="This story won't open">{error}</Trouble> : <Waiting rows={4} />}
       </div>
     )
   }
@@ -316,6 +316,8 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
   const shown = live?.replacing ? messages.filter((m) => m.id !== live.replacing) : messages
   const newest = messages.at(-1)
   const retake = () => newest && generate(`/stories/${id}/regenerate`, {}, newest.id)
+  // "no model is set", "could not reach ...": something to go and fix, not a line to shrug at
+  const offline = /model|reach|connect|provider/i.test(failed)
 
   return (
     <div className={`k-scene ka-scene${reading && !backstage ? ' is-reading' : ''}${awake ? ' is-awake' : ''}${backstage ? ' is-backstage' : ''}${skipping ? ' is-skipping' : ''}`}
@@ -363,7 +365,16 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
             hearers={said.audience === null ? people : people.filter((e) => said.audience!.includes(e.id))} />
         )}
         {live && <LiveLine live={live} item={writerItem} ink={writer ? paletteOf(writerItem, writer.name).ink : undefined} />}
-        <ErrorLine error={failed || actError || error} />
+        {offline ? (
+          <Trouble
+            title="The model isn't answering"
+            action={<a className="k-btn k-btn--sm" href={href('/settings')}><Icon name="server" size={15} />Check Models</a>}
+          >
+            {failed}
+          </Trouble>
+        ) : (
+          <ErrorLine error={failed || actError || error} />
+        )}
       </div>
       <Composer
         story={story}

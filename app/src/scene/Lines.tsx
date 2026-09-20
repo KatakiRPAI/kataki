@@ -84,6 +84,12 @@ export default function Lines({ story, messages, cast, signals, flash, busy, onC
   const scenes = messages.some((m, i) => i > 0 && m.role === 'system' && m.scene_id !== messages[i - 1].scene_id)
   const opening = [scenes ? null : (story.place?.name ?? story.scene_title), story.start_clock].filter(Boolean).join(' · ')
   const out: ReactNode[] = [<Card key="opening">{opening}</Card>]
+  if (!messages.length)
+    out.push(
+      <p key="unstarted" className="k-sysnote">
+        The story has not started. Say something, or press Continue.
+      </p>,
+    )
   const newest = messages.at(-1)
   let day = dayOf(story.start_clock)
   messages.forEach((m, i) => {

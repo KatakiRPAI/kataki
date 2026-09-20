@@ -732,3 +732,16 @@ a.ka-event:hover { background: #fff; }
   .ka-timeskip, .ka-timeskip.is-leaving, .ka-room--leaving { animation-duration: 200ms; }
   .ka-topbar__clock.is-rolling { animation: ka-mist 200ms var(--k-ease-standard); } /* no slide */
 }
+
+/* --- waiting, and when something is not answering (2.37) ------------------------------------ */
+.ka-waiting { display: flex; flex-direction: column; gap: 10px; padding: 18px; }
+.ka-waiting__row { height: 14px; border-radius: 7px; background: linear-gradient(90deg, rgba(255,255,255,.35) 0%, rgba(255,255,255,.6) 50%, rgba(255,255,255,.35) 100%); background-size: 200% 100%; animation: ka-wait 1.4s linear infinite; }
+.ka-waiting__row:nth-child(2) { width: 82%; } .ka-waiting__row:nth-child(3) { width: 64%; } .ka-waiting__row:nth-child(4) { width: 73%; }
+@keyframes ka-wait { to { background-position: -200% 0; } }
+.ka-scene--waiting .ka-waiting__row { background: rgba(255,236,210,.12); animation: none; }
+.ka-trouble { align-self: center; max-width: 520px; }
+.ka-trouble h3 { margin: 0; font-size: 16px; font-weight: 800; }
+.ka-scene .ka-trouble { background: rgba(28,20,16,.8); border: 1px solid var(--k-scene-glass-border); color: var(--k-scene-ink); }
+.ka-scene .ka-trouble .ka-muted { color: var(--k-scene-muted); }
+.ka-offline { display: grid; place-items: center; }
+.ka-empty-note { grid-column: 1 / -1; }

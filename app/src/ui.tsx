@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 
 // Thin wrappers over the design system's classes (design/components.css). Anything the design
 // doesn't cover lives in app.css under ka- classes.
@@ -131,6 +131,36 @@ export type TierName = 'sharp' | 'hazy' | 'forgotten'
 
 export function Tier({ tier, backstage }: { tier: TierName; backstage?: boolean }) {
   return <span className={backstage ? `k-bs-tier k-bs-tier--${tier}` : `k-tier k-tier--${tier}`}>{tier}</span>
+}
+
+/** A placeholder for a load that is taking a moment: nothing for the first 300 ms, so a quick
+ *  answer never flashes a skeleton. */
+export function Waiting({ rows = 3, className = '' }: { rows?: number; className?: string }) {
+  const [show, setShow] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setShow(true), 300)
+    return () => clearTimeout(t)
+  }, [])
+  if (!show) return null
+  return (
+    <div className={`ka-waiting ${className}`} aria-hidden="true">
+      {Array.from({ length: rows }, (_, i) => <span key={i} className="ka-waiting__row" />)}
+    </div>
+  )
+}
+
+/** Something is not answering: what happened, and the one thing worth trying. */
+export function Trouble({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
+  return (
+    <section className="k-card ka-trouble" role="alert">
+      <h3 className="ka-row ka-row--gap">
+        <Icon name="alert" size={18} />
+        {title}
+      </h3>
+      <p className="ka-muted ka-m0">{children}</p>
+      {action}
+    </section>
+  )
 }
 
 export function ErrorLine({ error }: { error: string }) {
