@@ -4,16 +4,24 @@ import { Avatar, Figure, MIDDAY, paletteOf, Room, timeOfDay, type TimeOfDay } fr
 import { DRAG, useLibrary, type Moving } from '../hooks'
 import { Icon } from '../ui'
 
+/** Where the peek card goes: beside whoever you looked at, wherever the pointer was (a keyboard
+ *  press has no pointer at all). */
+const beside = (el: HTMLElement) => {
+  const box = el.getBoundingClientRect()
+  return { x: box.left + Math.min(box.width, 260), y: box.top + 40 }
+}
+
 /** The place, lit by the story's clock, with up to three people in it (the speaker lit in front,
  *  the others softened) and anyone beyond that as a row of avatars. Drop someone from the tray
  *  here to bring them in; drag a figure off to the tray, or use its button, to send them away.
  *  `arriving` steps in with a name card. */
-export default function Stage({ story, people, arriving, busy, onMove }: {
+export default function Stage({ story, people, arriving, busy, onMove, onPeek }: {
   story: Story
   people: CastEntity[]
   arriving?: number
   busy: boolean
   onMove: (m: Moving) => void
+  onPeek: (id: number, at: { x: number; y: number }) => void
 }) {
   const { byId } = useLibrary()
   const [target, setTarget] = useState(false)
@@ -53,7 +61,12 @@ export default function Stage({ story, people, arriving, busy, onMove }: {
       {shown.map((e, i) => (
         <span key={e.id} className="ka-stage__slot" data-slot={i} draggable
           onDragStart={(d) => d.dataTransfer.setData(DRAG, JSON.stringify({ kind: 'here', id: e.id }))}>
-          <Figure item={item(e)} name={e.name} className={`k-stage__char${i ? ' is-softened' : ''}${e.id === arriving ? ' is-entering' : ''}`} />
+          {/* draggable itself: a button would otherwise swallow the drag that sends someone away */}
+          <button type="button" className="ka-stage__peek" aria-label={`Look at ${e.name}`} draggable
+            onDragStart={(d) => d.dataTransfer.setData(DRAG, JSON.stringify({ kind: 'here', id: e.id }))}
+            onClick={(c) => onPeek(e.id, beside(c.currentTarget))}>
+            <Figure item={item(e)} name={e.name} className={`k-stage__char${i ? ' is-softened' : ''}${e.id === arriving ? ' is-entering' : ''}`} />
+          </button>
           <button type="button" className="k-sbtn ka-stage__away" disabled={busy} onClick={() => onMove({ kind: 'here', id: e.id })}>
             <Icon name="arrow" size={14} />
             Send {e.name} away
@@ -73,9 +86,10 @@ export default function Stage({ story, people, arriving, busy, onMove }: {
       {people.length > 3 && (
         <div className="ka-stage__row">
           {people.slice(3).map((e) => (
-            <span key={e.id} title={e.name}>
+            <button key={e.id} type="button" className="ka-stage__peekface" aria-label={`Look at ${e.name}`}
+              onClick={(c) => onPeek(e.id, beside(c.currentTarget))}>
               <Avatar item={item(e)} name={e.name} size={40} />
-            </span>
+            </button>
           ))}
         </div>
       )}

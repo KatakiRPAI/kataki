@@ -388,7 +388,7 @@ span.k-orb { display: block; }
 .ka-scene { position: relative; height: 100%; overflow: hidden; }
 .ka-stage { position: absolute; inset: 0; }
 .ka-stage__slot { position: absolute; left: 6vw; bottom: -2vh; width: 44vw; z-index: 1; }
-.ka-stage__slot > .ka-figure { position: relative; width: 100%; height: auto; } /* the slot places it, not .k-stage__char */
+.ka-stage__peek > .ka-figure { position: relative; width: 100%; height: auto; } /* the slot places it, not .k-stage__char */
 .ka-stage[data-count="2"] [data-slot="0"] { left: 24vw; width: 40vw; z-index: 2; }
 .ka-stage[data-count="2"] [data-slot="1"] { left: -4vw; width: 37vw; }
 .ka-stage[data-count="3"] [data-slot="0"] { left: 14vw; width: 36vw; z-index: 2; }
@@ -641,6 +641,50 @@ a.ka-event:hover { background: #fff; }
 .ka-thread__mid { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .ka-thread__mid > .ka-thread__line { min-width: 0; }
 .ka-mem-badge { min-width: 24px; height: 24px; padding: 0 7px; box-sizing: border-box; border-radius: 12px; background: var(--k-sky-event-memory); color: #fff; font-size: 11.5px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 3px; }
+
+/* --- the peek card (2.9): who someone is, right now ---------------------------------------- */
+.ka-stage__peek { display: block; width: 100%; padding: 0; border: 0; background: none; cursor: pointer; } /* in flow: the slot takes its height from the figure */
+.ka-stage__peek:focus-visible { outline-offset: -6px; border-radius: 24px; }
+.ka-stage__peekface { padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; }
+/* however far down it opens, it ends 16px above the window: the rest scrolls inside the card */
+.ka-peek { --top: clamp(16px, calc(var(--y) - 120px), calc(100vh - 640px)); position: fixed; left: clamp(16px, var(--x), calc(100vw - 436px)); top: var(--top); z-index: 7; color: var(--k-scene-ink); box-sizing: border-box; max-height: calc(100vh - 16px - var(--top)); overflow-y: auto; }
+.ka-peek__head { display: flex; align-items: center; gap: 14px; padding: 18px 18px 0; }
+.ka-peek__face { box-shadow: 0 0 0 2px var(--ink, var(--k-scene-amber)); }
+.ka-peek__who { display: flex; flex-direction: column; gap: 4px; flex-grow: 1; min-width: 0; }
+.ka-peek__name { font-family: var(--k-font-story); font-size: 26px; line-height: 1; }
+.ka-peek__role { font-size: 12px; color: var(--k-scene-muted); }
+.ka-peek__close { width: 36px; height: 36px; border-radius: 50%; border: 0; background: rgba(255,255,255,.08); color: var(--k-scene-ink); display: grid; place-items: center; cursor: pointer; }
+.ka-peek__block { padding: 0 18px; display: flex; flex-direction: column; gap: 8px; }
+.ka-peek__blockhead { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.ka-peek__eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--k-scene-muted); }
+.ka-peek__more { padding: 0; border: 0; background: none; font: inherit; font-size: 12px; color: var(--k-scene-amber); cursor: pointer; }
+.ka-peek__none { font-size: 13px; color: var(--k-scene-muted); }
+.ka-peek__note { margin: 0 18px; font-size: 13px; color: var(--k-scene-muted); }
+.ka-peek__row { display: flex; align-items: flex-start; gap: 10px; }
+.ka-peek__icon { color: var(--k-scene-muted); display: flex; padding-top: 1px; }
+.ka-peek__key { width: 74px; flex-shrink: 0; font-size: 12px; color: var(--k-scene-muted); }
+.ka-peek__value { font-size: 13.5px; display: flex; align-items: center; gap: 6px; }
+.ka-peek__value .k-icon { color: var(--k-scene-muted); }
+.ka-peek__mind { display: flex; align-items: center; gap: 10px; }
+.ka-peek__thought { font-family: var(--k-font-story); font-size: 16px; }
+.ka-peek__sample { font-size: 13.5px; line-height: 1.4; }
+.ka-peek__doubt { color: #cbb8ff; }
+.ka-tier { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; flex-shrink: 0; border-radius: 10px; border: 1px solid var(--k-scene-amber); color: var(--k-scene-amber); font-size: 11px; font-weight: 700; letter-spacing: .04em; }
+.ka-tier.is-hazy { border-style: dashed; }
+.ka-tier.is-forgotten { border-style: dotted; opacity: .55; }
+.ka-peek__chips { padding: 0 18px; display: flex; gap: 8px; flex-wrap: wrap; }
+.ka-peek__chip { height: 28px; padding: 0 12px; border-radius: 14px; background: rgba(240,179,90,.12); color: var(--k-scene-amber); font-size: 12.5px; font-weight: 600; display: flex; align-items: center; }
+.ka-peek__chip.is-cold { background: rgba(244,165,149,.12); color: #f4a595; }
+.ka-peek__secret { margin: 0 18px; padding: 12px 14px; border-radius: 14px; background: rgba(255,255,255,.04); border: 1px solid var(--k-scene-glass-border); display: flex; align-items: center; gap: 12px; }
+.ka-peek__secret > .k-icon { color: var(--k-scene-muted); flex-shrink: 0; }
+.ka-peek__secrettext { font-family: var(--k-font-story); font-size: 15px; filter: blur(5px); transition: filter var(--k-dur-base) var(--k-ease-standard); }
+.ka-peek__secrettext.is-shown { filter: none; }
+.ka-peek__reveal { height: 32px; padding: 0 12px; flex-shrink: 0; border-radius: 16px; border: 1px solid rgba(255,236,210,.25); background: none; color: var(--k-scene-ink); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.ka-peek__acts { padding: 0 18px; display: flex; gap: 8px; }
+.ka-peek__answer { flex-grow: 1; height: 44px; border: 0; border-radius: 22px; background: var(--k-scene-amber); color: var(--k-scene-amber-ink); font: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; }
+.ka-peek__act { height: 44px; padding: 0 16px; border-radius: 22px; border: 1px solid rgba(255,236,210,.2); background: none; color: var(--k-scene-ink); font: inherit; font-size: 13.5px; font-weight: 600; text-decoration: none; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.ka-peek__act--icon { width: 44px; padding: 0; }
+.ka-peek__answer:disabled, .ka-peek__act:disabled { opacity: .5; cursor: default; }
 
 /* ---- time passing: the stage blurs, the mist rises, the clock rolls ---- */
 .ka-scene.is-skipping .ka-stage { filter: blur(8px); } /* static: filters are never animated (1.7) */

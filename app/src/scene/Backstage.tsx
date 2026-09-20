@@ -22,10 +22,10 @@ const n = (x: number) => x.toLocaleString('en')
 
 /** Backstage: what each character remembers, the last prompt, the cast as the memory reader sees
  *  it, and the reads themselves. `tick` moves when the story's version does. */
-export default function Backstage({ story, cast, tick, onChange }: { story: Story; cast: Cast; tick: number; onChange: () => void }) {
+export default function Backstage({ story, cast, tick, focus, onChange }: { story: Story; cast: Cast; tick: number; focus?: number; onChange: () => void }) {
   return (
     <div className="k-backstage ka-backstage">
-      <Memory story={story} cast={cast} tick={tick} />
+      <Memory story={story} cast={cast} tick={tick} focus={focus} />
       <div className="ka-backstage__side">
         <Prompt story={story} tick={tick} />
         <CastPanel story={story} tick={tick} onChange={onChange} />
@@ -35,10 +35,10 @@ export default function Backstage({ story, cast, tick, onChange }: { story: Stor
   )
 }
 
-function Memory({ story, cast, tick }: { story: Story; cast: Cast; tick: number }) {
+function Memory({ story, cast, tick, focus }: { story: Story; cast: Cast; tick: number; focus?: number }) {
   const { byId } = useLibrary()
   const people = cast.entities.filter((e) => e.kind === 'character').sort((a, b) => Number(a.persona) - Number(b.persona))
-  const [picked, setPicked] = useState<number>()
+  const [picked, setPicked] = useState<number | undefined>(focus) // the peek card opens on its character
   const who = people.find((e) => e.id === picked) ?? people[0]
   const [tier, setTier] = useState<Tier | 'all'>('all')
   const [memories, reload, error] = useLoad(

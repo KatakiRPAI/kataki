@@ -24,11 +24,13 @@ const listed = (names: string[]) =>
   names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : (names[0] ?? '')
 
 /** Speak, act, whisper or think as the persona (or direct the story); pass time; pick who answers. */
-export default function Composer({ story, people, away, live, writer, meter, onSend, onStop }: {
+export default function Composer({ story, people, away, live, picked, onPick, writer, meter, onSend, onStop }: {
   story: Story
   people: CastEntity[] // the AI characters present
   away: CastEntity[] // the AI characters in the story but not here
   live: boolean
+  picked: Speaker // who answers next; the peek card sets it too, so the Scene owns it
+  onPick: (s: Speaker) => void
   writer: string // who is replying, for "Stopping keeps what Mira has written so far."
   meter?: Meter
   onSend: (s: Send) => void
@@ -41,7 +43,6 @@ export default function Composer({ story, people, away, live, writer, meter, onS
   const [whisperTo, setWhisperTo] = useState<number[]>([])
   const [skip, setSkip] = useState<[string, string] | null>(null)
   const [years, setYears] = useState(6)
-  const [picked, setPicked] = useState<Speaker>(null)
   const speaker = typeof picked === 'number' && !people.some((e) => e.id === picked) ? null : picked
 
   const audience = mode === 'think' ? [] : mode === 'whisper' ? whisperTo.filter((id) => people.some((e) => e.id === id)) : null
@@ -166,17 +167,17 @@ export default function Composer({ story, people, away, live, writer, meter, onS
         </div>
         <div className="ka-composer__row ka-answers" role="group" aria-label="Who answers">
           <span className="ka-answers__label">Who answers</span>
-          <button type="button" className="k-sbtn" aria-pressed={speaker === null} onClick={() => setPicked(null)}>
+          <button type="button" className="k-sbtn" aria-pressed={speaker === null} onClick={() => onPick(null)}>
             <Icon name="users" size={14} />
             Whoever fits
           </button>
           {people.map((e) => (
-            <button key={e.id} type="button" className="k-sbtn ka-pick" aria-pressed={speaker === e.id} onClick={() => setPicked(e.id)}>
+            <button key={e.id} type="button" className="k-sbtn ka-pick" aria-pressed={speaker === e.id} onClick={() => onPick(e.id)}>
               <Avatar item={item(e)} name={e.name} size={22} />
               {e.name}
             </button>
           ))}
-          <button type="button" className="k-sbtn" aria-pressed={speaker === 'narrator'} onClick={() => setPicked('narrator')}>
+          <button type="button" className="k-sbtn" aria-pressed={speaker === 'narrator'} onClick={() => onPick('narrator')}>
             <Icon name="feather" size={14} />
             Narrator
           </button>

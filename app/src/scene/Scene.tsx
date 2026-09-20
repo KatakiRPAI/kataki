@@ -3,10 +3,11 @@ import { api, stream, type Cast, type CastEntity, type ContextLog, type Message,
 import { paletteOf, SunArc } from '../art'
 import { lastSky, rise, useAction, useLibrary, useLoad, usePoll, type Moving } from '../hooks'
 import { Dialog, ErrorLine, Field, Icon, Menu } from '../ui'
-import Composer, { type Meter, type Send } from './Composer'
+import Composer, { type Meter, type Send, type Speaker } from './Composer'
 import Lines, { LiveLine, SaidLine, TimeSkip, type Live } from './Lines'
 import { Nearby, NewScene, type SceneBody } from './Nearby'
 import Backstage from './Backstage'
+import Peek from './Peek'
 import Stage from './Stage'
 
 /** Who is on stage: the AI characters present, whoever just arrived or else the last to speak
@@ -123,6 +124,9 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
     }, () => {})
   }, 3000, !live)
   const [backstage, setBackstage] = useState(false)
+  const [picked, setPicked] = useState<Speaker>(null) // who answers next
+  const [peek, setPeek] = useState<{ id: number; at: { x: number; y: number } } | null>(null)
+  const [focus, setFocus] = useState<number>() // the character Backstage opens on
 
   // Time passing: the overlay holds for at least 1.8 s, fades out, and then the clock rolls.
   const [skipping, setSkipping] = useState<{ minutes: number; from: string; to: string; line: number; report?: string; leaving?: boolean } | null>(null)
@@ -301,6 +305,7 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
   const people = onStage(cast, messages, arriving)
   const away = cast.entities.filter((e) => !e.present && e.is_ai && e.kind === 'character')
   const missing = !!line && !messages.some((m) => m.id === line)
+  const peeking = peek && cast.entities.find((e) => e.id === peek.id)
   const who = [
     people.length ? `with ${listed(people.map((e) => e.name))}` : 'alone',
     story.persona ? `as ${story.persona.name}` : 'directing',
@@ -314,8 +319,9 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
   return (
     <div className={`k-scene ka-scene${reading && !backstage ? ' is-reading' : ''}${awake ? ' is-awake' : ''}${backstage ? ' is-backstage' : ''}${skipping ? ' is-skipping' : ''}`}
       onPointerMove={reading ? wake : undefined}>
-      {backstage && <Backstage story={story} cast={cast} tick={tick} onChange={refreshAll} />}
-      <Stage story={story} people={people} arriving={arriving} busy={acting || !!live} onMove={move} />
+      {backstage && <Backstage story={story} cast={cast} tick={tick} focus={focus} onChange={refreshAll} />}
+      <Stage story={story} people={people} arriving={arriving} busy={acting || !!live} onMove={move}
+        onPeek={(id, at) => setPeek({ id, at })} />
       <div className="ka-veil" />
       <Nearby cast={cast} busy={acting || !!live} onMove={move} />
       <header className="k-topbar ka-topbar">
@@ -363,11 +369,37 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
         people={people}
         away={away}
         live={!!live}
+        picked={picked}
+        onPick={setPicked}
         writer={live && live.speakerId === null && live.speaker ? 'the narrator' : (live?.speaker ?? '')}
         meter={meter}
         onSend={send}
         onStop={() => controller.current?.abort()}
       />
+      {peeking && (
+        <Peek
+          key={peeking.id}
+          story={id}
+          entity={peeking}
+          at={peek!.at}
+          tick={tick}
+          busy={acting || !!live}
+          onClose={() => setPeek(null)}
+          onAnswer={() => {
+            setPicked(peeking.id)
+            setPeek(null)
+          }}
+          onMove={() => {
+            move({ kind: peeking.present ? 'here' : 'away', id: peeking.id })
+            setPeek(null)
+          }}
+          onBackstage={() => {
+            setFocus(peeking.id)
+            setBackstage(true)
+            setPeek(null)
+          }}
+        />
+      )}
       <NewScene open={newScene} story={story} cast={cast} onClose={() => setNewScene(false)} onCut={cut} />
       {cutting && <div className="ka-cut" aria-hidden="true" />}
       {skipping && (

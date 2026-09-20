@@ -84,6 +84,29 @@ export type Standing = {
   waiting: number // lines the memory reader has not read yet
 }
 
+/** A character as they stand now: the peek card, the Chats panel and the profile read this. */
+export type Person = {
+  id: number
+  name: string
+  lib_item_id: number | null
+  present: boolean
+  since: string
+  where: string | null
+  where_item_id: number | null
+  state: { key: string; value: string; private: boolean }[]
+  on_mind: { tier: string; text: string } | null
+  about_you: {
+    count: number
+    sharp: number
+    hazy: number
+    forgotten: number
+    samples: { memory_id: number; tier: string; text: string; belief: number }[]
+  } | null
+  remembers: number
+  relationships: { rel: string; other_id: number; other: string; you: boolean; note: string | null; since: string }[]
+  secret: string | null
+}
+
 /** One thing a memory read (or a time skip) wrote, for the Activity feed. */
 export type ActivityEvent = {
   key: string

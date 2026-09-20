@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { api, type ActivityEvent, type StorySummary } from '../api'
+import { api, type ActivityEvent, type Person, type StorySummary } from '../api'
 import { Avatar, AvatarStack, Figure, Orb, Room } from '../art'
 import { dive, diveLink, go, href, useAction, useLibrary, useLoad } from '../hooks'
 import { Chip, Dialog, ErrorLine, Icon, Menu } from '../ui'
@@ -37,6 +37,15 @@ export default function Chats({ selected }: { selected?: number }) {
   )
   // by story too: picking another chat keeps the last answer until the new one lands
   const since = (feed ?? []).filter((e) => e.new && e.story_id === current?.id).slice(0, 3)
+  const [inStory] = useLoad(
+    () => (current ? api<Person[]>(`/stories/${current.id}/people`) : Promise.resolve([])),
+    [current?.id],
+  )
+  /** "remembers 38 things about you", when the reader has filed anything about you at all. */
+  const remembers = (id: number) => {
+    const n = (inStory ?? []).find((p) => p.id === id)?.about_you?.count
+    return n ? `remembers ${n} ${n === 1 ? 'thing' : 'things'} about you` : ''
+  }
   const people = (s: StorySummary) => s.cast.map((c) => ({ item: byId.get(c.lib_item_id ?? -1), name: c.name }))
 
   const pin = (s: StorySummary) =>
@@ -158,7 +167,7 @@ export default function Chats({ selected }: { selected?: number }) {
                   <Avatar item={byId.get(c.lib_item_id ?? -1)} name={c.name} size={40} />
                   <span className="ka-person__text">
                     <span className="ka-person__name">{c.name}</span>
-                    <span className="ka-person__sub">{c.present ? 'On stage' : 'Away'}</span>
+                    <span className="ka-person__sub">{[c.present ? 'On stage' : 'Away', remembers(c.id)].filter(Boolean).join(' · ')}</span>
                   </span>
                 </div>
               ))}
