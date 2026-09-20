@@ -44,8 +44,9 @@ body { background: var(--k-sky-bg-solid); font-family: var(--k-font-ui); }
 
 /* ---- the Sky frame: rail on the left, content from x 144 ---- */
 .ka-sky { position: relative; min-height: 100%; overflow-x: hidden; }
-.ka-clouds { position: absolute; left: -120px; bottom: -280px; width: 1680px; height: 900px; opacity: .9; pointer-events: none; } /* 280px below the page, as in every mockup */
-.ka-clouds--high { left: 300px; top: -420px; bottom: auto; width: 1400px; height: 875px; opacity: .45; transform: scaleY(-1); }
+/* 280px below the page, as in every mockup; the widths follow the window so a wide one still has sky */
+.ka-clouds { position: absolute; left: -120px; bottom: -280px; width: max(1680px, 117vw); height: 900px; opacity: .9; pointer-events: none; }
+.ka-clouds--high { left: 300px; top: -420px; bottom: auto; width: max(1400px, 97vw); height: 875px; opacity: .45; transform: scaleY(-1); }
 .ka-sky__main { position: relative; z-index: 1; margin-left: 144px; padding: 28px 24px 28px 0; display: flex; flex-direction: column; gap: 30px; }
 .ka-rail { z-index: 5; }
 .ka-logo { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-bottom: 14px; font-size: 15px; }
@@ -375,7 +376,13 @@ span.k-orb { display: block; }
 @keyframes ka-dive-dark { 0%, 40% { opacity: 0; } 100% { opacity: 1; } }
 @keyframes ka-dive-left { 0% { opacity: 0; transform: scale(.95); } 30% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: translateX(-55%) scale(1.2); } }
 @keyframes ka-dive-right { 0% { opacity: 0; transform: scale(-.95, .95); } 30% { opacity: 1; transform: scale(-1, 1); } 100% { opacity: 0; transform: translateX(55%) scale(-1.2, 1.2); } }
+/* a blurred secret is static: revealing it never animates the blur (1.7) */
+.ka-scene .k-secret__text, .ka-profile .k-secret__text { transition: none; }
+
 @media (prefers-reduced-motion: reduce) {
+  /* the design's tokens zero the short ones; the scene's own 600 ms becomes a 200 ms crossfade (1.7) */
+  :root { --k-dur-scene: 200ms; }
+  .k-caret { animation: none; } /* the one endless loop the design leaves running */
   .ka-dive__cloud { display: none; }
   .ka-dive__scene { animation: ka-dive-dark-quick 200ms linear forwards; }
   .ka-dive { transition-duration: 200ms; }
@@ -689,7 +696,7 @@ a.ka-event:hover { background: #fff; }
 .ka-peek__chip.is-cold { background: rgba(244,165,149,.12); color: #f4a595; }
 .ka-peek__secret { margin: 0 18px; padding: 12px 14px; border-radius: 14px; background: rgba(255,255,255,.04); border: 1px solid var(--k-scene-glass-border); display: flex; align-items: center; gap: 12px; }
 .ka-peek__secret > .k-icon { color: var(--k-scene-muted); flex-shrink: 0; }
-.ka-peek__secrettext { font-family: var(--k-font-story); font-size: 15px; filter: blur(5px); transition: filter var(--k-dur-base) var(--k-ease-standard); }
+.ka-peek__secrettext { font-family: var(--k-font-story); font-size: 15px; filter: blur(5px); } /* a static blur: never animate one (1.7) */
 .ka-peek__secrettext.is-shown { filter: none; }
 .ka-peek__reveal { height: 32px; padding: 0 12px; flex-shrink: 0; border-radius: 16px; border: 1px solid rgba(255,236,210,.25); background: none; color: var(--k-scene-ink); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
 .ka-peek__acts { padding: 0 18px; display: flex; gap: 8px; }
