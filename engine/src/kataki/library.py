@@ -9,7 +9,7 @@ An item's `data` is a JSON object. The engine reads `aliases`, `first_message` a
 import json
 import sqlite3
 
-from kataki import chat
+from kataki import cards, chat
 
 ITEM_FIELDS = ("name", "description", "private", "data")
 
@@ -123,7 +123,10 @@ def _instantiate(conn: sqlite3.Connection, story_id: int, item: dict, is_ai: boo
         ),
     ).lastrowid
     for alias in {item["name"], *item["data"].get("aliases", [])}:
-        conn.execute("INSERT INTO aliases(entity_id, alias) VALUES(?, ?)", (entity_id, alias))
+        # OR IGNORE: aliases are case-blind, so "Mira" and "MIRA" are one name, not a crash
+        conn.execute(
+            "INSERT OR IGNORE INTO aliases(entity_id, alias) VALUES(?, ?)", (entity_id, alias)
+        )
     return entity_id
 
 
@@ -177,6 +180,9 @@ def create_story(
             )
             opening = next((g for g in greeters if g[1]), (None, None))
         if opening[1]:
+            # An imported card says `{{user}}`; here we finally know who that is.
+            player = next((item["name"] for item, is_ai in cast if not is_ai), "you")
+            opening = (opening[0], cards.macros(opening[1], user=player))
             leaf = conn.execute(
                 "INSERT INTO messages(story_id, role, speaker_id, text, story_time, scene_id)"
                 " VALUES(?, 'assistant', ?, ?, 0, ?)",

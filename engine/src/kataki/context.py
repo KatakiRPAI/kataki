@@ -18,6 +18,7 @@ import sqlite3
 from dataclasses import dataclass, field
 
 from kataki import chat, clock, db
+from kataki.cards import macros
 from kataki.llm import Endpoint
 
 RATIO, MARGIN = 3.6, 1.08  # chars per token until calibrated from real usage; safety margin
@@ -131,9 +132,12 @@ def _clip(text: str, cap: int, ratio: float) -> tuple[str, int]:
     return "\n".join(kept), 1
 
 
-def _system(conn, story, persona, present, place) -> tuple[str, str]:
+def _system(conn, story, persona, present, place, player: str) -> tuple[str, str]:
     rules = RULES.format(persona=persona["name"] if persona else "the user")
-    cards = [f"## {e['name']}\n{e['description'] or ''}".strip() for e in present]
+    # An imported card writes `{{user}}` for whoever is playing; here that is known.
+    cards = [
+        f"## {e['name']}\n{macros(e['description'] or '', user=player)}".strip() for e in present
+    ]
     if place:
         cards.append(f"## Place: {place['name']}\n{place['description'] or ''}".strip())
     # The premise the story started with; stories from before it was copied read the plot live.
@@ -243,11 +247,14 @@ def build(
         else None
     )
     speaker = next((e for e in present if e["entity_id"] == speaker_id), None)
+    # Who `{{user}}` means, from the story rather than the room: the player is the player even
+    # in a scene their character has stepped out of.
+    player = names.get(story["persona_entity_id"]) or "the user"
 
     # 1-2. the stable system block
     # No scene summaries here: they are written by an all-seeing reader, and this block is
     # shared by every speaker. What a character knows of the past comes from their own memory.
-    rules, cards = _system(conn, story, persona, present, place)
+    rules, cards = _system(conn, story, persona, present, place, player)
     system = "\n\n".join(part for part in (rules, cards) if part)
 
     # 3. history: whatever is left after the fixed blocks and the tail's reserved room.
@@ -314,7 +321,8 @@ def build(
     who = speaker["name"] if speaker else "the narrator"
     if speaker and speaker["private"]:
         state.append(f"[Only {who} knows]\n{speaker['private']}")
-    examples, clipped = _clip(speaker["examples"] if speaker else "", caps["examples"], ratio)
+    talks = macros(speaker["examples"], user=player) if speaker else ""
+    examples, clipped = _clip(talks, caps["examples"], ratio)
     if examples:
         state.append(f"[How {who} talks]\n{examples}")
     if memory_lines:

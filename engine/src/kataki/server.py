@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 
 from kataki import (
     __version__,
+    cards,
     chat,
     clock,
     extract,
@@ -516,6 +517,17 @@ def create_app(
         if (ext := media.sniff(data)) is None:
             raise HTTPException(415, "Only PNG, JPEG, GIF or WebP images.")
         return {"name": media.save(conn, data, ext), "bytes": len(data)}
+
+    # --- in: what other apps made ----------------------------------------------------------
+
+    @app.post("/import/card", status_code=201)
+    async def import_card(request: Request):
+        """A Character Card PNG, JSON or CHARX becomes a new friend. Never a merge: importing
+        the same card twice makes two, which is the only safe thing to do with someone's name."""
+        try:
+            return cards.add(conn, await request.body())
+        except cards.BadCard as e:
+            raise HTTPException(422, str(e)) from None
 
     @app.get("/media/{name}")
     async def get_media(name: str):
