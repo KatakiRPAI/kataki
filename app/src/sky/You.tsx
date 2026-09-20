@@ -1,6 +1,6 @@
-import { api, type StorySummary } from '../api'
+import { api, type Profile, type StorySummary } from '../api'
 import { Avatar, Portrait, Room } from '../art'
-import { go, href, useLibrary, useLoad } from '../hooks'
+import { diveLink, go, href, useLibrary, useLoad } from '../hooks'
 import { ErrorLine, Glass, Icon } from '../ui'
 import { PersonaChoices } from './Home'
 
@@ -9,12 +9,21 @@ export default function You({ id }: { id?: number }) {
   const { items, byId, loaded } = useLibrary()
   const [settings, reloadSettings, settingsError] = useLoad(() => api<{ persona?: number | null }>('/settings'), [])
   const [stories, , storiesError] = useLoad(() => api<StorySummary[]>('/stories'), [])
+  const who = id ?? settings?.persona
+  const [profile] = useLoad(
+    () => (who ? api<Profile>(`/library/${who}/profile`).then((p) => ({ who, p })) : Promise.resolve(null)),
+    [who],
+  )
   if (!loaded || !settings) return null
 
   const personas = items.filter((i) => i.kind === 'character' && i.data.persona).sort((a, b) => a.id - b.id)
   const current = personas.find((p) => p.id === settings.persona)
   const shown = id === undefined ? current : byId.get(id)
   const theirs = (stories ?? []).filter((s) => (shown ? s.persona?.lib_item_id === shown.id : !s.persona))
+  // who has met this persona, and how much of them they still hold; the emptiest last
+  const knowers = (profile && profile.who === who ? profile.p.stories : [])
+    .flatMap((story) => (story.known_by ?? []).map((k) => ({ story, k })))
+    .sort((a, b) => b.k.count - a.k.count)
   const pick = (persona: number | null) =>
     api('/settings', 'PUT', { persona }).then(() => {
       reloadSettings()
@@ -70,6 +79,30 @@ export default function You({ id }: { id?: number }) {
           )}
         </div>
 
+        <div className="ka-stack ka-stack--18">
+        {shown && knowers.length > 0 && (
+          <Glass title={`Who knows ${shown.name}`}>
+            {knowers.map(({ story, k }) => (
+              <a key={`${story.id}-${k.id}`} className="ka-knows" {...diveLink(`/story/${story.id}/backstage/${k.id}`)}>
+                <Avatar item={byId.get(k.lib_item_id ?? -1)} name={k.name} size={44} />
+                <span className="ka-stack ka-stack--tight ka-grow">
+                  <strong>
+                    {k.count
+                      ? `${k.name} remembers ${k.count} ${k.count === 1 ? 'thing' : 'things'}`
+                      : `${k.name} has nothing of you yet`}
+                  </strong>
+                  <span className="ka-muted ka-small">
+                    {[story.title, k.hazy ? `${k.hazy} hazy` : '', k.forgotten ? `${k.forgotten} faded out` : '']
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </span>
+                </span>
+                <Icon name="right" size={18} />
+              </a>
+            ))}
+          </Glass>
+        )}
+
         <Glass title={shown ? `${shown.name}'s chats` : 'Stories you direct'}>
           {theirs.length === 0 && <span className="ka-muted">{shown ? `No chats as ${shown.name} yet.` : 'None yet.'}</span>}
           {theirs.map((st) => (
@@ -86,6 +119,7 @@ export default function You({ id }: { id?: number }) {
             </a>
           ))}
         </Glass>
+        </div>
       </div>
     </>
   )

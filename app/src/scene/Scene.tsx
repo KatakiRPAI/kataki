@@ -27,7 +27,7 @@ function meterOf(used: number, budget: number, recalled: number): Meter {
 }
 
 /** A story, played: the stage, the top bar, the conversation and the composer. */
-export default function Scene({ id, line }: { id: number; line?: number }) {
+export default function Scene({ id, line, backstage: opened }: { id: number; line?: number; backstage?: number }) {
   const { byId } = useLibrary()
   // One guarded load of everything the scene shows; every change calls it again.
   // The version this data was loaded at: the poll compares with it, so a memory read that lands
@@ -123,10 +123,11 @@ export default function Scene({ id, line }: { id: number; line?: number }) {
       }
     }, () => {})
   }, 3000, !live)
-  const [backstage, setBackstage] = useState(false)
+  // #/story/4/backstage/29 opens Backstage on that character (the profile's "See her memories")
+  const [backstage, setBackstage] = useState(opened !== undefined)
   const [picked, setPicked] = useState<Speaker>(null) // who answers next
   const [peek, setPeek] = useState<{ id: number; at: { x: number; y: number } } | null>(null)
-  const [focus, setFocus] = useState<number>() // the character Backstage opens on
+  const [focus, setFocus] = useState<number | undefined>(opened) // the character Backstage opens on
 
   // Time passing: the overlay holds for at least 1.8 s, fades out, and then the clock rolls.
   const [skipping, setSkipping] = useState<{ minutes: number; from: string; to: string; line: number; report?: string; leaving?: boolean } | null>(null)

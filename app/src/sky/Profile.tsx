@@ -1,10 +1,17 @@
 import { useState } from 'react'
-import { api, type Item, type StorySummary } from '../api'
+import { api, type Item, type Profile as Profiled, type StorySummary } from '../api'
 import { Avatar, Orb, Portrait, pronounsOf, Room } from '../art'
-import { dive, href, useLibrary, useLoad } from '../hooks'
-import { Candy, ErrorLine, Glass, Icon, Prose } from '../ui'
+import { dive, diveLink, href, useLibrary, useLoad } from '../hooks'
+import { Candy, ErrorLine, Glass, Icon, Menu, Prose } from '../ui'
 import { status, storiesWith } from './Friends'
 import NewChat, { type Preset } from './NewChat'
+
+const HER = { she: 'her', he: 'his', they: 'their' }
+
+export const sentence = (s: string) => s[0].toUpperCase() + s.slice(1)
+
+/** A share of the bar, rounded so the three parts never add up past 100. */
+const part = (n: number, all: number) => (all ? Math.round((n / all) * 100) : 0)
 
 /** "Mira: Coin first." -> "Coin first." (example lines are written as "Name: line"). */
 const spoken = (line: string, item: Item) => {
@@ -13,10 +20,93 @@ const spoken = (line: string, item: Item) => {
   return m && names.includes(m[1].trim().toLowerCase()) ? m[2] : line.trim()
 }
 
+
+/** What the memory reader has noticed about someone in one story: where they were last, what
+ *  they hold, how they feel about you, and how much of you they still hold on to. */
+export function RightNow({ item, profile, prefer }: { item: Item; profile: Profiled; prefer?: number }) {
+  const playing = profile.stories.filter((s) => s.person)
+  const [inStory, setInStory] = useState<number>()
+  // the story you played last, unless you pick another
+  const story = playing.find((s) => s.id === inStory) ?? playing.find((s) => s.id === prefer) ?? playing.at(-1)
+  const person = story?.person
+  if (!person) return null
+
+  const they = pronounsOf(item)
+  const flag = (key: string) => person.state.find((f) => f.key.toLowerCase() === key)?.value
+  const feels = person.relationships.filter((r) => r.you).map((r) => `${r.rel} you`)
+  const about = person.about_you
+  const known = about?.count ?? 0
+  const rows: [string, string][] = [
+    ['Last seen', person.present
+      ? [person.where, story.clock].filter(Boolean).join(' · ')
+      : `Away · since ${person.since}`],
+    ['Holding', flag('holding') ?? '—'],
+    ['Wearing', flag('wearing') ?? '—'],
+    ['Feels about you', feels.length ? sentence(feels.join(', ')) : 'Nothing the reader has caught yet'],
+  ]
+  return (
+    <Glass
+      title="Right now"
+      className="ka-cards__wide"
+      action={
+        playing.length > 1 ? (
+          <Menu label="Which story" icon="film" text={`In ${story.title}`} className="k-btn k-btn--sm">
+            {playing.map((s) => (
+              <button key={s.id} type="button" aria-current={s.id === story.id ? 'true' : undefined}
+                onClick={() => setInStory(s.id)}>
+                <Icon name={s.id === story.id ? 'check' : 'film'} />
+                {s.title}
+              </button>
+            ))}
+          </Menu>
+        ) : (
+          <span className="ka-muted ka-small">In {story.title}</span>
+        )
+      }
+    >
+      {rows.map(([key, value]) => (
+        <div key={key} className="ka-now">
+          <span className="ka-now__key">{key}</span>
+          <span className="ka-now__value">{value}</span>
+        </div>
+      ))}
+      {about && (
+        <>
+          <div className="ka-now__head">
+            <strong>
+              Remembers {known} {known === 1 ? 'thing' : 'things'} about you
+            </strong>
+            <a className="ka-link ka-m0" {...diveLink(`/story/${story.id}/backstage/${person.id}`)}>
+              See {HER[they]} memories
+            </a>
+          </div>
+          <div className="ka-bar" role="img" aria-label={`${about.sharp} sharp, ${about.hazy} hazy, ${about.forgotten} forgotten`}>
+            <span className="ka-bar__sharp" style={{ width: `${part(about.sharp, known)}%` }} />
+            <span className="ka-bar__hazy" style={{ width: `${part(about.hazy, known)}%` }} />
+          </div>
+          <span className="ka-muted ka-small">
+            {about.sharp} sharp · {about.hazy} hazy · {about.forgotten} faded out
+          </span>
+        </>
+      )}
+      {person.relationships.length > 0 && (
+        <div className="ka-row ka-row--gap">
+          {person.relationships.map((r) => (
+            <span key={`${r.rel}-${r.other_id}`} className="k-tag" title={r.note ?? undefined}>
+              {sentence(r.rel)} {r.you ? 'you' : r.other}
+            </span>
+          ))}
+        </div>
+      )}
+    </Glass>
+  )
+}
+
 /** #/friend/:id — a friend before you message them. */
 export default function Profile({ id }: { id: number }) {
   const { byId, loaded } = useLibrary()
   const [stories, reload, error] = useLoad(() => api<StorySummary[]>('/stories'), [])
+  const [profile] = useLoad(() => api<Profiled>(`/library/${id}/profile`), [id])
   const [newChat, setNewChat] = useState<{ preset?: Preset; n: number }>({ n: 0 })
   const [revealed, setRevealed] = useState(false)
   const item = byId.get(id)
@@ -30,6 +120,12 @@ export default function Profile({ id }: { id: number }) {
   const { text: where, idle } = status(item, stories ?? [])
   const playedAs = [...new Set(theirs.map((st) => (st.persona ? `as ${st.persona.name}` : 'directing')))]
   const lines = (item.data.example_dialogue ?? '').split('\n').filter((l) => l.trim())
+  // the newest story they are in leads the tiles; the places are wherever they have played
+  const playing = (profile?.stories ?? []).filter((st) => st.person)
+  const now = playing.find((st) => st.id === latest?.id) ?? playing.at(-1)
+  const holds = now?.person?.about_you?.count
+  const youAre = latest?.persona?.name ?? 'you'
+  const lastSeen = (profile?.places ?? []).filter((p) => p.story_id === now?.id).at(-1)
   const startNew = (preset: Preset) => setNewChat((c) => ({ preset, n: c.n + 1 }))
 
   return (
@@ -98,8 +194,27 @@ export default function Profile({ id }: { id: number }) {
                 <span className="ka-muted ka-small">{playedAs.length ? playedAs.join(' and ') : `Message ${item.name} to start one`}</span>
               </span>
             </div>
+            {holds !== undefined && (
+              <div className="k-glass ka-stat">
+                <Candy icon="spark" color="gold" />
+                <span className="ka-stack ka-stack--tight">
+                  <strong>Remembers {holds} {holds === 1 ? 'thing' : 'things'}</strong>
+                  <span className="ka-muted ka-small">about {youAre}</span>
+                </span>
+              </div>
+            )}
+            {lastSeen && (
+              <div className="k-glass ka-stat">
+                <Candy icon="map-pin" color="green" />
+                <span className="ka-stack ka-stack--tight">
+                  <strong>Last seen: {lastSeen.name}</strong>
+                  <span className="ka-muted ka-small">{lastSeen.clock}</span>
+                </span>
+              </div>
+            )}
           </div>
           <div className="ka-cards">
+            {profile && <RightNow item={item} profile={profile} prefer={latest?.id} />}
             <Glass title="About">
               <div className="ka-prose-sky"><Prose text={item.description || `Nothing written about ${item.name} yet.`} /></div>
               <span className="ka-muted ka-small">What anyone in a scene can see or know.</span>
@@ -151,6 +266,21 @@ export default function Profile({ id }: { id: number }) {
               <Glass title="A secret">
                 <span className="ka-muted">{item.name} has no secret yet. Characters with secrets hold back, and it shows.</span>
                 <a className="ka-link" href={href(`/friend/${item.id}/edit?step=3`)}>Add a secret</a>
+              </Glass>
+            )}
+            {(profile?.places ?? []).length > 0 && (
+              <Glass title={`Places ${they === 'they' ? "they've" : `${they}'s`} been`} className="ka-cards__wide">
+                {profile!.places.map((p) => (
+                  <a key={`${p.story_id}-${p.name}`} className="ka-story-row" href={href(`/chats/${p.story_id}`)}>
+                    <span className="ka-story-row__thumb">
+                      <Room item={byId.get(p.lib_item_id ?? -1)} minute={1140} />
+                    </span>
+                    <span className="ka-stack ka-stack--tight">
+                      <strong>{p.name}</strong>
+                      <span className="ka-muted ka-small">{p.story} · {p.clock}</span>
+                    </span>
+                  </a>
+                ))}
               </Glass>
             )}
             <Glass title="Stories together" className="ka-cards__wide">

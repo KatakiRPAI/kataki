@@ -153,7 +153,8 @@ export default function App() {
     )
     : at === 'story' ? (
       <LibraryProvider>
-        <Scene key={second} id={Number(second)} line={third === 'line' ? Number(route.parts[3]) : undefined} />
+        <Scene key={second} id={Number(second)} line={third === 'line' ? Number(route.parts[3]) : undefined}
+          backstage={third === 'backstage' ? Number(route.parts[3]) : undefined} />
       </LibraryProvider>
     )
     : (

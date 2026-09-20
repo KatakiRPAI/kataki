@@ -107,6 +107,30 @@ export type Person = {
   secret: string | null
 }
 
+/** How well someone holds what they know about a persona. */
+export type Knower = {
+  id: number
+  name: string
+  lib_item_id: number | null
+  count: number
+  sharp: number
+  hazy: number
+  forgotten: number
+}
+
+/** Everywhere a friend (or a persona) has been: the profile page and "Who knows you". */
+export type Profile = {
+  stories: {
+    id: number
+    title: string
+    role: 'ai' | 'persona'
+    clock: string
+    person: Person | null // what they are like in this story
+    known_by: Knower[] | null // for a persona: who knows them, and how well
+  }[]
+  places: { name: string; lib_item_id: number | null; story: string; story_id: number; clock: string }[]
+}
+
 /** One thing a memory read (or a time skip) wrote, for the Activity feed. */
 export type ActivityEvent = {
   key: string

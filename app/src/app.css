@@ -642,6 +642,18 @@ a.ka-event:hover { background: #fff; }
 .ka-thread__mid > .ka-thread__line { min-width: 0; }
 .ka-mem-badge { min-width: 24px; height: 24px; padding: 0 7px; box-sizing: border-box; border-radius: 12px; background: var(--k-sky-event-memory); color: #fff; font-size: 11.5px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 3px; }
 
+/* --- the living profile (2.9): right now, and who knows you -------------------------------- */
+.ka-now { display: flex; align-items: flex-start; gap: 12px; }
+.ka-now__key { width: 110px; flex-shrink: 0; font-size: 13px; color: var(--k-sky-muted); }
+.ka-now__value { font-size: 14.5px; font-weight: 600; }
+.ka-now__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-top: 4px; }
+.ka-bar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: rgba(20,38,77,.08); }
+.ka-bar__sharp { background: var(--k-sky-accent); display: block; }
+.ka-bar__hazy { background: repeating-linear-gradient(135deg, rgba(47,99,240,.5) 0 4px, rgba(47,99,240,.25) 4px 8px); display: block; }
+.ka-knows { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 18px; text-decoration: none; color: var(--k-sky-ink); background: rgba(255,255,255,.55); }
+.ka-knows:hover { background: #fff; }
+.ka-knows > .k-icon { color: var(--k-sky-muted); }
+
 /* --- the peek card (2.9): who someone is, right now ---------------------------------------- */
 .ka-stage__peek { display: block; width: 100%; padding: 0; border: 0; background: none; cursor: pointer; } /* in flow: the slot takes its height from the figure */
 .ka-stage__peek:focus-visible { outline-offset: -6px; border-radius: 24px; }

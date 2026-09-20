@@ -106,7 +106,8 @@ export function Menu({ label, icon = 'dots', text, className = 'k-btn k-btn--gho
   const id = useId()
   return (
     <>
-      <button type="button" className={className} popoverTarget={id} aria-label={label} disabled={disabled}>
+      {/* the visible text is the name when there is one, so it is not hidden behind the label */}
+      <button type="button" className={className} popoverTarget={id} aria-label={text ? undefined : label} disabled={disabled}>
         <Icon name={icon} />
         {text}
       </button>
