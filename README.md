@@ -9,7 +9,21 @@ What makes it different:
 - **Per-task model selector**: separate jobs for character replies, narrator, the memory reader and careful re-reads, with reasoning and standard models handled differently.
 - Planned: consistent scene images, location/mood-adaptive music with slow crossfades, and a book/story/chapter library with cross-story canon links.
 
-Status: **pre-alpha**, milestone M1 (chat and the memory engine). Design spec and progress: [docs/specs/2026-09-18-m0-m1-design.md](docs/specs/2026-09-18-m0-m1-design.md).
+Status: **pre-alpha**, milestone M1 (chat and the memory engine). Design spec and progress: [docs/specs/2026-09-18-m0-m1-design.md](docs/specs/2026-09-18-m0-m1-design.md); the UI rebuild that M1 ends with is tracked in [docs/specs/2026-09-19-ui-redesign.md](docs/specs/2026-09-19-ui-redesign.md).
+
+## The app
+
+Two worlds. **The Sky** is bright and above the clouds: Home (who you are, the story you were in,
+what your friends have made of it), Friends, Chats, Places and Plots, Activity, You, and Settings.
+**The Scene** is where you play: the room lit by the story's own clock, whoever is on stage, the
+conversation, and a composer that can say, do, whisper, think or let time pass. Diving between them
+parts the clouds.
+
+In a scene you can click anyone to see who they are right now — what they hold, what is on their
+mind, what they know about you — and open **Backstage** to read the memory itself: every fact a
+character holds with how clearly they hold it, the exact prompt that was sent, the cast, and what
+the memory reader has been doing. Activity gathers what every read wrote, newest first, and each
+entry opens the line it came from.
 
 ## Layout
 

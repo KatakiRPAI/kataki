@@ -3,7 +3,6 @@ import { api, type Provider, type StorySummary } from './api'
 import { Orb } from './art'
 import clouds from './design/clouds.svg'
 import { diveLink, go, href, lastSky, LibraryProvider, useLoad, useRoute } from './hooks'
-import Kit from './Kit'
 import Scene from './scene/Scene'
 import Activity from './sky/Activity'
 import Chats from './sky/Chats'
@@ -87,7 +86,7 @@ function Dive({ to, up, onDone }: { to: string; up: boolean; onDone: () => void 
 }
 
 // With no model connected, everything but these sends you to First run.
-const OPEN_WITHOUT_A_MODEL = ['welcome', 'settings', 'dev']
+const OPEN_WITHOUT_A_MODEL = ['welcome', 'settings']
 
 export default function App() {
   const route = useRoute()
@@ -149,8 +148,7 @@ export default function App() {
     : at === 'settings' ? <Settings page={second} />
     : <Home />
   const view =
-    route.path === '/dev/kit' ? <Kit />
-    : gated && hasModel !== true ? null // until we know a model is connected
+    gated && hasModel !== true ? null // until we know a model is connected
     : at === 'welcome' ? (
       <LibraryProvider>
         <FirstRun />
