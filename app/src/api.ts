@@ -82,6 +82,17 @@ export type Standing = {
   last_line: { speaker: string | null; text: string } | null
   new_events: number // Activity you have not seen
   waiting: number // lines the memory reader has not read yet
+  book: { id: number; title: string; order: number } | null // and where in it this story sits
+  tags: string[]
+}
+
+/** A shelf of stories, in the order they read. */
+export type Book = {
+  id: number
+  title: string
+  blurb: string
+  stories: number
+  created_at: string
 }
 
 /** A character as they stand now: the peek card, the Chats panel and the profile read this. */

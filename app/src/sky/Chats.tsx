@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { api, type ActivityEvent, type Person, type StorySummary } from '../api'
+import { api, type ActivityEvent, type Book, type Person, type StorySummary } from '../api'
 import { Avatar, AvatarStack, Figure, Orb, Room } from '../art'
 import { dive, diveLink, go, href, useAction, useLibrary, useLoad } from '../hooks'
 import { Chip, Dialog, ErrorLine, Icon, Menu } from '../ui'
@@ -23,6 +23,8 @@ export default function Chats({ selected }: { selected?: number }) {
   const [stories, reload, error] = useLoad(() => api<StorySummary[]>('/stories'), [])
   const [filter, setFilter] = useState<Filter>('all')
   const [deleting, setDeleting] = useState<StorySummary>()
+  const [shelving, setShelving] = useState<StorySummary>()
+  const [books, reloadBooks] = useLoad(() => api<Book[]>('/books'), [])
   const [newChat, setNewChat] = useState<{ preset?: Preset; n: number }>({ n: 0 }) // n remounts the form fresh
   const startNew = (preset: Preset) => setNewChat((c) => ({ preset, n: c.n + 1 }))
   const [run, actionError, busy] = useAction()
@@ -53,6 +55,23 @@ export default function Chats({ selected }: { selected?: number }) {
       await api(`/stories/${s.id}`, 'PATCH', { pinned: !s.pinned })
       reload()
     })
+  /** Put a story on a shelf — an existing book, a brand new one, or none. */
+  const shelve = (s: StorySummary, book_id: number | null) =>
+    run(async () => {
+      await api(`/stories/${s.id}`, 'PATCH', { book_id })
+      setShelving(undefined)
+      reloadBooks() // the picker counts each book's stories
+      reload()
+    })
+  const shelveInNew = (s: StorySummary, title: string) =>
+    run(async () => {
+      const book = await api<Book>('/books', 'POST', { title: title.trim() })
+      await api(`/stories/${s.id}`, 'PATCH', { book_id: book.id })
+      setShelving(undefined)
+      reloadBooks()
+      reload()
+    })
+
   const remove = (s: StorySummary) =>
     run(async () => {
       await api(`/stories/${s.id}`, 'DELETE')
@@ -84,12 +103,24 @@ export default function Chats({ selected }: { selected?: number }) {
               </span>
             )}
           </span>
-          <span className="ka-thread__as">{playing(s)}</span>
+          <span className="ka-thread__as">
+            {playing(s)}
+            {s.book && (
+              <>
+                {' · '}
+                <a className="ka-thread__book" href={href(`/books/${s.book.id}`)}>{s.book.title}</a>
+              </>
+            )}
+          </span>
         </span>
         <Menu label={`More for ${s.title}`} className="k-btn k-btn--ghost k-btn--sm ka-thread__menu">
           <button type="button" onClick={() => pin(s)}>
             <Icon name="pushpin" />
             {s.pinned ? 'Unpin' : 'Pin to the top'}
+          </button>
+          <button type="button" onClick={() => setShelving(s)}>
+            <Icon name="book" />
+            {s.book ? 'Move to another book' : 'Put in a book'}
           </button>
           <button type="button" onClick={() => setDeleting(s)}>
             <Icon name="x" />
@@ -198,6 +229,47 @@ export default function Chats({ selected }: { selected?: number }) {
           dive(`/story/${story.id}`)
         }}
       />
+      <Dialog open={!!shelving} onClose={() => setShelving(undefined)} title={`Put “${shelving?.title ?? ''}” in a book`}>
+        <ul className="ka-threads ka-pick">
+          {(books ?? []).map((b) => (
+            <li key={b.id}>
+              <button
+                type="button" className="ka-pick__row" disabled={busy || b.id === shelving?.book?.id}
+                onClick={() => shelving && shelve(shelving, b.id)}
+              >
+                <span className="ka-booklist__spine" aria-hidden="true"><Icon name="book" size={16} /></span>
+                <span className="ka-shelf__text">
+                  <span className="ka-ellipsis">{b.title}</span>
+                  <span className="ka-muted ka-small">
+                    {b.id === shelving?.book?.id ? 'already here' : `${b.stories} ${b.stories === 1 ? 'story' : 'stories'}`}
+                  </span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+        <form
+          className="ka-row ka-row--gap"
+          onSubmit={(e) => {
+            e.preventDefault()
+            const field = new FormData(e.currentTarget).get('title')
+            const title = String(field ?? '').trim()
+            if (title && shelving) shelveInNew(shelving, title)
+          }}
+        >
+          <input name="title" className="k-input" placeholder="Or start a new book…" maxLength={200} aria-label="New book title" />
+          <button type="submit" className="k-btn k-btn--dark" disabled={busy}>
+            <Icon name="plus" size={16} />
+            New book
+          </button>
+        </form>
+        {shelving?.book && (
+          <button type="button" className="ka-link" disabled={busy} onClick={() => shelving && shelve(shelving, null)}>
+            Take it out of {shelving.book.title}
+          </button>
+        )}
+      </Dialog>
+
       <Dialog open={!!deleting} onClose={() => setDeleting(undefined)} title="Delete this story?">
         <p className="ka-muted">
           “{deleting?.title}” and everything its characters remember of it will be gone. This can't be undone.

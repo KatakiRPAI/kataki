@@ -5,6 +5,7 @@ import clouds from './design/clouds.svg'
 import { diveLink, go, href, lastSky, LibraryProvider, useLoad, useRoute } from './hooks'
 import Scene from './scene/Scene'
 import Activity from './sky/Activity'
+import Books from './sky/Books'
 import Chats from './sky/Chats'
 import Editor from './sky/Editor'
 import FirstRun from './sky/FirstRun'
@@ -21,6 +22,7 @@ const RAIL: [string, string, string][] = [
   ['home', 'home', 'Home'],
   ['friends', 'users', 'Friends'],
   ['chats', 'chat', 'Chats'],
+  ['books', 'book', 'Books'],
   ['places', 'map', 'Places'],
   ['activity', 'bell', 'Activity'],
   ['you', 'user', 'You'],
@@ -143,6 +145,7 @@ export default function App() {
     : at === 'you' && second === 'new' ? <Editor key={route.path} persona />
     : at === 'you' ? <You key={route.path} id={second ? Number(second) : undefined} />
     : at === 'chats' ? <Chats selected={Number(second) || undefined} />
+    : at === 'books' ? <Books selected={Number(second) || undefined} />
     : at === 'places' ? <Places />
     : at === 'activity' ? <Activity />
     : at === 'settings' ? <Settings page={second} />

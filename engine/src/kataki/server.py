@@ -679,7 +679,9 @@ def create_app(
             "last_line": last and {"speaker": speaker and speaker["name"], "text": last["text"]},
             "new_events": new_events(story),
             "waiting": len(extract.pending(conn, story["id"])),
-            "book": book and {"id": book["id"], "title": book["title"]},
+            # which book, and where in it: a book is an order, so the order travels with it
+            "book": book
+            and {"id": book["id"], "title": book["title"], "order": story["book_order"]},
             "tags": library.get_tags(conn, "story", story["id"]),
         }
 

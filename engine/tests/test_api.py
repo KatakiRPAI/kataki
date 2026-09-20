@@ -861,7 +861,7 @@ def test_books_gather_stories_and_the_list_says_which_book_a_story_is_in(api, st
 
     assert api.patch(f"/stories/{story}", json={"book_id": book["id"]}).status_code == 200
     listed = next(s for s in api.get("/stories").json() if s["id"] == story)
-    assert listed["book"] == {"id": book["id"], "title": "The Gull Years"}
+    assert listed["book"] == {"id": book["id"], "title": "The Gull Years", "order": 1}
     assert api.get("/books").json()[0]["stories"] == 1
 
     mira = next(i["id"] for i in api.get("/library").json() if i["name"] == "Mira")
@@ -871,6 +871,9 @@ def test_books_gather_stories_and_the_list_says_which_book_a_story_is_in(api, st
         {"id": other, "title": "Later"},
         {"id": story, "title": "Low Tide"},
     ]
+    # and each story now says where in the book it sits, so a shelf can be read in order
+    where = {s["id"]: s["book"] and s["book"]["order"] for s in api.get("/stories").json()}
+    assert (where[other], where[story]) == (1, 2)
 
     assert (
         api.patch(f"/books/{book['id']}", json={"title": "The Gull"}).json()["title"] == "The Gull"

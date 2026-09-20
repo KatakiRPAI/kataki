@@ -12,24 +12,29 @@ import {
 import { api, type Item } from './api'
 
 /** Load data, with a reload function and the last error. Only the newest load may land, so a
- *  slow early response can never overwrite a later one. */
-export function useLoad<T>(load: () => Promise<T>, deps: unknown[]): [T | undefined, () => void, string] {
+ *  slow early response can never overwrite a later one. Reloading is awaitable: an action that
+ *  reads what it just wrote has to wait for the fresh data, not race the next click against it. */
+export function useLoad<T>(load: () => Promise<T>, deps: unknown[]): [T | undefined, () => Promise<void>, string] {
   const [data, setData] = useState<T>()
   const [error, setError] = useState('')
   const seq = useRef(0)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const reload = useCallback(() => {
     const mine = ++seq.current
-    load().then(
+    return load().then(
       (d) => {
         if (mine !== seq.current) return
         setData(d)
         setError('')
       },
-      (e: Error) => mine === seq.current && setError(e.message),
+      (e: Error) => {
+        if (mine === seq.current) setError(e.message)
+      },
     )
   }, deps)
-  useEffect(reload, [reload])
+  useEffect(() => {
+    reload()
+  }, [reload])
   return [data, reload, error]
 }
 
