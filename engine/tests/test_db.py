@@ -138,6 +138,10 @@ def test_an_older_library_is_migrated_forward_without_losing_anything(tmp_path):
     conn = db.connect(path)
     assert conn.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION
     assert conn.execute("SELECT title FROM stories").fetchone()[0] == "kept"
+    tables = {t["name"] for t in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    assert {"books", "chapters", "story_links"} <= tables  # v7
+    story = conn.execute("SELECT book_id, book_order FROM stories").fetchone()
+    assert (story["book_id"], story["book_order"]) == (None, 0)
     columns = {c["name"] for c in conn.execute("PRAGMA table_info(entities)")}
     assert "examples" in columns
     story = conn.execute("SELECT pinned, seen_run_id FROM stories").fetchone()  # v3
@@ -149,3 +153,56 @@ def test_an_older_library_is_migrated_forward_without_losing_anything(tmp_path):
     lines = conn.execute("SELECT message_id, contradicts_id FROM memories ORDER BY id")
     assert [tuple(r) for r in lines] == [(7, None), (None, None)]  # v6, backfilled
     conn.close()
+
+
+def test_a_library_gains_books_chapters_and_links(tmp_path):
+    """M2's hierarchy: a book holds stories, a chapter is a range of one story's own lines, and
+    a link says how two stories sit in each other's time."""
+    conn = db.connect(tmp_path / "m2.db")
+    conn.execute(
+        "INSERT INTO books(title, blurb) VALUES('The Gull Years', 'Everything at the bar')"
+    )
+    book = conn.execute("SELECT id FROM books").fetchone()["id"]
+    conn.execute("INSERT INTO stories(title, book_id, book_order) VALUES('One', ?, 1)", (book,))
+    conn.execute("INSERT INTO stories(title, book_id, book_order) VALUES('Two', ?, 2)", (book,))
+    first, second = (r["id"] for r in conn.execute("SELECT id FROM stories ORDER BY id"))
+    conn.execute(
+        "INSERT INTO chapters(story_id, title, from_message_id) VALUES(?, 'The secret', 3)",
+        (first,),
+    )
+    conn.execute(
+        "INSERT INTO story_links(from_story_id, to_story_id, kind, offset_min, note)"
+        " VALUES(?, ?, 'continuation', 3153600, 'six years on')",
+        (second, first),
+    )
+    conn.commit()
+
+    assert [r["title"] for r in conn.execute("SELECT title FROM stories ORDER BY book_order")] == [
+        "One",
+        "Two",
+    ]
+    chapter = conn.execute("SELECT * FROM chapters").fetchone()
+    assert (chapter["title"], chapter["from_message_id"], chapter["to_message_id"]) == (
+        "The secret",
+        3,
+        None,  # still being written
+    )
+    link = conn.execute("SELECT * FROM story_links").fetchone()
+    assert (link["kind"], link["offset_min"]) == ("continuation", 3153600)
+    # one link of a kind between two stories, and only the three kinds
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(
+            "INSERT INTO story_links(from_story_id, to_story_id, kind)"
+            " VALUES(?, ?, 'continuation')",
+            (second, first),
+        )
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(
+            "INSERT INTO story_links(from_story_id, to_story_id, kind) VALUES(?, ?, 'sequel')",
+            (first, second),
+        )
+    # a story takes its chapters and links with it
+    conn.execute("DELETE FROM stories WHERE id=?", (first,))
+    conn.commit()
+    assert conn.execute("SELECT count(*) FROM chapters").fetchone()[0] == 0
+    assert conn.execute("SELECT count(*) FROM story_links").fetchone()[0] == 0

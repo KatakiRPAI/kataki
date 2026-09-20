@@ -4,7 +4,7 @@ import sqlite3
 from importlib.resources import files
 from pathlib import Path
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 # version -> the SQL that brings a library up from the version before it; schema.sql is v1
 MIGRATIONS = {
     2: "ALTER TABLE entities ADD COLUMN examples TEXT NOT NULL DEFAULT ''",  # example dialogue
@@ -23,6 +23,26 @@ MIGRATIONS = {
         "ALTER TABLE memories ADD COLUMN message_id INTEGER;"
         "ALTER TABLE memories ADD COLUMN contradicts_id INTEGER;"
         "UPDATE memories SET message_id = to_message_id WHERE run_id IS NOT NULL;"
+    ),
+    7: (  # the library: books, chapters, and how two stories sit in each other's time
+        "ALTER TABLE stories ADD COLUMN book_order INTEGER NOT NULL DEFAULT 0;"
+        "CREATE TABLE books("
+        " id INTEGER PRIMARY KEY, title TEXT NOT NULL, blurb TEXT NOT NULL DEFAULT '',"
+        " created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);"
+        "CREATE TABLE chapters("
+        " id INTEGER PRIMARY KEY,"
+        " story_id INTEGER NOT NULL REFERENCES stories ON DELETE CASCADE,"
+        " title TEXT NOT NULL, from_message_id INTEGER NOT NULL, to_message_id INTEGER,"
+        " created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);"
+        "CREATE INDEX ix_chapters ON chapters(story_id, from_message_id);"
+        "CREATE TABLE story_links("
+        " id INTEGER PRIMARY KEY,"
+        " from_story_id INTEGER NOT NULL REFERENCES stories ON DELETE CASCADE,"
+        " to_story_id INTEGER NOT NULL REFERENCES stories ON DELETE CASCADE,"
+        " kind TEXT NOT NULL CHECK(kind IN('continuation','shared_universe','reference')),"
+        " offset_min INTEGER NOT NULL DEFAULT 0, note TEXT,"
+        " UNIQUE(from_story_id, to_story_id, kind));"
+        "CREATE INDEX ix_ent_origin ON entities(origin_entity_id);"
     ),
 }
 
