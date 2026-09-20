@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { api, stream, type Cast, type CastEntity, type ContextLog, type Message, type Signals, type Story, type TurnDone, type TurnMeta, type Version } from '../api'
+import { api, stream, type Cast, type CastEntity, type Chapter, type ContextLog, type Message, type Signals, type Story, type TurnDone, type TurnMeta, type Version } from '../api'
 import { paletteOf, SunArc } from '../art'
 import { href, lastSky, rise, useAction, useLibrary, useLoad, usePoll, type Moving } from '../hooks'
 import { Dialog, ErrorLine, Field, Icon, Menu, Trouble, Waiting } from '../ui'
@@ -41,9 +41,10 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
         api<Message[]>(`/stories/${id}/messages`),
         api<Cast>(`/stories/${id}/cast`),
         api<Signals>(`/stories/${id}/signals`),
-      ]).then(([at, story, messages, cast, signals]) => {
+        api<Chapter[]>(`/stories/${id}/chapters`),
+      ]).then(([at, story, messages, cast, signals, chapters]) => {
         version.current = `${at.v}|${at.waiting}`
-        return { story, messages, cast, signals }
+        return { story, messages, cast, signals, chapters }
       }),
     [id],
   )
@@ -258,6 +259,7 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
   // Open at the newest line, or at the deep-linked one; follow a reply as it is written.
   const convo = useRef<HTMLDivElement>(null)
   const count = data?.messages.length ?? 0
+  const marked = data?.chapters.length ?? 0 // a chapter card is height the conversation gained
   const landed = useRef<number>(undefined) // the deep-linked line we have already come to rest on
   useEffect(() => {
     if (line && landed.current === line) return // a line you send after is not a reason to go back
@@ -290,7 +292,7 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
       removeEventListener('wheel', stop)
       removeEventListener('pointerdown', stop)
     }
-  }, [line, count, backstage])
+  }, [line, count, marked, backstage])
   useEffect(() => {
     if (convo.current && (live || said)) convo.current.scrollTop = convo.current.scrollHeight
   }, [live, said])
@@ -302,7 +304,7 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
       </div>
     )
   }
-  const { story, messages, cast, signals } = data
+  const { story, messages, cast, signals, chapters } = data
   const people = onStage(cast, messages, arriving)
   const away = cast.entities.filter((e) => !e.present && e.is_ai && e.kind === 'character')
   const missing = !!line && !messages.some((m) => m.id === line)
@@ -315,6 +317,18 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
   const writerItem = writer?.lib_item_id ? byId.get(writer.lib_item_id) : undefined
   const shown = live?.replacing ? messages.filter((m) => m.id !== live.replacing) : messages
   const newest = messages.at(-1)
+  // Which chapter you are in: the one whose stretch the newest line falls in, and whose own
+  // opening is on the take this story is reading — otherwise the bar would name a chapter the
+  // conversation never shows. Between a chapter closed early and the next one there is none, and
+  // the bar says nothing rather than lie.
+  const here =
+    newest &&
+    chapters.findLast(
+      (c) =>
+        c.from_message_id <= newest.id &&
+        (c.ends_at ?? 0) >= newest.id &&
+        messages.some((m) => m.id === c.from_message_id),
+    )
   const retake = () => newest && generate(`/stories/${id}/regenerate`, {}, newest.id)
   // "no model is set", "could not reach ...": something to go and fix, not a line to shrug at
   const offline = /model|reach|connect|provider/i.test(failed)
@@ -334,7 +348,15 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
           </button>
           <div className="ka-topbar__title">
             <h1>{story.title}</h1>
-            <span>{who}</span>
+            <span>
+              {here && (
+                <>
+                  <strong className="ka-topbar__chapter">{here.title}</strong>
+                  {' · '}
+                </>
+              )}
+              {who}
+            </span>
           </div>
         </div>
         <div className="k-scene-pill k-sglass">
@@ -353,12 +375,14 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
             onClick={() => setReading((r) => !r)}>
             <Icon name="book" size={18} />
           </button>
-          <StoryMenu story={story} onChange={refreshAll} onNewScene={() => setNewScene(true)} />
+          <StoryMenu story={story} chapters={chapters} messages={messages} at={newest?.id} onChange={refreshAll}
+            onNewScene={() => setNewScene(true)} />
         </div>
       </header>
       <div className="k-convo-scrim" />
       <div className="k-convo ka-convo" ref={convo}>
-        <Lines story={story} messages={shown} cast={cast} signals={signals} flash={line} busy={!!live} onChange={refreshAll} onRetake={retake} />
+        <Lines story={story} messages={shown} cast={cast} signals={signals} chapters={chapters} flash={line}
+          busy={!!live} onChange={refreshAll} onRetake={retake} />
         {missing && <p className="k-sysnote">That line is no longer in this version of the story.</p>}
         {said && (
           <SaidLine who={story.persona?.name ?? 'You'} text={said.text} audience={said.audience}
@@ -431,10 +455,17 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
   )
 }
 
-type Dialogs = 'rename' | 'minutes' | 'delete' | null
+type Dialogs = 'rename' | 'minutes' | 'delete' | 'chapter' | 'chapters' | null
 
-/** The story menu: rename, minutes per turn, pin, delete (with a confirm). */
-function StoryMenu({ story, onChange, onNewScene }: { story: Story; onChange: () => void; onNewScene: () => void }) {
+/** The story menu: chapters, rename, minutes per turn, pin, delete (with a confirm). */
+function StoryMenu({ story, chapters, messages, at, onChange, onNewScene }: {
+  story: Story
+  chapters: Chapter[]
+  messages: Message[] // the take this story is reading: what "go to it" can actually come to
+  at?: number // the newest line: where a chapter started "here" begins
+  onChange: () => void
+  onNewScene: () => void
+}) {
   const [open, setOpen] = useState<Dialogs>(null)
   const [run, error, busy] = useAction()
   const close = () => setOpen(null)
@@ -442,6 +473,23 @@ function StoryMenu({ story, onChange, onNewScene }: { story: Story; onChange: ()
     run(async () => {
       await api(`/stories/${story.id}`, 'PATCH', body)
       close()
+      onChange()
+    })
+  /** The first line of this chapter that is on screen — a marker carries an anchor too. */
+  const opensAt = (c: Chapter) =>
+    messages.find((m) => m.id >= c.from_message_id && m.id <= (c.ends_at ?? m.id))
+  // Coming to a chapter is scrolling, not routing: the hash may already be that line, and
+  // assigning the same hash again changes nothing.
+  const goTo = (c: Chapter) => {
+    close()
+    const line = opensAt(c)
+    if (line) document.getElementById(`line-${line.id}`)?.scrollIntoView({ block: 'center' })
+  }
+  // Chapters are part of what the scene loads, so a change to one just asks it to load again.
+  const chapter = (fn: () => Promise<unknown>, thenClose = false) =>
+    run(async () => {
+      await fn()
+      if (thenClose) close()
       onChange()
     })
   const remove = () =>
@@ -457,6 +505,15 @@ function StoryMenu({ story, onChange, onNewScene }: { story: Story; onChange: ()
         <button type="button" onClick={onNewScene}>
           <Icon name="film" size={16} />
           New scene…
+        </button>
+        <button type="button" disabled={!at || chapters.some((c) => c.from_message_id === at)}
+          onClick={() => setOpen('chapter')}>
+          <Icon name="quill" size={16} />
+          Start a chapter here…
+        </button>
+        <button type="button" disabled={!chapters.length} onClick={() => setOpen('chapters')}>
+          <Icon name="book" size={16} />
+          Chapters
         </button>
         <button type="button" onClick={() => setOpen('rename')}>
           <Icon name="edit" size={16} />
@@ -482,6 +539,57 @@ function StoryMenu({ story, onChange, onNewScene }: { story: Story; onChange: ()
         <p className="ka-muted">How far the story clock moves with each line. Skips come on top.</p>
         <OneField label="Minutes" initial={String(story.minutes_per_turn)} number busy={busy} error={error}
           onSave={(v) => save({ minutes_per_turn: Math.max(1, Math.round(Number(v))) })} />
+      </Dialog>
+      <Dialog open={open === 'chapter'} onClose={close} title="Start a chapter here">
+        <p className="ka-muted">
+          It begins at the newest line and runs on as you play. Whatever was running ends just before it.
+        </p>
+        <OneField label="Chapter title" initial="" busy={busy} error={error}
+          onSave={(title) =>
+            chapter(async () => { await api(`/stories/${story.id}/chapters`, 'POST', { title, from_message_id: at }) }, true)
+          } />
+      </Dialog>
+      <Dialog open={open === 'chapters'} onClose={close} title={`Chapters of “${story.title}”`}>
+        <ol className="ka-chapters">
+          {chapters.map((c, i) => (
+            <li key={c.id} className="ka-chapters__row">
+              <span className="ka-chapters__n" aria-hidden="true">{i + 1}</span>
+              <form
+                className="ka-chapters__body"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  const title = String(new FormData(e.currentTarget).get('title') ?? '').trim()
+                  if (title && title !== c.title) chapter(async () => { await api(`/chapters/${c.id}`, 'PATCH', { title }) })
+                }}
+              >
+                <input name="title" className="k-input" defaultValue={c.title} maxLength={200}
+                  aria-label={`Title of chapter ${i + 1}`} />
+                <span className="ka-muted ka-small">
+                  {[c.from_clock, `${c.lines} ${c.lines === 1 ? 'line' : 'lines'}`, c.open ? 'still running' : c.to_clock]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </span>
+                <span className="ka-row">
+                  <button type="submit" className="k-sbtn" disabled={busy}>Save the title</button>
+                  <button type="button" className="k-sbtn" disabled={busy || !opensAt(c)}
+                    onClick={() => goTo(c)}>
+                    Go to it
+                  </button>
+                  <button type="button" className="k-sbtn ka-sbtn--danger" disabled={busy}
+                    onClick={() => chapter(async () => { await api(`/chapters/${c.id}`, 'DELETE') })}>
+                    Delete
+                  </button>
+                </span>
+              </form>
+            </li>
+          ))}
+        </ol>
+        <p className="ka-muted ka-small">
+          {chapters.length
+            ? 'Deleting a chapter gives its lines back to the one before it. The story keeps every line either way.'
+            : 'No chapters. The whole story is one stretch.'}
+        </p>
+        <ErrorLine error={error} />
       </Dialog>
       <Dialog open={open === 'delete'} onClose={close} title="Delete this story?">
         <p className="ka-muted">

@@ -369,36 +369,53 @@ def open_chapter(conn: sqlite3.Connection, story_id: int, title: str, from_messa
     ).fetchone()
     if line is None:
         raise ValueError(f"no line {from_message_id} in this story")
+    # One beginning per line. A second chapter starting where one already does would run over it:
+    # the one below closes chapters that began *earlier*, and there is no line before this to end.
+    if conn.execute(
+        "SELECT 1 FROM chapters WHERE story_id=? AND from_message_id=?", (story_id, from_message_id)
+    ).fetchone():
+        raise ValueError("a chapter already begins at that line")
     with conn:
+        # Nothing may run over the new chapter: whatever covered this line now ends just before it,
+        # whether it was still running or had been closed further along.
         conn.execute(
             "UPDATE chapters SET to_message_id="
             "(SELECT max(id) FROM messages WHERE story_id=? AND id<?)"
-            " WHERE story_id=? AND to_message_id IS NULL AND from_message_id<?",
-            (story_id, from_message_id, story_id, from_message_id),
+            " WHERE story_id=? AND from_message_id<?"
+            " AND (to_message_id IS NULL OR to_message_id>=?)",
+            (story_id, from_message_id, story_id, from_message_id, from_message_id),
         )
+        # And the new one may not run over what already begins after it.
+        ends = conn.execute(
+            "SELECT max(id) FROM messages WHERE story_id=? AND id<"
+            "(SELECT min(from_message_id) FROM chapters WHERE story_id=? AND from_message_id>?)",
+            (story_id, story_id, from_message_id),
+        ).fetchone()[0]
         cur = conn.execute(
-            "INSERT INTO chapters(story_id, title, from_message_id) VALUES(?, ?, ?)",
-            (story_id, title, from_message_id),
+            "INSERT INTO chapters(story_id, title, from_message_id, to_message_id) VALUES(?,?,?,?)",
+            (story_id, title, from_message_id, ends),
         )
     return cur.lastrowid
 
 
 def chapters(conn: sqlite3.Connection, story_id: int) -> list[dict]:
     """Every chapter of this story, in order. The last one is open unless it was closed: it runs
-    to whatever the newest line is, and says so as it grows."""
+    to whatever the newest line is, and says so as it grows. A chapter counts the lines a reader
+    can read — the story's own markers are not lines anybody said, and a take that was thrown
+    away is not in the story at all — so the count follows the path the story is on."""
     rows = conn.execute(
         "SELECT * FROM chapters WHERE story_id=? ORDER BY from_message_id, id", (story_id,)
     ).fetchall()
-    newest = conn.execute("SELECT max(id) FROM messages WHERE story_id=?", (story_id,)).fetchone()[
-        0
-    ]
+    path = chat.active_path(conn, story_id)
+    newest = path[-1]["id"] if path else None
     out = []
     for r in rows:
         ends = r["to_message_id"] or newest
-        lines = conn.execute(
-            "SELECT count(*) FROM messages WHERE story_id=? AND id>=? AND id<=?",
-            (story_id, r["from_message_id"], ends if ends is not None else r["from_message_id"]),
-        ).fetchone()[0]
+        lines = sum(
+            1
+            for m in path
+            if m["role"] != "system" and r["from_message_id"] <= m["id"] <= (ends or -1)
+        )
         out.append({**dict(r), "open": r["to_message_id"] is None, "ends_at": ends, "lines": lines})
     return out
 

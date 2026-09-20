@@ -86,6 +86,21 @@ export type Standing = {
   tags: string[]
 }
 
+/** A stretch of one story, from a line to a line. The last one is open: it runs to whatever the
+ *  newest line is, and grows as you play. */
+export type Chapter = {
+  id: number
+  story_id: number
+  title: string
+  from_message_id: number
+  to_message_id: number | null
+  open: boolean
+  ends_at: number | null
+  lines: number
+  from_clock: string | null
+  to_clock: string | null
+}
+
 /** A shelf of stories, in the order they read. */
 export type Book = {
   id: number

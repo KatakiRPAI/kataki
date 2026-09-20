@@ -934,6 +934,55 @@ def test_chapters_are_stretches_of_the_story_and_the_open_one_runs_to_the_newest
     )
     assert api.get("/stories/999/chapters").status_code == 404
 
+    # two chapters cannot begin at the same line: the second would have nowhere to start and
+    # would leave the first running over it, both claiming the same stretch
+    again_at = api.post(
+        f"/stories/{story}/chapters",
+        json={"title": "The first night, again", "from_message_id": lines[0]["id"]},
+    )
+    assert again_at.status_code == 422
+    assert "already" in again_at.json()["detail"]
+    assert [c["title"] for c in api.get(f"/stories/{story}/chapters").json()] == ["The first night"]
+
+
+def test_a_chapter_counts_the_lines_you_can_read_and_never_runs_over_another(api, story, backend):
+    gull = next(i["id"] for i in api.get("/library").json() if i["name"] == "The Gull")
+    backend.say("One.", "Two.", "Three.", "Another two.")
+    for text in ("a", "b"):
+        api.post(f"/stories/{story}/turn", json={"text": text})
+    # a scene change writes a marker line of the story's own: it is not a line anybody said
+    api.post(f"/stories/{story}/scene", json={"present": [], "place_id": gull, "title": "Night"})
+    api.post(f"/stories/{story}/turn", json={"text": "c"})
+    api.post(
+        f"/stories/{story}/regenerate"
+    )  # a second take: the first stays in the table, off-path
+
+    path = api.get(f"/stories/{story}/messages").json()
+    spoken = [m for m in path if m["role"] != "system"]
+    assert len(path) == 7 and len(spoken) == 6  # one marker among them
+
+    whole = api.post(
+        f"/stories/{story}/chapters", json={"title": "All of it", "from_message_id": path[0]["id"]}
+    ).json()
+    # what a reader counts: not the marker, and not the take that was thrown away
+    assert whole["lines"] == 6 and whole["to_message_id"] is None
+    assert whole["to_clock"] == path[-1]["clock"]
+
+    # a chapter slipped in before an existing one ends where that one begins, rather than
+    # running over it with both claiming the same lines
+    late = api.post(
+        f"/stories/{story}/chapters", json={"title": "The end", "from_message_id": path[5]["id"]}
+    ).json()
+    early = api.post(
+        f"/stories/{story}/chapters", json={"title": "The middle", "from_message_id": path[2]["id"]}
+    ).json()
+    all_three = api.get(f"/stories/{story}/chapters").json()
+    assert [c["title"] for c in all_three] == ["All of it", "The middle", "The end"]
+    assert [c["to_message_id"] for c in all_three] == [path[1]["id"], path[4]["id"], None]
+    assert [c["open"] for c in all_three] == [False, False, True]
+    assert [c["id"] for c in all_three[1:]] == [early["id"], late["id"]]
+    assert sum(c["lines"] for c in all_three) == 6  # between them, every line, once
+
 
 def test_stories_carry_tags_and_the_library_can_list_them_all(api, story):
     assert next(s for s in api.get("/stories").json() if s["id"] == story)["tags"] == []

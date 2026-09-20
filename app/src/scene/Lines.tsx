@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { api, type Callout, type Cast, type CastEntity, type Item, type LineSignal, type Message, type Receipt, type Recall, type Signals, type Story } from '../api'
+import { api, type Callout, type Cast, type CastEntity, type Chapter, type Item, type LineSignal, type Message, type Receipt, type Recall, type Signals, type Story } from '../api'
 import clouds from '../design/clouds.svg'
 import { Avatar, paletteOf, pronounsOf } from '../art'
 import { useAction, useLibrary } from '../hooks'
@@ -46,11 +46,12 @@ function names(ids: number[], cast: Cast) {
 
 /** The conversation: lines, title cards for the opening, scenes and skips, and notes on who came
  *  and went. `flash` marks a deep-linked line; `busy` while a reply is written. */
-export default function Lines({ story, messages, cast, signals, flash, busy, onChange, onRetake }: {
+export default function Lines({ story, messages, cast, signals, chapters, flash, busy, onChange, onRetake }: {
   story: Story
   messages: Message[]
   cast: Cast
   signals?: Signals
+  chapters?: Chapter[]
   flash?: number
   busy: boolean
   onChange: () => void
@@ -93,11 +94,25 @@ export default function Lines({ story, messages, cast, signals, flash, busy, onC
   const newest = messages.at(-1)
   let day = dayOf(story.start_clock)
   messages.forEach((m, i) => {
+    const starts = chapters?.filter((c) => c.from_message_id === m.id) ?? []
+    for (const c of starts)
+      out.push(
+        <div key={`chapter-${c.id}`} className="ka-chapter">
+          <span className="ka-chapter__eyebrow">Chapter {(chapters?.indexOf(c) ?? 0) + 1}</span>
+          <h2 className="ka-chapter__title">{c.title}</h2>
+          <span className="ka-chapter__sub">
+            {[c.from_clock, `${c.lines} ${c.lines === 1 ? 'line' : 'lines'}`].filter(Boolean).join(' · ')}
+          </span>
+        </div>,
+      )
     const newScene = m.role === 'system' && i > 0 && m.scene_id !== messages[i - 1].scene_id
     const skipOnly = m.role === 'system' && !newScene
+    // A marker of the story's own renders as a card, never as a line, so it carries the anchor a
+    // deep link comes to — the first card drawn for it, so one message is never two anchors.
+    const marker = m.role === 'system' ? `line-${m.id}` : undefined
     if (m.skip_minutes > 0)
       out.push(
-        <Card key={`skip-${m.id}`}>
+        <Card key={`skip-${m.id}`} id={marker}>
           {later(m.skip_minutes)} · {landing(m.skip_minutes, m.clock)}
           <button type="button" className="ka-card-undo" onClick={() => undoSkip(m, skipOnly)}>
             <Icon name="undo" size={11} />
@@ -105,9 +120,15 @@ export default function Lines({ story, messages, cast, signals, flash, busy, onC
           </button>
         </Card>,
       )
-    if (newScene) out.push(<Card key={`scene-${m.id}`}>{unmark(m.text)} · {m.clock}</Card>)
+    if (newScene)
+      out.push(
+        <Card key={`scene-${m.id}`} id={m.skip_minutes > 0 ? undefined : marker}>
+          {unmark(m.text)} · {m.clock}
+        </Card>,
+      )
     else if (skipOnly) {
-      if (!m.hidden && m.skip_minutes === 0) out.push(<p key={m.id} className="k-sysnote">{unmark(m.text)}</p>)
+      if (!m.hidden && m.skip_minutes === 0)
+        out.push(<p key={m.id} id={marker} className="k-sysnote">{unmark(m.text)}</p>)
     } else {
       const stamp = stampOf(m.clock, day)
       day = dayOf(m.clock)
@@ -158,8 +179,8 @@ export default function Lines({ story, messages, cast, signals, flash, busy, onC
   )
 }
 
-function Card({ children }: { children: ReactNode }) {
-  return <div className="k-titlecard">{children}</div>
+function Card({ id, children }: { id?: string; children: ReactNode }) {
+  return <div id={id} className="k-titlecard">{children}</div>
 }
 
 /** One line, with its tools on hover or focus: takes (the last arrow on the newest reply asks for
