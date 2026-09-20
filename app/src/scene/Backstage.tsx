@@ -63,9 +63,19 @@ function Memory({ story, cast, tick, focus }: { story: Story; cast: Cast; tick: 
         <span className="ka-bs-muted">As each memory would come back if it came up now.</span>
       </div>
       <div className="ka-bs-bar">
-        <div className="ka-bs-group" role="group" aria-label="Whose memory">
-          {people.map((e) => (
-            <button key={e.id} type="button" className="k-bs-btn ka-bs-person" aria-pressed={e.id === who?.id} onClick={() => setPicked(e.id)}>
+        <div className="ka-bs-group" role="tablist" aria-label="Whose memory">
+          {people.map((e, i) => (
+            <button key={e.id} type="button" className="k-bs-btn ka-bs-person" role="tab"
+              id={`bs-tab-${e.id}`} aria-selected={e.id === who?.id} aria-controls="bs-memory"
+              tabIndex={e.id === who?.id ? 0 : -1}
+              onKeyDown={(k) => {
+                const step = k.key === 'ArrowRight' ? 1 : k.key === 'ArrowLeft' ? -1 : 0
+                if (!step) return
+                const next = people[(i + step + people.length) % people.length]
+                setPicked(next.id)
+                document.getElementById(`bs-tab-${next.id}`)?.focus()
+              }}
+              onClick={() => setPicked(e.id)}>
               <Avatar item={item(e)} name={e.name} size={24} />
               {e.name}
             </button>
@@ -86,7 +96,7 @@ function Memory({ story, cast, tick, focus }: { story: Story; cast: Cast; tick: 
         <span>WEIGHT</span>
         <span />
       </div>
-      <div className="ka-bs-scroll">
+      <div className="ka-bs-scroll" id="bs-memory" role="tabpanel" aria-labelledby={who ? `bs-tab-${who.id}` : undefined}>
         {shown.map((m) => (
           <div key={m.memory_id} className={`k-bs-row${m.hidden ? ' is-hidden' : ''}`}>
             <span className={`k-bs-tier k-bs-tier--${m.tier}`}>{m.tier}</span>

@@ -332,7 +332,7 @@ export function LiveLine({ live, item, ink }: { live: Live; item?: Item; ink?: s
         {live.clock && live.from && <span className="k-line__stamp">{stampOf(live.clock, dayOf(live.from))}</span>}
         <span className="k-line__stamp ka-writing">writing…</span>
       </div>
-      <div className="k-line__body">
+      <div className="k-line__body" aria-live="polite">
         <Prose text={live.text} tail={<span className="k-caret" />} />
       </div>
       {live.thinkMs != null && <Thought ms={live.thinkMs} notes={live.thoughts} />}
