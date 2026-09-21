@@ -41,8 +41,8 @@ export default function Elsewhere({ item, name, here, scene, onChange }: {
 }) {
   const btn = scene ? 'k-sbtn' : 'k-btn k-btn--sm'
   const go = scene ? 'k-sbtn ka-sbtn--primary' : 'k-btn k-btn--dark'
-  const [same] = useLoad(() => api<Same[]>(`/library/${item}/same`), [item])
-  const [links, reloadLinks] = useLoad(
+  const [same, , sameError] = useLoad(() => api<Same[]>(`/library/${item}/same`), [item])
+  const [links, reloadLinks, linksError] = useLoad(
     () => (here ? api<Link[]>(`/stories/${here}/links`) : Promise.resolve([] as Link[])),
     [here],
   )
@@ -124,7 +124,7 @@ export default function Elsewhere({ item, name, here, scene, onChange }: {
           )
         })}
       </ul>
-      <ErrorLine error={error} />
+      <ErrorLine error={linksError || error} />
 
       <Dialog open={!!tying} onClose={close} title={`Tie this story to “${tying?.story ?? ''}”`}>
         <p className="ka-muted">
@@ -170,7 +170,12 @@ export default function Elsewhere({ item, name, here, scene, onChange }: {
           Open one of these stories to tie it to another {name} is in.
         </p>
       )}
-      {!same && <p className="ka-muted ka-small">Looking…</p>}
+      {!same &&
+        (sameError ? (
+          <ErrorLine error={`Where else ${name} is could not be read: ${sameError}`} />
+        ) : (
+          <p className="ka-muted ka-small">Looking…</p>
+        ))}
     </>
   )
 }

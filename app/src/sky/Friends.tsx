@@ -120,7 +120,10 @@ export default function Friends({ section = false }: { section?: boolean }) {
             </Portrait>
           )
         })}
-        {items.length > 0 && shown.length === 0 && filter !== 'all' && <p className="ka-muted">No one here yet.</p>}
+        {/* a folder narrows the grid as much as a filter does, and an empty shelf says so too */}
+        {items.length > 0 && shown.length === 0 && (filter !== 'all' || picked.length > 0) && (
+          <p className="ka-muted">No one here yet.</p>
+        )}
         {loaded && items.length === 0 && (
           <p className="ka-muted ka-empty-note">
             No one to play with yet. Add a friend and they'll remember everything you do together.

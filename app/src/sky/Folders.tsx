@@ -26,6 +26,10 @@ export default function Folders({ kind, wears, picked, onPick }: {
   const [open, setOpen] = useState(false)
   const [chosen, setChosen] = useState<string[]>([])
 
+  // Settings holds one list for every kind, and a save rewrites the whole of it. So a save is
+  // only safe once the read has landed: without this, a settings call that failed would look
+  // like a library with no folders, and the next one you made would be the only one left.
+  const known = settings !== undefined
   const saved = settings?.folders ?? []
   const mine = saved.filter((f) => f.kind === kind)
   const on = mine.find((f) => same(f.tags, picked))
@@ -34,19 +38,21 @@ export default function Folders({ kind, wears, picked, onPick }: {
   const offered = [...new Set(wears)].sort((a, b) => a.localeCompare(b))
 
   /** Settings keeps one list for every kind, so the other kinds' folders travel with every save. */
-  const keep = (folders: Folder[]) =>
-    run(async () => {
-      await api('/settings', 'PUT', { folders: [...saved.filter((f) => f.kind !== kind), ...folders] })
-      reloadSettings()
-    })
-
-  const make = (form: HTMLFormElement) => {
-    const name = String(new FormData(form).get('name') ?? '').trim()
-    if (!name || !chosen.length) return
-    keep([...mine.filter((f) => f.name !== name), { name, kind, tags: chosen }])
-    setChosen([])
-    form.reset()
+  const write = async (folders: Folder[]) => {
+    if (!known) throw new Error('Your folders have not been read yet, so saving would lose them.')
+    await api('/settings', 'PUT', { folders: [...saved.filter((f) => f.kind !== kind), ...folders] })
+    reloadSettings()
   }
+  const keep = (folders: Folder[]) => run(() => write(folders))
+
+  const make = (form: HTMLFormElement) =>
+    run(async () => {
+      const name = String(new FormData(form).get('name') ?? '').trim()
+      if (!name || !chosen.length) return
+      await write([...mine.filter((f) => f.name !== name), { name, kind, tags: chosen }])
+      setChosen([]) // only once it is made: a save that could not happen keeps what you typed
+      form.reset()
+    })
 
   return (
     <>
@@ -72,6 +78,12 @@ export default function Folders({ kind, wears, picked, onPick }: {
       <ErrorLine error={settingsError || actionError} />
 
       <Dialog open={open} onClose={() => setOpen(false)} title="Folders">
+        {!known && (
+          <p className="ka-muted">
+            Your folders have not been read yet, so nothing can be saved over them.
+          </p>
+        )}
+        <ErrorLine error={settingsError || actionError} />
         <p className="ka-muted">
           A folder is a name over a set of tags. Nothing moves into it — anything wearing every tag
           is on the shelf, and leaves it when the tag comes off.
@@ -85,7 +97,7 @@ export default function Folders({ kind, wears, picked, onPick }: {
                   <span className="ka-muted ka-small">{f.tags.join(' + ')}</span>
                 </span>
                 <button
-                  type="button" className="k-btn k-btn--sm" disabled={busy}
+                  type="button" className="k-btn k-btn--sm" disabled={busy || !known}
                   onClick={() => keep(mine.filter((x) => x.name !== f.name))}
                 >
                   <Icon name="x" size={14} />
@@ -130,7 +142,7 @@ export default function Folders({ kind, wears, picked, onPick }: {
           </span>
           <div className="ka-row ka-row--end">
             <button type="button" className="k-btn" onClick={() => setOpen(false)}>Done</button>
-            <button type="submit" className="k-btn k-btn--dark" disabled={busy || !chosen.length}>
+            <button type="submit" className="k-btn k-btn--dark" disabled={busy || !known || !chosen.length}>
               Make the folder
             </button>
           </div>
