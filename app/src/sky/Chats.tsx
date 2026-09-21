@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { api, type ActivityEvent, type Book, type Person, type StorySummary } from '../api'
 import { Avatar, AvatarStack, Figure, Orb, Room } from '../art'
 import { dive, diveLink, go, href, useAction, useLibrary, useLoad } from '../hooks'
-import { Chip, Dialog, ErrorLine, Icon, Menu } from '../ui'
+import { Chip, Dialog, ErrorLine, Field, Icon, Menu } from '../ui'
 import { EventLink } from './Activity'
+import Folders, { onShelf } from './Folders'
 import NewChat, { type Preset } from './NewChat'
 
 type Filter = 'all' | 'one' | 'group'
@@ -24,13 +25,17 @@ export default function Chats({ selected }: { selected?: number }) {
   const [filter, setFilter] = useState<Filter>('all')
   const [deleting, setDeleting] = useState<StorySummary>()
   const [shelving, setShelving] = useState<StorySummary>()
+  const [tagging, setTagging] = useState<StorySummary>()
+  const [picked, setPicked] = useState<string[]>([]) // a folder's tags, or the one you clicked
   const [books, reloadBooks] = useLoad(() => api<Book[]>('/books'), [])
   const [newChat, setNewChat] = useState<{ preset?: Preset; n: number }>({ n: 0 }) // n remounts the form fresh
   const startNew = (preset: Preset) => setNewChat((c) => ({ preset, n: c.n + 1 }))
   const [run, actionError, busy] = useAction()
 
   const all = stories ?? []
-  const shown = all.filter((s) => filter === 'all' || (filter === 'one' ? s.cast.length === 1 : s.cast.length >= 2))
+  const shown = all
+    .filter((s) => filter === 'all' || (filter === 'one' ? s.cast.length === 1 : s.cast.length >= 2))
+    .filter((s) => onShelf(s.tags, picked))
   const current = all.find((s) => s.id === selected) ?? all[0]
   // What the reader wrote while you were away; the Scene marks a story seen as you play it.
   const [feed] = useLoad(
@@ -61,6 +66,14 @@ export default function Chats({ selected }: { selected?: number }) {
       await api(`/stories/${s.id}`, 'PATCH', { book_id })
       setShelving(undefined)
       reloadBooks() // the picker counts each book's stories
+      reload()
+    })
+  /** What a story wears: the shelves it turns up on. */
+  const tag = (s: StorySummary, text: string) =>
+    run(async () => {
+      const tags = [...new Set(text.split(',').map((t) => t.trim()).filter(Boolean))]
+      await api(`/stories/${s.id}`, 'PATCH', { tags })
+      setTagging(undefined)
       reload()
     })
   const shelveInNew = (s: StorySummary, title: string) =>
@@ -111,6 +124,12 @@ export default function Chats({ selected }: { selected?: number }) {
                 <a className="ka-thread__book" href={href(`/books/${s.book.id}`)}>{s.book.title}</a>
               </>
             )}
+            {s.tags.map((t) => (
+              <button key={t} type="button" className="ka-tag-chip" onClick={() => setPicked([t])}
+                aria-label={`Show only stories tagged ${t}`}>
+                {t}
+              </button>
+            ))}
           </span>
         </span>
         <Menu label={`More for ${s.title}`} className="k-btn k-btn--ghost k-btn--sm ka-thread__menu">
@@ -121,6 +140,10 @@ export default function Chats({ selected }: { selected?: number }) {
           <button type="button" onClick={() => setShelving(s)}>
             <Icon name="book" />
             {s.book ? 'Move to another book' : 'Put in a book'}
+          </button>
+          <button type="button" onClick={() => setTagging(s)}>
+            <Icon name="filter" />
+            Tags…
           </button>
           <button type="button" onClick={() => setDeleting(s)}>
             <Icon name="x" />
@@ -155,6 +178,7 @@ export default function Chats({ selected }: { selected?: number }) {
           <Chip pressed={filter === 'one'} onClick={() => setFilter('one')}>One-to-one</Chip>
           <Chip pressed={filter === 'group'} onClick={() => setFilter('group')}>Groups</Chip>
         </div>
+        <Folders kind="story" wears={all.flatMap((s) => s.tags)} picked={picked} onPick={setPicked} />
         <ErrorLine error={error || actionError} />
         {pinned.length > 0 && (
           <>
@@ -229,6 +253,27 @@ export default function Chats({ selected }: { selected?: number }) {
           dive(`/story/${story.id}`)
         }}
       />
+      <Dialog open={!!tagging} onClose={() => setTagging(undefined)} title={`Tags for “${tagging?.title ?? ''}”`}>
+        <form
+          className="ka-form"
+          onSubmit={(e) => {
+            e.preventDefault()
+            const text = String(new FormData(e.currentTarget).get('tags') ?? '')
+            if (tagging) tag(tagging, text)
+          }}
+        >
+          <Field label="Tags, separated by commas">
+            <input name="tags" className="k-input" defaultValue={(tagging?.tags ?? []).join(', ')}
+              maxLength={300} placeholder="docks, slow burn" />
+          </Field>
+          <p className="ka-muted ka-small">A folder gathers everything wearing the tags it is named by.</p>
+          <div className="ka-row ka-row--end">
+            <button type="button" className="k-btn" onClick={() => setTagging(undefined)}>Cancel</button>
+            <button type="submit" className="k-btn k-btn--dark" disabled={busy}>Save the tags</button>
+          </div>
+        </form>
+      </Dialog>
+
       <Dialog open={!!shelving} onClose={() => setShelving(undefined)} title={`Put “${shelving?.title ?? ''}” in a book`}>
         <ul className="ka-threads ka-pick">
           {(books ?? []).map((b) => (

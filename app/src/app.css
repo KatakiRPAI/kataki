@@ -783,3 +783,16 @@ a.ka-event:hover { background: #fff; }
 .ka-chapters__row { display: flex; align-items: flex-start; gap: 12px; }
 .ka-chapters__n { flex-shrink: 0; width: 22px; padding-top: 10px; text-align: right; font-size: 13px; font-weight: 800; color: var(--k-scene-muted); font-variant-numeric: tabular-nums; }
 .ka-chapters__body { display: flex; flex-direction: column; gap: 6px; flex-grow: 1; min-width: 0; }
+
+/* ---- Folders and tags: the shelves you saved, and what a thing wears ---- */
+.ka-folders { margin-top: -2px; }
+.ka-tag-chip { position: relative; z-index: 2; height: 20px; padding: 0 9px; border: 0; border-radius: 10px; background: rgba(47,99,240,.1); color: var(--k-sky-accent); font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; }
+.ka-tag-chip:hover { background: rgba(47,99,240,.2); }
+.ka-friend__tags { gap: 4px; margin-top: 2px; }
+.ka-folderlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 32vh; overflow-y: auto; }
+.ka-folderlist__row { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: 18px; background: rgba(255,255,255,.45); }
+/* The nameplate blurs what is behind it, which seals its own stacking context, so a chip inside
+   it can never rise over the card's full-bleed link. Lift the plate instead, and let everything
+   on it but the chips go on passing clicks down to the link. */
+.ka-friend .k-nameplate { z-index: 2; pointer-events: none; }
+.ka-friend .k-nameplate .ka-tag-chip { pointer-events: auto; }

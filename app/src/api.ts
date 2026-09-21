@@ -86,6 +86,9 @@ export type Standing = {
   tags: string[]
 }
 
+/** A saved shelf: a name over a set of tags, for one kind of thing. Kept in settings. */
+export type Folder = { name: string; kind: 'story' | 'character'; tags: string[] }
+
 /** A stretch of one story, from a line to a line. The last one is open: it runs to whatever the
  *  newest line is, and grows as you play. */
 export type Chapter = {

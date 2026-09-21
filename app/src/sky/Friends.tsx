@@ -4,6 +4,7 @@ import { Portrait } from '../art'
 import { href, useAction, useLibrary, useLoad } from '../hooks'
 import { Candy, ErrorLine, Icon, SkyHeader, type CandyColor } from '../ui'
 import { completeness } from './Editor'
+import Folders, { onShelf } from './Folders'
 
 type Filter = 'all' | 'favourites' | 'in-story' | 'new' | 'groups'
 
@@ -36,11 +37,13 @@ export default function Friends({ section = false }: { section?: boolean }) {
   const { items, loaded, reload, error } = useLibrary()
   const [stories, , storiesError] = useLoad(() => api<StorySummary[]>('/stories'), [])
   const [filter, setFilter] = useState<Filter>('all')
+  const [picked, setPicked] = useState<string[]>([]) // a folder's tags, or the one you clicked
   const [run, actionError] = useAction()
 
   const friends = items.filter((i) => i.kind === 'character' && !i.data.persona).sort((a, b) => a.id - b.id) // oldest friends first
   const shown = friends.filter((f) => {
     const theirs = storiesWith(f, stories ?? [])
+    if (!onShelf(f.tags, picked)) return false
     if (filter === 'favourites') return f.data.favourite
     if (filter === 'in-story') return theirs.length > 0
     if (filter === 'new') return Date.now() - addedAt(f) <= WEEK
@@ -81,6 +84,7 @@ export default function Friends({ section = false }: { section?: boolean }) {
           </a>
         </SkyHeader>
       )}
+      {!section && <Folders kind="character" wears={friends.flatMap((f) => f.tags)} picked={picked} onPick={setPicked} />}
       <ErrorLine error={error || storiesError || actionError} />
       <div className="ka-friends">
         {shown.map((f) => {
@@ -101,6 +105,17 @@ export default function Friends({ section = false }: { section?: boolean }) {
                 <span className="ka-friend__name">{f.name}</span>
                 <span className="ka-friend__tagline">{f.description.split('\n')[0] || 'Just added. Finish their profile.'}</span>
                 <span className={`ka-friend__status${idle ? ' is-idle' : ''}`}>{text}</span>
+                {/* only where the rail is: on Home there would be no way to clear the filter */}
+                {!section && f.tags.length > 0 && (
+                  <span className="ka-row ka-friend__tags">
+                    {f.tags.map((t) => (
+                      <button key={t} type="button" className="ka-tag-chip" onClick={() => setPicked([t])}
+                        aria-label={`Show only friends tagged ${t}`}>
+                        {t}
+                      </button>
+                    ))}
+                  </span>
+                )}
               </div>
             </Portrait>
           )
