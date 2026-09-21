@@ -7,17 +7,26 @@ What makes it different:
 - **Realism-first memory** in SQLite: characters, places and events are extracted automatically and cross-linked; each character only remembers what they witnessed or were told; memories fade with *story* time, important ones fade slower, and a character told something false will try to remember and challenge it.
 - **Token economy** built for small local models: cache-friendly prompt layout, extraction every few turns in idle time, zero extra LLM calls per turn for recall.
 - **Per-task model selector**: separate jobs for character replies, narrator, the memory reader and careful re-reads, with reasoning and standard models handled differently.
-- Planned: consistent scene images, location/mood-adaptive music with slow crossfades, and a book/story/chapter library with cross-story canon links.
+- **A library, not a list of chats**: stories gather into books that read in an order, a long story reads back as chapters, folders are saved sets of tags rather than places things move to, and the same character can walk between stories — tie two together and they bring across only as much as the time between them has left them.
+- **Nothing is trapped here**: character cards (PNG, JSON, CHARX), SillyTavern chats and lorebooks or World Info come in, and every story goes out as Markdown or JSONL, or the whole library as one `.kataki` file. Every import shows you what it would make before it makes anything.
+- Planned: consistent scene images, and location/mood-adaptive music with slow crossfades.
 
-Status: **pre-alpha**, milestone M1 (chat and the memory engine). Design spec and progress: [docs/specs/2026-09-18-m0-m1-design.md](docs/specs/2026-09-18-m0-m1-design.md); the UI rebuild that M1 ends with is tracked in [docs/specs/2026-09-19-ui-redesign.md](docs/specs/2026-09-19-ui-redesign.md).
+Status: **pre-alpha**. M1 (chat and the memory engine) and M2 (the library) are done. Design spec and progress: [docs/specs/2026-09-18-m0-m1-design.md](docs/specs/2026-09-18-m0-m1-design.md); the UI rebuild M1 ends with is [docs/specs/2026-09-19-ui-redesign.md](docs/specs/2026-09-19-ui-redesign.md); the library is [docs/specs/2026-09-20-m2-library.md](docs/specs/2026-09-20-m2-library.md).
 
 ## The app
 
 Two worlds. **The Sky** is bright and above the clouds: Home (who you are, the story you were in,
-what your friends have made of it), Friends, Chats, Places and Plots, Activity, You, and Settings.
+what your friends have made of it), Friends, Chats, Books, Places, Activity, You, and Settings.
 **The Scene** is where you play: the room lit by the story's own clock, whoever is on stage, the
 conversation, and a composer that can say, do, whisper, think or let time pass. Diving between them
 parts the clouds.
+
+Chats and Friends carry the tags things wear and a rail of the folders you saved over them. Books
+gathers stories that belong together and says what order they read in. In a scene the story menu
+starts a chapter where you are, lists the ones the story has, and takes the story out as a page to
+read or as lines to keep; Settings → Library brings anything in and saves everything out. Drop a
+character card, a chat, a lorebook or a whole library anywhere in the app and it tells you what it
+would make first.
 
 In a scene you can click anyone to see who they are right now — what they hold, what is on their
 mind, what they know about you — and open **Backstage** to read the memory itself: every fact a
