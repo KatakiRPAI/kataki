@@ -15,7 +15,7 @@ export default function Books({ selected }: { selected?: number }) {
   const { byId } = useLibrary()
   const [books, reloadBooks, booksError] = useLoad(() => api<Book[]>('/books'), [])
   const [stories, reloadStories, storiesError] = useLoad(() => api<StorySummary[]>('/stories'), [])
-  const [run, actionError, busy] = useAction()
+  const [run, actionError, busy, forget] = useAction()
   const [naming, setNaming] = useState<{ book?: Book; open: boolean }>({ open: false })
   const [adding, setAdding] = useState(false)
   const [deleting, setDeleting] = useState<Book>()
@@ -191,7 +191,7 @@ export default function Books({ selected }: { selected?: number }) {
 
       <Dialog
         open={naming.open}
-        onClose={() => setNaming({ open: false })}
+        onClose={() => { setNaming({ open: false }); forget() }}
         title={naming.book ? 'Rename this book' : 'New book'}
       >
         <form
@@ -216,7 +216,7 @@ export default function Books({ selected }: { selected?: number }) {
         </form>
       </Dialog>
 
-      <Dialog open={adding} onClose={() => setAdding(false)} title={`Add a story to ${current?.title ?? 'this book'}`}>
+      <Dialog open={adding} onClose={() => { setAdding(false); forget() }} title={`Add a story to ${current?.title ?? 'this book'}`}>
         <ul className="ka-threads ka-pick">
           {loose.map((s) => (
             <li key={s.id}>
@@ -232,7 +232,7 @@ export default function Books({ selected }: { selected?: number }) {
         </ul>
       </Dialog>
 
-      <Dialog open={!!deleting} onClose={() => setDeleting(undefined)} title="Delete this book?">
+      <Dialog open={!!deleting} onClose={() => { setDeleting(undefined); forget() }} title="Delete this book?">
         <p className="ka-muted">
           “{deleting?.title}” goes. Its stories stay exactly where they are — they just stop being a book.
         </p>

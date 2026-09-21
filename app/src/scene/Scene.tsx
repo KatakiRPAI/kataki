@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { api, stream, type Cast, type CastEntity, type Chapter, type ContextLog, type Message, type Signals, type Story, type TurnDone, type TurnMeta, type Version } from '../api'
+import { api, download, stream, type Cast, type CastEntity, type Chapter, type ContextLog, type Message, type Signals, type Story, type TurnDone, type TurnMeta, type Version } from '../api'
 import { paletteOf, SunArc } from '../art'
 import { href, lastSky, rise, useAction, useLibrary, useLoad, usePoll, type Moving } from '../hooks'
 import { Dialog, ErrorLine, Field, Icon, Menu, Trouble, Waiting } from '../ui'
@@ -455,7 +455,7 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
   )
 }
 
-type Dialogs = 'rename' | 'minutes' | 'delete' | 'chapter' | 'chapters' | null
+type Dialogs = 'rename' | 'minutes' | 'delete' | 'chapter' | 'chapters' | 'export' | null
 
 /** The story menu: chapters, rename, minutes per turn, pin, delete (with a confirm). */
 function StoryMenu({ story, chapters, messages, at, onChange, onNewScene }: {
@@ -467,8 +467,12 @@ function StoryMenu({ story, chapters, messages, at, onChange, onNewScene }: {
   onNewScene: () => void
 }) {
   const [open, setOpen] = useState<Dialogs>(null)
-  const [run, error, busy] = useAction()
-  const close = () => setOpen(null)
+  const [run, error, busy, forget] = useAction()
+  // what went wrong in the dialog you just closed is not news about the next one
+  const close = () => {
+    setOpen(null)
+    forget()
+  }
   const save = (body: object) =>
     run(async () => {
       await api(`/stories/${story.id}`, 'PATCH', body)
@@ -514,6 +518,10 @@ function StoryMenu({ story, chapters, messages, at, onChange, onNewScene }: {
         <button type="button" disabled={!chapters.length} onClick={() => setOpen('chapters')}>
           <Icon name="book" size={16} />
           Chapters
+        </button>
+        <button type="button" onClick={() => setOpen('export')}>
+          <Icon name="download" size={16} />
+          Take it out…
         </button>
         <button type="button" onClick={() => setOpen('rename')}>
           <Icon name="edit" size={16} />
@@ -589,6 +597,30 @@ function StoryMenu({ story, chapters, messages, at, onChange, onNewScene }: {
             ? 'Deleting a chapter gives its lines back to the one before it. The story keeps every line either way.'
             : 'No chapters. The whole story is one stretch.'}
         </p>
+        <ErrorLine error={error} />
+      </Dialog>
+      <Dialog open={open === 'export'} onClose={close} title={`Take “${story.title}” out`}>
+        <p className="ka-muted">
+          A copy, for you to keep or read anywhere. The story stays here either way.
+        </p>
+        <div className="ka-stack">
+          <button type="button" className="k-sbtn ka-out" disabled={busy}
+            onClick={() => run(async () => { await download(`/stories/${story.id}/export?as=markdown`); close() })}>
+            <Icon name="quote" size={16} />
+            <span className="ka-out__text">
+              <strong>As a page to read</strong>
+              <small>Markdown: its title, its chapters, and every line under the name that said it.</small>
+            </span>
+          </button>
+          <button type="button" className="k-sbtn ka-out" disabled={busy}
+            onClick={() => run(async () => { await download(`/stories/${story.id}/export?as=jsonl`); close() })}>
+            <Icon name="grid" size={16} />
+            <span className="ka-out__text">
+              <strong>As lines to keep</strong>
+              <small>JSONL: one line per message — what was said, by whom, and when. Nothing of the engine's.</small>
+            </span>
+          </button>
+        </div>
         <ErrorLine error={error} />
       </Dialog>
       <Dialog open={open === 'delete'} onClose={close} title="Delete this story?">

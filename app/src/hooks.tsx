@@ -39,7 +39,12 @@ export function useLoad<T>(load: () => Promise<T>, deps: unknown[]): [T | undefi
 }
 
 /** Run an action, surfacing its error instead of losing it. */
-export function useAction(): [(fn: () => Promise<unknown>) => Promise<void>, string, boolean] {
+export function useAction(): [
+  (fn: () => Promise<unknown>) => Promise<void>,
+  string,
+  boolean,
+  () => void,
+] {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const run = useCallback(async (fn: () => Promise<unknown>) => {
@@ -53,7 +58,10 @@ export function useAction(): [(fn: () => Promise<unknown>) => Promise<void>, str
       setBusy(false)
     }
   }, [])
-  return [run, error, busy]
+  // One screen runs several things, and what went wrong with one is not news about the next:
+  // a screen that closes what failed says so by forgetting it.
+  const forget = useCallback(() => setError(''), [])
+  return [run, error, busy, forget]
 }
 
 /** Call `fn` every `ms` while enabled, skipping ticks while the window is hidden. */

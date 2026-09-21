@@ -154,6 +154,18 @@ def test_the_routes_hand_over_a_file(api, conn, story):
     assert api.get("/stories/999/export").status_code == 404
 
 
+def test_the_name_of_a_saved_file_reaches_the_app(api, story):
+    """The app runs on another origin, so a browser hides every response header but a handful
+    unless the engine says otherwise — and without this one, every export saves as `kataki`."""
+    from_app = {"Origin": "http://localhost:5199"}  # what the app's own fetch looks like
+    said = api.get(f"/stories/{story}/export", headers=from_app)
+    assert "content-disposition" in said.headers["access-control-expose-headers"].lower()
+    assert "the-third-floorboard.md" in said.headers["content-disposition"]
+    whole = api.get("/export/library", headers=from_app)
+    assert "content-disposition" in whole.headers["access-control-expose-headers"].lower()
+    assert "library.kataki" in whole.headers["content-disposition"]
+
+
 def test_a_title_that_is_not_a_filename(api, conn, story):
     """A story can be called anything; a file cannot."""
     conn.execute("UPDATE stories SET title=? WHERE id=?", ('  ../Låg tide: "él"?  ', story))

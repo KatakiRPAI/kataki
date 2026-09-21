@@ -396,6 +396,24 @@ export async function api<T>(path: string, method = 'GET', json?: unknown): Prom
   return (r.status === 204 ? undefined : await r.json()) as T
 }
 
+/** Ask the engine for a file and hand it to the browser to save under the name the engine chose.
+ *  A download can't carry a header, so it is fetched with one and saved from memory — fine for a
+ *  story or one library on this machine.
+ *  ponytail: stream to disk through the main process if a library ever outgrows memory. */
+export async function download(path: string): Promise<string> {
+  const r = await fetch(baseUrl + path, { headers: headers(false) })
+  if (!r.ok) throw await failure(r)
+  const said = r.headers.get('Content-Disposition') ?? ''
+  const name = /filename="([^"]+)"/.exec(said)?.[1] || 'kataki'
+  const url = URL.createObjectURL(await r.blob())
+  const link = document.createElement('a')
+  link.href = url
+  link.download = name
+  link.click()
+  setTimeout(() => URL.revokeObjectURL(url), 30_000) // after the save has taken it
+  return name
+}
+
 /** POST a file as its own bytes: the engine reads the file, not a JSON envelope round it. */
 export async function sendFile<T>(path: string, blob: Blob): Promise<T> {
   const r = await fetch(baseUrl + path, { method: 'POST', headers: headers(false), body: blob })

@@ -262,7 +262,13 @@ def create_app(
     # Any origin is fine: auth is a bearer token, not a cookie, so a foreign page has
     # nothing to ride on.
     app.add_middleware(
-        CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+        # the app is on another origin, and a browser hides every response header but a handful:
+        # without this, a file it saves has no name of ours and lands as "kataki"
+        expose_headers=["Content-Disposition"],
     )
 
     def story_row(story_id: int) -> dict:

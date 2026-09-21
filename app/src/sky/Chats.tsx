@@ -31,7 +31,7 @@ export default function Chats({ selected }: { selected?: number }) {
   const [books, reloadBooks] = useLoad(() => api<Book[]>('/books'), [])
   const [newChat, setNewChat] = useState<{ preset?: Preset; n: number }>({ n: 0 }) // n remounts the form fresh
   const startNew = (preset: Preset) => setNewChat((c) => ({ preset, n: c.n + 1 }))
-  const [run, actionError, busy] = useAction()
+  const [run, actionError, busy, forget] = useAction()
 
   const all = stories ?? []
   const shown = all
@@ -254,7 +254,7 @@ export default function Chats({ selected }: { selected?: number }) {
           dive(`/story/${story.id}`)
         }}
       />
-      <Dialog open={!!tagging} onClose={() => setTagging(undefined)} title={`Tags for “${tagging?.title ?? ''}”`}>
+      <Dialog open={!!tagging} onClose={() => { setTagging(undefined); forget() }} title={`Tags for “${tagging?.title ?? ''}”`}>
         <form
           className="ka-form"
           onSubmit={(e) => {
@@ -275,7 +275,7 @@ export default function Chats({ selected }: { selected?: number }) {
         </form>
       </Dialog>
 
-      <Dialog open={!!shelving} onClose={() => setShelving(undefined)} title={`Put “${shelving?.title ?? ''}” in a book`}>
+      <Dialog open={!!shelving} onClose={() => { setShelving(undefined); forget() }} title={`Put “${shelving?.title ?? ''}” in a book`}>
         <ul className="ka-threads ka-pick">
           {(books ?? []).map((b) => (
             <li key={b.id}>
@@ -316,7 +316,7 @@ export default function Chats({ selected }: { selected?: number }) {
         )}
       </Dialog>
 
-      <Dialog open={!!deleting} onClose={() => setDeleting(undefined)} title="Delete this story?">
+      <Dialog open={!!deleting} onClose={() => { setDeleting(undefined); forget() }} title="Delete this story?">
         <p className="ka-muted">
           “{deleting?.title}” and everything its characters remember of it will be gone. This can't be undone.
         </p>

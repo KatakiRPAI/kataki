@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api, type Kind, type Provider, type RoleRow } from '../api'
+import { api, download, type Kind, type Provider, type RoleRow } from '../api'
 import { href, useAction, useLoad } from '../hooks'
 import { Candy, Chip, Dialog, ErrorLine, Field, Glass, Icon, Seg, type CandyColor } from '../ui'
 import { bringIn } from './Intake'
@@ -97,8 +97,35 @@ export default function Settings({ page }: { page?: string }) {
   )
 }
 
-/** Settings → Library: bringing things in. Nothing is made before you have seen what it would be. */
+/** Settings → Library: what comes in, and what goes out again. */
 function LibraryPage() {
+  const [run, error, busy] = useAction()
+  const [saved, setSaved] = useState('')
+  return (
+    <>
+      <Glass title="Take everything out">
+        <span className="ka-muted">
+          Your whole library as one <span className="k-mono">.kataki</span> file: every friend,
+          every story, every memory and every picture. Keep it somewhere safe, or carry it to
+          another computer — Kataki reads it back into an empty library.
+        </span>
+        <button
+          type="button" className="k-btn k-btn--dark ka-self-start" disabled={busy}
+          onClick={() => run(async () => setSaved(await download('/export/library')))}
+        >
+          <Icon name="download" size={16} />
+          {busy ? 'Packing it up…' : 'Save my library'}
+        </button>
+        {saved && <span className="ka-muted ka-small">Saved as {saved}.</span>}
+        <ErrorLine error={error} />
+      </Glass>
+      <BringIn />
+    </>
+  )
+}
+
+/** Nothing is made before you have seen what it would be. */
+function BringIn() {
   return (
     <Glass title="Bring something in">
       <span className="ka-muted">
@@ -108,7 +135,7 @@ function LibraryPage() {
         library (<span className="k-mono">.kataki</span>). You can also drop one anywhere in the app.
       </span>
       <label className="k-btn k-btn--dark ka-self-start">
-        <Icon name="download" size={16} />
+        <Icon name="plus" size={16} />
         Choose a file…
         <input
           type="file" className="ka-visually-hidden"

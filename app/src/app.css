@@ -805,3 +805,6 @@ a.ka-event:hover { background: #fff; }
 .ka-intake__what { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .ka-intake__what > li { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; font-weight: 600; }
 .ka-intake__what > li > .k-icon { flex-shrink: 0; margin-top: 3px; color: var(--k-sky-success); }
+.ka-out { display: flex; align-items: flex-start; gap: 12px; width: 100%; text-align: left; padding: 12px 14px; height: auto; }
+.ka-out__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ka-out__text > small { font-weight: 500; opacity: .75; line-height: 1.35; }
