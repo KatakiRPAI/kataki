@@ -95,6 +95,29 @@ export type Look = {
   needs_story: boolean
 }
 
+/** One story this person also plays in (`GET /library/{id}/same`). */
+export type Same = {
+  entity_id: number
+  name: string
+  story_id: number
+  story: string
+  is_ai: number
+  remembers: number
+}
+
+/** One story looking back at another. `direction` is from the story that was asked. */
+export type Link = {
+  id: number
+  from_story_id: number
+  to_story_id: number
+  kind: 'continuation' | 'shared_universe' | 'reference'
+  offset_min: number
+  note: string | null
+  from_title: string
+  to_title: string
+  direction: 'back' | 'forward'
+}
+
 /** A saved shelf: a name over a set of tags, for one kind of thing. Kept in settings. */
 export type Folder = { name: string; kind: 'story' | 'character'; tags: string[] }
 

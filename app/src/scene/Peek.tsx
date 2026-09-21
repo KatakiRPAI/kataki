@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { api, type CastEntity, type Person } from '../api'
 import { Avatar, paletteOf, pronounsOf } from '../art'
 import { href, useLibrary, useLoad } from '../hooks'
+import Elsewhere from '../sky/Elsewhere'
 import { Icon } from '../ui'
 
 // How each relationship reads: warm ones sit in amber, cold ones in the doubt colour.
@@ -48,7 +49,10 @@ export default function Peek({ story, entity, at, tick, busy, onClose, onAnswer,
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null
     card.current?.focus() // the card itself, so a keyboard starts at the top of it, not on Close
-    const leave = (e: KeyboardEvent) => e.key === 'Escape' && close.current()
+    // Escape backs out of whatever is over the card before it closes the card itself, the same
+    // way reading mode reads it — a dialog opened from here owns the first press.
+    const leave = (e: KeyboardEvent) =>
+      e.key === 'Escape' && !document.querySelector('dialog[open], :popover-open') && close.current()
     const elsewhere = (e: MouseEvent) => card.current?.contains(e.target as Node) || close.current()
     addEventListener('keydown', leave)
     addEventListener('pointerdown', elsewhere)
@@ -167,6 +171,13 @@ export default function Peek({ story, entity, at, tick, busy, onClose, onAnswer,
               <button type="button" className="ka-peek__reveal" onClick={() => setRevealed((r) => !r)}>
                 {revealed ? 'Hide' : 'Reveal'}
               </button>
+            </div>
+          )}
+
+          {entity.lib_item_id && (
+            <div className="ka-peek__block">
+              <span className="ka-peek__eyebrow">Where else {name} is</span>
+              <Elsewhere item={entity.lib_item_id} name={name} here={story} scene />
             </div>
           )}
 

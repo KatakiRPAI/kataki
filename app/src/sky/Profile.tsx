@@ -3,6 +3,7 @@ import { api, type Item, type Profile as Profiled, type StorySummary } from '../
 import { Avatar, Orb, Portrait, pronounsOf, Room } from '../art'
 import { dive, diveLink, href, useLibrary, useLoad } from '../hooks'
 import { Candy, ErrorLine, Glass, Icon, Menu, Prose } from '../ui'
+import Elsewhere from './Elsewhere'
 import { status, storiesWith } from './Friends'
 import NewChat, { type Preset } from './NewChat'
 
@@ -215,6 +216,9 @@ export default function Profile({ id }: { id: number }) {
           </div>
           <div className="ka-cards">
             {profile && <RightNow item={item} profile={profile} prefer={latest?.id} />}
+            <Glass title={`Where else ${item.name} is`}>
+              <Elsewhere item={item.id} name={item.name} />
+            </Glass>
             <Glass title="About">
               <div className="ka-prose-sky"><Prose text={item.description || `Nothing written about ${item.name} yet.`} /></div>
               <span className="ka-muted ka-small">What anyone in a scene can see or know.</span>

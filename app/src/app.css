@@ -808,3 +808,14 @@ a.ka-event:hover { background: #fff; }
 .ka-out { display: flex; align-items: flex-start; gap: 12px; width: 100%; text-align: left; padding: 12px 14px; height: auto; }
 .ka-out__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .ka-out__text > small { font-weight: 500; opacity: .75; line-height: 1.35; }
+
+/* ---- Elsewhere: the same person, in another story ---- */
+.ka-elsewhere { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ka-elsewhere__row { display: flex; align-items: center; gap: 12px; }
+.ka-elsewhere__text { display: flex; flex-direction: column; gap: 1px; flex-grow: 1; min-width: 0; }
+.ka-elsewhere__title { font-size: 14px; font-weight: 800; color: inherit; text-decoration: none; }
+.ka-elsewhere__title:hover { text-decoration: underline; }
+/* the card is the Scene's dark, so the Sky's muted blue would be unreadable on it */
+.ka-peek .ka-muted { color: var(--k-scene-muted); }
+.ka-peek .ka-elsewhere__title { font-size: 13px; }
+.ka-peek .ka-elsewhere .k-btn { height: 26px; padding: 0 10px; font-size: 11.5px; }
