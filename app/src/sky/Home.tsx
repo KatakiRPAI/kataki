@@ -1,7 +1,7 @@
 import { useId, useState, type CSSProperties } from 'react'
 import { api, type ActivityEvent, type Item, type StorySummary } from '../api'
 import { Avatar, Figure, Orb, paletteOf, Room } from '../art'
-import { diveLink, href, useLibrary, useLoad } from '../hooks'
+import { diveLink, href, useArrivals, useLibrary, useLoad } from '../hooks'
 import { ErrorLine, Glass, Icon, Prose } from '../ui'
 import { EventLink } from './Activity'
 import Friends from './Friends'
@@ -155,8 +155,14 @@ function Results({ q, items, stories }: { q: string; items: Item[]; stories: Sto
 export default function Home() {
   const { items, byId } = useLibrary()
   const [settings, reloadSettings, settingsError] = useLoad(() => api<Settings>('/settings'), [])
-  const [stories, , storiesError] = useLoad(() => api<StorySummary[]>('/stories'), [])
-  const [recent] = useLoad(() => api<ActivityEvent[]>('/activity?limit=3'), [])
+  const [stories, reloadStories, storiesError] = useLoad(() => api<StorySummary[]>('/stories'), [])
+  const [recent, reloadRecent] = useLoad(() => api<ActivityEvent[]>('/activity?limit=3'), [])
+  // a whole library poured in from outside lands here, and Home is not remounted to see it
+  useArrivals(() => {
+    reloadSettings()
+    reloadStories()
+    reloadRecent()
+  })
   const [q, setQ] = useState('')
   const [error, setError] = useState('')
   const unseen = (stories ?? []).reduce((n, s) => n + s.new_events, 0)

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { api, type ActivityEvent, type Book, type Person, type StorySummary } from '../api'
 import { Avatar, AvatarStack, Figure, Orb, Room } from '../art'
-import { dive, diveLink, go, href, useAction, useLibrary, useLoad } from '../hooks'
+import { dive, diveLink, go, href, useAction, useArrivals, useLibrary, useLoad } from '../hooks'
 import { Chip, Dialog, ErrorLine, Field, Icon, Menu } from '../ui'
 import { EventLink } from './Activity'
 import Folders, { onShelf } from './Folders'
@@ -22,6 +22,7 @@ const playing = (s: StorySummary) => (s.persona ? `as ${s.persona.name}` : 'dire
 export default function Chats({ selected }: { selected?: number }) {
   const { byId } = useLibrary()
   const [stories, reload, error] = useLoad(() => api<StorySummary[]>('/stories'), [])
+  useArrivals(reload) // a chat brought in from outside lands here
   const [filter, setFilter] = useState<Filter>('all')
   const [deleting, setDeleting] = useState<StorySummary>()
   const [shelving, setShelving] = useState<StorySummary>()

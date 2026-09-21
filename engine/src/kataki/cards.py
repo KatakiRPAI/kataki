@@ -199,8 +199,11 @@ def _fold(data: dict) -> str:
     return "\n\n".join(p for p in parts if p)
 
 
-def _portrait(conn, data: dict, files: dict[str, bytes], notes: list[str]) -> str | None:
-    """The picture this card points at: its `icon` asset if it names one, else the PNG itself."""
+def picture(data: dict, files: dict[str, bytes], notes: list[str] | None = None) -> bytes | None:
+    """The picture this card points at, if the library can hold it: its `icon` asset if it names
+    one, else the PNG itself. Decides, and saves nothing — so asking whether a card brings a
+    portrait is the same question as taking it, not a second one that can disagree."""
+    said = notes if notes is not None else []
     icons = [a for a in data.get("assets") or [] if isinstance(a, dict) and a.get("type") == "icon"]
     icons.sort(key=lambda a: a.get("name") != "main")  # the spec's main icon first
     for asset in icons:
@@ -215,20 +218,25 @@ def _portrait(conn, data: dict, files: dict[str, bytes], notes: list[str]) -> st
         elif uri == "ccdefault:":
             found = files.get("__self__")
         else:
-            notes.append(f"the picture at {uri} was left where it is; pictures are not fetched.")
+            said.append(f"the picture at {uri} was left where it is; pictures are not fetched.")
             continue
         if not found:
-            notes.append(f"the picture at {uri} was not in this file.")
-        elif (ext := media.sniff(found)) and len(found) <= media.MAX_BYTES:
-            return media.save(conn, found, ext)
+            said.append(f"the picture at {uri} was not in this file.")
+        elif media.sniff(found) and len(found) <= media.MAX_BYTES:
+            return found
         else:
-            notes.append(f"the picture at {uri} is not an image this library can hold.")
+            said.append(f"the picture at {uri} is not an image this library can hold.")
     if blob := files.get("__self__"):
         if len(blob) > media.MAX_BYTES:
-            notes.append("this card's own picture is larger than the library will hold.")
-        elif ext := media.sniff(blob):
-            return media.save(conn, blob, ext)
+            said.append("this card's own picture is larger than the library will hold.")
+        elif media.sniff(blob):
+            return blob
     return None
+
+
+def _portrait(conn, data: dict, files: dict[str, bytes], notes: list[str]) -> str | None:
+    found = picture(data, files, notes)
+    return media.save(conn, found, media.sniff(found)) if found else None
 
 
 def add(conn, blob: bytes) -> dict:

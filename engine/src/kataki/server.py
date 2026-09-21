@@ -30,6 +30,7 @@ from kataki import (
     chats,
     clock,
     extract,
+    intake,
     library,
     lore,
     media,
@@ -527,6 +528,14 @@ def create_app(
         return {"name": media.save(conn, data, ext), "bytes": len(data)}
 
     # --- in: what other apps made ----------------------------------------------------------
+
+    @app.post("/import/look")
+    async def look_at_import(request: Request):
+        """What this file would become, before anything is made of it. Makes nothing."""
+        try:
+            return intake.look(await request.body())
+        except cards.BadCard as e:
+            raise HTTPException(422, str(e)) from None
 
     @app.post("/import/card", status_code=201)
     async def import_card(request: Request):

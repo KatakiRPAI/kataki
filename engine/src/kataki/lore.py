@@ -36,16 +36,29 @@ def _decorated(content: str) -> tuple[str, set[str]]:
     return "\n".join(kept).strip(), found
 
 
-def _book(thing) -> dict | None:
-    """A Lorebook wherever it is hiding: alone, under `spec: lorebook_v3`, or inside a card."""
-    if not isinstance(thing, dict):
+def _book(thing, depth: int = 0) -> dict | None:
+    """A Lorebook wherever it is hiding: alone, under `spec: lorebook_v3`, or inside a card.
+    A card wraps its book one or two deep, so anything deeper than a handful is a file built to
+    run us out of stack rather than a book."""
+    if not isinstance(thing, dict) or depth > 8:
         return None
     if isinstance(thing.get("entries"), list | dict):
         return thing
-    for key in ("data", "character_book"):  # a card wraps its book one or two deep
-        if (found := _book(thing.get(key))) is not None:
+    for key in ("data", "character_book"):
+        if (found := _book(thing.get(key), depth + 1)) is not None:
             return found
     return None
+
+
+def keeps(entry: dict) -> bool:
+    """Whether this entry would become something a story knows. It has to be switched on, have
+    words to say, and have some way to be cued: a key, the author's memo, or being always there.
+    `add` below decides by this, and so does the preview, so the two can never disagree."""
+    return bool(
+        entry["enabled"]
+        and entry["content"]
+        and (entry["keys"] or entry["label"] or entry["constant"])
+    )
 
 
 def read(blob: bytes) -> dict:
@@ -140,7 +153,7 @@ def add(conn, story_id: int, book: dict, *, char: str | None = None) -> dict:
         # is only a cue where there is no other ("do not delete (bridge)" is a note to a person)
         keys = [cards.macros(k, **said) for k in entry["keys"]]
         keys = list(dict.fromkeys(keys or ([entry["label"]] if entry["label"] else [])))
-        if not entry["content"] or not (keys or entry["constant"]):
+        if not keeps(entry):
             # no words, or no way to ever cue it: it would sit in the library saying nothing
             skipped.append(entry["label"] or _gist(entry) or "(an empty entry)")
             continue

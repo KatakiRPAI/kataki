@@ -1016,6 +1016,23 @@ def test_stories_carry_tags_and_the_library_can_list_them_all(api, story):
     assert api.get("/tags").json() == []
 
 
+def test_looking_at_a_file_before_bringing_it_in(api):
+    import json as _json
+
+    from test_cards import V3, carded, png
+
+    look = api.post("/import/look", content=png(ccv3=carded("chara_card_v3", "3.0", V3)))
+    assert look.status_code == 200 and look.json()["kind"] == "card"
+    assert look.json()["title"] == "Mira Vale"
+    assert api.get("/library").json() == []  # looking made nothing
+
+    book = _json.dumps({"entries": [{"key": ["tide"], "content": "out"}]}).encode()
+    assert api.post("/import/look", content=book).json()["needs_story"] is True
+
+    nothing = api.post("/import/look", content=b"\x00\x01 not anything we read")
+    assert nothing.status_code == 422 and "not" in nothing.json()["detail"]
+
+
 def test_folders_are_saved_views_the_engine_only_keeps(api):
     folders = [
         {"name": "The docks", "kind": "story", "tags": ["Docks"]},

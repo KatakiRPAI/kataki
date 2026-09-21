@@ -7,6 +7,7 @@ import Scene from './scene/Scene'
 import Activity from './sky/Activity'
 import Books from './sky/Books'
 import Chats from './sky/Chats'
+import Intake from './sky/Intake'
 import Editor from './sky/Editor'
 import FirstRun from './sky/FirstRun'
 import Friends from './sky/Friends'
@@ -189,6 +190,12 @@ export default function App() {
   return (
     <>
       {view}
+      {/* A dialog inherits its colour from where it mounts, and this one mounts above every
+          screen, so it is given the surface the screen is on. `display: contents` keeps it out
+          of the layout while still being the ancestor the themed rules look for. */}
+      <div className={at === 'story' ? 'k-scene ka-scene' : 'k-sky ka-sky'} style={{ display: 'contents' }}>
+        <Intake />
+      </div>
       {diving && <Dive key={diving.to} to={diving.to} up={diving.up} onDone={() => setDiving(undefined)} />}
     </>
   )

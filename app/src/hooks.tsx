@@ -101,6 +101,7 @@ const LibraryContext = createContext<Library>({ items: [], byId: new Map(), load
 
 export function LibraryProvider({ children }: { children: ReactNode }) {
   const [items, reload, error] = useLoad(() => api<Item[]>('/library'), [])
+  useArrivals(reload)
   const value = useMemo(
     () => ({ items: items ?? [], byId: new Map((items ?? []).map((i) => [i.id, i])), loaded: !!items, reload, error }),
     [items, reload, error],
@@ -109,6 +110,21 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
 }
 
 export const useLibrary = () => useContext(LibraryContext)
+
+/** Something came in from outside and made friends or stories this screen has not read. Whatever
+ *  is mounted asks for its data again: a screen that does not remount would otherwise show a
+ *  library from before the file arrived. */
+export const arrived = () => dispatchEvent(new Event('ka-arrived'))
+
+export function useArrivals(fn: () => void) {
+  const latest = useRef(fn)
+  latest.current = fn
+  useEffect(() => {
+    const on = () => latest.current()
+    addEventListener('ka-arrived', on)
+    return () => removeEventListener('ka-arrived', on)
+  }, [])
+}
 
 /** Dive into a scene: App plays the clouds parting, then goes to `to`. */
 export const dive = (to: string) => dispatchEvent(new CustomEvent('ka-dive', { detail: to }))

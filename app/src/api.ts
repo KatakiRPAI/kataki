@@ -86,6 +86,15 @@ export type Standing = {
   tags: string[]
 }
 
+/** What a file would become, read before anything is made of it (`POST /import/look`). */
+export type Look = {
+  kind: 'card' | 'chat' | 'lorebook' | 'kataki'
+  title: string
+  what: string[]
+  notes: string[]
+  needs_story: boolean
+}
+
 /** A saved shelf: a name over a set of tags, for one kind of thing. Kept in settings. */
 export type Folder = { name: string; kind: 'story' | 'character'; tags: string[] }
 
@@ -387,12 +396,15 @@ export async function api<T>(path: string, method = 'GET', json?: unknown): Prom
   return (r.status === 204 ? undefined : await r.json()) as T
 }
 
-/** Store an image with the library; the engine names it by its content. */
-export async function upload(blob: Blob): Promise<{ name: string; bytes: number }> {
-  const r = await fetch(baseUrl + '/media', { method: 'POST', headers: headers(false), body: blob })
+/** POST a file as its own bytes: the engine reads the file, not a JSON envelope round it. */
+export async function sendFile<T>(path: string, blob: Blob): Promise<T> {
+  const r = await fetch(baseUrl + path, { method: 'POST', headers: headers(false), body: blob })
   if (!r.ok) throw await failure(r)
   return r.json()
 }
+
+/** Store an image with the library; the engine names it by its content. */
+export const upload = (blob: Blob) => sendFile<{ name: string; bytes: number }>('/media', blob)
 
 /** A media file as an <img> src. An image request can't carry headers, so the token goes in the query. */
 export const mediaUrl = (name: string) => `${baseUrl}/media/${name}?token=${encodeURIComponent(token)}`

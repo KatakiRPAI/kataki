@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api, type Kind, type Provider, type RoleRow } from '../api'
 import { href, useAction, useLoad } from '../hooks'
 import { Candy, Chip, Dialog, ErrorLine, Field, Glass, Icon, Seg, type CandyColor } from '../ui'
+import { bringIn } from './Intake'
 
 // Settings: the model servers and which model does each job (every field of the old Models page), and About.
 
@@ -44,42 +45,85 @@ const jobOf = (role: string | null) => JOBS.find((j) => j.role === role)
 
 type Probe = { ok: boolean; models: string[]; error?: string }
 
-/** #/settings and #/settings/about */
+const PAGES: [string, string, string][] = [
+  ['', 'cpu', 'Models'],
+  ['library', 'book', 'Library'],
+  ['about', 'help', 'About'],
+]
+
+const BLURB: Record<string, string> = {
+  '': 'Kataki ships no model. Connect one, and pick which does each job. One is enough to start.',
+  library: 'What other apps made can come in, and everything you have can go out again.',
+}
+
+/** #/settings, #/settings/library and #/settings/about */
 export default function Settings({ page }: { page?: string }) {
   const [health, , healthError] = useLoad(() => api<{ version: string; schema: number }>('/health'), [])
-  const about = page === 'about'
+  const at = PAGES.some(([key]) => key === page) ? (page as string) : ''
+  const title = PAGES.find(([key]) => key === at)![2]
   return (
     <div className="ka-settings">
       <nav className="k-glass ka-subnav" aria-label="Settings">
         <span className="k-display ka-subnav__title">Settings</span>
-        <a className="ka-subnav__item" href={href('/settings')} aria-current={about ? undefined : 'page'}>
-          <Icon name="cpu" size={17} />
-          Models
-        </a>
-        <a className="ka-subnav__item" href={href('/settings/about')} aria-current={about ? 'page' : undefined}>
-          <Icon name="help" size={17} />
-          About
-        </a>
+        {PAGES.map(([key, icon, label]) => (
+          <a key={key} className="ka-subnav__item" href={href(`/settings${key ? `/${key}` : ''}`)}
+            aria-current={at === key ? 'page' : undefined}>
+            <Icon name={icon} size={17} />
+            {label}
+          </a>
+        ))}
       </nav>
       <div className="ka-settings__main">
         <header className="ka-settings__head">
           <span className="ka-stack ka-stack--tight">
-            <h1 className="k-display ka-page-title">{about ? 'About' : 'Models'}</h1>
-            {!about && <span className="ka-muted">Kataki ships no model. Connect one, and pick which does each job. One is enough to start.</span>}
+            <h1 className="k-display ka-page-title">{title}</h1>
+            {BLURB[at] && <span className="ka-muted">{BLURB[at]}</span>}
           </span>
           <span className={`k-status${health ? '' : ' k-status--warn'}`}>{health ? 'engine ok' : healthError ? 'engine unreachable' : 'connecting…'}</span>
         </header>
-        {about ? (
+        {at === 'about' ? (
           <Glass title="Kataki RPAI">
             <span className="k-mono">engine ok · v{health?.version ?? '…'} · schema {health?.schema ?? '…'}</span>
             <span className="ka-muted">Role-play with characters who remember: who heard what, and how clearly, as story time goes by.</span>
             <span className="ka-muted">Everything runs on your computer. Text only leaves it for the models you connect.</span>
           </Glass>
+        ) : at === 'library' ? (
+          <LibraryPage />
         ) : (
           <Models />
         )}
       </div>
     </div>
+  )
+}
+
+/** Settings → Library: bringing things in. Nothing is made before you have seen what it would be. */
+function LibraryPage() {
+  return (
+    <Glass title="Bring something in">
+      <span className="ka-muted">
+        A character card (<span className="k-mono">.png</span>, <span className="k-mono">.json</span>,{' '}
+        <span className="k-mono">.charx</span>), a chat from another app (
+        <span className="k-mono">.jsonl</span>), a lorebook or World Info file, or a whole Kataki
+        library (<span className="k-mono">.kataki</span>). You can also drop one anywhere in the app.
+      </span>
+      <label className="k-btn k-btn--dark ka-self-start">
+        <Icon name="download" size={16} />
+        Choose a file…
+        <input
+          type="file" className="ka-visually-hidden"
+          accept=".png,.json,.charx,.jsonl,.kataki,image/png,application/json"
+          onChange={(e) => {
+            const picked = e.target.files?.[0]
+            e.target.value = '' // so the same file can be chosen twice
+            if (picked) bringIn(picked)
+          }}
+        />
+      </label>
+      <span className="ka-muted ka-small">
+        Nothing is made until you have read what it would make.
+      </span>
+    </Glass>
   )
 }
 

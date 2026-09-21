@@ -796,3 +796,12 @@ a.ka-event:hover { background: #fff; }
    on it but the chips go on passing clicks down to the link. */
 .ka-friend .k-nameplate { z-index: 2; pointer-events: none; }
 .ka-friend .k-nameplate .ka-tag-chip { pointer-events: auto; }
+
+/* ---- Bringing something in: the drop target, and what a file would become ---- */
+.ka-visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.ka-drop { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; background: rgba(20,38,77,.32); backdrop-filter: blur(3px); }
+.ka-drop__note { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 34px 48px; border-radius: 28px; border: 2px dashed rgba(255,255,255,.7); background: rgba(255,255,255,.75); font-size: 18px; font-weight: 800; color: var(--k-sky-ink); }
+.ka-drop__note small { font-size: 12.5px; font-weight: 600; color: var(--k-sky-muted); }
+.ka-intake__what { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ka-intake__what > li { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; font-weight: 600; }
+.ka-intake__what > li > .k-icon { flex-shrink: 0; margin-top: 3px; color: var(--k-sky-success); }
