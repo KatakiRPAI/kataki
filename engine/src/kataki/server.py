@@ -1062,6 +1062,15 @@ def create_app(
             raise HTTPException(404, "Only a reply has a mind to show.")
         return got
 
+    @app.get("/stories/{story_id}/feelings")
+    async def get_feelings(story_id: int, who: int, about: int | None = None):
+        """How one character has come to feel about another (default: you), read by read."""
+        story = story_row(story_id)
+        about = about if about is not None else story["persona_entity_id"]
+        if about is None:
+            raise HTTPException(422, "Say who the feelings are about: this story has no persona.")
+        return mind.feelings(conn, story_id, who, about)
+
     @app.get("/stories/{story_id}/signals")
     async def get_signals(story_id: int):
         """Per line: who heard it and how clearly they will remember it; what a reply recalled."""

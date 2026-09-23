@@ -134,3 +134,30 @@ def test_why_they_answered_and_what_recall_searched_with_sit_between_heard_and_r
     assert {"from": cue["id"], "to": f"m{kept}", "gold": True} in graph["links"]
     assert not any(x["from"] == heard and x["to"] == f"m{kept}" for x in graph["links"])
     assert graph["spoke"]["ms"] == 950
+
+
+def test_how_she_feels_about_you_is_counted_read_by_read(conn, story):
+    mira, aren = eid(conn, "Mira"), eid(conn, "Aren")
+    edge = lambda rel: {"src": f"E{mira}", "dst": f"E{aren}", "rel": rel}  # noqa: E731
+    first = line(conn, story, "Evening, Mira.")
+    read(conn, story, first, first, [], edges=[edge("trusts"), edge("fond of")])
+    lie = line(conn, story, "It was never behind the bar.")
+    read(conn, story, lie, lie, [], edges=[edge("resents")])
+    run = conn.execute("SELECT max(id) FROM extraction_runs").fetchone()[0]
+    with conn:  # the lie she doubts
+        claim = conn.execute(
+            "INSERT INTO memories(story_id, kind, story_time, detail, gist, asserted_by, is_true,"
+            " run_id) VALUES(?, 'claim', 0, 'Never behind the bar.', 'Not the bar.', ?, 0, ?)",
+            (story, aren, run),
+        ).lastrowid
+        conn.execute(
+            "INSERT INTO knowledge(knower_id, memory_id, source, learned_story_time, belief,"
+            " run_id) VALUES(?, ?, 'witnessed', 0, 0.4, ?)",
+            (mira, claim, run),
+        )
+    later = chat.append_message(conn, story, "user", "Aren returns.", aren, 6 * 365 * 1440)
+    read(conn, story, later, later, [])
+    got = mind.feelings(conn, story, mira, aren)
+    counts = [(p["warmth"], p["trust"], p["doubt"]) for p in got["points"]]
+    assert counts == [(1, 1, 0), (0, 1, 1), (0, 1, 1)]
+    assert [s["label"] for s in got["skips"]] == ["Six years later"] and got["counted"]

@@ -214,3 +214,58 @@ def mind(conn: sqlite3.Connection, message_id: int) -> dict | None:
             "timings": trace.get("ms") or {},
         },
     }
+
+
+def feelings(conn: sqlite3.Connection, story_id: int, who: int, about: int) -> dict:
+    """How `who` has come to feel about `about` across the story, counted at each memory read on
+    this branch (docs/specs/2026-09-23-mind-graph.md §4.3). Relationships carry words, not
+    numbers, so this is a count and says so: warmth is +1 for each warm feeling filed and -1 for
+    each cold one; trust +1 for trust and -1 for distrust or suspicion; doubt is how many of
+    `about`'s claims `who` disbelieves (belief < 0.7). Skips of a day or more are marked."""
+    story = conn.execute("SELECT * FROM stories WHERE id=?", (story_id,)).fetchone()
+    epoch = story["epoch_offset_min"]
+    moments = json.loads(story["overrides"]).get("moments", [])
+    path = chat.active_path(conn, story_id)
+    when = {m["id"]: m["story_time"] for m in path}
+    runs = sorted(db.live_runs(conn, story_id))
+    marks = ",".join("?" * len(runs)) or "NULL"
+    ends = dict(
+        conn.execute(f"SELECT id, to_message_id FROM extraction_runs WHERE id IN ({marks})", runs)
+    )
+    edges = conn.execute(
+        f"SELECT rel, run_id FROM edges WHERE src_id=? AND dst_id=? AND run_id IN ({marks})"
+        " ORDER BY id",
+        [who, about, *runs],
+    ).fetchall()
+    claims = conn.execute(
+        "SELECT k.memory_id, k.belief, k.run_id FROM knowledge k"
+        " JOIN memories m ON m.id=k.memory_id"
+        f" WHERE k.knower_id=? AND m.kind='claim' AND m.asserted_by=? AND k.run_id IN ({marks})"
+        " ORDER BY k.id",
+        [who, about, *runs],
+    ).fetchall()
+    points, warmth, trust, belief = [], 0, 0, {}
+    for run in runs:
+        for e in (e for e in edges if e["run_id"] == run):
+            rel = e["rel"].strip().lower()
+            if rel.startswith("trust"):
+                trust += 1
+            elif rel.startswith(("distrust", "suspicious")):
+                trust -= 1
+            else:
+                tone = next((t for starts, _, t in FEELINGS if rel.startswith(starts)), None)
+                warmth += {"warm": 1, "feeling": -1}.get(tone, 0)
+        belief |= {k["memory_id"]: k["belief"] for k in claims if k["run_id"] == run}
+        t = when.get(ends[run])
+        if t is None:
+            continue  # read on another branch's line
+        points.append({
+            "run": run, "story_time": t, "date": clock.date(t, epoch, moments),
+            "warmth": warmth, "trust": trust, "doubt": sum(b < 0.7 for b in belief.values()),
+        })  # fmt: skip
+    skips = [
+        {"story_time": m["story_time"], "label": f"{clock.spell(m['skip_minutes'])} later"}
+        for m in path
+        if m["skip_minutes"] >= clock.DAY
+    ]
+    return {"who": who, "about": about, "points": points, "skips": skips, "counted": True}

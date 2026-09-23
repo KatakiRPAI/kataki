@@ -526,3 +526,13 @@ export type Mind = {
   more: { recall?: number; feeling?: number }
   spoke: { text: string; model: string | null; tokens: number | null; ms: number | null; timings: Record<string, number> }
 }
+
+/** `GET /stories/{id}/feelings?who=`: how one character has come to feel about you, counted at
+ *  each memory read (relationships carry words, not numbers, so these are counts). */
+export type Feelings = {
+  who: number
+  about: number
+  points: { run: number; story_time: number; date: string; warmth: number; trust: number; doubt: number }[]
+  skips: { story_time: number; label: string }[]
+  counted: true
+}

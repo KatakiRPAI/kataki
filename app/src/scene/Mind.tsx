@@ -1,5 +1,5 @@
 import { useState, type CSSProperties, type ReactNode } from 'react'
-import { api, type Cast, type Message, type Mind as MindGraph, type MindNode, type Story } from '../api'
+import { api, type Cast, type Feelings, type Message, type Mind as MindGraph, type MindNode, type Story } from '../api'
 import { Avatar } from '../art'
 import { twelve, useLibrary, useLoad } from '../hooks'
 import { ErrorLine, Icon, Prose } from '../ui'
@@ -119,6 +119,9 @@ export default function Mind({ story, cast, tick, swap }: { story: Story; cast: 
             <span className="ka-mind__said"><Prose text={mind.spoke.text} /></span>
             <span className="ka-bs-muted">{[mind.spoke.model, mind.spoke.ms && `${(mind.spoke.ms / 1000).toFixed(1)} s`, mind.spoke.tokens && `${mind.spoke.tokens} tok`].filter(Boolean).join(' · ')}</span>
           </div>
+          {who !== null && story.persona && (
+            <FeelingsChart story={story} who={who} name={cast.entities.find((e) => e.id === who)?.name ?? ''} tick={tick} />
+          )}
           <p className="ka-bs-muted ka-mind__foot">
             Gold is what reached the prompt this reply was written from; blue was weighed and cut. Click any part to see what went into it.
           </p>
@@ -150,6 +153,55 @@ function Detail({ node }: { node: MindNode }) {
       {node.kind === 'feeling' && !node.gold && (
         <span className="ka-bs-muted">Not in the prompt for this reply (written before feelings reached replies), so it didn't shape what they said.</span>
       )}
+    </div>
+  )
+}
+
+const LINES: ['warmth' | 'trust' | 'doubt', string][] = [['warmth', 'var(--k-bs-win)'], ['trust', 'var(--k-bs-line)'], ['doubt', 'var(--k-scene-lilac)']]
+
+/** How they have come to feel about you, read by read: counted, not measured, and it says so. */
+function FeelingsChart({ story, who, name, tick }: { story: Story; who: number; name: string; tick: number }) {
+  const [got] = useLoad(() => api<Feelings>(`/stories/${story.id}/feelings?who=${who}`), [story.id, who, tick])
+  const points = got?.points ?? []
+  if (points.length < 2) return null // a line needs two reads
+  const values = points.flatMap((p) => [p.warmth, p.trust, p.doubt])
+  const [lo, hi] = [Math.min(0, ...values), Math.max(1, ...values)]
+  const [w, h, pad] = [1000, 110, 12]
+  const x = (i: number) => pad + (i * (w - 2 * pad)) / (points.length - 1)
+  const y = (v: number) => h - pad - ((v - lo) * (h - 2 * pad)) / (hi - lo)
+  // a skip sits between the last read before it and the first after
+  const skips = (got?.skips ?? []).flatMap((s) => {
+    const after = points.findIndex((p) => p.story_time >= s.story_time)
+    return after > 0 ? [{ at: (x(after - 1) + x(after)) / 2, label: s.label }] : []
+  })
+  return (
+    <div className="ka-mind__chart">
+      <span className="ka-mind__chart-head">
+        <span className="ka-mind__label">HOW {name.toUpperCase()} FEELS ABOUT {(story.persona?.name ?? 'YOU').toUpperCase()}, ACROSS THE STORY</span>
+        <span className="ka-mind__legend">
+          {LINES.map(([k, c]) => <span key={k} style={{ '--c': c } as CSSProperties}>{k}</span>)}
+        </span>
+      </span>
+      <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" role="img"
+        aria-label={`How ${name} feels about ${story.persona?.name ?? 'you'}, over ${points.length} memory reads`}>
+        <line x1={pad} x2={w - pad} y1={y(0)} y2={y(0)} className="ka-mind__zero" vectorEffect="non-scaling-stroke" />
+        {skips.map((s) => (
+          <g key={s.at}>
+            <line x1={s.at} x2={s.at} y1={0} y2={h} className="ka-mind__skip" vectorEffect="non-scaling-stroke" />
+          </g>
+        ))}
+        {LINES.map(([k, c]) => (
+          <polyline key={k} fill="none" stroke={c} strokeWidth={2} vectorEffect="non-scaling-stroke"
+            points={points.map((p, i) => `${x(i)},${y(p[k])}`).join(' ')} />
+        ))}
+      </svg>
+      <span className="ka-mind__skips">
+        {skips.map((s) => <span key={s.at} style={{ left: `${s.at / 10}%` }}>{s.label.toLowerCase()}</span>)}
+      </span>
+      <span className="ka-bs-muted">
+        Counted from what memory has read: a warm feeling +1, a cold one −1; trust +1, suspicion −1; doubt is how many of your
+        claims {name} disbelieves.
+      </span>
     </div>
   )
 }
