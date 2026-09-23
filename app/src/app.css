@@ -983,3 +983,4 @@ a.ka-event:hover { background: #fff; }
 .ka-peek__bar { display: grid; grid-template-columns: 70px 1fr; align-items: center; gap: 12px; font-size: 13px; cursor: help; }
 .ka-peek__track { height: 5px; border-radius: 3px; background: rgba(255,236,210,.1); overflow: hidden; }
 .ka-peek__track > i { display: block; height: 100%; border-radius: 3px; }
+.ka-cwidget + .k-widget__pin, .k-widget__pin { z-index: 2; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }

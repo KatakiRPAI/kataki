@@ -168,7 +168,8 @@ export function WidgetBoard({ story, people, everyone, itemOf, faces, stateOf, a
       ? { left: drag.x, top: drag.y }
       : w.at ? ({ '--x': w.at.x, '--y': w.at.y } as CSSProperties) : undefined
     const frame = { w, editing, dragging, style, grab: grab(w) }
-    const toggle = () => change((ws) => ws.map((v) => (v.id === w.id ? { ...v, pinned: !v.pinned } : v)))
+    const flip = (ws: WidgetSpec[]) => ws.map((v) => (v.id === w.id ? { ...v, pinned: !v.pinned } : v))
+    const toggle = () => (editing ? change(flip) : onSave({ widgets: flip(widgets), dismissed: base.dismissed }))
     const remove = () => change((ws) => ws.filter((v) => v.id !== w.id), (d) => (w.kind === 'character' && w.entity !== undefined ? [...d, w.entity] : d))
     const edit = { onPin: toggle, onRemove: remove }
     if (w.kind === 'character' && who && !here) {
@@ -192,7 +193,7 @@ export function WidgetBoard({ story, people, everyone, itemOf, faces, stateOf, a
       const line = (itemOf(who)?.description || who.summary).split('\n')[0]
       const joined = who.id === arriving
       return (
-        <Frame key={w.id} {...frame} {...edit} label={who.name} pulse={`${face}|${state}|${joined}`} wake={joined}>
+        <Frame key={w.id} {...frame} {...edit} label={who.name} pulse={`${face}|${state}|${joined}|${w.pinned}`} wake={joined} pin>
           <button type="button" className={`ka-cwidget${joined ? ' is-joined' : ''}`} aria-label={`${who.name}: open their card`}
             tabIndex={editing ? -1 : 0} onClick={(e) => onPeek(who.id, beside(e.currentTarget))}>
             <span className="k-widget__art ka-cwidget__art">
@@ -321,7 +322,7 @@ export function WidgetBoard({ story, people, everyone, itemOf, faces, stateOf, a
 
 /** One widget: its card, the edit handles, and showing itself for a few seconds when something
  *  happens (`pulse` changes) if it is unpinned. `wake`: show on arrival too. */
-function Frame({ w, editing, dragging, style, grab, label, pulse, wake, row, className = '', onPin, onRemove, children }: {
+function Frame({ w, editing, dragging, style, grab, label, pulse, wake, row, pin, className = '', onPin, onRemove, children }: {
   w: WidgetSpec
   editing: boolean
   dragging: boolean
@@ -334,6 +335,7 @@ function Frame({ w, editing, dragging, style, grab, label, pulse, wake, row, cla
   className?: string
   onPin: () => void
   onRemove: () => void
+  pin?: boolean // a pin on the card itself, outside edit mode (character widgets)
   children: ReactNode
 }) {
   const [showing, setShowing] = useState(false)
@@ -362,6 +364,12 @@ function Frame({ w, editing, dragging, style, grab, label, pulse, wake, row, cla
             </button>
           </span>
         </>
+      )}
+      {pin && !editing && (
+        <button type="button" className="k-widget__pin" aria-pressed={w.pinned} aria-label={w.pinned ? `Unpin ${label}` : `Pin ${label}`}
+          title={w.pinned ? 'Pinned: always shown' : 'Unpinned: shows when something happens'} onClick={onPin}>
+          <Icon name="pushpin" size={14} />
+        </button>
       )}
       {children}
     </section>
