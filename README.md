@@ -16,23 +16,32 @@ Status: **pre-alpha**. M1 (chat and the memory engine) and M2 (the library) are 
 ## The app
 
 Two worlds. **The Sky** is bright and above the clouds: Home (who you are, the story you were in,
-what your friends have made of it), Friends, Chats, Books, Places, Activity, You, and Settings.
-**The Scene** is where you play: the room lit by the story's own clock, whoever is on stage, the
-conversation, and a composer that can say, do, whisper, think or let time pass. Diving between them
-parts the clouds.
+what your characters have made of it), Characters, Chats, Books, Places & Plots, Activity, You, and
+Settings. Outside a story, times are yours: "Played 2 hours ago".
 
-Chats and Friends carry the tags things wear and a rail of the folders you saved over them. Books
-gathers stories that belong together and says what order they read in. In a scene the story menu
-starts a chapter where you are, lists the ones the story has, and takes the story out as a page to
-read or as lines to keep; Settings → Library brings anything in and saves everything out. Drop a
-character card, a chat, a lorebook or a whole library anywhere in the app and it tells you what it
-would make first.
+**The Scene** is where you play: the chat runs the full height of the window over the place, lit by
+the story's own clock, with widgets around it that you arrange (⋯ → Edit widgets): each character
+with the face they last wore, the story clock, the place, the cast, your notes. Pin one to keep it
+out; an unpinned one shows up when something happens to it. The layout is saved with the story.
 
-In a scene you can click anyone to see who they are right now — what they hold, what is on their
-mind, what they know about you — and open **Backstage** to read the memory itself: every fact a
-character holds with how clearly they hold it, the exact prompt that was sent, the cast, and what
-the memory reader has been doing. Activity gathers what every read wrote, newest first, and each
-entry opens the line it came from.
+The composer is **Simple** by default: write, and **Auto** reads how you wrote it (`*an action*`,
+`(a thought no one hears)`, `@Mira a whisper`, `>> narration`), or pick a mode for one line.
+**Advanced** adds who will hear the line, who answers, passing time, and the prompt's size. The chat
+shows how characters feel ("Tobin didn't like that", "Mira trusts you a little more") and, now and
+then, what they will remember; who heard what is in Advanced. Edit any line and save it, or play on
+from it (the old continuation stays a swipe away). Name a moment ("the storm") and the story's dates
+read in its words: "the evening of the storm", "six years after the storm".
+
+Click a character for who they are right now. **Backstage** shows the **Mind** of the last reply:
+what reached them, why they were the one to answer, what recall weighed and what made the prompt
+(gold) or was cut, how they felt and what they doubted, how they have come to feel about you across
+the story; then the prompt, the cast, and what each job did this turn. Memory is one switch away:
+every fact a character holds and how clearly.
+
+Places & Plots files every place and plot under the books and stories that use it. Chats and
+Characters carry tags and saved folders; Books says what order stories read in; a story reads back
+as chapters. Drop a character card, a chat, a lorebook or a whole library anywhere in the app and it
+tells you what it would make first; any story goes out as Markdown or JSONL.
 
 ## Layout
 
