@@ -171,12 +171,11 @@ class Scripted:
     def __call__(self, request):
         body = json.loads(request.content)
         usage = {"prompt_tokens": len(request.content) // 4, "completion_tokens": 20}
-        if not body.get("stream"):
+        if "response_format" in body:  # a memory read: every answer streams, so ask for JSON
             content = json.dumps(read_memory(body["messages"][-1]["content"]))
-            return httpx2.Response(
-                200, json={"choices": [{"message": {"content": content}}], "usage": usage}
-            )
-        events = [{"choices": [{"delta": {"content": self.replies.pop(0)}}]}]
+        else:
+            content = self.replies.pop(0)
+        events = [{"choices": [{"delta": {"content": content}}]}]
         events.append({"choices": [], "usage": usage})
         sse = "".join(f"data: {json.dumps(e)}\n\n" for e in events) + "data: [DONE]\n\n"
         return httpx2.Response(200, text=sse)
@@ -422,14 +421,15 @@ def serve_model(port: int, delay: float, think: bool) -> None:
             size = int(self.headers.get("Content-Length") or 0)
             body = json.loads(self.rfile.read(size) or b"{}")
             usage = {"prompt_tokens": size // 4, "completion_tokens": 40}
-            if not body.get("stream"):  # a memory read: what the demo's reader would file
-                transcript = (body.get("messages") or [{}])[-1].get("content") or ""
-                message = {"role": "assistant", "content": json.dumps(read_memory(transcript))}
-                self.send(200, {"choices": [{"message": message}], "usage": usage})
-                return
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
             self.end_headers()
+            if "response_format" in body:  # a memory read: what the demo's reader would file
+                transcript = (body.get("messages") or [{}])[-1].get("content") or ""
+                filed = json.dumps(read_memory(transcript))
+                self.event({"choices": [{"delta": {"content": filed}}]})
+                self.wfile.write(b"data: [DONE]\n\n")
+                return
             words = [("reasoning_content", w) for w in THOUGHT.split(" ")] if think else []
             words += [("content", w) for w in LINES[next(turn) % len(LINES)].split(" ")]
             try:

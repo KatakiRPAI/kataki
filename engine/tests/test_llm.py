@@ -23,8 +23,15 @@ def sse(*deltas, usage=None):
     return "".join(f"data: {json.dumps(e)}\n\n" for e in events) + "data: [DONE]\n\n"
 
 
-def completion(content):
-    return httpx2.Response(200, json={"choices": [{"message": {"content": content}}]})
+def completion(content, finish="stop"):
+    """A JSON task's answer, streamed the way a server sends it: content, then why it stopped."""
+    half = len(content) // 2
+    deltas = [{"content": content[:half]}, {"content": content[half:]}]
+    events = [{"choices": [{"delta": d}]} for d in deltas]
+    events.append({"choices": [{"delta": {}, "finish_reason": finish}]})
+    return httpx2.Response(
+        200, text="".join(f"data: {json.dumps(e)}\n\n" for e in events) + "data: [DONE]\n\n"
+    )
 
 
 class Recorder:
@@ -146,6 +153,9 @@ async def test_json_task_asks_for_the_schema_first():
     fmt = backend.bodies[0]["response_format"]
     assert fmt["type"] == "json_schema" and fmt["json_schema"]["schema"] == SCHEMA
     assert backend.bodies[0]["temperature"] == 0
+    # streamed: a long think then never looks idle to a gateway (the HF router gives up on a
+    # request that runs past 120 s without streaming)
+    assert backend.bodies[0]["stream"] is True
 
 
 async def test_json_task_steps_down_when_the_backend_rejects_response_format():
@@ -156,21 +166,38 @@ async def test_json_task_steps_down_when_the_backend_rejects_response_format():
     assert formats == ["json_schema", "json_object", None]
 
 
-async def test_every_request_leaves_room_to_think_and_answer():
-    # hosted providers cap a request with no max_tokens (together: 2048), and a thinking
-    # model spent all of it thinking before a memory read on HF; the user's own body still wins
-    backend = Recorder(completion('{"n": 1}'), completion('{"n": 2}'))
+THINKING = Endpoint(base_url="http://x/v1", model="m", params={"thinking": "enabled"})
+
+
+async def test_a_thinking_model_gets_room_to_think_and_answer():
+    # hosted providers cap a request with no max_tokens (together: 2048); Qwen3.5-9B thought
+    # for ~7k tokens before a memory read on HF. The user's own body still wins.
+    backend = Recorder(*(completion('{"n": 1}') for _ in range(3)))
+    await backend.llm.complete_json(THINKING, [], SCHEMA, parse_n)
+    assert backend.bodies[0]["max_tokens"] == llm_module.THINKING_MAX_TOKENS >= 16384
     await backend.llm.complete_json(EP, [], SCHEMA, parse_n)
-    assert backend.bodies[0]["max_tokens"] == llm_module.MAX_TOKENS >= 8192
-    own = Endpoint(base_url="http://x/v1", model="m", params={"body": {"max_tokens": 300}})
+    # no thinking, no need for room: and some servers reject a limit bigger than their context
+    assert "max_tokens" not in backend.bodies[1]
+    own = Endpoint(
+        base_url="http://x/v1",
+        model="m",
+        params={"thinking": "enabled", "body": {"max_tokens": 300}},
+    )
     await backend.llm.complete_json(own, [], SCHEMA, parse_n)
-    assert backend.bodies[1]["max_tokens"] == 300
+    assert backend.bodies[2]["max_tokens"] == 300
+
+
+async def test_a_thinking_model_reads_at_its_thinking_temperature_not_greedy():
+    # at temperature 0 Qwen3.5-9B's thinking looped ("Wait, `flags`:" 17 times) and never answered
+    backend = Recorder(completion('{"n": 1}'), completion('{"n": 2}'))
+    await backend.llm.complete_json(THINKING, [], SCHEMA, parse_n)
+    await backend.llm.complete_json(EP, [], SCHEMA, parse_n)
+    assert backend.bodies[0]["temperature"] == llm_module.THINKING_TEMPERATURE > 0
+    assert backend.bodies[1]["temperature"] == 0
 
 
 async def test_an_answer_cut_off_by_the_limit_says_so_and_is_not_paid_for_twice():
-    cut = httpx2.Response(
-        200, json={"choices": [{"message": {"content": ""}, "finish_reason": "length"}]}
-    )
+    cut = completion("", finish="length")
     backend = Recorder(cut)
     with pytest.raises(LLMError, match="ran out of room"):
         await backend.llm.complete_json(EP, [], SCHEMA, parse_n)

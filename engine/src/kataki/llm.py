@@ -16,9 +16,12 @@ import httpx2
 
 Event = tuple[str, Any]  # ("thought" | "token", text) ... then ("done", {"usage": ...})
 DEFAULT_THINK_TAGS = ("<think>", "</think>")
-# Hosted providers cap a request that names no limit (together: 2048 tokens), and a thinking
-# model can spend all of that thinking and never answer. Room for both; a job's own body wins.
-MAX_TOKENS = 8192
+# A thinking model on a hosted provider: together caps a request that names no limit at 2048
+# tokens, and Qwen3.5-9B thought for ~7k before a memory read, so it gets room for both (a job's
+# own body wins). It also thinks at its own temperature: greedy decoding made its thinking loop
+# ("Wait, `flags`:" 17 times) and never answer. Without thinking, neither applies.
+THINKING_MAX_TOKENS = 16384
+THINKING_TEMPERATURE = 0.6  # Qwen's recommended thinking-mode temperature
 
 
 class LLMError(Exception):
@@ -116,7 +119,8 @@ class LLM:
 
     @staticmethod
     def _body(ep: Endpoint, messages: list[dict], **extra) -> dict:
-        body = {"model": ep.model, "messages": messages, "max_tokens": MAX_TOKENS, **extra}
+        room = {"max_tokens": THINKING_MAX_TOKENS} if ep.thinks else {}
+        body = {"model": ep.model, "messages": messages, **room, **extra}
         if (thinking := ep.params.get("thinking", "default")) != "default":
             body["chat_template_kwargs"] = {"enable_thinking": thinking == "enabled"}
         if effort := ep.params.get("reasoning_effort"):
@@ -156,15 +160,7 @@ class LLM:
                 if r.status_code >= 400:
                     await r.aread()
                     self._check(r)
-                async for line in r.aiter_lines():
-                    if not line.startswith("data:"):
-                        continue
-                    data = line[5:].strip()
-                    if data == "[DONE]":
-                        break
-                    chunk = json.loads(data)
-                    if error := chunk.get("error"):
-                        raise LLMError(f"{url} failed mid-stream: {error.get('message', error)}")
+                async for chunk in self._chunks(r, url):
                     usage = chunk.get("usage") or usage
                     timings = chunk.get("timings") or timings  # llama.cpp: cache hits live here
                     for choice in chunk.get("choices") or []:
@@ -180,32 +176,59 @@ class LLM:
             yield event
         yield ("done", {"usage": usage, **({"timings": timings} if timings else {})})
 
+    @staticmethod
+    async def _chunks(r: httpx2.Response, url: str) -> AsyncIterator[dict]:
+        """The JSON chunks of a server-sent event stream, until [DONE]."""
+        async for line in r.aiter_lines():
+            if not line.startswith("data:"):
+                continue
+            data = line[5:].strip()
+            if data == "[DONE]":
+                return
+            chunk = json.loads(data)
+            if error := chunk.get("error"):
+                raise LLMError(f"{url} failed mid-stream: {error.get('message', error)}")
+            yield chunk
+
     async def _complete(
         self, ep: Endpoint, messages: list[dict], formats: list[dict | None]
     ) -> str:
-        """One non-streamed completion, stepping down the response_format ladder on refusal."""
+        """One completion, stepping down the response_format ladder on refusal. Streamed, so a
+        model that thinks for minutes never looks idle to a gateway (the HF router gives up on
+        a request that runs past 120 s without streaming)."""
         url = f"{ep.base_url.rstrip('/')}/chat/completions"
         for fmt in formats:
             key = (ep.base_url, ep.model, fmt["type"] if fmt else "")
             if key in self._rejected:
                 continue
-            body = self._body(ep, messages)
-            # JSON tasks are deterministic, whatever the role's samplers say
-            body["temperature"] = 0
+            body = self._body(ep, messages, stream=True)
+            # JSON tasks are deterministic, whatever the role's samplers say; thinking can't be
+            body["temperature"] = THINKING_TEMPERATURE if ep.thinks else 0
             if fmt:
                 body["response_format"] = fmt
-            r = await self._send("POST", url, ep.api_key, body)
-            if fmt and r.status_code in (400, 422):
-                self._rejected.add(key)  # this backend cannot do that format; do not ask again
-                continue
-            self._check(r)
-            choice = r.json()["choices"][0]
-            if choice.get("finish_reason") == "length":  # cut off: asking again pays again
+            text, finish = [], None
+            try:
+                async with self._client.stream(
+                    "POST", url, json=body, headers=self._headers(ep.api_key)
+                ) as r:
+                    if fmt and r.status_code in (400, 422):
+                        self._rejected.add(key)  # this backend cannot do that format; stop asking
+                        continue
+                    if r.status_code >= 400:
+                        await r.aread()
+                        self._check(r)
+                    async for chunk in self._chunks(r, url):
+                        for choice in chunk.get("choices") or []:
+                            text.append((choice.get("delta") or {}).get("content") or "")
+                            finish = choice.get("finish_reason") or finish
+            except httpx2.TransportError as e:
+                raise LLMError(f"cannot reach {url}: {e}") from e
+            if finish == "length":  # cut off: asking again pays again
                 raise LLMError(
                     f"the model ran out of room ({body.get('max_tokens')} tokens) before it "
                     "finished answering"
                 )
-            return choice["message"].get("content") or ""
+            return "".join(text)
         raise LLMError(f"{url} rejected every request form")  # unreachable: None is never skipped
 
     async def complete_json[T](

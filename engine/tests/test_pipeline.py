@@ -247,6 +247,10 @@ async def test_the_worker_reads_once_the_story_goes_quiet(conn, story, backend):
     assert conn.execute("SELECT status FROM extraction_runs").fetchone()[0] == "ok"
 
 
+# a memory read that files nothing, streamed as every model answer is
+EMPTY_READ = 'data: {"choices": [{"delta": {"content": "{}"}}]}\n\ndata: [DONE]\n\n'
+
+
 async def test_a_turn_on_the_same_endpoint_stops_the_worker_and_leaves_no_trace(
     conn, story, backend
 ):
@@ -256,7 +260,7 @@ async def test_a_turn_on_the_same_endpoint_stops_the_worker_and_leaves_no_trace(
     async def slow(request):
         started.set()
         await asyncio.sleep(5)
-        return httpx2.Response(200, json={"choices": [{"message": {"content": "{}"}}]})
+        return httpx2.Response(200, text=EMPTY_READ)
 
     from kataki.llm import LLM
 
@@ -275,7 +279,7 @@ async def test_a_worker_on_another_endpoint_keeps_going(conn, story):
     async def slow(request):
         started.set()
         await asyncio.sleep(0.05)
-        return httpx2.Response(200, json={"choices": [{"message": {"content": "{}"}}]})
+        return httpx2.Response(200, text=EMPTY_READ)
 
     from kataki.llm import LLM
 

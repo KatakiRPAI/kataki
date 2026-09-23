@@ -272,7 +272,9 @@ def test_someone_with_sprites_gets_a_face_for_each_line(api, story, backend):
     assert streamed[-1] == ("done", {**streamed[-1][1], "expression": "smiling"})
     assert api.get(f"/stories/{story}/messages").json()[-1]["expression"] == "smiling"
     asked = backend.requests[-1]
-    assert not asked.get("stream") and "*grins* You came back." in asked["messages"][-1]["content"]
+    assert (
+        "response_format" in asked and "*grins* You came back." in asked["messages"][-1]["content"]
+    )
     enum = asked["response_format"]["json_schema"]["schema"]["properties"]["expression"]["enum"]
     assert enum == ["neutral", "smiling", "wary", "surprised", "doubtful"]
 

@@ -102,7 +102,7 @@ async def test_the_reply_after_years_pass_sees_only_memory_of_the_old_lines(conn
     await play(turns.turn(conn, backend.llm, story, "Six years later, Aren returns to the Gull."))
 
     read, reply = backend.requests[-2:]
-    assert not read.get("stream") and reply["stream"]
+    assert "response_format" in read and "response_format" not in reply
     assert "floorboard" not in json.dumps(reply["messages"])
 
 
