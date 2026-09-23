@@ -374,6 +374,12 @@ def test_a_story_dates_itself_from_the_moments_it_names(api, story):
     )
 
 
+def test_a_story_says_which_plot_it_started_from_and_which_places_it_used(api, story):
+    listed = next(s for s in api.get("/stories").json() if s["id"] == story)
+    gull = next(i for i in api.get("/library").json() if i["name"] == "The Gull")
+    assert (listed["plot_id"], listed["places"]) == (None, [gull["id"]])
+
+
 def test_regenerate_then_swipe_back_and_forth(api, story, backend):
     backend.say("First.", "Second.")
     api.post(f"/stories/{story}/turn", json={"text": "Mira?"})

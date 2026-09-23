@@ -45,6 +45,7 @@ export type ItemData = {
   portrait?: string // media name (characters, personas)
   image?: string // media name (places)
   pack?: Pack // sprites made from the portrait (characters)
+  links?: { book?: number; stories?: number[]; characters?: number[] } // places and plots, filed by hand
 }
 
 /** The five expressions the stage can show, in the order the profile shows them. */
@@ -87,6 +88,8 @@ export type Standing = {
   place: Ref | null
   scene_title: string | null
   cast: (Ref & { present: boolean })[] // the AI characters
+  plot_id: number | null // the plot it started from
+  places: number[] // the library places it has used
   last_line: { speaker: string | null; text: string } | null
   new_events: number // Activity you have not seen
   waiting: number // lines the memory reader has not read yet

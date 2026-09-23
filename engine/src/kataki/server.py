@@ -817,6 +817,16 @@ def create_app(
             "place": ref(scene["place_id"]) if scene else None,
             "scene_title": scene["title"] if scene else None,
             "cast": [{**dict(e), "present": e["id"] in here} for e in ai],
+            # what it is filed with in Places & Plots: the plot it started from, the places it used
+            "plot_id": story["scenario_id"],
+            "places": [
+                r[0]
+                for r in conn.execute(
+                    "SELECT DISTINCT lib_item_id FROM entities WHERE story_id=? AND kind='place'"
+                    " AND lib_item_id IS NOT NULL ORDER BY lib_item_id",
+                    (story["id"],),
+                )
+            ],
             "last_line": last and {"speaker": speaker and speaker["name"], "text": last["text"]},
             "new_events": new_events(story),
             "waiting": len(extract.pending(conn, story["id"])),
