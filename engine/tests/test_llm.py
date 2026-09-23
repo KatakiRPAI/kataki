@@ -187,6 +187,19 @@ async def test_a_thinking_model_gets_room_to_think_and_answer():
     assert backend.bodies[2]["max_tokens"] == 300
 
 
+async def test_without_the_strict_format_the_schema_is_spelled_out():
+    # a thinking model never gets the strict json_schema, and the field names lived only there:
+    # Qwen3.8-27B wrote "type" for "kind" and "character" for "entity", and every item was lost
+    backend = Recorder(completion('{"n": 1}'), completion('{"n": 2}'))
+    await backend.llm.complete_json(THINKING, [{"role": "user", "content": "go"}], SCHEMA, parse_n)
+    told = backend.bodies[0]["messages"]
+    assert (
+        told[0] == {"role": "user", "content": "go"} and json.dumps(SCHEMA) in told[-1]["content"]
+    )
+    await backend.llm.complete_json(EP, [{"role": "user", "content": "go"}], SCHEMA, parse_n)
+    assert backend.bodies[1]["messages"] == [{"role": "user", "content": "go"}]  # strict: no need
+
+
 async def test_a_thinking_model_reads_at_its_thinking_temperature_not_greedy():
     # at temperature 0 Qwen3.5-9B's thinking looped ("Wait, `flags`:" 17 times) and never answered
     backend = Recorder(completion('{"n": 1}'), completion('{"n": 2}'))

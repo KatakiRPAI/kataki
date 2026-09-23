@@ -22,6 +22,9 @@ DEFAULT_THINK_TAGS = ("<think>", "</think>")
 # ("Wait, `flags`:" 17 times) and never answer. Without thinking, neither applies.
 THINKING_MAX_TOKENS = 16384
 THINKING_TEMPERATURE = 0.6  # Qwen's recommended thinking-mode temperature
+SPELLED_OUT = (
+    "Reply with one JSON object that follows this JSON schema exactly, field names and all:\n"
+)
 
 
 class LLMError(Exception):
@@ -191,17 +194,21 @@ class LLM:
             yield chunk
 
     async def _complete(
-        self, ep: Endpoint, messages: list[dict], formats: list[dict | None]
+        self, ep: Endpoint, messages: list[dict], formats: list[dict | None], schema: dict
     ) -> str:
         """One completion, stepping down the response_format ladder on refusal. Streamed, so a
         model that thinks for minutes never looks idle to a gateway (the HF router gives up on
         a request that runs past 120 s without streaming)."""
         url = f"{ep.base_url.rstrip('/')}/chat/completions"
+        # below the strict format the field names reach the model only as words: a thinking
+        # Qwen3.8-27B left without them wrote "type" for "kind", and every item was dropped
+        told = [*messages, {"role": "user", "content": SPELLED_OUT + json.dumps(schema)}]
         for fmt in formats:
             key = (ep.base_url, ep.model, fmt["type"] if fmt else "")
             if key in self._rejected:
                 continue
-            body = self._body(ep, messages, stream=True)
+            strict = bool(fmt) and fmt["type"] == "json_schema"
+            body = self._body(ep, messages if strict else told, stream=True)
             # JSON tasks are deterministic, whatever the role's samplers say; thinking can't be
             body["temperature"] = THINKING_TEMPERATURE if ep.thinks else 0
             if fmt:
@@ -248,7 +255,7 @@ class LLM:
         formats = ([] if ep.thinks else [strict]) + [{"type": "json_object"}, None]
         error: Exception | None = None
         for _ in range(2):
-            text = await self._complete(ep, messages, formats)
+            text = await self._complete(ep, messages, formats, schema)
             try:
                 return parse(_first_json_object(text, ep.think_tags))
             except ValueError as e:  # includes pydantic.ValidationError
