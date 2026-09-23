@@ -354,11 +354,13 @@ def say(
     text: str | None = None,
     audience: list[int] | None = None,
     skip: str | None = None,
+    narrate: bool = False,  # the user tells it rather than their persona saying it
 ) -> int | None:
     """Write what the user adds, with no reply and no model call: their line (as the persona,
-    or unattributed when directing), a pass of time, or both. Time comes from both the line
-    ("six years later, Aren returns") and `skip` ("the next morning"). With only a pass of time,
-    a marker line carries it: "— The next morning —". Returns the new message id, or None."""
+    or unattributed when directing or narrating), a pass of time, or both. Time comes from both
+    the line ("six years later, Aren returns") and `skip` ("the next morning"). With only a pass
+    of time, a marker line carries it: "— The next morning —". Returns the new message id, or
+    None."""
     text, skip = (text or "").strip(), (skip or "").strip()
     if not text and not skip:
         return None
@@ -366,7 +368,7 @@ def say(
     passed = read_skip(conn, story_id, skip) if skip else 0
     if text:
         passed += clock.parse_skip(text, _minute_now(conn, story))
-        persona = story["persona_entity_id"]
+        persona = None if narrate else story["persona_entity_id"]
         return chat.append_message(conn, story_id, "user", text, persona, passed, audience)
     marker = skip.rstrip(".")
     return chat.append_message(
@@ -383,6 +385,7 @@ async def turn(
     get_key: Callable[[str], str | None] = roles.get_key,
     audience: list[int] | None = None,  # the user's line: None = everyone present, [] = a thought
     skip: str | None = None,  # time that passes first, in words: "the next morning"
+    narrate: bool = False,  # the user's line is narration, not the persona speaking
 ) -> AsyncIterator[Event]:
     """The user says something (or nothing, to let the story continue) and someone replies."""
     if isinstance(speaker, int):  # asked by name: they must be here, or nothing is written
@@ -393,7 +396,7 @@ async def turn(
             yield ("error", {"message": f"{name} isn't in the scene. Bring them in first."})
             return
     try:
-        say(conn, story_id, text, audience, skip)
+        say(conn, story_id, text, audience, skip, narrate)
     except ValueError as e:
         yield ("error", {"message": str(e)})
         return

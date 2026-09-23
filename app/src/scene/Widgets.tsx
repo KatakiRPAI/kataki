@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { CastEntity, Expression, Item, Story } from '../api'
 import { Figure, MIDDAY, Room, SunArc, timeOfDay, type TimeOfDay } from '../art'
 
@@ -72,8 +72,8 @@ const twelve = (minute: number) => {
 }
 
 /** The story clock: the time big and 12-hour (24-hour and the full date on hover), the chapter or
- *  the day under it, the place and the sun or moon. */
-export function ClockWidget({ story, chapter, rolling }: { story: Story; chapter?: string; rolling: boolean }) {
+ *  the day under it, the place, the sun or moon, and Pass time. */
+export function ClockWidget({ story, chapter, rolling, passTime }: { story: Story; chapter?: string; rolling: boolean; passTime: ReactNode }) {
   const day = story.clock.replace(/,?\s*\d{1,2}:\d{2}$/, '') // "Year 7, Day 1, 19:14" -> "Year 7, Day 1"
   return (
     <section className="k-widget ka-widget ka-clock" aria-label="Story clock">
@@ -86,8 +86,11 @@ export function ClockWidget({ story, chapter, rolling }: { story: Story; chapter
       </span>
       <strong className="ka-clock__label">{chapter ?? day}</strong>
       <span className="ka-clock__foot">
-        {story.place?.name ?? 'Nowhere yet'}
-        {chapter && <span>{day}</span>}
+        <span>
+          {story.place?.name ?? 'Nowhere yet'}
+          {chapter && ` · ${day}`}
+        </span>
+        {passTime}
       </span>
     </section>
   )

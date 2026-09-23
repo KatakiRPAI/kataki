@@ -136,6 +136,7 @@ export default function Lines({ story, messages, cast, signals, chapters, flash,
         <Line
           key={m.id}
           storyId={story.id}
+          who={m.speaker ?? (m.role === 'user' && !story.persona ? 'You' : 'Narrator')} // with a persona, an unsigned line of yours is narration
           m={m}
           stamp={stamp}
           ink={ink(m)}
@@ -185,8 +186,9 @@ function Card({ id, children }: { id?: string; children: ReactNode }) {
 
 /** One line, with its tools on hover or focus: takes (the last arrow on the newest reply asks for
  *  a new one), inline Edit, and Hide (the line stays in the story but never reaches the model). */
-function Line({ storyId, m, stamp, ink, to, flash, retake, signal, face, busy, onChange, onRetake }: {
+function Line({ storyId, who, m, stamp, ink, to, flash, retake, signal, face, busy, onChange, onRetake }: {
   storyId: number
+  who: string
   m: Message
   stamp: string
   ink?: string
@@ -253,7 +255,7 @@ function Line({ storyId, m, stamp, ink, to, flash, retake, signal, face, busy, o
         </div>
       )}
       <div className="k-line__head">
-        <span className="k-line__who">{m.speaker ?? (m.role === 'user' ? 'You' : 'Narrator')}</span>
+        <span className="k-line__who">{who}</span>
         <span className="k-line__stamp">{stamp}</span>
         {m.edited && <span className="k-line__mark">edited</span>}
         {m.finish === 'stopped' && <span className="k-line__mark">stopped</span>}

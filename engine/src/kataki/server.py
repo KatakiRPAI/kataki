@@ -156,12 +156,14 @@ class TurnIn(BaseModel):
     # who the user's line is for: None = all present, [] = a thought
     audience: list[int] | None = None
     skip: str | None = None  # time that passes first, in words: "the next morning"
+    narrate: bool = False  # the line is narration, not the persona speaking
 
 
 class LineIn(BaseModel):
     text: str | None = None
     audience: list[int] | None = None
     skip: str | None = None
+    narrate: bool = False
 
 
 class SwipeIn(BaseModel):
@@ -1079,7 +1081,9 @@ def create_app(
         make_way(story_id)
         return stream(
             story_id,
-            turns.turn(conn, llm, story_id, t.text, t.speaker, get_key, t.audience, t.skip),
+            turns.turn(
+                conn, llm, story_id, t.text, t.speaker, get_key, t.audience, t.skip, t.narrate
+            ),
         )
 
     @app.post("/stories/{story_id}/line", status_code=201)
@@ -1088,7 +1092,7 @@ def create_app(
         story_row(story_id)
         check_audience(story_id, line.audience)
         try:
-            written = turns.say(conn, story_id, line.text, line.audience, line.skip)
+            written = turns.say(conn, story_id, line.text, line.audience, line.skip, line.narrate)
         except ValueError as e:
             raise HTTPException(422, str(e)) from None
         if written is None:

@@ -3,7 +3,7 @@ import { api, download, stream, type Cast, type CastEntity, type Chapter, type C
 import { paletteOf } from '../art'
 import { href, lastSky, rise, useAction, useLibrary, useLoad, usePoll, type Moving } from '../hooks'
 import { Dialog, ErrorLine, Field, Icon, Menu, Trouble, Waiting } from '../ui'
-import Composer, { type Meter, type Send, type Speaker } from './Composer'
+import Composer, { PassTime, type Meter, type Send, type Skip, type Speaker } from './Composer'
 import Lines, { LiveLine, SaidLine, TimeSkip, type Live } from './Lines'
 import { Nearby, NewScene, type SceneBody } from './Nearby'
 import Backstage from './Backstage'
@@ -59,7 +59,7 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
     }
   }, [id])
   const [live, setLive] = useState<Live | null>(null)
-  const [said, setSaid] = useState<{ text: string; audience: number[] | null } | null>(null)
+  const [said, setSaid] = useState<{ text: string; audience: number[] | null; narrate: boolean } | null>(null)
   const [settling, setSettling] = useState(false) // the reply ended; keep it shown until fresh data lands
   const [failed, setFailed] = useState('')
   const [act, actError, acting] = useAction()
@@ -128,6 +128,7 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
   // #/story/4/backstage/29 opens Backstage on that character (the profile's "See her memories")
   const [backstage, setBackstage] = useState(opened !== undefined)
   const [picked, setPicked] = useState<Speaker>(null) // who answers next
+  const [skip, setSkip] = useState<Skip | null>(null) // time to pass before the next line
   const [peek, setPeek] = useState<{ id: number; at: { x: number; y: number } } | null>(null)
   const [focus, setFocus] = useState<number | undefined>(opened) // the character Backstage opens on
 
@@ -225,11 +226,11 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
 
   const send = async (s: Send) => {
     setFailed('')
-    if (s.text) setSaid({ text: s.text, audience: s.audience })
-    if (s.reply) return generate(`/stories/${id}/turn`, { text: s.text, speaker: s.speaker, audience: s.audience, skip: s.skip })
+    if (s.text) setSaid({ text: s.text, audience: s.audience, narrate: s.narrate })
+    if (s.reply) return generate(`/stories/${id}/turn`, { text: s.text, speaker: s.speaker, audience: s.audience, skip: s.skip, narrate: s.narrate })
     const before = data?.story.clock ?? ''
     try {
-      const after = await api<Message[]>(`/stories/${id}/line`, 'POST', { text: s.text, audience: s.audience, skip: s.skip })
+      const after = await api<Message[]>(`/stories/${id}/line`, 'POST', { text: s.text, audience: s.audience, skip: s.skip, narrate: s.narrate })
       const last = after.at(-1)
       if (last && last.skip_minutes >= 1440) playSkip(last.skip_minutes, before, last.clock, last.id)
     } catch (e) {
@@ -377,7 +378,7 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
               busy={!!live} onChange={refreshAll} onRetake={retake} />
             {missing && <p className="k-sysnote">That line is no longer in this version of the story.</p>}
             {said && (
-              <SaidLine who={story.persona?.name ?? 'You'} text={said.text} audience={said.audience}
+              <SaidLine who={said.narrate ? 'Narrator' : (story.persona?.name ?? 'You')} text={said.text} audience={said.audience}
                 hearers={said.audience === null ? people : people.filter((e) => said.audience!.includes(e.id))} />
             )}
             {live && <LiveLine live={live} item={writerItem} ink={writer ? paletteOf(writerItem, writer.name).ink : undefined} />}
@@ -400,6 +401,8 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
           live={!!live}
           picked={picked}
           onPick={setPicked}
+          skip={skip}
+          onSkip={setSkip}
           writer={live && live.speakerId === null && live.speaker ? 'the narrator' : (live?.speaker ?? '')}
           meter={meter}
           onSend={send}
@@ -415,7 +418,8 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
         <Nearby cast={cast} busy={acting || !!live} onMove={move} />
       </aside>
       <aside className="ka-widgets ka-widgets--left" aria-label="The story clock">
-        <ClockWidget story={story} chapter={here?.title} rolling={rolling} />
+        <ClockWidget story={story} chapter={here?.title} rolling={rolling}
+          passTime={<PassTime disabled={!!live} onPick={setSkip} className="ka-clock__pass" />} />
       </aside>
       {peeking && (
         <Peek

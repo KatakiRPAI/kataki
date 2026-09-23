@@ -328,6 +328,15 @@ def test_a_thought_is_a_line_for_no_one(api, story):
     assert said.json()[-1]["audience"] == [] and said.json()[-1]["think_ms"] is None
 
 
+def test_narrating_as_a_persona_writes_a_line_no_one_said(api, story, backend):
+    told = api.post(f"/stories/{story}/line", json={"text": "Thunder rolls.", "narrate": True})
+    assert told.json()[-1]["speaker"] is None
+    backend.say("Mira flinches.")
+    api.post(f"/stories/{story}/turn", json={"text": "The lamps gutter.", "narrate": True})
+    sent = backend.requests[-1]["messages"][-1]["content"]
+    assert "The lamps gutter." in sent and "Aren: The lamps gutter." not in sent
+
+
 def test_regenerate_then_swipe_back_and_forth(api, story, backend):
     backend.say("First.", "Second.")
     api.post(f"/stories/{story}/turn", json={"text": "Mira?"})
