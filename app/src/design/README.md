@@ -1,6 +1,6 @@
 # Vendored design files
 
-Copied verbatim from the design handoff in `docs/kataki-design/kataki-design/` (2026-09-19). Never
+Copied verbatim from the design handoff in `docs/kataki-design/kataki-design/` (2026-09-19; refreshed 2026-09-23 from the second handoff). Never
 edit them here: app-specific styles go in `../app.css` under `ka-` classes.
 
 | File | From |

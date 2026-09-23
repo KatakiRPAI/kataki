@@ -1,7 +1,7 @@
-import { useState, type DragEvent } from 'react'
+import { useState } from 'react'
 import { SKIPS, type Cast, type CastEntity, type Item, type Story } from '../api'
 import { Avatar, Room } from '../art'
-import { DRAG, useAction, useLibrary, type Moving } from '../hooks'
+import { useAction, useLibrary, type Moving } from '../hooks'
 import { Dialog, ErrorLine, Field, Icon } from '../ui'
 
 type Candidate = { move: Moving; name: string; item?: Item; status: string }
@@ -27,61 +27,39 @@ function candidates(cast: Cast, items: Item[], byId: Map<number, Item>): Candida
   return [...away, ...friends]
 }
 
-const carrying = (e: DragEvent) => e.dataTransfer.types.includes(DRAG)
-
-/** The tray: who is nearby, to bring in by a click or by dragging onto the stage. Dragging someone
- *  off the stage onto it sends them away. */
+/** Who is nearby, as compact widget rows under the characters: a click brings them in. The rest
+ *  are a click further, in "Bring someone in". */
 export function Nearby({ cast, busy, onMove }: { cast: Cast; busy: boolean; onMove: (m: Moving) => void }) {
   const { items, byId } = useLibrary()
   const [picking, setPicking] = useState(false)
-  const [target, setTarget] = useState(false)
   const all = candidates(cast, items, byId)
-  const row = (c: Candidate, onPick: () => void) => (
-    <button key={`${c.move.kind}-${c.move.id}`} type="button" className="k-tray__person ka-tray__person is-away" disabled={busy}
-      draggable onDragStart={(e) => e.dataTransfer.setData(DRAG, JSON.stringify(c.move))} onClick={onPick}>
-      <Avatar item={c.item} name={c.name} size={44} />
-      <span className="ka-tray__who">
-        <span className="ka-tray__name">{c.name}</span>
-        <span className="ka-tray__status">{c.status}</span>
+  const row = (c: Candidate, onPick: () => void, widget = true) => (
+    <button key={`${c.move.kind}-${c.move.id}`} type="button" disabled={busy} onClick={onPick}
+      className={`${widget ? 'k-widget ka-widget ' : ''}k-widget--row is-away ka-nearby`} aria-label={`Bring ${c.name} in (${c.status})`}>
+      <Avatar item={c.item} name={c.name} size={40} />
+      <span className="ka-nearby__who">
+        <strong>{c.name}</strong>
+        <span>{c.status}</span>
       </span>
     </button>
   )
   return (
-    <aside
-      className={`k-tray k-sglass ka-tray${target ? ' is-target' : ''}`}
-      aria-label="Nearby"
-      onDragOver={(e) => {
-        if (!carrying(e)) return
-        e.preventDefault()
-        setTarget(true)
-      }}
-      onDragLeave={() => setTarget(false)}
-      onDrop={(e) => {
-        setTarget(false)
-        const m: Moving = JSON.parse(e.dataTransfer.getData(DRAG) || 'null')
-        if (m?.kind === 'here') onMove(m)
-      }}
-    >
-      <div className="ka-tray__head">
-        <span className="ka-tray__title">Nearby</span>
-        <Icon name="drag" size={14} />
-      </div>
-      {all.slice(0, 4).map((c) => row(c, () => onMove(c.move)))}
-      <button type="button" className="ka-tray__bring" disabled={busy} onClick={() => setPicking(true)}>
+    <>
+      {all.slice(0, 2).map((c) => row(c, () => onMove(c.move)))}
+      <button type="button" className="ka-nearby__bring" disabled={busy} onClick={() => setPicking(true)}>
         <Icon name="plus" size={14} />
         Bring someone in
       </button>
-      <span className="ka-tray__hint">Drag onto the stage to bring in, off it to send away.</span>
       <Dialog open={picking} onClose={() => setPicking(false)} title="Bring someone in">
         {all.length ? (
           <div className="ka-pick-grid">
-            {all.map((c) => row(c, () => { setPicking(false); onMove(c.move) }))}
+            {all.map((c) => row(c, () => { setPicking(false); onMove(c.move) }, false))}
           </div>
         ) : (
           <p className="ka-muted">Everyone you know is already here.</p>
         )}
       </Dialog>
-    </aside>
+    </>
   )
 }
 

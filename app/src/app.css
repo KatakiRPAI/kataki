@@ -401,39 +401,62 @@ span.k-orb { display: block; }
 @keyframes ka-dive-dark-quick { to { opacity: 1; } }
 .ka-teaser { display: flex; align-items: center; gap: 14px; }
 
-/* ---- the Scene: the stage full-bleed, the conversation on the right (the design's 1440 px
-   positions as viewport units, so it holds from 1280 to 1920) ---- */
+/* ---- the Scene: the place behind, the chat full height in the middle, widgets either side.
+   The chat gives up width below 1440 so the 272 px widget columns never cover it. ---- */
 .ka-scene { position: relative; height: 100%; overflow: hidden; }
-.ka-stage { position: absolute; inset: 0; }
-.ka-stage__slot { position: absolute; left: 6vw; bottom: -2vh; width: 44vw; z-index: 1; }
-.ka-stage__peek > .ka-figure { position: relative; width: 100%; height: auto; } /* the slot places it, not .k-stage__char */
-/* a cut-out stands whole: sized by height so a waist-up sprite never fills the window */
-.ka-stage__peek > .ka-figure--sprite { width: auto; max-width: 100%; height: 78vh; margin: 0 auto; object-fit: contain; object-position: bottom; }
+.ka-backdrop .ka-room { position: absolute; inset: -30px; filter: blur(3px) brightness(.52) saturate(.95); } /* static (1.7) */
 .ka-figure--sprite { filter: var(--k-scene-character-filter); }
-.ka-stage[data-count="2"] [data-slot="0"] { left: 24vw; width: 40vw; z-index: 2; }
-.ka-stage[data-count="2"] [data-slot="1"] { left: -4vw; width: 37vw; }
-.ka-stage[data-count="3"] [data-slot="0"] { left: 14vw; width: 36vw; z-index: 2; }
-.ka-stage[data-count="3"] [data-slot="1"] { left: -5vw; width: 30vw; }
-.ka-stage[data-count="3"] [data-slot="2"] { left: 32vw; width: 30vw; }
-.ka-stage .k-stage__char { transition-property: opacity, transform; } /* never animate filter (1.7) */
-.ka-stage .k-stage__char.is-softened { filter: var(--k-scene-softened-filter); }
-.ka-stage__row { position: absolute; left: 24px; bottom: 24px; z-index: 3; display: flex; gap: 8px; }
 
-.ka-topbar { z-index: 5; color: var(--k-scene-ink); }
-.ka-topbar__side { flex: 1; display: flex; align-items: center; gap: 14px; min-width: 0; }
-.ka-topbar__side--end { justify-content: flex-end; }
-.ka-topbar__title { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.ka-topbar__title > h1 { margin: 0; font-family: var(--k-font-story); font-style: italic; font-weight: 400; font-size: 19px; line-height: 1.2; }
-.ka-topbar__title > span { font-size: 12px; color: var(--k-scene-muted); letter-spacing: .02em; }
-.ka-topbar .k-scene-pill strong { font-weight: 600; }
-.ka-topbar__clock { color: var(--k-scene-muted); font-variant-numeric: tabular-nums; }
+.ka-corner { color: var(--k-scene-ink); transition: opacity var(--k-dur-slow); }
+.k-corner--left.ka-corner { max-width: calc((100vw - min(800px, 100vw - 640px)) / 2 - 40px); } /* stops short of the chat */
+.ka-corner__title { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.ka-corner__title > h1 { margin: 0; font-family: var(--k-font-story); font-style: italic; font-weight: 400; font-size: 18px; line-height: 1.2; }
+.ka-corner__title > span { font-size: 12px; color: var(--k-scene-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ka-corner__chapter { font-weight: 700; color: var(--k-scene-ink); }
+
+.ka-chat { z-index: 2; display: flex; flex-direction: column; width: min(800px, calc(100vw - 640px)); color: var(--k-scene-ink); }
+/* room at the sides for the lines' -14px hover margins, so nothing scrolls sideways */
+.ka-chat .ka-chat__scroll { position: relative; inset: auto; flex: 1; min-height: 0; padding-inline: 28px; overflow-x: hidden; justify-content: flex-start; scrollbar-width: thin; scrollbar-color: rgba(255,236,210,.2) transparent; }
+.ka-chat__inner { margin-top: auto; } /* short stories sit at the bottom; long ones scroll */
+.ka-chat .k-composer { position: relative; left: auto; right: auto; bottom: auto; flex-shrink: 0; margin: 0 20px 20px; }
+.ka-chat .k-composer__meter { display: block; } /* until the composer gets its Advanced toggle */
+/* the first handoff's mode buttons, which the second dropped for the Auto chip (next slice) */
+.k-modes { display: inline-flex; gap: 2px; padding: 3px; border-radius: 19px; background: rgba(0,0,0,.25); }
+.k-modes > button { height: 32px; padding: 0 12px; border: 0; border-radius: 16px; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; background: none; color: var(--k-scene-muted); white-space: nowrap; }
+.k-modes > button[aria-pressed="true"] { background: rgba(240,179,90,.2); color: var(--k-scene-amber); }
+
+.ka-widgets { position: absolute; z-index: 4; width: 272px; display: flex; flex-direction: column; gap: 16px; transition: opacity var(--k-dur-slow); }
+.ka-widgets--right { right: 24px; top: 84px; bottom: 16px; overflow-y: auto; scrollbar-width: none; }
+.ka-widgets--left { left: 24px; bottom: 16px; }
+.ka-widget { position: relative; flex-shrink: 0; padding: 0; text-align: left; font: inherit; color: var(--k-scene-ink); }
+button.ka-widget { cursor: pointer; }
+button.ka-widget:disabled { opacity: .5; cursor: default; }
+.ka-cwidget { display: flex; flex-direction: column; }
+.ka-cwidget.is-joined { animation: k-land var(--k-dur-slow) var(--k-ease-bounce) both; }
+.ka-cwidget__art { display: block; width: 100%; }
+.ka-cwidget__art > .ka-figure { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 18%; mask-image: none; }
+.ka-cwidget__art > .ka-figure--sprite { object-fit: contain; object-position: 50% 0; top: 8px; }
+.ka-cwidget__joined { position: absolute; left: 10px; top: 10px; z-index: 1; height: 22px; padding: 0 9px; border-radius: 11px; background: var(--k-scene-amber); color: var(--k-scene-amber-ink); font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; }
+.ka-cwidget__body { display: flex; flex-direction: column; gap: 4px; padding: 10px 14px 13px; }
+.ka-cwidget__name { display: flex; align-items: center; gap: 8px; font-family: var(--k-font-story); font-size: 20px; }
+.ka-cwidget__name .k-expr { font-family: var(--k-font-ui); }
+.ka-cwidget__line { font-size: 12.5px; color: var(--k-scene-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ka-nearby { border-radius: 24px; }
+.ka-nearby .ka-avatar { filter: grayscale(.85) brightness(.8); } /* static */
+.ka-nearby__who { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.ka-nearby__who > strong { font-size: 13.5px; }
+.ka-nearby__who > span { font-size: 12px; color: var(--k-scene-muted); }
+.ka-nearby__bring { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border-radius: 18px; border: 1px dashed rgba(255,236,210,.3); background: rgba(26,19,15,.5); color: var(--k-scene-ink); font-size: 12px; font-weight: 600; }
+.ka-nearby__bring:disabled { opacity: .5; }
+.ka-clock { display: flex; flex-direction: column; gap: 4px; padding: 16px 18px 14px; }
+.ka-clock__top { display: flex; align-items: flex-end; justify-content: space-between; }
+.ka-clock__time { display: inline-block; position: relative; }
+.ka-clock__time[data-tip]:is(:hover, :focus-visible)::after { content: attr(data-tip); position: absolute; left: -6px; bottom: 44px; white-space: pre; padding: 7px 11px; border-radius: 10px; background: #2a1f18; border: 1px solid rgba(255,236,210,.2); color: var(--k-scene-ink); font: 12px var(--k-font-ui); box-shadow: 0 10px 24px rgba(0,0,0,.5); }
+.ka-clock__label { font-size: 13.5px; font-weight: 600; }
+.ka-clock__foot { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; font-size: 12px; color: var(--k-scene-muted); }
 .ka-scene .ka-menu { background: rgba(30,22,17,.94); border-color: var(--k-scene-glass-border); box-shadow: 0 14px 34px rgba(0,0,0,.45); }
 .ka-scene .ka-menu > button:hover, .ka-scene .ka-menu > a:hover, .ka-scene .ka-menu > :focus-visible { background: rgba(255,255,255,.08); }
 
-.ka-scene .k-convo-scrim { left: 51.4vw; }
-/* room at the sides for the lines' -14px hover margins, so nothing scrolls sideways */
-.ka-scene .k-convo { left: auto; right: 44px; width: min(560px, 39vw); padding-inline: 14px; margin-right: -14px; overflow-x: hidden; justify-content: flex-start; z-index: 2; scrollbar-width: thin; scrollbar-color: rgba(255,236,210,.2) transparent; }
-.ka-convo > :first-child { margin-top: auto; } /* short stories sit at the bottom; long ones scroll */
 .ka-line { content-visibility: auto; contain-intrinsic-size: auto 110px; }
 .ka-line .k-line__body > p { margin: 0; }
 .ka-line .k-line__body > p + p { margin-top: .6em; }
@@ -449,7 +472,6 @@ span.k-orb { display: block; }
 .ka-dive--up .ka-dive__cloud { animation-direction: reverse; }
 
 /* ---- the composer, the live reply ---- */
-.ka-scene .k-composer { left: auto; right: 24px; width: min(594px, 41.25vw); z-index: 3; }
 .ka-composer__row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .ka-composer__actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .ka-composer__text { display: flex; flex-direction: column; }
@@ -490,41 +512,15 @@ span.k-orb { display: block; }
 .ka-scene .ka-dialog .k-btn--ghost { background: none; border-color: transparent; box-shadow: none; color: var(--k-scene-ink); }
 .ka-scene .ka-dialog :is(.ka-muted, .k-field > span) { color: var(--k-scene-muted); }
 .ka-scene .ka-dialog .k-input { background: rgba(0,0,0,.28); border-color: var(--k-scene-glass-border); color: var(--k-scene-ink); }
-.ka-topbar .k-scene-round[aria-pressed="true"] { background: rgba(240,179,90,.2); color: var(--k-scene-amber); }
 
-/* reading: the column widens and centres over the stage, which blurs (statically: filters are
-   never animated, 1.7) under a veil that fades; the top bar fades until the pointer moves */
-.ka-veil { position: absolute; inset: 0; z-index: 1; background: rgba(14,10,8,.55); opacity: 0; pointer-events: none; transition: opacity var(--k-dur-slow) var(--k-ease-standard); }
-.ka-scene.is-reading .ka-veil { opacity: 1; }
-.ka-scene.is-reading .ka-stage { filter: blur(10px); }
-.ka-scene.is-reading .k-convo-scrim { opacity: 0; }
-.ka-scene.is-reading .k-convo { right: 50%; margin-right: 0; transform: translateX(50%); width: min(720px, 56vw); }
-.ka-scene.is-reading .k-composer { right: 50%; transform: translateX(50%); width: min(748px, 58vw); }
-.ka-scene.is-reading:is(.is-awake) .k-topbar, .ka-scene.is-reading .k-topbar:is(:hover, :focus-within) { opacity: 1; }
+/* reading: widgets and corners fade (the design's rule) and stop taking clicks; the corners come
+   back while the pointer moves or focus is in them */
+.ka-scene.is-reading :is(.ka-widgets, .ka-corner) { opacity: 0; pointer-events: none; }
+.ka-scene.is-reading.is-awake .ka-corner, .ka-scene.is-reading .ka-corner:focus-within { opacity: 1; pointer-events: auto; }
 
-/* ---- presence: the tray, drag and drop, arrivals, notes, a new scene ---- */
-.ka-tray { z-index: 4; color: var(--k-scene-ink); transition: opacity var(--k-dur-slow); }
-.ka-tray.is-target, .ka-stage.is-target { box-shadow: inset 0 0 0 2px rgba(240,179,90,.6); }
-.ka-scene.is-reading .ka-tray { pointer-events: none; }
-.ka-tray__head { display: flex; align-items: center; justify-content: space-between; color: var(--k-scene-muted); }
-.ka-tray__title { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
-.ka-tray__person { display: flex; align-items: center; gap: 10px; padding: 0; border: 0; background: none; color: var(--k-scene-ink); text-align: left; cursor: grab; }
-.ka-tray__person:disabled { opacity: .5; cursor: default; }
-.ka-tray__person .ka-avatar { box-shadow: 0 0 0 2px rgba(255,255,255,.18); filter: grayscale(.85) brightness(.8); } /* static */
-.ka-tray__who { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.ka-tray__name { font-size: 13px; font-weight: 600; }
-.ka-tray__status { font-size: 11px; color: var(--k-scene-muted); }
-.ka-tray__bring { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-radius: 18px; border: 1px dashed rgba(255,236,210,.3); background: none; color: var(--k-scene-ink); font-size: 12px; font-weight: 600; white-space: nowrap; }
-.ka-tray__hint { font-size: 11px; line-height: 1.35; color: var(--k-scene-muted); }
+/* ---- presence: arrivals, notes, a new scene ---- */
 .ka-pick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.ka-stage__slot { cursor: grab; }
-.ka-stage__away { position: absolute; left: 50%; top: 58%; z-index: 2; transform: translateX(-50%); opacity: 0; background: rgba(30,22,17,.85); transition: opacity var(--k-dur-base); }
-.ka-stage__slot:hover .ka-stage__away, .ka-stage__away:focus-visible { opacity: 1; }
-.ka-namecard { position: absolute; left: 50%; bottom: 22%; z-index: 3; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 10px 18px 10px 10px; border-radius: 28px; background: rgba(30,22,17,.7); box-shadow: 0 10px 30px rgba(0,0,0,.4); color: var(--k-scene-ink); white-space: nowrap; animation: k-land var(--k-dur-slow) var(--k-ease-standard) both; }
-.ka-namecard__text { display: flex; flex-direction: column; }
-.ka-namecard__title { font-family: var(--k-font-story); font-style: italic; font-size: 22px; }
-.ka-namecard__face { box-shadow: 0 0 0 2px var(--ink, var(--k-scene-amber)); }
-.ka-namecard__line { max-width: 320px; overflow: hidden; text-overflow: ellipsis; font-size: 12px; color: var(--k-scene-muted); }
+.ka-pick-grid .ka-nearby { border: 1px solid var(--k-scene-glass-border); background: rgba(0,0,0,.2); color: var(--k-scene-ink); text-align: left; cursor: pointer; }
 .ka-note .ka-note__text { flex-grow: 1; }
 .ka-note--left .ka-avatar { filter: grayscale(1); } /* static */
 .ka-note__undo { flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px; border-radius: 13px; border: 1px solid rgba(255,236,210,.25); background: none; color: var(--k-scene-ink); font: 12px var(--k-font-ui); }
@@ -540,7 +536,7 @@ span.k-orb { display: block; }
 
 /* ---- Backstage: Memory on the left (820 of 1392), Prompt, Cast and Reading stacked on the right.
    The scene stays mounted underneath, hidden, so a draft or a reply in progress survives. ---- */
-.ka-scene.is-backstage :is(.ka-stage, .ka-veil, .ka-tray, .k-convo-scrim, .k-convo, .k-composer) { display: none; }
+.ka-scene.is-backstage :is(.k-place, .ka-widgets, .k-chat) { display: none; }
 .ka-bs-toggle { gap: 10px; padding: 0 12px 0 14px; color: var(--k-scene-ink); font-size: 13px; font-weight: 600; }
 .ka-backstage { position: absolute; inset: 0; padding: 104px 24px 24px; box-sizing: border-box; display: grid; grid-template-columns: minmax(0, 820fr) minmax(0, 548fr); gap: 24px; }
 .ka-backstage__side { display: grid; grid-template-rows: 236fr 262fr 242fr; gap: 16px; min-height: 0; }
@@ -677,9 +673,6 @@ a.ka-event:hover { background: #fff; }
 .ka-knows > .k-icon { color: var(--k-sky-muted); }
 
 /* --- the peek card (2.9): who someone is, right now ---------------------------------------- */
-.ka-stage__peek { display: block; width: 100%; padding: 0; border: 0; background: none; cursor: pointer; } /* in flow: the slot takes its height from the figure */
-.ka-stage__peek:focus-visible { outline-offset: -6px; border-radius: 24px; }
-.ka-stage__peekface { padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; }
 /* however far down it opens, it ends 16px above the window: the rest scrolls inside the card */
 .ka-peek { --top: clamp(16px, calc(var(--y) - 120px), calc(100vh - 640px)); position: fixed; left: clamp(16px, var(--x), calc(100vw - 436px)); top: var(--top); z-index: 7; color: var(--k-scene-ink); box-sizing: border-box; max-height: calc(100vh - 16px - var(--top)); overflow-y: auto; }
 .ka-peek__head { display: flex; align-items: center; gap: 14px; padding: 18px 18px 0; }
@@ -720,8 +713,8 @@ a.ka-event:hover { background: #fff; }
 .ka-peek__act--icon { width: 44px; padding: 0; }
 .ka-peek__answer:disabled, .ka-peek__act:disabled { opacity: .5; cursor: default; }
 
-/* ---- time passing: the stage blurs, the mist rises, the clock rolls ---- */
-.ka-scene.is-skipping .ka-stage { filter: blur(8px); } /* static: filters are never animated (1.7) */
+/* ---- time passing: the place blurs, the mist rises, the clock rolls ---- */
+.ka-scene.is-skipping .k-place { filter: blur(8px); } /* static: filters are never animated (1.7) */
 .ka-timeskip { z-index: 60; cursor: pointer; animation: ka-mist var(--k-dur-slow) var(--k-ease-standard) both;
   background: radial-gradient(ellipse 60% 55% at 45% 50%, rgba(246,248,255,.72) 0%, rgba(230,236,252,.55) 45%, rgba(200,212,240,.25) 100%); }
 .ka-timeskip.is-leaving { animation: ka-mist-out 400ms var(--k-ease-standard) forwards; }
@@ -729,7 +722,7 @@ a.ka-event:hover { background: #fff; }
 /* two big cloud layers, as the mockup places them: one over the top, one rising from below */
 .ka-timeskip__clouds { position: absolute; left: -14%; top: -29%; width: 128%; height: 128%; opacity: .95; pointer-events: none; }
 .ka-timeskip__clouds--far { left: -8%; top: 20%; width: 118%; height: 118%; opacity: .9; transform: scaleX(-1); }
-.ka-timeskip__text { position: relative; max-width: 660px; margin-inline-end: 15vw; /* centred over the stage, as the mockup has it */ display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center; }
+.ka-timeskip__text { position: relative; max-width: 660px; display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center; }
 .ka-timeskip__story { font-size: 12px; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; color: #5a5068; }
 .ka-timeskip__clocks { display: flex; align-items: center; gap: 14px; font-size: 16px; font-variant-numeric: tabular-nums; }
 .ka-timeskip__clocks s { color: #6a6078; }
@@ -739,12 +732,11 @@ a.ka-event:hover { background: #fff; }
 @keyframes ka-mist-out { to { opacity: 0; } }
 .ka-room--leaving { z-index: 1; animation: ka-fade-out 600ms var(--k-ease-drift) forwards; }
 @keyframes ka-fade-out { to { opacity: 0; } }
-.ka-topbar__clock { display: inline-block; }
-.ka-topbar__clock.is-rolling { animation: ka-roll 600ms var(--k-ease-standard); } /* only after a skip */
+.ka-clock__time.is-rolling { animation: ka-roll 600ms var(--k-ease-standard); } /* only after a skip */
 @keyframes ka-roll { from { opacity: 0; transform: translateY(6px); } }
 @media (prefers-reduced-motion: reduce) { /* crossfades only, but the clouds still hang there */
   .ka-timeskip, .ka-timeskip.is-leaving, .ka-room--leaving { animation-duration: 200ms; }
-  .ka-topbar__clock.is-rolling { animation: ka-mist 200ms var(--k-ease-standard); } /* no slide */
+  .ka-clock__time.is-rolling { animation: ka-mist 200ms var(--k-ease-standard); } /* no slide */
 }
 
 /* --- waiting, and when something is not answering (2.37) ------------------------------------ */
@@ -784,8 +776,6 @@ a.ka-event:hover { background: #fff; }
 .ka-pick__row:disabled { opacity: .5; }
 
 /* ---- Chapters: where one begins in the conversation, and the list of them ---- */
-.ka-topbar__chapter { font-weight: 700; color: var(--k-scene-ink); }
-.ka-topbar__title > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ka-chapter { display: flex; flex-direction: column; align-items: center; gap: 2px; margin: 34px 0 22px; padding-top: 22px; border-top: 1px solid rgba(255,236,210,.18); text-align: center; }
 .ka-chapter__eyebrow { font-family: var(--k-font-story); font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--k-scene-amber); }
 .ka-chapter__title { margin: 0; font-family: var(--k-font-story); font-style: italic; font-weight: 400; font-size: 26px; line-height: 1.25; color: var(--k-scene-ink); }

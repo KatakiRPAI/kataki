@@ -138,9 +138,8 @@ export function useArrivals(fn: () => void) {
 export const dive = (to: string) => dispatchEvent(new CustomEvent('ka-dive', { detail: to }))
 
 /** Someone moving in or out of a scene: a story character who is away, a library friend, or
- *  someone here (to send away). Also what a drag between the tray and the stage carries. */
+ *  someone here (to send away). */
 export type Moving = { kind: 'away' | 'friend' | 'here'; id: number }
-export const DRAG = 'application/x-kataki-person'
 
 /** Where the Scene's cloud button floats back up to: the last Sky page shown. */
 export const lastSky = { path: '/home' }

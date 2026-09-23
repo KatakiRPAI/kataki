@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { api, download, stream, type Cast, type CastEntity, type Chapter, type ContextLog, type Message, type Signals, type Story, type TurnDone, type TurnMeta, type Version } from '../api'
-import { paletteOf, SunArc } from '../art'
+import { paletteOf } from '../art'
 import { href, lastSky, rise, useAction, useLibrary, useLoad, usePoll, type Moving } from '../hooks'
 import { Dialog, ErrorLine, Field, Icon, Menu, Trouble, Waiting } from '../ui'
 import Composer, { type Meter, type Send, type Speaker } from './Composer'
@@ -8,9 +8,9 @@ import Lines, { LiveLine, SaidLine, TimeSkip, type Live } from './Lines'
 import { Nearby, NewScene, type SceneBody } from './Nearby'
 import Backstage from './Backstage'
 import Peek from './Peek'
-import Stage from './Stage'
+import { CharacterWidget, ClockWidget, Place } from './Widgets'
 
-/** Who is on stage: the AI characters present, whoever just arrived or else the last to speak
+/** Who is here: the AI characters present, whoever just arrived or else the last to speak
  *  first. */
 function onStage(cast: Cast, messages: Message[], arriving?: number): CastEntity[] {
   const present = cast.entities.filter((e) => e.present && e.is_ai && e.kind === 'character')
@@ -26,7 +26,8 @@ function meterOf(used: number, budget: number, recalled: number): Meter {
   return { used: budget ? Math.min(1, used / budget) : 0, label: `~${used.toLocaleString('en')} / ${budget.toLocaleString('en')} tokens · ${memories}` }
 }
 
-/** A story, played: the stage, the top bar, the conversation and the composer. */
+/** A story, played: the place behind, the chat full height in the middle with the composer docked
+ *  in it, the corners, and widgets either side (characters on the right, the clock bottom left). */
 export default function Scene({ id, line, backstage: opened }: { id: number; line?: number; backstage?: number }) {
   const { byId } = useLibrary()
   // One guarded load of everything the scene shows; every change calls it again.
@@ -305,6 +306,7 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
     )
   }
   const { story, messages, cast, signals, chapters } = data
+  const item = (e: { lib_item_id: number | null }) => (e.lib_item_id ? byId.get(e.lib_item_id) : undefined)
   const people = onStage(cast, messages, arriving)
   // later lines win, so each speaker keeps the face of the last line that had one
   const faces = new Map(messages.flatMap((m) => (m.speaker_id && m.expression ? [[m.speaker_id, m.expression] as const] : [])))
@@ -316,7 +318,7 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
     story.persona ? `as ${story.persona.name}` : 'directing',
   ].join(' · ')
   const writer = cast.entities.find((e) => e.id === live?.speakerId)
-  const writerItem = writer?.lib_item_id ? byId.get(writer.lib_item_id) : undefined
+  const writerItem = writer && item(writer)
   const shown = live?.replacing ? messages.filter((m) => m.id !== live.replacing) : messages
   const newest = messages.at(-1)
   // Which chapter you are in: the one whose stretch the newest line falls in, and whose own
@@ -339,81 +341,82 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
     <div className={`k-scene ka-scene${reading && !backstage ? ' is-reading' : ''}${awake ? ' is-awake' : ''}${backstage ? ' is-backstage' : ''}${skipping ? ' is-skipping' : ''}`}
       onPointerMove={reading ? wake : undefined}>
       {backstage && <Backstage story={story} cast={cast} tick={tick} focus={focus} onChange={refreshAll} />}
-      <Stage story={story} people={people} faces={faces} arriving={arriving} busy={acting || !!live} onMove={move}
-        onPeek={(id, at) => setPeek({ id, at })} />
-      <div className="ka-veil" />
-      <Nearby cast={cast} busy={acting || !!live} onMove={move} />
-      <header className="k-topbar ka-topbar">
-        <div className="ka-topbar__side">
-          <button type="button" className="k-scene-round k-sglass" onClick={rise} aria-label="Float back up to the Sky">
-            <Icon name="cloud" size={20} />
-          </button>
-          <div className="ka-topbar__title">
-            <h1>{story.title}</h1>
-            <span>
-              {here && (
-                <>
-                  <strong className="ka-topbar__chapter">{here.title}</strong>
-                  {' · '}
-                </>
-              )}
-              {who}
-            </span>
+      <Place item={story.place ? item(story.place) : undefined} minute={story.minute_of_day} />
+      <div className="k-corner k-corner--left ka-corner">
+        <button type="button" className="k-scene-round k-sglass" onClick={rise} aria-label="Float back up to the Sky">
+          <Icon name="cloud" size={20} />
+        </button>
+        <div className="ka-corner__title">
+          <h1>{story.title}</h1>
+          <span>
+            {here && (
+              <>
+                <strong className="ka-corner__chapter">{here.title}</strong>
+                {' · '}
+              </>
+            )}
+            {who}
+          </span>
+        </div>
+      </div>
+      <div className="k-corner k-corner--right ka-corner">
+        <button type="button" role="switch" aria-checked={backstage} className="k-scene-pill k-sglass ka-bs-toggle"
+          onClick={() => setBackstage((b) => !b)}>
+          <Icon name="layers" size={16} />
+          Backstage
+          <span className={`k-switch${backstage ? ' is-on' : ''}`} aria-hidden="true" />
+        </button>
+        <StoryMenu story={story} chapters={chapters} messages={messages} at={newest?.id} reading={reading}
+          onReading={backstage ? undefined : () => setReading((r) => !r)} onChange={refreshAll}
+          onNewScene={() => setNewScene(true)} />
+      </div>
+      <section className="k-chat ka-chat" aria-label="The story">
+        <div className="k-chat__scroll ka-chat__scroll" ref={convo}>
+          <div className="k-chat__inner ka-chat__inner">
+            <Lines story={story} messages={shown} cast={cast} signals={signals} chapters={chapters} flash={line}
+              busy={!!live} onChange={refreshAll} onRetake={retake} />
+            {missing && <p className="k-sysnote">That line is no longer in this version of the story.</p>}
+            {said && (
+              <SaidLine who={story.persona?.name ?? 'You'} text={said.text} audience={said.audience}
+                hearers={said.audience === null ? people : people.filter((e) => said.audience!.includes(e.id))} />
+            )}
+            {live && <LiveLine live={live} item={writerItem} ink={writer ? paletteOf(writerItem, writer.name).ink : undefined} />}
+            {offline ? (
+              <Trouble
+                title="The model isn't answering"
+                action={<a className="k-btn k-btn--sm" href={href('/settings')}><Icon name="server" size={15} />Check Models</a>}
+              >
+                {failed}
+              </Trouble>
+            ) : (
+              <ErrorLine error={failed || actError || error} />
+            )}
           </div>
         </div>
-        <div className="k-scene-pill k-sglass">
-          <SunArc minute={story.minute_of_day} />
-          {story.place && <strong>{story.place.name}</strong>}
-          <span key={story.clock} className={`ka-topbar__clock${rolling ? ' is-rolling' : ''}`}>{story.clock}</span>
-        </div>
-        <div className="ka-topbar__side ka-topbar__side--end">
-          <button type="button" role="switch" aria-checked={backstage} className="k-scene-pill k-sglass ka-bs-toggle"
-            onClick={() => setBackstage((b) => !b)}>
-            <Icon name="layers" size={16} />
-            Backstage
-            <span className={`k-switch${backstage ? ' is-on' : ''}`} aria-hidden="true" />
-          </button>
-          <button type="button" className="k-scene-round k-sglass" aria-label="Reading mode" aria-pressed={reading} disabled={backstage}
-            onClick={() => setReading((r) => !r)}>
-            <Icon name="book" size={18} />
-          </button>
-          <StoryMenu story={story} chapters={chapters} messages={messages} at={newest?.id} onChange={refreshAll}
-            onNewScene={() => setNewScene(true)} />
-        </div>
-      </header>
-      <div className="k-convo-scrim" />
-      <div className="k-convo ka-convo" ref={convo}>
-        <Lines story={story} messages={shown} cast={cast} signals={signals} chapters={chapters} flash={line}
-          busy={!!live} onChange={refreshAll} onRetake={retake} />
-        {missing && <p className="k-sysnote">That line is no longer in this version of the story.</p>}
-        {said && (
-          <SaidLine who={story.persona?.name ?? 'You'} text={said.text} audience={said.audience}
-            hearers={said.audience === null ? people : people.filter((e) => said.audience!.includes(e.id))} />
-        )}
-        {live && <LiveLine live={live} item={writerItem} ink={writer ? paletteOf(writerItem, writer.name).ink : undefined} />}
-        {offline ? (
-          <Trouble
-            title="The model isn't answering"
-            action={<a className="k-btn k-btn--sm" href={href('/settings')}><Icon name="server" size={15} />Check Models</a>}
-          >
-            {failed}
-          </Trouble>
-        ) : (
-          <ErrorLine error={failed || actError || error} />
-        )}
-      </div>
-      <Composer
-        story={story}
-        people={people}
-        away={away}
-        live={!!live}
-        picked={picked}
-        onPick={setPicked}
-        writer={live && live.speakerId === null && live.speaker ? 'the narrator' : (live?.speaker ?? '')}
-        meter={meter}
-        onSend={send}
-        onStop={() => controller.current?.abort()}
-      />
+        <Composer
+          story={story}
+          people={people}
+          away={away}
+          live={!!live}
+          picked={picked}
+          onPick={setPicked}
+          writer={live && live.speakerId === null && live.speaker ? 'the narrator' : (live?.speaker ?? '')}
+          meter={meter}
+          onSend={send}
+          onStop={() => controller.current?.abort()}
+        />
+      </section>
+      <aside className="ka-widgets ka-widgets--right" aria-label="Who is here">
+        {people.map((e) => (
+          <CharacterWidget key={e.id} entity={e} item={item(e)} face={faces.get(e.id)} joined={e.id === arriving}
+            state={live?.speakerId === e.id ? (live.text ? 'writing' : 'thinking') : undefined}
+            onPeek={(at) => setPeek({ id: e.id, at })} />
+        ))}
+        <Nearby cast={cast} busy={acting || !!live} onMove={move} />
+      </aside>
+      <aside className="ka-widgets ka-widgets--left" aria-label="The story clock">
+        <ClockWidget story={story} chapter={here?.title} rolling={rolling} />
+      </aside>
       {peeking && (
         <Peek
           key={peeking.id}
@@ -459,12 +462,14 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
 
 type Dialogs = 'rename' | 'minutes' | 'delete' | 'chapter' | 'chapters' | 'export' | null
 
-/** The story menu: chapters, rename, minutes per turn, pin, delete (with a confirm). */
-function StoryMenu({ story, chapters, messages, at, onChange, onNewScene }: {
+/** The story menu: reading mode, chapters, rename, minutes per turn, pin, delete (with a confirm). */
+function StoryMenu({ story, chapters, messages, at, reading, onReading, onChange, onNewScene }: {
   story: Story
   chapters: Chapter[]
   messages: Message[] // the take this story is reading: what "go to it" can actually come to
   at?: number // the newest line: where a chapter started "here" begins
+  reading: boolean
+  onReading?: () => void // none while Backstage is open
   onChange: () => void
   onNewScene: () => void
 }) {
@@ -508,6 +513,10 @@ function StoryMenu({ story, chapters, messages, at, onChange, onNewScene }: {
   return (
     <>
       <Menu label="Story menu" className="k-scene-round k-sglass">
+        <button type="button" disabled={!onReading} onClick={onReading}>
+          <Icon name="book" size={16} />
+          {reading ? 'Leave reading mode' : 'Reading mode'}
+        </button>
         <button type="button" onClick={onNewScene}>
           <Icon name="film" size={16} />
           New scene…
