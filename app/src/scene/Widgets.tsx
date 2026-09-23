@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from 'react'
 import type { CastEntity, Expression, Item, Story, StoryUi, WidgetSpec } from '../api'
 import { Avatar, Figure, MIDDAY, Room, SunArc, timeOfDay, type TimeOfDay } from '../art'
+import { fullTime, twelve } from '../hooks'
 import { Icon } from '../ui'
 
 /** The place behind everything, blurred and dimmed under the chat. Relighting crossfades two
@@ -32,11 +33,6 @@ const FACES: Record<Expression, [string, string]> = {
   wary: ['wary', 'var(--k-scene-rose)'],
   surprised: ['surprised', 'var(--k-scene-sky)'],
   doubtful: ['doubtful', 'var(--k-scene-lilac)'],
-}
-
-const twelve = (minute: number) => {
-  const h = Math.floor(minute / 60) % 24
-  return `${h % 12 || 12}:${String(minute % 60).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'}`
 }
 
 /** Where a character's card opens: beside the widget, on whichever side has room. */
@@ -198,22 +194,18 @@ export function WidgetBoard({ story, people, everyone, itemOf, faces, stateOf, a
       )
     }
     if (w.kind === 'clock') {
-      const day = story.clock.slice(0, -7) // "Year 7, Day 1, 19:14" -> "Year 7, Day 1"
       return (
         <Frame key={w.id} {...frame} {...edit} label="Story clock" pulse={story.clock} className="ka-clock">
           <span className="ka-clock__top">
             <span key={story.clock} className={`k-clock__time ka-clock__time${rolling ? ' is-rolling' : ''}`} tabIndex={0}
-              data-tip={story.clock}>
-              {twelve(story.minute_of_day)}
+              data-tip={fullTime(story.clock, story.date)}>
+              {twelve(story.clock)}
             </span>
             <SunArc minute={story.minute_of_day} />
           </span>
-          <strong className="ka-clock__label">{chapter ?? day}</strong>
+          <strong className="ka-clock__label">{story.date}</strong>
           <span className="ka-clock__foot">
-            <span>
-              {story.place?.name ?? 'Nowhere yet'}
-              {chapter && ` · ${day}`}
-            </span>
+            <span>{[story.place?.name ?? 'Nowhere yet', chapter].filter(Boolean).join(' · ')}</span>
             {passTime}
           </span>
         </Frame>

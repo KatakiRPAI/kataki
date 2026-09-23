@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { api, type ActivityEvent, type Book, type Person, type StorySummary } from '../api'
 import { Avatar, AvatarStack, Figure, Orb, Room } from '../art'
-import { ago, dive, diveLink, exact, go, href, useAction, useArrivals, useLibrary, useLoad } from '../hooks'
+import { ago, inline, dive, diveLink, exact, go, href, useAction, useArrivals, useLibrary, useLoad } from '../hooks'
 import { Chip, Dialog, ErrorLine, Field, Icon, Menu } from '../ui'
 import { EventLink } from './Activity'
 import Folders, { onShelf } from './Folders'
@@ -118,7 +118,7 @@ export default function Chats({ selected }: { selected?: number }) {
             )}
           </span>
           <span className="ka-thread__as">
-            {playing(s)} · {s.clock.slice(0, -7)}
+            {playing(s)} · {inline(s.date)}
             {s.book && (
               <>
                 {' · '}

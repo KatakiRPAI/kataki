@@ -173,3 +173,15 @@ export const diveLink = (to: string) => ({
     dive(to)
   },
 })
+
+// ---- story time: 12-hour in the chat and widgets, the 24-hour clock and the count on hover ----
+/** "19:02" (or a whole clock label, "Day 1, 19:02") -> "7:02 pm". */
+export function twelve(clock: string): string {
+  const [h, m] = clock.slice(-5).split(':').map(Number)
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'}`
+}
+/** A story date as it reads mid-sentence: "six years after the storm"; a bare count stays "Day 3". */
+export const inline = (date: string) => (/^(Day|Year) /.test(date) ? date : date[0].toLowerCase() + date.slice(1))
+/** The hover on a story time: "19:02 · Day 1 · the evening of the storm". */
+export const fullTime = (clock: string, date: string) =>
+  [clock.slice(-5), clock.slice(0, -7), inline(date)].filter((part, i, all) => part && all.indexOf(part) === i).join(' · ')

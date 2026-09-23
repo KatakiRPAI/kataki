@@ -357,6 +357,23 @@ def test_a_story_keeps_the_apps_own_state_beside_its_roles(api, story):
     assert (got["ui"], got["roles"]) == (ui, {})  # a patch of something else leaves it be
 
 
+def test_a_story_dates_itself_from_the_moments_it_names(api, story):
+    api.post(f"/stories/{story}/line", json={"text": "*thunder*"})
+    assert api.get(f"/stories/{story}").json()["date"] == "Day 1"  # nothing named yet
+    got = api.patch(f"/stories/{story}", json={"moments": [{"name": "the storm", "at": 0}]}).json()
+    assert (got["date"], got["start_date"], got["moments"]) == (
+        "The morning of the storm", "The morning of the storm", [{"name": "the storm", "at": 0}],
+    )  # fmt: skip
+    api.post(f"/stories/{story}/line", json={"skip": "six years later"})
+    lines = api.get(f"/stories/{story}/messages").json()
+    assert [m["date"] for m in lines] == ["The morning of the storm", "Six years after the storm"]
+    listed = next(s for s in api.get("/stories").json() if s["id"] == story)
+    assert listed["date"] == "Six years after the storm"
+    assert (
+        api.patch(f"/stories/{story}", json={"moments": [{"name": "", "at": 0}]}).status_code == 422
+    )
+
+
 def test_regenerate_then_swipe_back_and_forth(api, story, backend):
     backend.say("First.", "Second.")
     api.post(f"/stories/{story}/turn", json={"text": "Mira?"})

@@ -1,7 +1,7 @@
 import { useId, useState, type CSSProperties } from 'react'
 import { api, type ActivityEvent, type Item, type StorySummary } from '../api'
 import { Avatar, Figure, Orb, paletteOf, Room } from '../art'
-import { ago, diveLink, exact, href, useArrivals, useLibrary, useLoad } from '../hooks'
+import { ago, diveLink, inline, exact, href, useArrivals, useLibrary, useLoad } from '../hooks'
 import { ErrorLine, Glass, Icon, Prose } from '../ui'
 import { EventLink } from './Activity'
 import Friends from './Friends'
@@ -86,7 +86,7 @@ function Continue({ story, byId }: { story: StorySummary; byId: Map<number, Item
   const persona = story.last_line?.speaker === story.persona?.name
   const ink = persona ? 'var(--k-speaker-aren)' : paletteOf(lib(speaker?.lib_item_id ?? null), speaker?.name).ink
   const here = story.cast.filter((c) => c.present).map((c) => c.name)
-  const meta = [`Played ${ago(story.last_at)}`, story.place?.name, story.clock.slice(0, -7), here.length ? `with ${here.join(' and ')}` : '', story.persona ? `as ${story.persona.name}` : 'directing']
+  const meta = [`Played ${ago(story.last_at)}`, story.place?.name, inline(story.date), here.length ? `with ${here.join(' and ')}` : '', story.persona ? `as ${story.persona.name}` : 'directing']
   return (
     <section className="k-continue ka-continue" aria-label="Continue your last scene">
       <Room item={lib(story.place?.lib_item_id ?? null)} minute={story.minute_of_day} />
@@ -138,7 +138,7 @@ function Results({ q, items, stories }: { q: string; items: Item[]; stories: Sto
       {chats.map((s) => (
         <a key={s.id} className="ka-result" href={href(`/chats/${s.id}`)}>
           <Avatar item={byLib.get(s.cast[0]?.lib_item_id ?? -1)} name={s.cast[0]?.name ?? s.title} size={40} />
-          <span className="ka-stack ka-stack--tight"><strong>{s.title}</strong><span className="ka-muted ka-small">{[`Played ${ago(s.last_at)}`, s.place?.name, s.clock.slice(0, -7)].filter(Boolean).join(' · ')}</span></span>
+          <span className="ka-stack ka-stack--tight"><strong>{s.title}</strong><span className="ka-muted ka-small">{[`Played ${ago(s.last_at)}`, s.place?.name, inline(s.date)].filter(Boolean).join(' · ')}</span></span>
         </a>
       ))}
       {places.length > 0 && <h2 className="k-eyebrow ka-eyebrow">Places</h2>}

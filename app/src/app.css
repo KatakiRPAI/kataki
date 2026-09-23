@@ -887,3 +887,5 @@ a.ka-event:hover { background: #fff; }
 .ka-castwidget__faces > button { padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; }
 .ka-noteswidget textarea { resize: vertical; min-height: 80px; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--k-scene-glass-border); background: rgba(0,0,0,.25); color: var(--k-scene-ink); font: 14px/1.45 var(--k-font-story); }
 .is-editing-widgets .ka-widgets--right { overflow: visible; } /* the handles sit outside the cards */
+.ka-moments { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ka-moments > li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px 8px 14px; border-radius: 12px; background: rgba(255,236,210,.05); }

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { api, download, stream, type Cast, type CastEntity, type Chapter, type ContextLog, type Message, type Signals, type Story, type TurnDone, type TurnMeta, type Version } from '../api'
 import { paletteOf } from '../art'
-import { href, lastSky, rise, useAction, useLibrary, useLoad, usePoll, type Moving } from '../hooks'
+import { href, inline, lastSky, rise, useAction, useLibrary, useLoad, usePoll, type Moving } from '../hooks'
 import { Dialog, ErrorLine, Field, Icon, Menu, Trouble, Waiting } from '../ui'
 import Composer, { PassTime, remembered, type Meter, type Send, type Skip, type Speaker } from './Composer'
 import Lines, { LiveLine, SaidLine, TimeSkip, type Live } from './Lines'
@@ -484,7 +484,7 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
   )
 }
 
-type Dialogs = 'rename' | 'minutes' | 'delete' | 'chapter' | 'chapters' | 'export' | null
+type Dialogs = 'rename' | 'minutes' | 'delete' | 'chapter' | 'chapters' | 'export' | 'moment' | null
 
 /** The story menu: reading mode, chapters, rename, minutes per turn, pin, delete (with a confirm). */
 function StoryMenu({ story, chapters, messages, at, reading, onReading, onArrange, onChange, onNewScene }: {
@@ -555,6 +555,10 @@ function StoryMenu({ story, chapters, messages, at, reading, onReading, onArrang
           <Icon name="quill" size={16} />
           Start a chapter here…
         </button>
+        <button type="button" onClick={() => setOpen('moment')}>
+          <Icon name="star" size={16} />
+          Name this moment…
+        </button>
         <button type="button" disabled={!chapters.length} onClick={() => setOpen('chapters')}>
           <Icon name="book" size={16} />
           Chapters
@@ -587,6 +591,27 @@ function StoryMenu({ story, chapters, messages, at, reading, onReading, onArrang
         <p className="ka-muted">How far the story clock moves with each line. Skips come on top.</p>
         <OneField label="Minutes" initial={String(story.minutes_per_turn)} number busy={busy} error={error}
           onSave={(v) => save({ minutes_per_turn: Math.max(1, Math.round(Number(v))) })} />
+      </Dialog>
+      <Dialog open={open === 'moment'} onClose={close} title="Name this moment">
+        <p className="ka-muted">
+          Dates in this story count from the moments you name: “the evening of the storm”, “six years after the storm”.
+          Right now it is {inline(story.date)}.
+        </p>
+        <OneField label="What happened (the storm, the proposal…)" initial="" busy={busy} error={error}
+          onSave={(name) => save({ moments: [...story.moments.filter((m) => m.at !== story.story_time), { name, at: story.story_time }] })} />
+        {story.moments.length > 0 && (
+          <ul className="ka-moments">
+            {story.moments.map((m) => (
+              <li key={`${m.at}-${m.name}`}>
+                <span>{m.name}</span>
+                <button type="button" className="k-sbtn" disabled={busy}
+                  onClick={() => save({ moments: story.moments.filter((x) => x !== m) })}>
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </Dialog>
       <Dialog open={open === 'chapter'} onClose={close} title="Start a chapter here">
         <p className="ka-muted">

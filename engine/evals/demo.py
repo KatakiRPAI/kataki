@@ -274,6 +274,11 @@ async def build(path: Path, model_url: str) -> None:
                                  epoch_offset_min=19 * 60)  # fmt: skip
     with conn:
         conn.execute("UPDATE stories SET pinned=1 WHERE id=?", (story,))
+        # its dates count from the storm it opens on: "the evening of the storm", "six years after"
+        moments = json.dumps({"moments": [{"name": "the storm", "at": 0}]})
+        conn.execute(
+            "UPDATE stories SET overrides=json_patch(overrides, ?) WHERE id=?", (moments, story)
+        )
 
     def who(name: str) -> int:
         sql = "SELECT id FROM entities WHERE story_id=? AND name=?"

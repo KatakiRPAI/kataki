@@ -80,6 +80,7 @@ export type Ref = { id: number; name: string; lib_item_id: number | null }
 export type Standing = {
   pinned: boolean
   clock: string
+  date: string // in the story's own words, counted from its named moments
   story_time: number
   minute_of_day: number
   persona: Ref | null
@@ -229,9 +230,14 @@ export type Story = Standing & {
   minutes_per_turn: number
   epoch_offset_min: number
   start_clock: string
+  start_date: string
+  moments: Moment[] // what its dates count from
   roles: Record<string, unknown>
   ui: StoryUi // the app's own state for this story; the engine keeps it and never reads it
 }
+
+/** A moment a story has named ("the storm"), at a story time in minutes. */
+export type Moment = { name: string; at: number }
 
 /** A widget in the Scene: what it shows, whether it stays out, and where you put it (fractions of
  *  the window; none = its column, characters on the right and the clock bottom left). */
@@ -249,6 +255,7 @@ export type Message = {
   edited: boolean
   skip_minutes: number
   clock: string
+  date: string // the story's date in its own words: "The evening of the storm", or "Day 1"
   scene_id: number | null
   audience?: number[] | null // who could hear it: null = everyone present, [] = a thought
   think_ms?: number | null

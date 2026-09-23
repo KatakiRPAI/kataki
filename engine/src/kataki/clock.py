@@ -119,3 +119,27 @@ def spell(minutes: int) -> str:
         return f"{'An' if unit == 'hour' else 'A'} {unit}"
     spelled = COUNTS[count] if count < len(COUNTS) else str(count)
     return f"{spelled} {unit}s"
+
+
+NIGHT_ENDS = 5 * HOUR  # until 05:00 it is still the night before
+PARTS = [(NIGHT_ENDS, "night"), (12 * HOUR, "morning"), (17 * HOUR, "afternoon"),
+         (21 * HOUR, "evening"), (DAY, "night")]  # fmt: skip
+
+
+def date(story_time: int, epoch_offset_min: int = 8 * HOUR, moments: list[dict] = ()) -> str:
+    """The story's date in its own words, counted from the moments it has named
+    ({"name": "the storm", "at": story_time}): 'The evening of the storm', 'The day after the
+    storm', 'Six years after the storm', 'Three days before the storm'. Counted from the latest
+    moment already past, else the first one to come. With none named: 'Day 3', 'Year 7, Day 1'."""
+    if not moments:
+        return label(story_time, epoch_offset_min).rsplit(", ", 1)[0]
+    past = [m for m in moments if m["at"] <= story_time]
+    moment = max(past, key=lambda m: m["at"]) if past else min(moments, key=lambda m: m["at"])
+    day = lambda t: (t + epoch_offset_min - NIGHT_ENDS) // DAY  # noqa: E731
+    gap, name = day(story_time) - day(moment["at"]), moment["name"]
+    if gap == 0:
+        minute = (story_time + epoch_offset_min) % DAY
+        return f"The {next(p for end, p in PARTS if minute < end)} of {name}"
+    if abs(gap) == 1:
+        return f"The day {'after' if gap > 0 else 'before'} {name}"
+    return f"{spell(abs(gap) * DAY)} {'after' if gap > 0 else 'before'} {name}"

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { api, type Callout, type Cast, type CastEntity, type Chapter, type Item, type LineSignal, type Message, type Receipt, type Recall, type Signals, type Story } from '../api'
 import clouds from '../design/clouds.svg'
 import { Avatar, paletteOf, pronounsOf } from '../art'
-import { useAction, useLibrary } from '../hooks'
+import { fullTime, inline, twelve, useAction, useLibrary } from '../hooks'
 import { ErrorLine, Icon, Prose } from '../ui'
 
 const YEAR = 365 * 1440
@@ -27,15 +27,6 @@ function landing(minutes: number, clock: string) {
   return minutes >= 1440 ? dayOf(clock) : timeOf(clock)
 }
 
-const yearOf = (day: string) => (day.startsWith('Year') ? day.split(', ')[0] : 'Year 1')
-
-/** A line's stamp: the time, led by the year or day when that changed since the last line. */
-function stampOf(clock: string, lastDay: string) {
-  const day = dayOf(clock)
-  if (day === lastDay) return timeOf(clock)
-  const lead = yearOf(day) !== yearOf(lastDay) ? yearOf(day) : day.split(', ').at(-1)
-  return `${lead} · ${timeOf(clock)}`
-}
 
 const unmark = (text: string) => text.replace(/^—\s*|\s*—$/g, '')
 
@@ -86,7 +77,7 @@ export default function Lines({ story, messages, cast, signals, chapters, flash,
     })
 
   const scenes = messages.some((m, i) => i > 0 && m.role === 'system' && m.scene_id !== messages[i - 1].scene_id)
-  const opening = [scenes ? null : (story.place?.name ?? story.scene_title), story.start_clock].filter(Boolean).join(' · ')
+  const opening = [scenes ? null : (story.place?.name ?? story.scene_title), inline(story.start_date)].filter(Boolean).join(' · ')
   const out: ReactNode[] = [<Card key="opening">{opening}</Card>]
   if (!messages.length)
     out.push(
@@ -97,7 +88,6 @@ export default function Lines({ story, messages, cast, signals, chapters, flash,
   const newest = messages.at(-1)
   const [editingAt, setEditingAt] = useState<number>() // while a line is edited, what follows dims
   const lines = messages.filter((m) => m.role !== 'system')
-  let day = dayOf(story.start_clock)
   // A memory reaction is rare, at most one in any four lines, so feelings do the talking.
   let lastMemory = -Infinity
   const rare = (signal: LineSignal | undefined, i: number): LineSignal | undefined => {
@@ -136,22 +126,21 @@ export default function Lines({ story, messages, cast, signals, chapters, flash,
     if (newScene)
       out.push(
         <Card key={`scene-${m.id}`} id={m.skip_minutes > 0 ? undefined : marker}>
-          {unmark(m.text)} · {m.clock}
+          {unmark(m.text)} · {inline(m.date)}
         </Card>,
       )
     else if (skipOnly) {
       if (!m.hidden && m.skip_minutes === 0)
         out.push(<p key={m.id} id={marker} className="k-sysnote">{unmark(m.text)}</p>)
     } else {
-      const stamp = stampOf(m.clock, day)
-      day = dayOf(m.clock)
       out.push(
         <Line
           key={m.id}
           storyId={story.id}
           who={m.speaker ?? (m.role === 'user' && !story.persona ? 'You' : 'Narrator')} // with a persona, an unsigned line of yours is narration
           m={m}
-          stamp={stamp}
+          stamp={twelve(m.clock)}
+          tip={fullTime(m.clock, m.date)}
           ink={ink(m)}
           to={m.audience?.length ? names(m.audience, cast) : ''}
           flash={m.id === flash}
@@ -204,7 +193,7 @@ function Card({ id, children }: { id?: string; children: ReactNode }) {
 
 /** One line, with its tools on hover or focus: takes (the last arrow on the newest reply asks for
  *  a new one), inline Edit, and Hide (the line stays in the story but never reaches the model). */
-function Line({ storyId, who, m, stamp, ink, to, flash, retake, signal, advanced, after, dim, onEditing, onRewrite, face, busy, onChange, onRetake }: {
+function Line({ storyId, who, m, stamp, tip, ink, to, flash, retake, signal, advanced, after, dim, onEditing, onRewrite, face, busy, onChange, onRetake }: {
   storyId: number
   advanced: boolean
   after: number // how many lines come after this one
@@ -213,7 +202,8 @@ function Line({ storyId, who, m, stamp, ink, to, flash, retake, signal, advanced
   onRewrite: (text: string) => void
   who: string
   m: Message
-  stamp: string
+  stamp: string // "7:02 pm"
+  tip: string // "19:02 · Day 1 · the evening of the storm"
   ink?: string
   to: string // who a whisper was for
   flash: boolean
@@ -289,7 +279,7 @@ function Line({ storyId, who, m, stamp, ink, to, flash, retake, signal, advanced
       )}
       <div className="k-line__head">
         <span className="k-line__who">{who}</span>
-        <span className="k-line__stamp">{stamp}</span>
+        <span className="k-line__stamp k-time" tabIndex={0} data-tip={tip}>{stamp}</span>
         {m.edited && <span className="k-line__mark">edited</span>}
         {m.finish === 'stopped' && <span className="k-line__mark">stopped</span>}
         {m.hidden && <span className="k-line__mark">hidden</span>}
@@ -412,7 +402,7 @@ export function LiveLine({ live, item, ink }: { live: Live; item?: Item; ink?: s
     <article className="k-line ka-line ka-line--live" style={{ '--speaker': ink } as CSSProperties} aria-busy="true">
       <div className="k-line__head">
         <span className="k-line__who">{live.speakerId === null ? 'Narrator' : name}</span>
-        {live.clock && live.from && <span className="k-line__stamp">{stampOf(live.clock, dayOf(live.from))}</span>}
+        {live.clock && <span className="k-line__stamp">{twelve(live.clock)}</span>}
         <span className="k-line__stamp ka-writing">writing…</span>
       </div>
       <div className="k-line__body" aria-live="polite">

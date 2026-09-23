@@ -1,6 +1,6 @@
 import pytest
 
-from kataki.clock import label, parse_skip, spell
+from kataki.clock import DAY, HOUR, date, label, parse_skip, spell
 
 H, D = 60, 1440
 W, MO, Y = 7 * D, 30 * D, 365 * D
@@ -94,3 +94,29 @@ def test_label_reads_like_a_story_clock():
 )
 def test_how_long_it_was_in_words(minutes, said):
     assert spell(minutes) == said
+
+
+STORM = [{"name": "the storm", "at": 11 * HOUR}]  # 19:00 on day 1, with the default 08:00 start
+
+
+@pytest.mark.parametrize(
+    ("story_time", "moments", "said"),
+    [
+        (11 * HOUR + 2, STORM, "The evening of the storm"),
+        (17 * HOUR, STORM, "The night of the storm"),  # 01:00: still that night
+        (DAY + 2 * HOUR, STORM, "The day after the storm"),
+        (5 * DAY, STORM, "Five days after the storm"),
+        (6 * 365 * DAY + 11 * HOUR, STORM, "Six years after the storm"),
+        (0, [{"name": "the storm", "at": 3 * DAY}], "Three days before the storm"),
+        (6 * 365 * DAY, [], "Year 7, Day 1"),  # nothing named: the count
+        (2 * DAY, [], "Day 3"),
+    ],
+)
+def test_a_date_counts_from_the_moments_a_story_has_named(story_time, moments, said):
+    assert date(story_time, moments=moments) == said
+
+
+def test_the_latest_moment_already_passed_is_the_one_counted_from():
+    moments = [*STORM, {"name": "the proposal", "at": 3 * DAY}]
+    assert date(8 * DAY, moments=moments) == "Five days after the proposal"
+    assert date(2 * DAY, moments=moments) == "Two days after the storm"

@@ -141,6 +141,11 @@ class ChapterPatch(BaseModel):
     open: bool | None = None  # true reopens it: it runs to the newest line again
 
 
+class Moment(BaseModel):
+    name: str = Field(min_length=1, max_length=80)  # "the storm"
+    at: int = Field(ge=0)  # story time, in minutes
+
+
 class StoryPatch(BaseModel):
     title: str | None = None
     minutes_per_turn: int | None = None
@@ -149,6 +154,7 @@ class StoryPatch(BaseModel):
     tags: list[str] | None = None
     roles: dict | None = None  # per-story role overrides, same shape as PUT /roles/{role}
     ui: dict | None = None  # the app's own per-story state (widget layout, notes); never read here
+    moments: list[Moment] | None = None  # what the story's dates count from
 
 
 class TurnIn(BaseModel):
@@ -236,6 +242,11 @@ class MemoryPatch(BaseModel):
     common: bool | None = None
 
 
+def moments_of(story) -> list[dict]:
+    """The moments a story has named, which its dates count from."""
+    return json.loads(story["overrides"]).get("moments", [])
+
+
 def _row(conn: sqlite3.Connection, sql: str, args=()) -> dict:
     row = conn.execute(sql, args).fetchone()
     if row is None:
@@ -306,6 +317,7 @@ def create_app(
 
     def messages(story_id: int) -> list[dict]:
         story = story_row(story_id)
+        moments = moments_of(story)
         names = dict(
             conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)).fetchall()
         )
@@ -325,6 +337,7 @@ def create_app(
                     "edited": m["edited_at"] is not None,
                     "skip_minutes": m["skip_minutes"],
                     "clock": clock.label(m["story_time"], story["epoch_offset_min"]),
+                    "date": clock.date(m["story_time"], story["epoch_offset_min"], moments),
                     "scene_id": m["scene_id"],
                     "swipe": chat.sibling_position(conn, m["id"]),
                     "reasoning": gen.get("reasoning"),
@@ -796,6 +809,7 @@ def create_app(
         return {
             "pinned": bool(story["pinned"]),
             "clock": clock.label(now, story["epoch_offset_min"]),
+            "date": clock.date(now, story["epoch_offset_min"], moments_of(story)),
             "story_time": now,
             "minute_of_day": (now + story["epoch_offset_min"]) % clock.DAY,
             "persona": ref(story["persona_entity_id"]),
@@ -865,6 +879,8 @@ def create_app(
             "minutes_per_turn": story["minutes_per_turn"],
             "epoch_offset_min": story["epoch_offset_min"],
             "start_clock": clock.label(0, story["epoch_offset_min"]),  # for the opening card
+            "start_date": clock.date(0, story["epoch_offset_min"], moments_of(story)),
+            "moments": overrides.get("moments", []),
             "roles": overrides.get("roles", {}),
             "ui": overrides.get("ui", {}),
             **standing(story),
@@ -873,13 +889,15 @@ def create_app(
     @app.patch("/stories/{story_id}")
     async def edit_story(story_id: int, s: StoryPatch):
         story = story_row(story_id)
-        fields = s.model_dump(exclude_unset=True, exclude={"roles", "ui", "book_id", "tags"})
+        fields = s.model_dump(
+            exclude_unset=True, exclude={"roles", "ui", "moments", "book_id", "tags"}
+        )
         if s.tags is not None:
             with conn:  # its own commit: a patch of tags alone writes nothing else
                 library.set_tags(conn, "story", story_id, s.tags)
-        if s.roles is not None or s.ui is not None:
+        if s.roles is not None or s.ui is not None or s.moments is not None:
             overrides = json.loads(story["overrides"])
-            overrides |= s.model_dump(include={"roles", "ui"}, exclude_none=True)
+            overrides |= s.model_dump(include={"roles", "ui", "moments"}, exclude_none=True)
             fields["overrides"] = json.dumps(overrides)
         if "book_id" in s.model_fields_set:
             try:
