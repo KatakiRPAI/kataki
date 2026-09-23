@@ -3,7 +3,7 @@ import { api, download, stream, type Cast, type CastEntity, type Chapter, type C
 import { paletteOf } from '../art'
 import { href, lastSky, rise, useAction, useLibrary, useLoad, usePoll, type Moving } from '../hooks'
 import { Dialog, ErrorLine, Field, Icon, Menu, Trouble, Waiting } from '../ui'
-import Composer, { PassTime, type Meter, type Send, type Skip, type Speaker } from './Composer'
+import Composer, { PassTime, remembered, type Meter, type Send, type Skip, type Speaker } from './Composer'
 import Lines, { LiveLine, SaidLine, TimeSkip, type Live } from './Lines'
 import { Nearby, NewScene, type SceneBody } from './Nearby'
 import Backstage from './Backstage'
@@ -129,6 +129,7 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
   const [backstage, setBackstage] = useState(opened !== undefined)
   const [picked, setPicked] = useState<Speaker>(null) // who answers next
   const [skip, setSkip] = useState<Skip | null>(null) // time to pass before the next line
+  const [advanced, setAdvanced] = useState(remembered) // the composer's toggle; the chat follows it
   const [peek, setPeek] = useState<{ id: number; at: { x: number; y: number } } | null>(null)
   const [focus, setFocus] = useState<number | undefined>(opened) // the character Backstage opens on
 
@@ -374,11 +375,11 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
       <section className="k-chat ka-chat" aria-label="The story">
         <div className="k-chat__scroll ka-chat__scroll" ref={convo}>
           <div className="k-chat__inner ka-chat__inner">
-            <Lines story={story} messages={shown} cast={cast} signals={signals} chapters={chapters} flash={line}
+            <Lines story={story} messages={shown} cast={cast} signals={signals} chapters={chapters} flash={line} advanced={advanced}
               busy={!!live} onChange={refreshAll} onRetake={retake} />
             {missing && <p className="k-sysnote">That line is no longer in this version of the story.</p>}
             {said && (
-              <SaidLine who={said.narrate ? 'Narrator' : (story.persona?.name ?? 'You')} text={said.text} audience={said.audience}
+              <SaidLine who={said.narrate ? 'Narrator' : (story.persona?.name ?? 'You')} text={said.text} audience={said.audience} advanced={advanced}
                 hearers={said.audience === null ? people : people.filter((e) => said.audience!.includes(e.id))} />
             )}
             {live && <LiveLine live={live} item={writerItem} ink={writer ? paletteOf(writerItem, writer.name).ink : undefined} />}
@@ -401,6 +402,8 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
           live={!!live}
           picked={picked}
           onPick={setPicked}
+          advanced={advanced}
+          onAdvanced={setAdvanced}
           skip={skip}
           onSkip={setSkip}
           writer={live && live.speakerId === null && live.speaker ? 'the narrator' : (live?.speaker ?? '')}

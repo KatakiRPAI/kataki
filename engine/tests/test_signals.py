@@ -143,7 +143,7 @@ def test_after_six_years_the_trivial_is_gone_and_the_important_is_hazy_and_faded
     nod = line(conn, story, "*nods*", who="Mira")
     read(conn, story, apron, nod, [event(conn, "Tobin wore green.", 2, 1), ledger(conn, 2)])
     callout = {
-        "key": f"m{memory_id(conn, DETAIL)}", "kind": "memory", "who": [mira],
+        "key": f"m{memory_id(conn, DETAIL)}", "kind": "memory", "tone": "memory", "who": [mira],
         "text": "Mira will remember this", "reason": None, "faded": False,
         "memory_id": memory_id(conn, DETAIL),
     }  # fmt: skip
@@ -223,6 +223,7 @@ def test_a_feeling_lands_on_the_line_they_share_or_else_the_last_line_read(conn,
         {"src": f"E{tobin}", "dst": f"E{eid(conn, 'Aren')}", "rel": "resents",
          "note": "Sent off like a servant."},
         {"src": f"E{mira}", "dst": f"E{eid(conn, 'Aren')}", "rel": "trusts"},
+        {"src": f"E{mira}", "dst": f"E{eid(conn, 'Aren')}", "rel": "worried about"},
     ]  # fmt: skip
     read(conn, story, evening, grin, [sent], edges=edges)
     lines = signals.signals(conn, story)["lines"]
@@ -230,14 +231,15 @@ def test_a_feeling_lands_on_the_line_they_share_or_else_the_last_line_read(conn,
     edge_id = conn.execute("SELECT id FROM edges WHERE rel='resents'").fetchone()["id"]
     assert feeling["key"] == f"f{edge_id}"  # the edge it came from
     assert {k: v for k, v in feeling.items() if k != "key"} == {
-        "kind": "feeling", "who": [tobin], "text": "Tobin didn't like that",
+        "kind": "feeling", "tone": "feeling", "who": [tobin], "text": "Tobin didn't like that",
         "reason": "Sent off like a servant.", "faded": False,
         "memory_id": memory_id(conn, "Aren sent Tobin to fetch a round."),
     }  # fmt: skip
-    [trust] = lines[grin]["callouts"]  # nothing they share in this read: its last line
-    assert (trust["who"], trust["text"], trust["memory_id"]) == (
-        [mira], "Mira trusts you a little more", None,
+    trust, worry = lines[grin]["callouts"]  # nothing they share in this read: its last line
+    assert (trust["who"], trust["text"], trust["memory_id"], trust["tone"]) == (
+        [mira], "Mira trusts you a little more", None, "warm",
     )  # fmt: skip
+    assert (worry["text"], worry["tone"]) == ("Mira is worried for you", "mood")
 
 
 # --- skip reports --------------------------------------------------------------------------

@@ -378,6 +378,7 @@ export type Receipt = {
 }
 export type Callout = {
   kind: 'memory' | 'belief' | 'feeling'
+  tone: 'memory' | 'belief' | 'feeling' | 'warm' | 'mood' // the colour of the reaction
   who: number[]
   text: string
   reason: string | null

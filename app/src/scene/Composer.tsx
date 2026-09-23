@@ -31,7 +31,7 @@ const listed = (names: string[]) =>
 
 // Simple or Advanced is the user's, across stories; storage can be missing (private mode)
 const KEY = 'kataki.composer.advanced'
-const remembered = () => {
+export const remembered = () => {
   try {
     return localStorage.getItem(KEY) === '1'
   } catch {
@@ -60,8 +60,10 @@ export function PassTime({ disabled, onPick, className = 'k-sbtn' }: { disabled:
 /** Speak, act, whisper, think or narrate as the persona (or direct the story). Simple by default:
  *  the text, Continue, the mode chip and Send. Advanced adds who hears it, who answers, Pass time
  *  and the prompt's size. */
-export default function Composer({ story, people, away, live, picked, onPick, skip, onSkip, writer, meter, onSend, onStop }: {
+export default function Composer({ story, people, away, live, advanced, onAdvanced, picked, onPick, skip, onSkip, writer, meter, onSend, onStop }: {
   story: Story
+  advanced: boolean // the Scene owns it: the chat shows who heard what in Advanced too
+  onAdvanced: (on: boolean) => void
   people: CastEntity[] // the AI characters present
   away: CastEntity[] // the AI characters in the story but not here
   live: boolean
@@ -79,7 +81,6 @@ export default function Composer({ story, people, away, live, picked, onPick, sk
   const [text, setText] = useState('')
   const [mode, setMode] = useState<Mode>('auto') // a pick other than Auto is for this line only
   const [whisperTo, setWhisperTo] = useState<number[]>([])
-  const [advanced, setAdvanced] = useState(remembered)
   const speaker = typeof picked === 'number' && !people.some((e) => e.id === picked) ? null : picked
 
   const line = text.trim()
@@ -98,7 +99,7 @@ export default function Composer({ story, people, away, live, picked, onPick, sk
   const canSend = !live && (!!how.text || !!skip) && !(how.mode === 'whisper' && !audience?.length)
 
   const toggle = (on: boolean) => {
-    setAdvanced(on)
+    onAdvanced(on)
     try {
       localStorage.setItem(KEY, on ? '1' : '0')
     } catch {

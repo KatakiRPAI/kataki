@@ -45,9 +45,11 @@ function names(ids: number[], cast: Cast) {
 }
 
 /** The conversation: lines, title cards for the opening, scenes and skips, and notes on who came
- *  and went. `flash` marks a deep-linked line; `busy` while a reply is written. */
-export default function Lines({ story, messages, cast, signals, chapters, flash, busy, onChange, onRetake }: {
+ *  and went. `flash` marks a deep-linked line; `busy` while a reply is written. `advanced` (the
+ *  composer's toggle) adds who heard what; Simple shows only how characters feel. */
+export default function Lines({ story, messages, cast, signals, chapters, flash, busy, advanced, onChange, onRetake }: {
   story: Story
+  advanced: boolean
   messages: Message[]
   cast: Cast
   signals?: Signals
@@ -93,6 +95,14 @@ export default function Lines({ story, messages, cast, signals, chapters, flash,
     )
   const newest = messages.at(-1)
   let day = dayOf(story.start_clock)
+  // A memory reaction is rare, at most one in any four lines, so feelings do the talking.
+  let lastMemory = -Infinity
+  const rare = (signal: LineSignal | undefined, i: number): LineSignal | undefined => {
+    if (!signal?.callouts?.some((c) => c.kind === 'memory')) return signal
+    if (i - lastMemory < 4) return { ...signal, callouts: signal.callouts.filter((c) => c.kind !== 'memory') }
+    lastMemory = i
+    return signal
+  }
   messages.forEach((m, i) => {
     const starts = chapters?.filter((c) => c.from_message_id === m.id) ?? []
     for (const c of starts)
@@ -143,7 +153,8 @@ export default function Lines({ story, messages, cast, signals, chapters, flash,
           to={m.audience?.length ? names(m.audience, cast) : ''}
           flash={m.id === flash}
           retake={m === newest && m.role === 'assistant' && m.parent_id !== null}
-          signal={signals?.lines[m.id]}
+          signal={rare(signals?.lines[m.id], i)}
+          advanced={advanced}
           face={face}
           busy={busy}
           onChange={onChange}
@@ -161,8 +172,8 @@ export default function Lines({ story, messages, cast, signals, chapters, flash,
         <div key={`change-${c.id}`} className={`k-sysnote ka-note${c.present ? '' : ' ka-note--left'}`}>
           <Avatar item={item} name={name} size={24} />
           <span className="ka-note__text">
-            <span>{c.present ? `${name} joins` : `${name} left. ${They} won't hear what's said now.`}</span>
-            {(c.present || c.found) && <small>{c.present ? `${by} · ${they} ${hear} everything from here on` : by}</small>}
+            <span>{c.present ? `${name} joins.` : advanced ? `${name} left. ${They} won't hear what's said now.` : `${name} left.`}</span>
+            {advanced && (c.present || c.found) && <small>{c.present ? `${by} · ${they} ${hear} everything from here on` : by}</small>}
           </span>
           <button type="button" className="ka-note__undo" disabled={busy} onClick={() => undoPresence(c.id)}>
             <Icon name="undo" size={12} />
@@ -186,8 +197,9 @@ function Card({ id, children }: { id?: string; children: ReactNode }) {
 
 /** One line, with its tools on hover or focus: takes (the last arrow on the newest reply asks for
  *  a new one), inline Edit, and Hide (the line stays in the story but never reaches the model). */
-function Line({ storyId, who, m, stamp, ink, to, flash, retake, signal, face, busy, onChange, onRetake }: {
+function Line({ storyId, who, m, stamp, ink, to, flash, retake, signal, advanced, face, busy, onChange, onRetake }: {
   storyId: number
+  advanced: boolean
   who: string
   m: Message
   stamp: string
@@ -291,8 +303,12 @@ function Line({ storyId, who, m, stamp, ink, to, flash, retake, signal, face, bu
       )}
       {recalling && signal?.recall && <RecallCard recall={signal.recall} />}
       {m.think_ms != null && m.reasoning && <Thought ms={m.think_ms} notes={m.reasoning} />}
-      {signal?.receipts && <Receipts receipts={signal.receipts} summary={signal.summary ?? ''} face={face} />}
-      {signal?.callouts?.map((c, i) => <CalloutChip key={i} callout={c} face={face} />)}
+      {advanced && signal?.receipts && <Receipts receipts={signal.receipts} summary={signal.summary ?? ''} face={face} />}
+      {!!signal?.callouts?.length && (
+        <div className="k-reacts">
+          {signal.callouts.map((c, i) => <Reaction key={i} callout={c} face={face} advanced={advanced} />)}
+        </div>
+      )}
       <ErrorLine error={error} />
     </article>
   )
@@ -371,7 +387,7 @@ export function LiveLine({ live, item, ink }: { live: Live; item?: Item; ink?: s
 
 /** The user's line, shown the moment it is sent, until the engine's copy arrives: heard at once
  *  by whoever it reaches. */
-export function SaidLine({ who, text, audience, hearers }: { who: string; text: string; audience: number[] | null; hearers: CastEntity[] }) {
+export function SaidLine({ who, text, audience, advanced, hearers }: { who: string; text: string; audience: number[] | null; advanced: boolean; hearers: CastEntity[] }) {
   const { byId } = useLibrary()
   const face = (id: number): Face => {
     const e = hearers.find((h) => h.id === id)
@@ -388,7 +404,7 @@ export function SaidLine({ who, text, audience, hearers }: { who: string; text: 
       <div className="k-line__body">
         <Prose text={text} />
       </div>
-      {receipts.length > 0 && (
+      {advanced && receipts.length > 0 && (
         <Receipts receipts={receipts} summary={`Heard by ${hearers.map((e) => e.name).join(', ').replace(/, ([^,]*)$/, ' and $1')}`} face={face} />
       )}
     </article>
@@ -454,19 +470,22 @@ function ReceiptFace({ receipt, face, size = 16 }: { receipt: Receipt; face: Fac
   return <Avatar item={face.item} name={face.name} size={size} className={`k-receipt is-${receipt.state}`} />
 }
 
-const CALLOUT_ICON = { memory: 'spark', belief: 'help', feeling: 'heart' }
+const REACTION_ICON = { memory: 'spark', belief: 'help', feeling: 'heart', warm: 'heart', mood: 'thought' }
 
-/** What a moment meant to someone, in the engine's words, with its reason below. */
-function CalloutChip({ callout, face }: { callout: Callout; face: (id: number) => Face }) {
+/** What a moment meant to someone, in the engine's words, coloured by its tone: a feeling (rose),
+ *  warmth (sage), a mood (sky), a belief (lilac) or, rarely, a memory (amber). The reason is a
+ *  hover in Simple and written out in Advanced. */
+function Reaction({ callout, face, advanced }: { callout: Callout; face: (id: number) => Face; advanced: boolean }) {
   const who = callout.who[0]
   return (
     <>
-      <span className={`k-callout${callout.kind === 'memory' ? '' : ` k-callout--${callout.kind}`}${callout.faded ? ' is-faded' : ''}`}>
+      <span className={`k-react${callout.tone === 'feeling' ? '' : ` k-react--${callout.tone}`}${callout.faded ? ' is-faded' : ''}`}
+        title={advanced ? undefined : (callout.reason ?? undefined)}>
         {who !== undefined && <Avatar item={face(who).item} name={face(who).name} size={20} />}
-        <Icon name={CALLOUT_ICON[callout.kind]} size={13} />
+        <Icon name={REACTION_ICON[callout.tone]} size={13} />
         {callout.text}
       </span>
-      {callout.reason && <span className="ka-callout__why">{callout.reason}</span>}
+      {advanced && callout.reason && <span className="ka-callout__why">{callout.reason}</span>}
     </>
   )
 }

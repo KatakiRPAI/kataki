@@ -833,3 +833,8 @@ a.ka-event:hover { background: #fff; }
 .ka-peek .ka-muted { color: var(--k-scene-muted); }
 .ka-peek .ka-elsewhere__title { font-size: 13px; }
 .ka-peek .ka-elsewhere .k-btn { height: 26px; padding: 0 10px; font-size: 11.5px; }
+
+/* ---- reactions: how characters feel about a line, in the chat for everyone (Simple too) ---- */
+.k-react.is-faded { opacity: .45; }
+.k-react[title] { cursor: help; }
+.k-reacts .ka-callout__why { flex-basis: 100%; margin-top: 0; }

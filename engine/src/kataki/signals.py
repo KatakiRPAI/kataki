@@ -18,12 +18,15 @@ PRONOUNS = {  # subject, possessive
     "he": ("he", "His"),
     "they": ("they", "Their"),
 }
-# how an AI character's feeling about someone reads: (rel prefixes, text with {src} and {dst})
+# how an AI character's feeling about someone reads: (rel prefixes, text with {src} and {dst},
+# tone). The tone colours the reaction: warm (sage), mood (sky), or a feeling (rose).
 FEELINGS = [
-    (("distrust", "suspicious"), "{src} is suspicious of {dst}"),
-    (("trust",), "{src} trusts {dst} a little more"),
-    (("dislike", "resent", "annoyed", "angry", "hate"), "{src} didn't like that"),
-    (("like", "fond", "grateful", "warm"), "{src} warmed to {dst}"),
+    (("distrust", "suspicious"), "{src} is suspicious of {dst}", "feeling"),
+    (("trust",), "{src} trusts {dst} a little more", "warm"),
+    (("dislike", "resent", "annoyed", "angry", "hate"), "{src} didn't like that", "feeling"),
+    (("like", "fond", "grateful", "warm"), "{src} warmed to {dst}", "warm"),
+    (("glad", "happy"), "{src} is glad to see {dst}", "warm"),
+    (("worried", "afraid", "fear", "scared", "concerned"), "{src} is worried for {dst}", "mood"),
 ]
 
 
@@ -141,10 +144,11 @@ def _callouts(s: Scene) -> dict[int, list[dict]]:
         memory_id=None,
         run=None,
         gist=None,
+        tone=None,  # a memory or a belief is its own tone
     ):
         out.setdefault(message_id, []).append(
-            {"key": key, "kind": kind, "who": who, "text": text, "reason": reason, "faded": faded,
-             "memory_id": memory_id, "run": run, "gist": gist}
+            {"key": key, "kind": kind, "tone": tone or kind, "who": who, "text": text,
+             "reason": reason, "faded": faded, "memory_id": memory_id, "run": run, "gist": gist}
         )  # fmt: skip
 
     # memory: the most important thing on the line that someone will keep
@@ -216,12 +220,15 @@ def _callouts(s: Scene) -> dict[int, list[dict]]:
             continue
         rel = edge["rel"].strip().lower()
         src, dst = s.names[edge["src_id"]], s.person(edge["dst_id"])
-        if edge["ended"]:
-            text = f"{src} no longer {rel} {dst}"
-        else:
-            text = next(
-                (t for starts, t in FEELINGS if rel.startswith(starts)), "{src} {rel} {dst}"
-            ).format(src=src, dst=dst, rel=rel)
+        text, tone = next(
+            ((t, tone) for starts, t, tone in FEELINGS if rel.startswith(starts)),
+            ("{src} {rel} {dst}", "feeling"),
+        )
+        text = (
+            f"{src} no longer {rel} {dst}"
+            if edge["ended"]
+            else text.format(src=src, dst=dst, rel=rel)
+        )
         add(
             f"f{edge['id']}",
             at,
@@ -231,6 +238,7 @@ def _callouts(s: Scene) -> dict[int, list[dict]]:
             edge["note"],
             memory_id=shared and shared["id"],
             run=edge["run_id"],
+            tone=tone,
         )
     return out
 
