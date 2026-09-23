@@ -7,11 +7,11 @@
 
 ## 0. Progress
 
-- [ ] M1 · the graph from what is already recorded (§4.1, §5.1)
-- [ ] M2 · the turn's trace: why this speaker, the recall cue, timings (§4.2)
-- [ ] M3 · how she feels about you, across the story (§4.3)
-- [ ] M4 · Backstage re-laid: Mind on the left; Prompt, Cast, Engine on the right (§5.2)
-- [ ] M5 · (gated on §7.1) the Appraise step: a real inner step before the reply (§4.4)
+- [ ] Mind 1 · the graph from what is already recorded (§4.1, §5.1)
+- [ ] Mind 2 · the turn's trace: why this speaker, the recall cue, timings (§4.2)
+- [ ] Mind 3 · how she feels about you, across the story (§4.3)
+- [ ] Mind 4 · Backstage re-laid: Mind on the left; Prompt, Cast, Engine on the right (§5.2)
+- [ ] Mind 5 · (gated on §7.1) the Appraise step: a real inner step before the reply (§4.4)
 
 ## 1. What this is for
 
@@ -43,7 +43,7 @@ That rule splits the mockup in two:
 | DECIDE · Expression | yes | the face call (`messages.expression`), for characters with sprites |
 | SPOKE | yes | the reply, its model, time and tokens |
 
-The nodes marked **no** exist only if the engine gains a real step that produces them (§4.4, M5).
+The nodes marked **no** exist only if the engine gains a real step that produces them (§4.4, Mind 5).
 Until then they are simply not drawn.
 
 ## 2. What is already here
@@ -70,7 +70,7 @@ Until then they are simply not drawn.
 
 ## 4. Engine
 
-### 4.1 The mind from what is recorded (M1)
+### 4.1 The mind from what is recorded (Mind 1)
 
 `mind.py`, read-only, like `signals.py`. `GET /messages/{id}/mind` (assistant lines only, else
 404):
@@ -102,10 +102,10 @@ Until then they are simply not drawn.
   narrator's graph has no feelings; a reply with no `context_log` row (an imported story) returns
   the IN and SPOKE nodes and nothing invented.
 
-### 4.2 The turn's trace (M2)
+### 4.2 The turn's trace (Mind 2)
 
-Three facts the engine decides but throws away. Record them in `context_log.trace` (the next free migration, 9 today; the M3 image work may take it first; a
-JSON column), written in `_generate`:
+Three facts the engine decides but throws away. Record them in `context_log.trace` (a JSON column in the next free
+migration: 9 today, unless the image work takes it first), written in `_generate`:
 
 - **why this speaker**: `select_speaker` returns its reason with the id: `picked` / `named` /
   `last` / `quietest` / `narrator`. This becomes the SENSE · Attention node ("Answered because Aren
@@ -118,7 +118,7 @@ JSON column), written in `_generate`:
 
 Tests: each reason is recorded for the case that causes it; timings are present and ordered.
 
-### 4.3 How she feels about you, across the story (M3)
+### 4.3 How she feels about you, across the story (Mind 3)
 
 The design's chart shows warmth, trust and doubt as lines over story time. Edges carry no numbers,
 so the chart is **derived, and says so**: at each extraction run, per tone, count the live edges
@@ -126,10 +126,10 @@ from the speaker to the persona (warm +1, feeling −1 for warmth; trust +1, dis
 and the persona's claims she disbelieves (belief < 0.7) for doubt. The endpoint is
 `GET /stories/{id}/feelings?about={entity}&who={entity}` and returns points per run, with the
 story time and the date. Skips over a day are marked on the time axis, as the mockup marks "six
-years later". The chart's caption says "from what she has come to feel, read by memory". Once M5
+years later". The chart's caption says "from what she has come to feel, read by memory". Once Mind 5
 exists, appraisal numbers replace the counts.
 
-### 4.4 The Appraise step (M5, only if §7.1 says yes)
+### 4.4 The Appraise step (Mind 5, only if §7.1 says yes)
 
 The only honest way to get Perception, Goals and Intent is a real step that produces them and that
 the reply then *uses*:
@@ -147,7 +147,7 @@ the reply then *uses*:
 
 ## 5. UI
 
-### 5.1 The graph (M1)
+### 5.1 The graph (Mind 1)
 
 - `scene/Mind.tsx`: an SVG, four fixed columns (the mockup's 864 × ~480). Nodes are HTML cards
   positioned over the SVG. Each card shows its kind in mono caps, the weight top right, one or two
@@ -164,10 +164,10 @@ the reply then *uses*:
   that is what it does.
 - Reduced motion: no link animation. Keyboard: nodes are buttons in column order.
 
-### 5.2 Backstage re-laid (M4)
+### 5.2 Backstage re-laid (Mind 4)
 
 - Left: Mind (864 of 1392). Right, stacked: **Prompt** (unchanged), **Cast** (unchanged), and
-  **Engine · this turn** (M2's timings per job, then the memory reader's state with "Read what is
+  **Engine · this turn** (Mind 2's timings per job, then the memory reader's state with "Read what is
   waiting now", which is the old Reading panel folded in).
 - The deep link `#/story/4/backstage/29` opens the Mind on character 29. "See her memories" (from
   the profile) opens the Memory sheet directly.
@@ -179,19 +179,19 @@ the reply then *uses*:
 - A mind for the persona. You are the persona; the engine does not model you.
 - Minds for lines before this spec (no trace). They show what `context_log` has, per §4.1.
 
-## 7. Decisions needed before M1
+## 7. Decisions needed before Mind 1
 
 1. **The Appraise step (§4.4): build it, or keep the graph to what is traced?** It is the only way
    to get Perception, Goals and Intent honestly, and it changes how replies are written (for the
    better, probably: a character who has decided what she wants first writes with more intent).
-   But it costs a model call before every reply. Recommendation: build M1–M4 now, then measure M5
+   But it costs a model call before every reply. Recommendation: build Mind 1–Mind 4 now, then measure Mind 5
    on the real model before deciding.
 2. **Backstage opens on the Mind, not Memory?** The design says yes. Memory stays one click away.
    Recommendation: yes.
 3. **Derived feelings in the chart (§4.3), labelled as derived, until appraisal exists?**
-   Recommendation: yes. The alternative is no chart until M5.
+   Recommendation: yes. The alternative is no chart until Mind 5.
 
-## 8. Tasks (show first: M1 is the picture)
+## 8. Tasks (show first: Mind 1 is the picture)
 
 1. **`mind.py` + `GET /messages/{id}/mind`** from existing rows, with the tests in §4.1. Verify:
    `pytest`, then the demo's last reply returns heard, 2–3 recalls, a belief and spoke.
@@ -203,4 +203,4 @@ the reply then *uses*:
 5. **Re-lay Backstage** (§5.2): the Memory sheet, the Engine panel. Verify: the old Backstage checks
    (pin, write a memory, merge, read now) still pass through the new layout.
 6. **Measure Appraise** on qwen3.5-9b (one scripted turn, time before first token, with and
-   without) and report. Then build M5 only on a yes.
+   without) and report. Then build Mind 5 only on a yes.
