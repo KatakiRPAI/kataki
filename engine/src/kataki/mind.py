@@ -1,0 +1,190 @@
+"""How one reply came about, for Backstage's Mind graph: what the speaker heard and saw, where and
+when it was, what recall weighed and what reached the prompt, how they felt and what they
+doubted, the face they chose, and what they said.
+
+Read-only, and only what the engine recorded (docs/specs/2026-09-23-mind-graph.md): a step it
+keeps no row for is left out, never drawn with made-up numbers. "Gold" is what reached the prompt
+the reply was written from; the rest was weighed and cut. Beliefs and feelings are the ones held
+when they replied: only memory reads that had finished by then count.
+"""
+
+import json
+import math
+import sqlite3
+
+from kataki import chat, clock, db
+from kataki.signals import FEELINGS
+
+RECALLS, FEELS, BELIEFS = 4, 3, 2  # at most this many of each; the rest are counted
+
+
+def _short(text: str, n: int = 70) -> str:
+    text = " ".join(text.split())
+    return text if len(text) <= n else text[: n - 1].rstrip() + "…"
+
+
+def mind(conn: sqlite3.Connection, message_id: int) -> dict | None:
+    """The graph for one reply, or None when the message is not a reply."""
+    m = chat.get_message(conn, message_id)
+    if m is None or m["role"] != "assistant":
+        return None
+    story = conn.execute("SELECT * FROM stories WHERE id=?", (m["story_id"],)).fetchone()
+    epoch, who = story["epoch_offset_min"], m["speaker_id"]
+    names = dict(conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story["id"],)))
+    path = chat.path_to(conn, message_id)
+    nodes: list[dict] = []
+    links: list[dict] = []
+    more: dict[str, int] = {}
+
+    def node(id, column, kind, title, text, weight=None, gold=True, detail=None) -> str:
+        nodes.append({"id": id, "column": column, "kind": kind, "title": title, "text": text,
+                      "weight": weight, "gold": gold, "detail": detail})  # fmt: skip
+        return id
+
+    def link(a: str, b: str, gold: bool) -> None:
+        links.append({"from": a, "to": b, "gold": gold})
+
+    # --- IN: what reached them since they last spoke
+    before = path[:-1]
+    own = [i for i, x in enumerate(before) if who is not None and x["speaker_id"] == who]
+    since = before[own[-1] + 1 :] if own else before
+    hearing = chat.hearing(conn, path, who) if who is not None else {}
+    heard = [
+        x
+        for x in since
+        if x["role"] != "system"
+        and not x["hidden"]
+        and (hearing.get(x["id"]) == "heard" if who is not None else chat.audience_of(x) is None)
+    ]
+    cue = [
+        node(f"h{x['id']}", "in", "heard", "Heard",
+             f"{names.get(x['speaker_id'], 'Narrator')}: “{_short(x['text'], 60)}”", 1.0)
+        for x in heard[-2:]
+    ]  # fmt: skip
+    ins = list(cue)
+    if since:
+        marks = ",".join("?" * len(since))
+        for r in conn.execute(
+            f"SELECT id, entity_id, present FROM presence WHERE message_id IN ({marks})"
+            " AND entity_id IS NOT ? ORDER BY id",
+            [*(x["id"] for x in since), who],
+        ):
+            said = "came in" if r["present"] else "left"
+            ins.append(node(f"p{r['id']}", "in", "saw", "Saw", f"{names[r['entity_id']]} {said}"))
+    scene = conn.execute("SELECT place_id FROM scenes WHERE id IS ?", (m["scene_id"],)).fetchone()
+    minute = (m["story_time"] + epoch) % clock.DAY
+    part = next(p for end, p in clock.PARTS if minute < end)
+    place = names.get(scene["place_id"]) if scene else None
+    ins.append(node("place", "in", "place", "Place", f"{place or 'Nowhere named'} · {part}"))
+    moments = json.loads(story["overrides"]).get("moments", [])
+    when = clock.date(m["story_time"], epoch, moments)
+    gap = m["story_time"] - before[own[-1]]["story_time"] if own else 0
+    if gap >= clock.DAY:
+        when += f" · {clock.spell(gap).lower()} since they last spoke"
+    ins.append(node("time", "in", "time", "Time", when))
+
+    # --- INSIDE: what recall weighed, what they doubted, how they felt, who they are
+    log = conn.execute(
+        "SELECT sections, memories FROM context_log WHERE message_id=? ORDER BY id DESC LIMIT 1",
+        (message_id,),
+    ).fetchone()
+    sections = {s["name"]: s for s in json.loads(log["sections"])} if log else {}
+    recalled = json.loads(log["memories"]) if log else []
+    ranked = sorted(recalled, key=lambda r: (r["rendered"] == "dropped", -r.get("A", 0)))
+    inside: list[tuple[str, bool]] = []
+    for r in ranked[:RECALLS]:
+        row = conn.execute(
+            "SELECT detail, gist FROM memories WHERE id=?", (r["memory_id"],)
+        ).fetchone()
+        if row is None:
+            continue
+        gold = r["rendered"] != "dropped"
+        text = row["detail"] if r["rendered"] == "detail" else row["gist"]
+        detail = {k: r.get(k) for k in ("memory_id", "tier", "rendered", "A", "B", "S", "G", "imp")}
+        weight = round(1 / (1 + math.exp(-r.get("A", 0))), 2)  # activation, squashed to 0..1
+        text = f"{_short(text, 56)} · {r['tier']}"
+        nid = node(f"m{r['memory_id']}", "inside", "recall", "Recall", text, weight, gold, detail)
+        inside.append((nid, gold))
+        for h in cue:
+            link(h, nid, gold)
+    if len(recalled) > RECALLS:
+        more["recall"] = len(recalled) - RECALLS
+
+    # what they held when they replied: the reads on this branch that had finished by then
+    runs = db.live_runs(conn, story["id"], leaf_id=message_id)
+    if runs:
+        marks = ",".join("?" * len(runs))
+        runs = {r[0] for r in conn.execute(
+            f"SELECT id FROM extraction_runs WHERE id IN ({marks}) AND to_message_id < ?",
+            [*runs, message_id],
+        )}  # fmt: skip
+    live_sql, live_args = db.live_filter(runs)
+    know_sql, know_args = db.live_filter(runs, "k.run_id")
+    if who is not None:
+        doubts = 0
+        for r in ranked:
+            if r["rendered"] == "dropped" or doubts == BELIEFS:
+                continue
+            k = conn.execute(
+                "SELECT k.belief, m.gist FROM knowledge k JOIN memories m ON m.id=k.memory_id"
+                f" WHERE k.knower_id=? AND k.memory_id=? AND {know_sql} ORDER BY k.id DESC LIMIT 1",
+                [who, r["memory_id"], *know_args],
+            ).fetchone()
+            if k and k["belief"] < 0.7:
+                doubts += 1
+                b = node(f"b{r['memory_id']}", "inside", "belief", "Belief",
+                         f"Doubts it: {_short(k['gist'], 50)}", round(k["belief"], 2))  # fmt: skip
+                link(f"m{r['memory_id']}", b, True)
+                inside.append((b, True))
+
+        feelings = {}  # the latest edge to each person
+        for e in conn.execute(
+            f"SELECT * FROM edges WHERE story_id=? AND src_id=? AND {live_sql} ORDER BY id",
+            [story["id"], who, *live_args],
+        ):
+            feelings[e["dst_id"]] = e
+        shown = [e for e in feelings.values() if not e["ended"]]
+        for e in shown[:FEELS]:
+            rel = e["rel"].strip().lower()
+            tone = next((t for starts, _, t in FEELINGS if rel.startswith(starts)), "feeling")
+            other = "you" if e["dst_id"] == story["persona_entity_id"] else names[e["dst_id"]]
+            # ponytail: relationships don't reach the reply's prompt yet, so a feeling is never
+            # gold; once context.py renders them, gold = that section made the prompt
+            detail = {"tone": tone, "note": e["note"], "in_prompt": False}
+            text = f"{rel.capitalize()} {other}"
+            node(f"f{e['id']}", "inside", "feeling", "Feeling", text, gold=False, detail=detail)
+        if len(shown) > FEELS:
+            more["feeling"] = len(shown) - FEELS
+
+        card = conn.execute("SELECT description FROM entities WHERE id=?", (who,)).fetchone()
+        if card and card["description"]:
+            gold = sections.get("cards", {}).get("tokens", 0) > 0
+            first = _short(card["description"].strip().splitlines()[0], 60)
+            p = node("persona", "inside", "persona", "Persona", first, gold=gold)
+            inside.append((p, gold))
+
+    # --- DECIDE, and what they said
+    ends = "spoke"
+    if m["expression"]:
+        ends = node("face", "decide", "expression", "Expression", m["expression"])
+        link(ends, "spoke", True)
+    for nid, gold in inside:
+        if gold:
+            link(nid, ends, True)
+    for nid in ins:
+        link(nid, "spoke", True)
+    gen = json.loads(m["gen"]) if m["gen"] else {}
+    return {
+        "message_id": message_id,
+        "speaker": {"id": who, "name": names.get(who, "Narrator")},
+        "clock": clock.label(m["story_time"], epoch),
+        "date": clock.date(m["story_time"], epoch, moments),
+        "nodes": nodes,
+        "links": links,
+        "more": more,
+        "spoke": {
+            "text": m["text"],
+            "model": gen.get("model"),
+            "tokens": (gen.get("usage") or {}).get("completion_tokens"),
+        },
+    }

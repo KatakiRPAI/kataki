@@ -2,8 +2,8 @@
 
 > The last piece of the second design handoff (`docs/kataki-design/kataki-design/`, screen 14
 > `Scene-Backstage.html`). Slices 1–4 of that handoff are built (commits `0a2ffc8` … `38cfd18`).
-> This spec covers the **Mind** graph and the Backstage re-layout around it. Status: **draft,
-> waiting on the three decisions in §7.**
+> This spec covers the **Mind** graph and the Backstage re-layout around it. Status: **approved 2026-09-23** with the
+> recommendations in §7: Mind 1–4 now, Appraise measured before it is decided.
 
 ## 0. Progress
 
@@ -179,7 +179,7 @@ the reply then *uses*:
 - A mind for the persona. You are the persona; the engine does not model you.
 - Minds for lines before this spec (no trace). They show what `context_log` has, per §4.1.
 
-## 7. Decisions needed before Mind 1
+## 7. Decisions (settled 2026-09-23: all three as recommended)
 
 1. **The Appraise step (§4.4): build it, or keep the graph to what is traced?** It is the only way
    to get Perception, Goals and Intent honestly, and it changes how replies are written (for the

@@ -36,6 +36,7 @@ from kataki import (
     library,
     lore,
     media,
+    mind,
     people,
     readable,
     retrieve,
@@ -1052,6 +1053,14 @@ def create_app(
     ):
         """What the stories have signalled, newest first: memory, belief, feeling, time."""
         return signals.activity(conn, story_id, kind, limit)
+
+    @app.get("/messages/{message_id}/mind")
+    async def get_mind(message_id: int):
+        """How a reply came about, for Backstage's Mind graph: only what the engine recorded."""
+        got = mind.mind(conn, message_id)
+        if got is None:
+            raise HTTPException(404, "Only a reply has a mind to show.")
+        return got
 
     @app.get("/stories/{story_id}/signals")
     async def get_signals(story_id: int):
