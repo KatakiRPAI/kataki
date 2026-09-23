@@ -8,7 +8,7 @@
 ## 0. Progress
 
 - [x] Mind 1 · the graph from what is already recorded (§4.1, §5.1): `c25e23c` engine, then the panel; Backstage opens on it, Memory one switch away. Found: relationships never reach the reply prompt, so feelings show blue.
-- [ ] Mind 2 · the turn's trace: why this speaker, the recall cue, timings (§4.2)
+- [x] Mind 2 · the turn's trace: why this speaker, the recall cue, timings (§4.2): kept in `messages.gen.trace`, not a new column (no migration while the image work shares this checkout)
 - [ ] Mind 3 · how she feels about you, across the story (§4.3)
 - [ ] Mind 4 · Backstage re-laid: Mind on the left; Prompt, Cast, Engine on the right (§5.2)
 - [ ] Mind 5 · (gated on §7.1) the Appraise step: a real inner step before the reply (§4.4)

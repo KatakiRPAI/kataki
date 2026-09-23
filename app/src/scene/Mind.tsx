@@ -6,7 +6,7 @@ import { ErrorLine, Icon, Prose } from '../ui'
 
 const COLUMNS: [MindNode['column'], string, string][] = [
   ['in', 'IN', 'Nothing reached them.'],
-  ['sense', 'SENSE', 'Nothing recorded yet: why they answered and what recall searched with come next.'],
+  ['sense', 'SENSE', 'Not recorded for this reply: it was written before the engine kept why they answered.'],
   ['inside', 'INSIDE', 'No prompt was logged for this reply.'],
   ['decide', 'DECIDE', 'No face was chosen: they have no expressions yet.'],
 ]
@@ -117,7 +117,7 @@ export default function Mind({ story, cast, tick, swap }: { story: Story; cast: 
           <div className="ka-mind__spoke">
             <span className="ka-mind__label">SPOKE</span>
             <span className="ka-mind__said"><Prose text={mind.spoke.text} /></span>
-            <span className="ka-bs-muted">{[mind.spoke.model, mind.spoke.tokens && `${mind.spoke.tokens} tok`].filter(Boolean).join(' · ')}</span>
+            <span className="ka-bs-muted">{[mind.spoke.model, mind.spoke.ms && `${(mind.spoke.ms / 1000).toFixed(1)} s`, mind.spoke.tokens && `${mind.spoke.tokens} tok`].filter(Boolean).join(' · ')}</span>
           </div>
           <p className="ka-bs-muted ka-mind__foot">
             Gold is what reached the prompt this reply was written from; blue was weighed and cut. Click any part to see what went into it.

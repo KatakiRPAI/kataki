@@ -509,7 +509,7 @@ export async function stream(
 export type MindNode = {
   id: string
   column: 'in' | 'sense' | 'inside' | 'decide'
-  kind: 'heard' | 'saw' | 'place' | 'time' | 'recall' | 'belief' | 'feeling' | 'persona' | 'expression'
+  kind: 'heard' | 'saw' | 'place' | 'time' | 'attention' | 'cue' | 'recall' | 'belief' | 'feeling' | 'persona' | 'expression'
   title: string
   text: string
   weight: number | null
@@ -524,5 +524,5 @@ export type Mind = {
   nodes: MindNode[]
   links: { from: string; to: string; gold: boolean }[]
   more: { recall?: number; feeling?: number }
-  spoke: { text: string; model: string | null; tokens: number | null }
+  spoke: { text: string; model: string | null; tokens: number | null; ms: number | null; timings: Record<string, number> }
 }

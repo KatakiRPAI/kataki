@@ -112,3 +112,25 @@ def test_the_narrator_has_no_feelings_or_persona_and_an_unlogged_reply_invents_n
     }  # no log row: nothing inside, nothing decided
     assert graph["spoke"]["text"] == "Rain lashes the windows."
     assert mind.mind(conn, line(conn, story, "Thanks.")) is None  # your line has no mind
+
+
+def test_why_they_answered_and_what_recall_searched_with_sit_between_heard_and_recall(conn, story):
+    secret = line(conn, story, "Mira, the ledger is under the third floorboard.")
+    read(conn, story, secret, secret, [ledger(conn, 1)])
+    kept = memory_id(conn, DETAIL)
+    answer = reply(conn, story, "*nods*", recalled=[
+        {"memory_id": kept, "tier": "sharp", "rendered": "detail", "A": 1.0},
+    ])  # fmt: skip
+    ms = {"prompt": 3, "recall": 40, "first_token": 300, "reply": 900, "total": 950}
+    trace = {"why": "named", "cue": "Mira, the ledger is under the third floorboard.", "ms": ms}
+    with conn:
+        conn.execute("UPDATE messages SET gen=? WHERE id=?", (json.dumps({"trace": trace}), answer))
+    graph = mind.mind(conn, answer)
+    [why] = kinds(graph, "attention")
+    [cue] = kinds(graph, "cue")
+    heard = kinds(graph, "heard")[0]["id"]
+    assert why["text"] == "Aren named Mira" and why["column"] == "sense"
+    assert {"from": heard, "to": cue["id"], "gold": True} in graph["links"]
+    assert {"from": cue["id"], "to": f"m{kept}", "gold": True} in graph["links"]
+    assert not any(x["from"] == heard and x["to"] == f"m{kept}" for x in graph["links"])
+    assert graph["spoke"]["ms"] == 950

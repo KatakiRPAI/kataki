@@ -54,28 +54,34 @@ def _addressed(conn: sqlite3.Connection, text: str, ids: list[int]) -> int | Non
 
 
 def select_speaker(conn: sqlite3.Connection, story_id: int, requested=None) -> int | None:
-    """Who replies (None = the narrator). The UI's pick wins; else, among those who heard the
-    user's line, whoever it addresses, else whoever spoke last. With no user line pending, or
-    one nobody heard (a thought), the quietest character speaks, so continuing lets a group
-    take turns. No model call."""
+    """Who replies (None = the narrator). See `speaker_why`."""
+    return speaker_why(conn, story_id, requested)[0]
+
+
+def speaker_why(conn: sqlite3.Connection, story_id: int, requested=None) -> tuple[int | None, str]:
+    """Who replies (None = the narrator), and why: the UI's pick wins ("picked", "narrator");
+    else, among those who heard the user's line, whoever it addresses ("named"), else whoever
+    spoke last ("last"). With no user line pending, or one nobody heard (a thought), the
+    quietest character speaks ("quietest"), so continuing lets a group take turns; with no one
+    here, the narrator ("alone"). No model call."""
     if requested == NARRATOR:
-        return None
+        return None, "narrator"
     if isinstance(requested, int):
-        return requested
+        return requested, "picked"
     path = chat.active_path(conn, story_id)
     ids = [e["id"] for e in _cast(conn, story_id, path)]
     if not ids:
-        return None
+        return None, "alone"
     if path and path[-1]["role"] == "user":
         pending = path[-1]["id"]
         hearers = [e for e in ids if pending in chat.heard_by(conn, path, e)]
         if hearers:
             if named := _addressed(conn, path[-1]["text"], hearers):
-                return named
+                return named, "named"
             last = (m["speaker_id"] for m in reversed(path) if m["role"] == "assistant")
-            return next((s for s in last if s in hearers), hearers[0])
+            return next((s for s in last if s in hearers), hearers[0]), "last"
     spoke_at = {m["speaker_id"]: i for i, m in enumerate(path) if m["role"] == "assistant"}
-    return min(ids, key=lambda e: spoke_at.get(e, -1))
+    return min(ids, key=lambda e: spoke_at.get(e, -1)), "quietest"
 
 
 def _pressed(conn: sqlite3.Connection, story_id: int, speaker_id: int) -> set[int]:
@@ -198,7 +204,10 @@ async def _generate(
     parent_id: int | None,
     speaker_id: int | None,
     get_key: Callable[[str], str | None],
+    why: str = "picked",  # why this speaker (speaker_why), kept for Backstage's Mind
 ) -> AsyncIterator[Event]:
+    began = time.monotonic()
+    ms = lambda since: round(1000 * (time.monotonic() - since))  # noqa: E731
     await _read_past_before_skip(conn, llm, story_id, get_key)
     role = "rp" if speaker_id is not None else "narrator"
     ep = roles.resolve(conn, role, story_id, get_key)
@@ -211,11 +220,16 @@ async def _generate(
         conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)).fetchall()
     )
 
+    trace: dict = {"why": why, "ms": {}}
+    at = time.monotonic()
     built = context.build(conn, story_id, speaker_id, ep, leaf_id=parent_id)
+    trace["ms"]["prompt"] = ms(at)
     built_recalled: list = []
     if speaker_id is not None:
         heard = chat.heard_by(conn, path, speaker_id)  # a whisper to someone else cues nothing
         recent = "\n".join(m["text"] for m in [m for m in path if m["id"] in heard][-2:])
+        trace["cue"] = recent[-600:]  # what recall searched with
+        at = time.monotonic()
         recalled = retrieve.recall(
             conn,
             story_id,
@@ -226,8 +240,11 @@ async def _generate(
             leaf_id=parent_id,
             vector_ranks=await embed.ranks_for(conn, llm, story_id, recent, get_key),
         )
+        trace["ms"]["recall"] = ms(at)
         if recalled:
+            at = time.monotonic()
             built = context.build(conn, story_id, speaker_id, ep, recalled, leaf_id=parent_id)
+            trace["ms"]["prompt"] += ms(at)
             built_recalled = list(recalled)
     log_id = context.log(conn, story_id, None, speaker_id, built)
 
@@ -268,6 +285,7 @@ async def _generate(
     prefix = _Prefix(name or "Narrator")
     finish, error, message_id, text, skip = "stopped", None, None, "", 0
     first_thought = first_token = None  # for think_ms: from the first thought to the first word
+    asked = time.monotonic()
     try:
         stream = llm.chat_stream(ep, built.messages, stop=stops, max_tokens=built.response_reserve)
         async with aclosing(stream) as stream:
@@ -303,6 +321,11 @@ async def _generate(
             }
             if first_thought:  # stopped mid-thought: the thinking ran until now
                 gen["think_ms"] = round(1000 * ((first_token or time.monotonic()) - first_thought))
+            if first_token:
+                trace["ms"]["first_token"] = round(1000 * (first_token - asked))
+            trace["ms"]["reply"] = ms(asked)
+            trace["ms"]["total"] = ms(began)
+            gen["trace"] = trace
             message_id = chat.add_child(
                 conn, story_id, parent_id, "assistant", text, speaker_id, skip, gen
             )
@@ -319,9 +342,16 @@ async def _generate(
         now = chat.get_message(conn, message_id)["story_time"]
         face = None  # the reply is already on screen; its face follows a moment later
         if speaker_id is not None:
+            at = time.monotonic()
             face = await _expression(
                 conn, llm, story_id, speaker_id, message_id, name, text, get_key
             )
+            if face:  # the face call's time joins the trace
+                with conn:
+                    conn.execute(
+                        "UPDATE messages SET gen=json_set(gen, '$.trace.ms.face', ?) WHERE id=?",
+                        (ms(at), message_id),
+                    )
         yield (
             "done",
             {
@@ -400,9 +430,9 @@ async def turn(
     except ValueError as e:
         yield ("error", {"message": str(e)})
         return
-    speaker_id = select_speaker(conn, story_id, speaker)
+    speaker_id, why = speaker_why(conn, story_id, speaker)
     parent = _story(conn, story_id)["active_leaf_id"]
-    async with aclosing(_generate(conn, llm, story_id, parent, speaker_id, get_key)) as events:
+    async with aclosing(_generate(conn, llm, story_id, parent, speaker_id, get_key, why)) as events:
         async for event in events:
             yield event
 
@@ -423,7 +453,7 @@ async def regenerate(
         yield ("error", {"message": "The opening line can't be regenerated. Edit it instead."})
         return
     async with aclosing(
-        _generate(conn, llm, story_id, leaf["parent_id"], leaf["speaker_id"], get_key)
+        _generate(conn, llm, story_id, leaf["parent_id"], leaf["speaker_id"], get_key, "retake")
     ) as events:
         async for event in events:
             yield event
@@ -448,8 +478,7 @@ async def rewrite(
         return
     take = chat.append_sibling(conn, message_id, text.strip())
     chat.set_leaf(conn, story_id, take)
-    async with aclosing(
-        _generate(conn, llm, story_id, take, select_speaker(conn, story_id), get_key)
-    ) as events:
+    speaker_id, why = speaker_why(conn, story_id)
+    async with aclosing(_generate(conn, llm, story_id, take, speaker_id, get_key, why)) as events:
         async for event in events:
             yield event

@@ -16,6 +16,15 @@ from kataki import chat, clock, db
 from kataki.signals import FEELINGS
 
 RECALLS, FEELS, BELIEFS = 4, 3, 2  # at most this many of each; the rest are counted
+WHY = {  # why this speaker answered (turns.speaker_why), in words
+    "picked": "You picked {who} to answer",
+    "named": "{by} named {who}",
+    "last": "{who} spoke last of those who heard",
+    "quietest": "Nothing waiting: {who}, the quietest here",
+    "retake": "Another take on {who}'s reply",
+    "narrator": "You asked the narrator",
+    "alone": "No one here but the narrator",
+}
 
 
 def _short(text: str, n: int = 70) -> str:
@@ -82,6 +91,21 @@ def mind(conn: sqlite3.Connection, message_id: int) -> dict | None:
     if gap >= clock.DAY:
         when += f" · {clock.spell(gap).lower()} since they last spoke"
     ins.append(node("time", "in", "time", "Time", when))
+
+    # --- SENSE: why they answered and what recall searched with (recorded since 2026-09-23)
+    gen = json.loads(m["gen"]) if m["gen"] else {}
+    trace = gen.get("trace") or {}
+    if why := trace.get("why"):
+        by = names.get(heard[-1]["speaker_id"], "You") if heard else "You"
+        text = WHY.get(why, why).format(who=names.get(who, "the narrator"), by=by)
+        attention = node("why", "sense", "attention", "Attention", text)
+        if why in ("named", "last") and cue:
+            link(cue[-1], attention, True)
+    if trace.get("cue"):
+        searched = node("cue", "sense", "cue", "Cue", f"“{_short(trace['cue'], 60)}”")
+        for h in cue:
+            link(h, searched, True)
+        cue = [searched]  # recall hangs off what it searched with
 
     # --- INSIDE: what recall weighed, what they doubted, how they felt, who they are
     log = conn.execute(
@@ -174,7 +198,6 @@ def mind(conn: sqlite3.Connection, message_id: int) -> dict | None:
             link(nid, ends, True)
     for nid in ins:
         link(nid, "spoke", True)
-    gen = json.loads(m["gen"]) if m["gen"] else {}
     return {
         "message_id": message_id,
         "speaker": {"id": who, "name": names.get(who, "Narrator")},
@@ -187,5 +210,7 @@ def mind(conn: sqlite3.Connection, message_id: int) -> dict | None:
             "text": m["text"],
             "model": gen.get("model"),
             "tokens": (gen.get("usage") or {}).get("completion_tokens"),
+            "ms": (trace.get("ms") or {}).get("total"),
+            "timings": trace.get("ms") or {},
         },
     }

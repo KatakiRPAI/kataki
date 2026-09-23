@@ -135,6 +135,24 @@ async def test_continuing_without_a_line_lets_the_quietest_character_speak(conn,
     assert path(conn, story)[-1][1] == eid(conn, "Tobin")
 
 
+async def test_a_reply_keeps_why_its_speaker_answered_what_recall_searched_with_and_timings(
+    conn, story, backend
+):
+    backend.say("Yes?", "Evening.", "Tobin speaks.", "Rain.")
+    trace = lambda: json.loads(chat.active_path(conn, story)[-1]["gen"])["trace"]  # noqa: E731
+    await play(turns.turn(conn, backend.llm, story, "Mira, a word?"))
+    got = trace()
+    assert (got["why"], got["cue"]) == ("named", "Mira, a word?")
+    assert {"prompt", "recall", "first_token", "reply", "total"} <= set(got["ms"])
+    assert got["ms"]["first_token"] <= got["ms"]["reply"] <= got["ms"]["total"]
+    await play(turns.turn(conn, backend.llm, story, "Anyone?"))
+    assert trace()["why"] == "last"  # nobody named: whoever spoke last among those who heard
+    await play(turns.turn(conn, backend.llm, story))
+    assert trace()["why"] == "quietest"
+    await play(turns.turn(conn, backend.llm, story, "Tobin?", speaker=eid(conn, "Mira")))
+    assert trace()["why"] == "picked"
+
+
 async def test_the_narrator_speaks_for_no_one_and_uses_its_own_role(conn, story, backend):
     conn.execute("INSERT INTO model_roles(role, provider_id, model) VALUES('narrator', 1, 'prose')")
     backend.say("Rain hammers the shutters.")
