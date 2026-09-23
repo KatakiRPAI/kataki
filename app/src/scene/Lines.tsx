@@ -17,17 +17,6 @@ function later(minutes: number): string {
   return `${count} ${unit}${n === 1 ? '' : 's'} later`
 }
 
-// Clock labels are "Day 3, 14:20" or "Year 7, Day 1, 09:30".
-const dayOf = (clock: string) => clock.slice(0, -7)
-const timeOf = (clock: string) => clock.slice(-5)
-
-/** Where a skip lands, at the scale of the skip: "Year 7", "Day 3" or "14:20". */
-function landing(minutes: number, clock: string) {
-  if (minutes >= YEAR) return clock.startsWith('Year') ? clock.split(', ')[0] : 'Year 1'
-  return minutes >= 1440 ? dayOf(clock) : timeOf(clock)
-}
-
-
 const unmark = (text: string) => text.replace(/^—\s*|\s*—$/g, '')
 
 function names(ids: number[], cast: Cast) {
@@ -116,7 +105,7 @@ export default function Lines({ story, messages, cast, signals, chapters, flash,
     if (m.skip_minutes > 0)
       out.push(
         <Card key={`skip-${m.id}`} id={marker}>
-          {later(m.skip_minutes)} · {landing(m.skip_minutes, m.clock)}
+          {later(m.skip_minutes)}
           <button type="button" className="ka-card-undo" onClick={() => undoSkip(m, skipOnly)}>
             <Icon name="undo" size={11} />
             Undo
@@ -564,20 +553,23 @@ export function TimeSkip({ title, minutes, from, to, report, leaving, onUndo, on
       onClick={onClose} onFocus={onHold}>
       <img className="ka-timeskip__clouds" src={clouds} alt="" />
       <img className="ka-timeskip__clouds ka-timeskip__clouds--far" src={clouds} alt="" />
-      <div className="ka-timeskip__text">
+      {/* opaque, as the design has it: nothing shows through the words */}
+      <div className="k-timeskip__card ka-timeskip__card">
         <span className="ka-timeskip__story">{title}</span>
         <h2>{later(minutes)}</h2>
-        <div className="ka-timeskip__clocks">
-          <span className="k-sr">was </span>
-          <s>{from}</s>
-          <Icon name="right" size={16} />
-          <span className="k-sr">now </span>
-          <strong>{to}</strong>
-        </div>
-        {report && <div className="ka-timeskip__report">{report}</div>}
+        {from !== to && ( // a week within "six years after the storm" says nothing new
+          <div className="ka-timeskip__clocks">
+            <span className="k-sr">was </span>
+            <span>{from}</span>
+            <Icon name="right" size={16} />
+            <span className="k-sr">now </span>
+            <strong>{to}</strong>
+          </div>
+        )}
+        {report && <p className="ka-timeskip__report">{report}</p>}
         <button type="button" ref={undo} className="ka-timeskip__undo" onClick={(e) => { e.stopPropagation(); onUndo() }}>
           <Icon name="undo" size={15} />
-          Undo the time skip
+          Undo
         </button>
       </div>
     </div>

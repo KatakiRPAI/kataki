@@ -308,6 +308,7 @@ async def test_passing_time_then_continuing_writes_a_marker_and_meta_says_how_fa
     meta = events[0][1]
     assert meta["skip"] == 6 * 365 * 24 * 60 == 3_153_600
     assert (meta["from_clock"], meta["clock"]) == ("Day 1, 08:02", "Year 7, Day 1, 08:04")
+    assert (meta["from_date"], meta["date"]) == ("Day 1", "Year 7, Day 1")
     marker = chat.active_path(conn, story)[-2]
     assert (marker["role"], marker["text"], marker["skip_minutes"]) == (
         "system",

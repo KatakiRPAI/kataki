@@ -724,10 +724,8 @@ a.ka-event:hover { background: #fff; }
 /* two big cloud layers, as the mockup places them: one over the top, one rising from below */
 .ka-timeskip__clouds { position: absolute; left: -14%; top: -29%; width: 128%; height: 128%; opacity: .95; pointer-events: none; }
 .ka-timeskip__clouds--far { left: -8%; top: 20%; width: 118%; height: 118%; opacity: .9; transform: scaleX(-1); }
-.ka-timeskip__text { position: relative; max-width: 660px; display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center; }
 .ka-timeskip__story { font-size: 12px; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; color: #5a5068; }
 .ka-timeskip__clocks { display: flex; align-items: center; gap: 14px; font-size: 16px; font-variant-numeric: tabular-nums; }
-.ka-timeskip__clocks s { color: #6a6078; }
 .ka-timeskip__report { padding: 10px 16px; border-radius: 16px; background: rgba(255,255,255,.6); border: 1px solid rgba(255,255,255,.9); font-size: 14px; color: #3a3346; }
 .ka-timeskip__undo { height: 44px; padding: 0 20px; border-radius: 22px; border: 1px solid rgba(42,34,48,.25); background: rgba(255,255,255,.7); color: #2a2230; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
 @keyframes ka-mist { from { opacity: 0; } }
@@ -974,3 +972,9 @@ a.ka-event:hover { background: #fff; }
 .ka-lib__fieldset { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; border: 0; }
 .ka-lib__fieldset > legend { margin-bottom: 8px; font: 700 13px var(--k-font-ui); }
 @media (max-width: 1320px) { .ka-lib { grid-template-columns: 240px minmax(0, 1fr); } .ka-lib__search { display: none; } }
+
+/* the time skip, readable: an opaque white card over the mist (the second handoff) */
+.ka-timeskip__card { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.ka-timeskip__card .ka-timeskip__clocks { color: #5a5068; } .ka-timeskip__card .ka-timeskip__clocks strong { color: #1f1a2b; }
+.ka-timeskip__card .ka-timeskip__report { margin: 0; padding: 0; background: none; border: 0; }
+.ka-timeskip__card .ka-timeskip__undo { border: 0; background: #1f1a2b; color: #fff; }

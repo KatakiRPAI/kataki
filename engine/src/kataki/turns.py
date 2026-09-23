@@ -253,6 +253,7 @@ async def _generate(
     then = parent["story_time"] if parent else 0  # the clock of the line being answered
     jump = parent["skip_minutes"] if parent else 0
     epoch = story["epoch_offset_min"]
+    moments = json.loads(story["overrides"]).get("moments", [])
     yield (
         "meta",
         {
@@ -265,6 +266,9 @@ async def _generate(
             "skip": jump,
             "from_clock": clock.label(then - jump, epoch),
             "clock": clock.label(then + story["minutes_per_turn"], epoch),
+            # the same two in the story's own words, for the time-skip card
+            "from_date": clock.date(then - jump, epoch, moments),
+            "date": clock.date(then + story["minutes_per_turn"], epoch, moments),
             # an effortful recall was rolled: the UI says "trying to remember"
             "strained": any(m.breakdown.get("effortful") is not None for m in built_recalled),
             "context": {
@@ -359,6 +363,7 @@ async def _generate(
                 "text": text,
                 "skip_minutes": skip,
                 "clock": clock.label(now, story["epoch_offset_min"]),
+                "date": clock.date(now, story["epoch_offset_min"], moments),
                 "usage": done.get("usage"),
                 "expression": face,
             },

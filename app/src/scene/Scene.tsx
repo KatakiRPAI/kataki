@@ -189,7 +189,7 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
     })
 
   const generate = async (path: string, body: object, replacing?: number, rewriting?: number) => {
-    const was = { clock: data?.story.clock ?? '' } // the clock before this turn, for a skip the reply itself takes
+    const was = { date: data?.story.date ?? '' } // the date before this turn, for a skip the reply itself takes
     const ctl = new AbortController()
     controller.current = ctl
     setLive({ speaker: '', speakerId: null, text: '', thoughts: '', strained: false, replacing, rewriting })
@@ -199,9 +199,9 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
           const meta = value as TurnMeta
           setLive((l) => l && { ...l, speaker: meta.speaker?.name ?? 'The narrator', speakerId: meta.speaker?.id ?? null, strained: meta.strained, clock: meta.clock, from: meta.from_clock })
           setMeter(meterOf(meta.context.est_tokens, meta.context.budget, meta.context.recalled))
-          beforeReply.current = meta.clock
+          beforeReply.current = meta.date
           if (!replacing && !rewriting && meta.skip >= 1440 && meta.parent_id) {
-            playSkip(meta.skip, meta.from_clock, meta.clock, meta.parent_id)
+            playSkip(meta.skip, meta.from_date, meta.date, meta.parent_id)
           }
         } else if (kind === 'thought') {
           setLive((l) => l && { ...l, thoughts: l.thoughts + value, thoughtAt: l.thoughtAt ?? performance.now() })
@@ -210,7 +210,7 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
         } else if (kind === 'done') {
           const done = value as TurnDone
           // the reply's own narration moved the clock: it starts from where the reply began
-          if (done.skip_minutes >= 1440) playSkip(done.skip_minutes, beforeReply.current || was.clock, done.clock, done.message_id)
+          if (done.skip_minutes >= 1440) playSkip(done.skip_minutes, beforeReply.current || was.date, done.date, done.message_id)
         } else if (kind === 'error') {
           setFailed(value.message)
         }
@@ -230,11 +230,11 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
     setFailed('')
     if (s.text) setSaid({ text: s.text, audience: s.audience, narrate: s.narrate })
     if (s.reply) return generate(`/stories/${id}/turn`, { text: s.text, speaker: s.speaker, audience: s.audience, skip: s.skip, narrate: s.narrate })
-    const before = data?.story.clock ?? ''
+    const before = data?.story.date ?? ''
     try {
       const after = await api<Message[]>(`/stories/${id}/line`, 'POST', { text: s.text, audience: s.audience, skip: s.skip, narrate: s.narrate })
       const last = after.at(-1)
-      if (last && last.skip_minutes >= 1440) playSkip(last.skip_minutes, before, last.clock, last.id)
+      if (last && last.skip_minutes >= 1440) playSkip(last.skip_minutes, before, last.date, last.id)
     } catch (e) {
       setFailed((e as Error).message)
     }

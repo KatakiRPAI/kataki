@@ -380,6 +380,8 @@ export type TurnMeta = {
   skip: number // minutes that passed just before this reply
   from_clock: string
   clock: string // the reply's
+  from_date: string // the same two in the story's own words
+  date: string
   strained: boolean // the speaker had to reach for a memory
   context: { est_tokens: number; budget: number; reserve: number; sections: Section[]; recalled: number }
 }
@@ -421,6 +423,7 @@ export type TurnDone = {
   text: string
   skip_minutes: number
   clock: string
+  date: string
   usage: Record<string, number> | null
 }
 export type TurnError = { message: string; message_id?: number }
