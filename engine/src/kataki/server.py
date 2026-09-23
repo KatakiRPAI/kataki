@@ -88,6 +88,10 @@ class DrawIn(BaseModel):
     provider: str | None = None  # None: the first HF provider that serves the model
 
 
+class PickIn(BaseModel):
+    name: str  # a media name from the item's history
+
+
 class LookIn(BaseModel):
     expressions: list[str] | None = None  # None: all five
     provider: str | None = None  # for the edits; the cutout has one provider
@@ -597,8 +601,24 @@ def create_app(
         finally:
             await client.aclose()
         library.update_item(
-            conn, item_id, data={**item["data"], ("image" if place else "portrait"): name}
+            conn,
+            item_id,
+            data=images.with_picture(item["data"], "image" if place else "portrait", name),
         )
+        return library.get_item(conn, item_id)
+
+    @app.post("/library/{item_id}/picture")
+    async def pick_picture(item_id: int, p: PickIn):
+        """Go back to an earlier picture: free, no model. The current one joins the history,
+        and a character gets back the expressions made from the picture they return to."""
+        item = await get_item(item_id)
+        key = "image" if item["kind"] == "place" else "portrait"
+        if p.name not in item["data"].get("history", []):
+            raise HTTPException(422, "that picture is not one of this item's earlier pictures")
+        data = images.with_picture(item["data"], key, p.name)
+        if pack := (data.get("packs") or {}).get(p.name):
+            data["pack"] = pack
+        library.update_item(conn, item_id, data=data)
         return library.get_item(conn, item_id)
 
     @app.post("/library/{item_id}/look")
@@ -645,7 +665,9 @@ def create_app(
                 sprites[expression] = result
         if sprites:
             pack = {"from": sheet, "sprites": sprites}
-            library.update_item(conn, item_id, data={**item["data"], "pack": pack})
+            # kept per picture too, so going back to an earlier picture brings its faces back
+            packs = {**(item["data"].get("packs") or {}), sheet: pack}
+            library.update_item(conn, item_id, data={**item["data"], "pack": pack, "packs": packs})
         return {"item": library.get_item(conn, item_id), "failed": failed}
 
     # --- media: portraits and place images ------------------------------------------------

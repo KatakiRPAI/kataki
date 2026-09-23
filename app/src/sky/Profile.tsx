@@ -6,6 +6,7 @@ import { Candy, ErrorLine, Glass, Icon, Menu, PictureTrouble, pictureFailure, Pr
 import Elsewhere from './Elsewhere'
 import { status, storiesWith } from './Friends'
 import NewChat, { type Preset } from './NewChat'
+import { EarlierPictures } from './Places'
 
 const HER = { she: 'her', he: 'his', they: 'their' }
 
@@ -159,6 +160,7 @@ function Look({ item }: { item: Item }) {
       {stale && <span className="ka-small">These were made from an earlier picture. Remake them to match the new one.</span>}
       <ErrorLine error={error} />
       {drawFailed && <PictureTrouble failure={drawFailed} busy={busy} onRetry={draw} />}
+      <span className="ka-row ka-row--gap"><EarlierPictures item={item} /></span>
       {(pack || Object.values(failed).some(Boolean)) && (
         <div className="ka-look">
           {EXPRESSIONS.map((e) => {

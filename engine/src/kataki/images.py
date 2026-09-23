@@ -32,14 +32,18 @@ PLACE_SIZE = (1536, 864)
 # Z-Image-Turbo takes every word literally and ignores "no": "no people" and "do not draw the
 # name" put people and a sign reading "The Gull" into the picture, and "stage backdrop" drew a
 # theatre stage. So the prompt only ever says what to draw (docs/images/findings.md).
+# No era is named: the place's own words set the world. "Medieval fantasy" here turned "the
+# inside of a black SUV" into a wreck in a desert.
 PLACE = (
-    "Medieval fantasy concept art, realistic painterly environment painting. {empty}. {what}. "
+    "Realistic painterly environment art, cinematic. {empty}. {what}. "
     "Eye level, wide angle, {light}, rich detail."
 )
 # ponytail: a word list decides inside or out; a place-kind field if it guesses wrong too often
 INDOORS = re.compile(
-    r"\b(tavern|inn|room|hall|shop|house|home|library|chamber|cellar|kitchen|temple|church|"
-    r"chapel|cabin|study|bar|pub|hut|bedroom|attic|workshop|dungeon|throne|parlou?r|salon)s?\b",
+    r"\b(interior|inside|indoors?|tavern|inn|room|hall|shop|house|home|library|chamber|cellar|"
+    r"kitchen|temple|church|chapel|cabin|study|bar|pub|hut|bedroom|attic|workshop|dungeon|"
+    r"throne|parlou?r|salon|office|classroom|corridor|hallway|lobby|apartment|dorm|bathroom|"
+    r"car|suv|van|truck|limo|limousine|vehicle|carriage|train|cockpit)s?\b",
     re.I,
 )
 
@@ -48,7 +52,7 @@ def place_prompt(item: dict) -> str:
     """The name is never in the prompt: a place called "The Gull" would come with a gull."""
     what = item["description"].strip().rstrip(".") or item["name"].strip()
     if INDOORS.search(f"{item['name']} {what}"):
-        empty, light = "An unoccupied, empty room, interior view", "warm lantern light"
+        empty, light = "An empty interior, seen from inside", "soft interior light"
     else:
         empty, light = "A deserted, unoccupied place", "natural light"
     return PLACE.format(empty=empty, what=what, light=light)
@@ -58,11 +62,11 @@ def place_prompt(item: dict) -> str:
 
 PORTRAIT_SIZE = (768, 1024)
 ADULT = {"she": "an adult woman", "he": "an adult man"}  # anyone else: "an adult"
-# the setting is said outright: "Guild courier" alone came out in a baseball cap
+# the character's own words set their world and clothes; "courier" alone drew a baseball cap,
+# and "medieval fantasy" here would dress a modern royal driver in armour
 PORTRAIT = (
-    "Character portrait, detailed digital illustration of a character from a medieval fantasy "
-    "world, in period clothing. {who}: {what}. Waist-up, facing the viewer, plain flat light "
-    "grey background, soft even light."
+    "Character portrait, detailed digital illustration. {who}: {what}. Waist-up, facing the "
+    "viewer, plain flat light grey background, soft even light."
 )
 # the sheet is always the source, never another sprite (M3 spec §1 rule 1)
 SPRITE = (
@@ -93,8 +97,11 @@ MINOR_SAID = (
 
 
 def minor(item: dict) -> bool:
+    looks = item.get("data", {}).get("looks") or ""
     return bool(
-        MINOR.search(" ".join((item["name"], item["description"], item.get("private") or "")))
+        MINOR.search(
+            " ".join((item["name"], looks, item["description"], item.get("private") or ""))
+        )
     )
 
 
@@ -103,8 +110,23 @@ def adult(item: dict) -> str:
 
 
 def portrait_prompt(item: dict) -> str:
-    what = item["description"].strip().rstrip(".") or "an ordinary person"
+    """What others see comes first: it is the look; who they are fills in the rest."""
+    parts = (item["data"].get("looks") or "", item["description"])
+    what = ". ".join(p.strip().rstrip(".") for p in parts if p.strip()) or "an ordinary person"
     return PORTRAIT.format(who=adult(item)[0].upper() + adult(item)[1:], what=what)
+
+
+HISTORY = 12  # earlier pictures kept to go back to, newest first
+
+
+def with_picture(data: dict, key: str, name: str) -> dict:
+    """`data` with `name` as its picture (`portrait` or `image`) and the one it replaces kept
+    in `history`, so a redraw never loses a picture you liked. Expression packs of pictures
+    no longer kept are let go."""
+    old = data.get(key)
+    history = [n for n in [old, *data.get("history", [])] if n and n != name][:HISTORY]
+    packs = {k: v for k, v in (data.get("packs") or {}).items() if k in {name, *history}}
+    return {**data, key: name, "history": history, **({"packs": packs} if packs else {})}
 
 
 def sprite_prompt(item: dict, expression: str) -> str:

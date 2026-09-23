@@ -46,6 +46,8 @@ export type ItemData = {
   looks?: string // what anyone can see of them; the description stays their own
   image?: string // media name (places)
   pack?: Pack // sprites made from the portrait (characters)
+  history?: string[] // earlier pictures (portrait or image), newest first, to go back to
+  packs?: Record<string, Pack> // the sprites made from each kept portrait
   links?: { book?: number; stories?: number[]; characters?: number[] } // places and plots, filed by hand
 }
 

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { api, upload, type Book, type Item, type PictureFailure, type RoleRow, type StorySummary } from '../api'
+import { api, mediaUrl, upload, type Book, type Item, type PictureFailure, type RoleRow, type StorySummary } from '../api'
 import { Avatar, AvatarStack, MIDDAY, Room } from '../art'
 import { dive, href, useAction, useLibrary, useLoad } from '../hooks'
 import { Candy, Dialog, ErrorLine, Field, Icon, Menu, PictureTrouble, pictureFailure, SkyHeader } from '../ui'
@@ -107,6 +107,42 @@ function ItemDialog({ open, kind, item, onClose }: { open: boolean; kind: Kind; 
 }
 
 /** Draw a place's background through the Pictures job: one click, one paid picture, no retries. */
+/** Earlier pictures of a place or a character: every redraw keeps the one it replaced, and one
+ *  click goes back to it (free: no model is asked). A character gets back the expressions made
+ *  from it too. */
+export function EarlierPictures({ item }: { item: Item }) {
+  const { reload } = useLibrary()
+  const [open, setOpen] = useState(false)
+  const [run, error, busy] = useAction()
+  const earlier = item.data.history ?? []
+  if (!earlier.length) return null
+  const pick = (name: string) => run(async () => {
+    await api(`/library/${item.id}/picture`, 'POST', { name })
+    reload()
+    setOpen(false)
+  })
+  return (
+    <>
+      <button type="button" className="k-btn k-btn--ghost k-btn--sm" onClick={() => setOpen(true)}>
+        <Icon name="undo" size={14} />
+        Earlier ({earlier.length})
+      </button>
+      <Dialog open={open} onClose={() => setOpen(false)} title={`Earlier pictures of ${item.name}`}>
+        <p className="ka-muted ka-small">Pick one to use it again. The current one stays here too.</p>
+        <div className="ka-earlier">
+          {earlier.map((name) => (
+            <button key={name} type="button" className="ka-earlier__pick" disabled={busy} onClick={() => pick(name)}
+              aria-label={`Use this earlier picture of ${item.name}`}>
+              <img src={mediaUrl(name)} alt="" />
+            </button>
+          ))}
+        </div>
+        <ErrorLine error={error} />
+      </Dialog>
+    </>
+  )
+}
+
 function DrawButton({ place }: { place: Item }) {
   const { reload } = useLibrary()
   const [run, error, busy] = useAction()
@@ -249,6 +285,7 @@ export default function Places() {
               Edit
             </button>
             {pictures && <DrawButton place={i} />}
+            <EarlierPictures item={i} />
           </span>
         </div>
       </article>

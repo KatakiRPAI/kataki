@@ -418,7 +418,7 @@ button.ka-widget:disabled { opacity: .5; cursor: default; }
 .ka-cwidget { display: flex; flex-direction: column; width: 100%; padding: 0; border: 0; border-radius: inherit; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .ka-cwidget.is-joined { animation: k-land var(--k-dur-slow) var(--k-ease-bounce) both; }
 .ka-cwidget__art { display: block; width: 100%; }
-.ka-cwidget__art > .ka-figure { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 18%; mask-image: none; }
+.ka-cwidget__art > .ka-figure { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 18%; mask-image: none; transform: none; }
 .ka-cwidget__art > .ka-figure--sprite { object-fit: contain; object-position: 50% 0; top: 8px; }
 .ka-cwidget__joined { position: absolute; left: 10px; top: 10px; z-index: 1; height: 22px; padding: 0 9px; border-radius: 11px; background: var(--k-scene-amber); color: var(--k-scene-amber-ink); font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; }
 .ka-cwidget__body { display: flex; flex-direction: column; gap: 4px; padding: 10px 14px 13px; }
@@ -991,3 +991,9 @@ a.ka-event:hover { background: #fff; }
 .ka-peek__track { height: 5px; border-radius: 3px; background: rgba(255,236,210,.1); overflow: hidden; }
 .ka-peek__track > i { display: block; height: 100%; border-radius: 3px; }
 .ka-cwidget + .k-widget__pin, .k-widget__pin { z-index: 2; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+
+/* earlier pictures: one click goes back to one */
+.ka-earlier { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+.ka-earlier__pick { padding: 0; border: 2px solid transparent; border-radius: 14px; overflow: hidden; background: rgba(20,38,77,.06); cursor: pointer; aspect-ratio: 3 / 4; }
+.ka-earlier__pick:hover, .ka-earlier__pick:focus-visible { border-color: var(--k-sky-ink, #14264d); }
+.ka-earlier__pick img { width: 100%; height: 100%; object-fit: cover; display: block; }

@@ -224,9 +224,33 @@ def test_drawing_a_place_keeps_the_picture_as_its_image(conn, backend):
     assert data["palette"] == {"ink": "#fff"}  # the rest of the item's data is kept
     assert api.get(f"/media/{data['image']}").content == PNG
     prompt = fake.body(1)["prompt"]
-    assert "empty room, interior view. A harbour tavern." in prompt
+    assert "An empty interior, seen from inside. A harbour tavern." in prompt
     assert "Gull" not in prompt  # a place called "The Gull" would come with a gull
+    assert data["history"] == []  # nothing replaced yet
     assert fake.requests[1].headers["authorization"] == "Bearer hf_k"
+
+    again = api.post(f"/library/{gull['id']}/draw", json={}).json()["data"]
+    assert again["image"] == data["image"] and again["history"] == []  # same bytes, same picture
+
+
+def test_the_suv_is_drawn_from_inside_and_no_era_is_imposed():
+    # "the inside of a black SUV" came back as a beaten-up car in a desert, under a prompt
+    # that began "Medieval fantasy concept art" and called it a deserted outdoor place
+    prompt = images.place_prompt(
+        {"name": "The Car", "description": "the inside of a black SUV, tinted windows."}
+    )
+    assert prompt.startswith("Realistic painterly environment art")
+    assert "An empty interior, seen from inside. the inside of a black SUV" in prompt
+    assert "medieval" not in prompt.lower() and "deserted" not in prompt
+
+
+def test_a_redraw_keeps_the_old_picture_and_its_faces_to_go_back_to():
+    data = {"portrait": "a.png", "packs": {"a.png": {"from": "a.png", "sprites": {}}, "z.png": {}}}
+    now = images.with_picture(data, "portrait", "b.png")
+    assert now["portrait"] == "b.png" and now["history"] == ["a.png"]
+    assert set(now["packs"]) == {"a.png"}  # a pack of a picture no longer kept is let go
+    back = images.with_picture(now, "portrait", "a.png")
+    assert back["history"] == ["b.png"]  # going back keeps the newer one too
 
 
 def test_a_refused_place_says_why_and_which_provider_to_try(conn, backend):
@@ -322,7 +346,7 @@ def test_drawing_a_character_makes_her_portrait(conn, backend):
     assert api.get(f"/media/{drawn['data']['portrait']}").content == PNG
     assert fake.body(1)["size"] == "768*1024"
     prompt = fake.body(1)["prompt"]
-    assert "medieval fantasy world" in prompt and "An adult woman: A courier with a scar." in prompt
+    assert "An adult woman: A courier with a scar." in prompt and "medieval" not in prompt
 
 
 def test_an_underage_character_is_refused_before_anything_is_spent(conn, backend):
@@ -418,3 +442,17 @@ def test_try_on_the_other_provider_goes_there(conn, backend):
     assert api.post(f"/library/{gull['id']}/draw", json={"provider": "fal-ai"}).status_code == 200
     assert fake.requests[1].url.path == "/fal-ai/fal-ai/model"
     assert fake.body(1)["image_size"] == {"width": 1536, "height": 864}
+
+
+def test_going_back_to_an_earlier_portrait_brings_its_faces_back(conn, backend):
+    api = drawing_app(conn, backend, Fake({}))
+    old, new = (api.post("/media", content=PNG + bytes([n])).json()["name"] for n in (1, 2))
+    old_pack = {"from": old, "sprites": {"neutral": "n.png"}}
+    her = mira(
+        api, portrait=new, history=[old], pack={"from": new, "sprites": {}}, packs={old: old_pack}
+    )
+    back = api.post(f"/library/{her['id']}/picture", json={"name": old}).json()["data"]
+    assert back["portrait"] == old and back["history"] == [new] and back["pack"] == old_pack
+    assert (
+        api.post(f"/library/{her['id']}/picture", json={"name": "stranger.png"}).status_code == 422
+    )
