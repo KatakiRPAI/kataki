@@ -95,6 +95,14 @@ async def test_a_time_skip_in_what_the_user_writes_moves_the_story_clock(conn, s
     assert user["skip_minutes"] == 6 * 365 * 1440
 
 
+@pytest.mark.parametrize("sign", [" Mira", " — Mira", " - Mira", "\n\n– Mira:"])
+async def test_a_signature_after_the_last_sentence_is_dropped(conn, story, backend, sign):
+    # Qwen3.5-9B on HF ended a reply with "... in the service of the crown." — Payton Lin
+    backend.say(f'"Fine." She smiles.{sign}')
+    done = (await play(turns.turn(conn, backend.llm, story, "Mira?")))[-1][1]
+    assert done["text"] == '"Fine." She smiles.'
+
+
 async def test_a_memory_note_copied_into_the_reply_is_not_kept(conn, story, backend):
     # Qwen3.5-9B on HF wrote this paragraph into the story, copying the prompt's note format
     backend.say(

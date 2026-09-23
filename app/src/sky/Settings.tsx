@@ -3,6 +3,7 @@ import { api, download, type Kind, type Provider, type RoleRow } from '../api'
 import { href, useAction, useLoad } from '../hooks'
 import { Candy, Chip, Dialog, ErrorLine, Field, Glass, Icon, Seg, type CandyColor } from '../ui'
 import { bringIn } from './Intake'
+import type { Speed } from '../pace'
 
 // Settings: the model servers and which model does each job (every field of the old Models page), and About.
 
@@ -52,6 +53,7 @@ type Probe = { ok: boolean; models: string[]; error?: string }
 
 const PAGES: [string, string, string][] = [
   ['', 'cpu', 'Models'],
+  ['chat', 'chat', 'Chat'],
   ['library', 'book', 'Library'],
   ['about', 'help', 'About'],
 ]
@@ -59,6 +61,7 @@ const PAGES: [string, string, string][] = [
 const BLURB: Record<string, string> = {
   '': 'Kataki ships no model. Connect one, and pick which does each job. One is enough to start.',
   library: 'What other apps made can come in, and everything you have can go out again.',
+  chat: 'How the characters talk to you: how much they say, and how fast it appears.',
 }
 
 /** #/settings, #/settings/library and #/settings/about */
@@ -94,11 +97,40 @@ export default function Settings({ page }: { page?: string }) {
           </Glass>
         ) : at === 'library' ? (
           <LibraryPage />
+        ) : at === 'chat' ? (
+          <ChatPage />
         ) : (
           <Models />
         )}
       </div>
     </div>
+  )
+}
+
+type ChatPrefs = { reply_length?: 'short' | 'medium' | 'long'; reply_speed?: Speed }
+
+/** Settings → Chat: how chatty the characters are, and how fast a reply types out. Saved as
+ *  you pick; a reply already on its way keeps the speed it started with. */
+function ChatPage() {
+  const [prefs, reload] = useLoad(() => api<ChatPrefs>('/settings'), [])
+  const [run, error] = useAction()
+  const set = (change: ChatPrefs) => run(async () => { await api('/settings', 'PUT', change); await reload() })
+  return (
+    <Glass title="Replies">
+      <div className="k-field">
+        <span>Reply length</span>
+        <Seg label="Reply length" value={prefs?.reply_length ?? 'medium'} onChange={(v) => set({ reply_length: v as ChatPrefs['reply_length'] })}
+          options={[['short', 'Short'], ['medium', 'Medium'], ['long', 'Long']]} />
+        <span className="ka-muted ka-small">Short is a line or two, medium one to three paragraphs, long a full, detailed reply.</span>
+      </div>
+      <div className="k-field">
+        <span>Reading speed</span>
+        <Seg label="Reading speed" value={prefs?.reply_speed ?? 'normal'} onChange={(v) => set({ reply_speed: v as Speed })}
+          options={[['slow', 'Slow'], ['normal', 'Normal'], ['fast', 'Fast'], ['instant', 'Instant']]} />
+        <span className="ka-muted ka-small">How fast a reply types itself out. Instant shows it as fast as the model sends it.</span>
+      </div>
+      <ErrorLine error={error} />
+    </Glass>
   )
 }
 

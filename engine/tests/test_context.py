@@ -355,6 +355,14 @@ def test_others_know_only_what_anyone_can_see(conn, story):
     assert "A smuggler." in tobin  # his own
 
 
+def test_how_chatty_replies_are_is_a_setting(conn, story):
+    say(conn, story, "Aren", "Hello.")
+    last = lambda: context.build(conn, story, eid(conn, "Mira"), EP).messages[-1]["content"]  # noqa: E731
+    assert context.LENGTHS["medium"] in last()  # the default
+    conn.execute("INSERT INTO settings(key, value) VALUES('reply_length', '\"short\"')")
+    assert context.LENGTHS["short"] in last() and context.LENGTHS["medium"] not in last()
+
+
 def test_the_rules_keep_notes_out_of_the_story_and_the_story_in_english(conn, story):
     say(conn, story, "Aren", "Hello.")
     system = context.build(conn, story, eid(conn, "Mira"), EP).messages[0]["content"]

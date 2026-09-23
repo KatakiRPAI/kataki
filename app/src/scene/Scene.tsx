@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { api, download, stream, type Cast, type CastEntity, type Chapter, type ContextLog, type Message, type Signals, type Story, type TurnDone, type TurnMeta, type Version } from '../api'
 import { paletteOf } from '../art'
+import { pacer, SPEEDS, type Speed } from '../pace'
 import { href, inline, lastSky, rise, useAction, useLibrary, useLoad, usePoll, type Moving } from '../hooks'
 import { Dialog, ErrorLine, Field, Icon, Menu, Trouble, Waiting } from '../ui'
 import Composer, { PassTime, remembered, type Meter, type Send, type Skip, type Speaker } from './Composer'
@@ -34,6 +35,7 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
   // The version this data was loaded at: the poll compares with it, so a memory read that lands
   // any time after a load (even before the first tick) refreshes the scene.
   const version = useRef('')
+  const [prefs] = useLoad(() => api<{ reply_speed?: Speed }>('/settings'), [])
   const [data, refreshAll, error] = useLoad(
     () =>
       Promise.all([
@@ -193,6 +195,9 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
     const ctl = new AbortController()
     controller.current = ctl
     setLive({ speaker: '', speakerId: null, text: '', thoughts: '', strained: false, replacing, rewriting })
+    // the reply types out at your reading speed (Settings → Chat), however fast it streams in
+    const typed = pacer((text) => setLive((l) => l && { ...l, text: l.text + text, thinkMs: l.thinkMs ?? (l.thoughtAt === undefined ? undefined : performance.now() - l.thoughtAt) }),
+      SPEEDS[prefs?.reply_speed ?? 'normal'] ?? SPEEDS.normal)
     try {
       await stream(path, body, (kind, value) => {
         if (kind === 'meta') {
@@ -206,7 +211,7 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
         } else if (kind === 'thought') {
           setLive((l) => l && { ...l, thoughts: l.thoughts + value, thoughtAt: l.thoughtAt ?? performance.now() })
         } else if (kind === 'token') {
-          setLive((l) => l && { ...l, text: l.text + value, thinkMs: l.thinkMs ?? (l.thoughtAt === undefined ? undefined : performance.now() - l.thoughtAt) })
+          typed.push(value)
         } else if (kind === 'done') {
           const done = value as TurnDone
           // the reply's own narration moved the clock: it starts from where the reply began
@@ -215,9 +220,11 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
           setFailed(value.message)
         }
       }, ctl.signal)
+      await typed.drain() // the saved line replaces this one only once it has all been read out
     } catch (e) {
       if (!ctl.signal.aborted) setFailed((e as Error).message)
     } finally {
+      typed.flush() // Stop, or an error: whatever arrived shows at once
       if (controller.current === ctl) controller.current = null
       // a stopped reply is saved by the engine a moment after the connection closes
       if (ctl.signal.aborted) await new Promise((r) => setTimeout(r, 400))

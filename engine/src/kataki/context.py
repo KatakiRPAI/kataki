@@ -79,6 +79,19 @@ class Built:
     window_start: int | None = None  # first message still shown verbatim
 
 
+# how chatty replies are: the Chat settings page's "Reply length" (settings key reply_length)
+LENGTHS = {
+    "short": "Keep it short: a line or two, one brief paragraph at most.",
+    "medium": "Keep it to one to three paragraphs.",
+    "long": "Take your time: a full, detailed reply of several paragraphs.",
+}
+
+
+def reply_length(conn: sqlite3.Connection) -> str:
+    row = conn.execute("SELECT value FROM settings WHERE key='reply_length'").fetchone()
+    return json.loads(row["value"]) if row and json.loads(row["value"]) in LENGTHS else "medium"
+
+
 def estimate(text: str, ratio: float = RATIO) -> int:
     return math.ceil(round(len(text) / ratio * MARGIN, 6))
 
@@ -359,6 +372,7 @@ def build(
         state.append(f"[How {who} talks]\n{examples}")
     if memory_lines:
         state.append(f"[{who} remembers]\n" + "\n".join(memory_lines))
+    directive = f"{LENGTHS[reply_length(conn)]} {directive}".strip()
     if speaker:
         state.append(f"[Directive] Reply only as {who}, in English only. {directive}".strip())
     else:
