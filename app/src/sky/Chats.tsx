@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { api, type ActivityEvent, type Book, type Person, type StorySummary } from '../api'
 import { Avatar, AvatarStack, Figure, Orb, Room } from '../art'
-import { dive, diveLink, go, href, useAction, useArrivals, useLibrary, useLoad } from '../hooks'
+import { ago, dive, diveLink, exact, go, href, useAction, useArrivals, useLibrary, useLoad } from '../hooks'
 import { Chip, Dialog, ErrorLine, Field, Icon, Menu } from '../ui'
 import { EventLink } from './Activity'
 import Folders, { onShelf } from './Folders'
@@ -106,7 +106,7 @@ export default function Chats({ selected }: { selected?: number }) {
               <span className="ka-ellipsis">{s.title}</span>
               {s.pinned && <Icon name="pushpin" size={13} />}
             </span>
-            <span className="ka-thread__clock">{s.clock}</span>
+            <span className="ka-thread__clock" title={exact(s.last_at)}>{ago(s.last_at)}</span>
           </span>
           <span className="ka-thread__mid">
             <span className="ka-thread__line">{preview(s)}</span>
@@ -118,7 +118,7 @@ export default function Chats({ selected }: { selected?: number }) {
             )}
           </span>
           <span className="ka-thread__as">
-            {playing(s)}
+            {playing(s)} · {s.clock.slice(0, -7)}
             {s.book && (
               <>
                 {' · '}

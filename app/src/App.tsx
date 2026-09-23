@@ -21,10 +21,10 @@ import { Icon, Trouble } from './ui'
 // The rail grows as each Sky screen lands: [route, icon, label].
 const RAIL: [string, string, string][] = [
   ['home', 'home', 'Home'],
-  ['friends', 'users', 'Friends'],
+  ['friends', 'users', 'Characters'],
   ['chats', 'chat', 'Chats'],
   ['books', 'book', 'Books'],
-  ['places', 'map', 'Places'],
+  ['places', 'map', 'Places & Plots'],
   ['activity', 'bell', 'Activity'],
   ['you', 'user', 'You'],
 ]

@@ -4,7 +4,7 @@ import { nextPalette, Portrait } from '../art'
 import { go, href, useAction, useLibrary } from '../hooks'
 import { Chip, Dialog, ErrorLine, Icon, Seg } from '../ui'
 
-// Add a friend (or a persona) in six steps, saved as you go.
+// Add a character (or a persona) in six steps, saved as you go.
 
 type Draft = {
   name: string
@@ -196,14 +196,14 @@ function Form({ item, persona, initialStep }: { item?: Item; persona: boolean; i
       <div className="ka-editor-top">
         <a className="ka-back" href={href(home)}>
           <Icon name="left" size={16} />
-          {draft.persona ? 'You' : 'Friends'}
+          {draft.persona ? 'You' : 'Characters'}
         </a>
         <span className="ka-muted ka-small" role="status">{saving ? 'Saving…' : 'Saved as you go'}</span>
       </div>
       <ErrorLine error={error || saveError} />
       <div className="ka-editor">
         <nav className="k-glass ka-steps" aria-label="Steps">
-          <span className="k-display ka-steps__title">{item ? `Edit ${item.name}` : draft.persona ? 'Make a persona' : 'Add a friend'}</span>
+          <span className="k-display ka-steps__title">{item ? `Edit ${item.name}` : draft.persona ? 'Make a persona' : 'Add a character'}</span>
           {STEPS.map((s, i) => (
             <button key={s.title} type="button" className={`k-step${done[i] && i !== step ? ' is-done' : ''}`} aria-current={i === step ? 'step' : undefined} disabled={!named && i > 0} onClick={() => goStep(i)}>
               <span className="k-step__dot">{done[i] && i !== step ? <Icon name="check" size={16} /> : i + 1}</span>
@@ -308,7 +308,7 @@ function Form({ item, persona, initialStep }: { item?: Item; persona: boolean; i
         <aside className="ka-editor__aside" aria-label="Live profile preview">
           <Portrait item={{ data: { palette: baseRef.current.palette, portrait: draft.portrait } } as Item} name={draft.name || '?'} className="ka-live">
             <div className="k-nameplate">
-              <span className="k-display ka-live__name">{draft.name || 'New friend'}</span>
+              <span className="k-display ka-live__name">{draft.name || 'New character'}</span>
               <span className="ka-live__tagline">{draft.description.split('\n')[0] || 'Just added. Finish their profile.'}</span>
             </div>
           </Portrait>

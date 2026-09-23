@@ -202,7 +202,7 @@ export default function Profile({ id }: { id: number }) {
   const s = they === 'they' ? '' : 's' // "How she talks" / "How they talk"
   const theirs = storiesWith(item, stories ?? [])
   const latest = theirs[0]
-  const { text: where, idle } = status(item, stories ?? [])
+  const { text: where, idle, exact: when } = status(item, stories ?? [])
   const playedAs = [...new Set(theirs.map((st) => (st.persona ? `as ${st.persona.name}` : 'directing')))]
   const lines = (item.data.example_dialogue ?? '').split('\n').filter((l) => l.trim())
   // the newest story they are in leads the tiles; the places are wherever they have played
@@ -225,7 +225,7 @@ export default function Profile({ id }: { id: number }) {
             <div className="k-nameplate">
               <span className="ka-row ka-row--gap">
                 <h1 className="k-display ka-profile__name">{item.name}</h1>
-                <span className={`k-status${idle ? ' k-status--idle' : ''}`}>{where}</span>
+                <span className={`k-status${idle ? ' k-status--idle' : ''}`} title={when}>{where}</span>
               </span>
               {item.description && <span className="ka-profile__tagline">{item.description.split('\n')[0]}</span>}
               {item.tags.length > 0 && (

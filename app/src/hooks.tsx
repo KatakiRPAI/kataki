@@ -144,6 +144,24 @@ export type Moving = { kind: 'away' | 'friend' | 'here'; id: number }
 /** Where the Scene's cloud button floats back up to: the last Sky page shown. */
 export const lastSky = { path: '/home' }
 
+// ---- real time: outside a story, times are yours ("Played 2 hours ago"), not the story's ----
+/** A SQLite UTC timestamp ("YYYY-MM-DD HH:MM:SS") as epoch ms. */
+export const utc = (at: string) => Date.parse(at.replace(' ', 'T') + 'Z')
+const RELATIVE = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
+const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [['year', 31_536_000], ['month', 2_592_000], ['week', 604_800], ['day', 86_400], ['hour', 3_600], ['minute', 60]]
+/** "just now", "5 minutes ago", "yesterday", "last week". */
+export function ago(at: string): string {
+  const s = (Date.now() - utc(at)) / 1000
+  const [unit, size] = UNITS.find(([, size]) => s >= size) ?? []
+  return unit ? RELATIVE.format(-Math.floor(s / size!), unit) : 'just now'
+}
+/** The exact local time, for a hover: "Today, 7:12 pm" or "22 Sept 2026, 7:12 pm". */
+export function exact(at: string): string {
+  const d = new Date(utc(at))
+  const time = d.toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit', hour12: true })
+  return `${d.toDateString() === new Date().toDateString() ? 'Today' : d.toLocaleDateString('en-GB', { dateStyle: 'medium' })}, ${time}`
+}
+
 /** Leave a scene: the reverse of the dive, up to the last Sky page. */
 export const rise = () => dispatchEvent(new CustomEvent('ka-rise', { detail: lastSky.path }))
 

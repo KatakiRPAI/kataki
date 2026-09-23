@@ -1,7 +1,7 @@
 import { useState, type CSSProperties } from 'react'
 import { api, type Item, type StorySummary } from '../api'
 import { Portrait } from '../art'
-import { href, useAction, useLibrary, useLoad } from '../hooks'
+import { ago, exact, href, useAction, useLibrary, useLoad, utc } from '../hooks'
 import { Candy, ErrorLine, Icon, SkyHeader, type CandyColor } from '../ui'
 import { completeness } from './Editor'
 import Folders, { onShelf } from './Folders'
@@ -17,22 +17,22 @@ const FILTERS: [Filter, string, string, CandyColor][] = [
 ]
 
 const WEEK = 7 * 24 * 3600 * 1000
-const addedAt = (item: Item) => Date.parse(item.created_at.replace(' ', 'T') + 'Z')
+const addedAt = (item: Item) => utc(item.created_at)
 
 /** The stories a friend is in, most recently played first. */
 export const storiesWith = (friend: Item, stories: StorySummary[]) =>
   stories.filter((s) => s.cast.some((c) => c.lib_item_id === friend.id)).sort((a, b) => b.last_at.localeCompare(a.last_at))
 
-/** "At The Gull · Year 7", "Left The Gull · Year 7", "In a story · Day 5", or not in one yet. */
-export function status(friend: Item, stories: StorySummary[]): { text: string; idle: boolean } {
+/** When you last played with them, in real time ("Played 2 hours ago"), or "Never played"; the
+ *  hover (`exact`) says when and where: "Today, 7:12 pm · at The Gull". */
+export function status(friend: Item, stories: StorySummary[]): { text: string; idle: boolean; exact?: string } {
   const latest = storiesWith(friend, stories)[0]
-  if (!latest) return { text: 'Not in a story yet', idle: true }
-  const here = latest.cast.find((c) => c.lib_item_id === friend.id)?.present
-  const where = latest.place ? `${here ? 'At' : 'Left'} ${latest.place.name}` : 'In a story'
-  return { text: `${where} · ${latest.clock.split(',')[0]}`, idle: false }
+  if (!latest) return { text: 'Never played', idle: true }
+  const where = latest.place ? ` · at ${latest.place.name}` : ''
+  return { text: `Played ${ago(latest.last_at)}`, idle: false, exact: `${exact(latest.last_at)}${where}` }
 }
 
-/** The Friends page, or (as a section) the Friends grid on Home. */
+/** The Characters page, or (as a section) the Characters grid on Home. */
 export default function Friends({ section = false }: { section?: boolean }) {
   const { items, loaded, reload, error } = useLibrary()
   const [stories, , storiesError] = useLoad(() => api<StorySummary[]>('/stories'), [])
@@ -72,15 +72,15 @@ export default function Friends({ section = false }: { section?: boolean }) {
     <>
       {section ? (
         <div className="ka-section-head">
-          <h2>Friends</h2>
+          <h2>Characters</h2>
           {filters}
         </div>
       ) : (
-        <SkyHeader title="Friends">
+        <SkyHeader title="Characters">
           {filters}
           <a className="k-btn k-btn--dark k-btn--lg" href={href('/friends/new')}>
             <Icon name="plus" size={17} />
-            Add a friend
+            Add a character
           </a>
         </SkyHeader>
       )}
@@ -88,11 +88,11 @@ export default function Friends({ section = false }: { section?: boolean }) {
       <ErrorLine error={error || storiesError || actionError} />
       <div className="ka-friends">
         {shown.map((f) => {
-          const { text, idle } = status(f, stories ?? [])
+          const { text, idle, exact: when } = status(f, stories ?? [])
           const filled = Math.round(100 * completeness(f))
           return (
             <Portrait key={f.id} item={f} className="k-friend-card ka-friend">
-              <a className="ka-friend__link" href={href(`/friend/${f.id}`)} aria-label={`${f.name}: open profile`} />
+              <a className="ka-friend__link" href={href(`/friend/${f.id}`)} aria-label={`${f.name}: open profile`} title={when} />
               <button type="button" className="ka-heart" aria-pressed={!!f.data.favourite} aria-label={`Favourite ${f.name}`} onClick={() => favourite(f)}>
                 <Icon name="heart" size={17} />
               </button>
@@ -110,7 +110,7 @@ export default function Friends({ section = false }: { section?: boolean }) {
                   <span className="ka-row ka-friend__tags">
                     {f.tags.map((t) => (
                       <button key={t} type="button" className="ka-tag-chip" onClick={() => setPicked([t])}
-                        aria-label={`Show only friends tagged ${t}`}>
+                        aria-label={`Show only characters tagged ${t}`}>
                         {t}
                       </button>
                     ))}
@@ -126,13 +126,13 @@ export default function Friends({ section = false }: { section?: boolean }) {
         )}
         {loaded && items.length === 0 && (
           <p className="ka-muted ka-empty-note">
-            No one to play with yet. Add a friend and they'll remember everything you do together.
+            No one to play with yet. Add a character and they'll remember everything you do together.
           </p>
         )}
         {filter === 'all' && (
           <a className="ka-add-card" href={href('/friends/new')}>
             <Candy icon="plus" size={56} />
-            <strong>Add a friend</strong>
+            <strong>Add a character</strong>
             <span>Build a character like a profile, one step at a time</span>
           </a>
         )}

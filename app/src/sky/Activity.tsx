@@ -139,7 +139,7 @@ export default function Activity() {
         ))}
         {events && events.length === 0 && (
           <p className="ka-muted">
-            {kind === 'all' ? 'Nothing yet. Play a scene, and what your friends make of it lands here.' : 'Nothing of that kind yet.'}
+            {kind === 'all' ? 'Nothing yet. Play a scene, and what your characters make of it lands here.' : 'Nothing of that kind yet.'}
           </p>
         )}
       </section>

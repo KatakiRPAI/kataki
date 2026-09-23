@@ -149,7 +149,7 @@ export default function Places() {
 
   return (
     <>
-      <SkyHeader title="Places">
+      <SkyHeader title="Places & Plots">
         <button type="button" className="k-btn" onClick={() => edit('scenario')}>
           <Icon name="book" size={17} />
           Add a plot
