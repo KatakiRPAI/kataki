@@ -232,6 +232,8 @@ function Line({ storyId, who, m, stamp, tip, ink, to, flash, retake, signal, adv
     onRewrite(draft.trim())
   }
   const [recalling, setRecalling] = useState(false)
+  // the one place memory speaks up unasked: a reply that leaned on a hazy or hard-won memory
+  const vague = !!signal?.recall && /vaguely|straining/.test(signal.recall.title)
   const [index, count] = m.swipe
   const fresh = retake && index === count // the next arrow asks for a new take
   return (
@@ -317,7 +319,7 @@ function Line({ storyId, who, m, stamp, tip, ink, to, flash, retake, signal, adv
           <Prose text={m.text} />
         </div>
       )}
-      {recalling && signal?.recall && <RecallCard recall={signal.recall} />}
+      {signal?.recall && (recalling || vague) && <RecallCard recall={signal.recall} />}
       {m.think_ms != null && m.reasoning && <Thought ms={m.think_ms} notes={m.reasoning} />}
       {advanced && signal?.receipts && <Receipts receipts={signal.receipts} summary={signal.summary ?? ''} face={face} />}
       {!!signal?.callouts?.length && (
