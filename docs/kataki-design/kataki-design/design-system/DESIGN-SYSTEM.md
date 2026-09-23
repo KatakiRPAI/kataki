@@ -7,8 +7,8 @@ Kataki is a local-first desktop app (Electron, Windows first) for AI role-play w
 ## 1. Principles
 
 1. **Two worlds, one crossing.** Outside a story you are in the **Sky**: bright, social, playful. Inside a story you are in the **Scene**: warm, dim, cinematic. The **dive** through the clouds is the only way between them, and it should feel like a signature.
-2. **Memory is shown, not told.** Who heard a line, who will remember it, and how clearly are the product's core. Show them as small, quiet, beautiful signals: receipts, callouts, fading. They should never need explaining.
-3. **The text is the hero in a scene.** The stage is alive but subordinate: the text column always sits on a scrim, and the controls fade while you read.
+2. **The role-play comes first.** Memory, hearing and the engine are what make Kataki different, but they stay quiet. The chat shows how characters *feel* ("Tobin didn't like that", "Mira trusts you a little more") and, now and then, what they *remember* ("Mira remembered, vaguely…"). Who heard what, who answers next and token counts live behind the Advanced toggle and in Backstage.
+3. **The chat is the screen.** Inside a story the conversation runs the full height of the window, in the middle. Everything else is a widget around it, and the user decides which widgets they want and where.
 4. **Friendly on the surface, exact underneath.** Sky screens are playful. Models, Backstage and anything technical stay precise: real names, real numbers, mono type.
 5. **Light on the GPU.** The AI model often shares the graphics card. Use layered images, transforms, opacity and crossfades. No per-frame blurs, no WebGL, no heavy 3D.
 6. **Characters are fictional.** Use illustrated or painted art only, never photos of real people. Keep mockups general-audience.
@@ -50,7 +50,7 @@ Actions inside story text are `*italic*` in `--k-scene-action`, and emphasis is 
 **The Scene**
 - background `#0e0a08`, story ink `#f4e9da`, muted `#cdbba4`, action italic `#dcc8ad`
 - **amber `#f0b35a`** is the one accent: Send, memory glow, "will remember"
-- **lilac `#cbb8ff`** is for beliefs, **rose `#f4a595`** for feelings and distrust
+- reaction colours: **rose `#f4a595`** feelings and distrust, **sage `#a9dcb8`** warmth and trust, **sky `#9cc8ff`** mood and thinking, **lilac `#cbb8ff`** beliefs, amber for the rare memory signal
 - speaker colours: persona (Aren) cool blue `#a9c8ff`; characters warm (Mira `#f2b870`, Tobin `#e8cc6a`). Assign each new character a warm speaker colour at creation.
 
 **Backstage**
@@ -89,10 +89,10 @@ There are 66 line icons: 24×24, 1.8 stroke, round caps and joins, `currentColor
 | time-skip | 1800 ms | the time-skip sequence |
 
 - **Sky:** things float, bounce and settle. Use the `bounce` ease for appear and hover (cards lift 4 px, candy tiles straighten from −4° and hop).
-- **Scene:** crossfades, slow parallax (2–6 px), light flicker done with opacity. No bounce.
-- **Reduced motion:** the stage becomes still images with crossfades, with no parallax, bounce or breathing orb. Every duration token collapses to 0 (see `tokens.css`).
+- **Scene:** crossfades, slow parallax (2–6 px), light flicker done with opacity. An unpinned widget that appears because something happened slides in 16 px with a light bounce, so you notice it.
+- **Reduced motion:** the place and portraits become still images with crossfades, with no parallax, bounce or breathing orb; widgets appear without sliding. Every duration token collapses to 0 (see `tokens.css`).
 
-**The dive, going in:** the clouds (two copies of `clouds.svg`, one mirrored) scale up by 1.2 and part left and right. The sky gradient fades to the scene's still frame, then the stage fades from 0 to 1 at 1.02 → 1.0 scale. The UI (top bar, conversation, composer) fades in last.
+**The dive, going in:** the clouds (two copies of `clouds.svg`, one mirrored) scale up by 1.2 and part left and right. The sky gradient fades to the place, then the chat column rises 24 px into place and fades in, with the corners and widgets last.
 
 **The dive, coming out:** the reverse, floating up. The thread saves a still of the last moment as its cover in Chats and on the Continue card.
 
@@ -105,23 +105,16 @@ There are 66 line icons: 24×24, 1.8 stroke, round caps and joins, `currentColor
 - content: starts at x 144, 24 px right margin
 - headers: greeting or title on the left; search, bell and main action on the right
 
-**Scene (1440×900)**
-- **Stage:** the place image fills the window, then characters, then a foreground layer (table), then the vignette.
-  - One-to-one: the character is large and close (about 640 wide, face centre around x 410).
-  - Two or three present: the speaker is in front and lit, the others are smaller and softened (`brightness .62, blur 1.5px, sepia .2`).
-  - More than three: extra people go into an avatar row.
-- **Top bar** (88 px, top scrim), left to right:
-  - cloud button (back to the Sky)
-  - story title with "with Mira · as Aren"
-  - place + clock pill with a sun/moon arc
-  - "Playing …" with mute
-  - Backstage switch, reading mode, menu
-- **Conversation column:** a scrim from x 740 to the right edge, text column x 836, width 560. Lines stack from the bottom, and the top edge fades out.
-- **Composer:** from x 822 to 24 px from the right, 24 px from the bottom.
-- **Tray:** left 24, top 300, width 206. People who are away or could join.
-- **Reading mode:** hides the tray and top bar and widens the text over a blurred stage.
+**Scene (1440×900): full-height chat with widgets either side**
 
-**Backstage:** the same window. Memory panel on the left (about 820 wide); Prompt, Cast and Reading stacked on the right (about 548 wide).
+- **Place layer:** the place image fills the window, blurred 3 px and dimmed to about 55%, with a warm tint (cool at night) and a vignette. It crossfades when the story moves to another place, or when the story clock crosses dawn / day / dusk / night.
+- **Chat column:** centred, 800 wide, from 16 px below the top to 16 px above the bottom (the full height). Dark glass at 80% with a 20 px blur, radius 30. The text measure inside is capped at 680. The composer is docked inside the bottom of the column.
+- **Corners:** top left is the cloud button (back to the Sky), the story title and "as Aren". Top right is the Backstage switch and the ⋯ story menu.
+- **Widget columns:** 272 wide, 24 px from each edge. By default, character widgets stack on the right from y 84; the story clock and music sit at the bottom left. The top left stays clear so the place shows through.
+- Widgets are the user's: in **Edit widgets** mode they can be dragged anywhere on the screen, including over the chat, as well as pinned, removed and added.
+- **Reading mode:** hides widgets and corners and leaves only the chat.
+
+**Backstage:** the same window. **Mind** on the left (about 864 wide), with Prompt, Cast and Engine stacked on the right (about 512 wide).
 
 At 1280 wide, shrink the character and move the text column left. At 1920, grow the stage and keep the text column at most 600 wide.
 
@@ -145,7 +138,8 @@ Class names refer to `components.css`. Each entry lists anatomy, then states. `c
   - Sizes: 54 (rail), 48 (Message button), 70–74 (Continue card, Chats preview).
   - Always paired with the words "Dive in" or "Dive back in", or an aria-label.
 - **Nav rail** `.k-rail`
-  - Contents: logo (cloud tile + "Kataki"); Home, Friends, Chats, Places, Activity, You; a spacer; Settings; the orb with "Dive in".
+  - Contents: logo (cloud tile + "Kataki"); Home, **Characters**, Chats, **Places & Plots**, Activity, You; a spacer; Settings; the orb with "Dive in".
+  - "Places & Plots" wraps to two lines, so the item is 76×68. The tab holds both, and the name says so.
   - Active item: white pill, accent colour, `aria-current="page"`.
 - **Avatar** `.k-avatar` (`--s`, `--bg`)
   - A circular crop of the portrait art on the character's backdrop gradient.
@@ -153,8 +147,8 @@ Class names refer to `components.css`. Each entry lists anatomy, then states. `c
   - `.k-avatar-stack` for group threads.
 - **Portrait + name plate** `.k-portrait`, `.k-nameplate`
   - Art anchored to the bottom, a soft light bloom top-left, and a strong-glass plate at the bottom.
-- **Friend card** `.k-friend-card`, 196×268
-  - Contents: portrait, favourite heart (top right), name, one-line tagline (2 lines max), status ("At The Gull · Year 7", "Not in a story yet").
+- **Character card** `.k-friend-card`, 196×268
+  - Contents: portrait, favourite heart (top right), name, one-line tagline (2 lines max), and **when you last played with them in real time** ("Played 2 hours ago", "Never played"). Hovering shows the exact date and place ("Today, 7:12 pm · at The Gull").
   - A new friend shows a completeness ring top-left.
   - Hover lifts. Clicking opens their profile.
 - **Continue card** `.k-continue`
@@ -176,11 +170,22 @@ Class names refer to `components.css`. Each entry lists anatomy, then states. `c
   - `.k-seg` segmented control
 - **Stepper** `.k-step` (`is-done` shows a green check; the current step uses `aria-current="step"` with a blue ring).
 - **Thread row** (Chats)
-  - Contents: stacked avatars, title, pin, story clock (in place of a real timestamp), last line (one line, ellipsis), "as Aren" in accent, and a gold memory-event badge with a spark.
+  - Contents: stacked avatars, title, pin, **the real time since you last played** ("2 h ago", hover for the exact date), last line (one line, ellipsis), then "as Aren · six years after the storm" in accent, and a gold memory-event badge with a spark.
   - The selected row is solid white.
 - **Persona switcher** (dialog anchored to your avatar)
   - One row per persona (avatar, name, tagline, a check when selected), then "Director · Play no one", then "+ New persona".
   - A footnote: "Each chat keeps the persona it started with."
+**Places and Plots** (the library)
+
+- One tab holds both, because they belong together: a place is where a story happens, a plot is what it starts from.
+- **Everything is filed under a book or a story.** A book holds stories; places and plots link to a book, to one or more stories, and to the characters who know them. Anything unlinked lands in "Not in a book" and shows a Link action.
+- **Filter panel** (left, 280 wide): "Everything", then BOOKS as a tree (book → its stories, each with a count), "Not in a book", then CHARACTERS as face chips. Picking any of them filters the grid; the header says what is being shown ("Showing Mira's places and plots").
+- **Tabs:** All · Places · Plots. **Sort:** Recently used, A–Z, Most used.
+- **Grid**, grouped by book, each group with a heading (book name, "2 stories · 4 places · 2 plots").
+- **Place card:** the image, the name, a four-part strip previewing dawn / day / dusk / night, the description, link chips (book, stories) and the faces of characters who know it, then "Start a scene here" and Edit.
+- **Plot card:** a violet header with the name, the premise in story type, the opening narration, the same link chips and faces, then "Start this plot" and Edit.
+- **Link dialog** (from a card's ⋯): Book (select), Stories (checkboxes), Characters who know it (face chips + Add), Cancel / Link.
+
 - **Server card** (Models)
   - Contents: candy tile, name, host in mono, status badges ("connected", "qwen3.5-9b loaded", "key stored"), Test and Remove.
 - **Job card** (Models)
@@ -189,92 +194,130 @@ Class names refer to `components.css`. Each entry lists anatomy, then states. `c
 
 ### 4.2 Scene
 
-- **Stage** `.k-stage`: layers are place, characters (`.k-stage__char`), foreground, vignette.
-  - Character states: speaking (lit), `.is-softened` (present, not speaking), `.is-entering` / `.is-leaving` (600 ms step in or out from the right), away (only in the tray, greyscale).
-  - Expressions swap by crossfade: neutral, smiling, wary, surprised, doubtful, thinking.
-- **Top bar** `.k-topbar`, with scene pills `.k-scene-pill` and round buttons `.k-scene-round`.
-  - **Sun/moon arc:** a dashed arc with the sun or moon placed by the story clock (dawn at the left, noon at the top, dusk at the right, night shows the moon).
-  - **Backstage switch** `.k-switch.is-on`.
-- **Tray** `.k-tray`
-  - Title "Nearby", a list of people (avatar, name, "away · at the bar" / "could join"), "Bring someone in", and a drag hint.
-  - Dragging onto the stage brings a person in; dragging off the stage sends them away.
+**Chat**
+
+- **Chat column** `.k-chat`: full height, 800 wide. Lines stack from the bottom, and the top edge fades out.
 - **Line** `.k-line` (`--speaker` colour)
-  - Anatomy: speaker name, story-clock stamp, optional spark, optional marks ("edited", "stopped"), the prose, receipts, then any callouts.
-  - **Hover / focus** shows the tools pill top-right: `‹ 2/3 ›` takes (the last arrow rolls a new take; choosing an earlier take switches the branch), Edit, Hide.
+  - Anatomy: speaker name, story time (12-hour), an optional spark, optional marks ("edited", "stopped"), the prose, then any reactions.
+  - **Story time** is 12-hour (`7:02 pm`). Hovering it shows a tooltip with the 24-hour time and the full story date: "19:02 · Day 1 · the night of the storm". See §6.
+  - **Hover or focus** shows the tools pill: `‹ 2/3 ›` takes (the last arrow rolls a new take), Edit, Hide.
   - **Hidden line** `.is-hidden`: dimmed with a dotted strike. It stays in the story but never reaches the AI.
-- **Receipts** `.k-receipts`
-  - A row of 16 px avatars plus a short text. Quiet by default (80% opacity), full on hover.
-  - Expanded variant: `.k-receipt-chip` pills with labels.
-  - See §5 for the states.
-- **Callout / reaction** `.k-callout` (memory amber, `--feeling` rose, `--belief` lilac)
-  - Anatomy: avatar, icon, sentence.
-  - Lands with a small bounce when the memory reader files it. `.is-faded` after a time skip.
-- **Spark + recall** `.k-spark`, `.k-recall`
-  - A spark after the stamp marks a reply that drew on memory.
-  - Hovering shows "MIRA REMEMBERED, VAGUELY", the recalled text, a clarity meter (`.k-clarity[data-level]`) and its source ("hazy · witnessed Day 1 · once sharp: …").
-- **Title card** `.k-titlecard`: "The Gull · Day 1, 19:00" and "Six years later · Year 7" (with Undo).
-- **System note** `.k-sysnote`: arrivals and departures.
-  - Arrival: "Tobin joins" + "Brought in by you · he hears everything from here on" + Undo.
-  - Departure: "Tobin left. He won't hear what's said now." with a greyscale avatar.
-  - Newly met, narrator-voiced people ("a hooded stranger") appear as a lighter silhouette card.
-- **Name card**: a floating glass card on the stage when someone steps in (avatar, "Tobin joins" in Newsreader italic, their tagline).
-- **Thinking and streaming:**
-  - "Mira is thinking…" with three pulsing amber dots and "Her notes stay backstage · read them".
-  - "Mira is trying to remember…" when recall is slow.
-  - Streaming text ends in an amber block caret `.k-caret`, and the stamp reads "writing…".
-  - After the reply, a collapsed "Thought for 4 s" chip opens the notes backstage.
-- **Composer** `.k-composer`
-  - **Top edge:** the token meter (`--used`, 0–1).
-  - **Row 1:** who will hear (avatars) + "Only Mira will hear this" / "Mira and Tobin will hear this", away people greyed ("Tobin is away"); on the right, Pass time (menu: a few hours, next morning, a week, years…) and Continue.
-  - **Row 2:** textarea in Newsreader 18. Placeholder "Speak or act as Aren…", or "Direct the story…" when playing no one.
-  - **Row 3:** modes `.k-modes` (Say, Do, Whisper, Think) on the left; Send `.k-send` or, while a reply streams, Stop `.k-stop` on the right ("Stopping keeps what Mira has written so far").
-  - **Row 4:** "Who answers": Whoever fits, one chip per present character, Narrator.
-  - **Keys:** Enter sends, Shift+Enter adds a new line.
-  - **Whisper** changes row 1 into a picker of who hears. **Think:** "No one will hear this".
-- **Peek card** `.k-peek`: a glass card over the stage when you click a character.
-  - Header: avatar, name, expression chip, one-line role · present.
-  - Right now: Holding, Wearing, Where, Injury.
-  - On her mind: a tier + what she recalled for her last line.
-  - What she knows about you: the count, two sample memories with tiers, and a link to Backstage.
-  - Relationship chips; the Secret (blurred, Reveal).
-  - Actions: Let her answer next (amber), Send away, Edit.
-- **Tier badge** `.k-tier`: sharp (solid), hazy (dashed), forgotten (dotted grey).
-- **Time skip** `.k-timeskip`: see §5.3.
+- **Editing a line:** the line turns into an editor in place, with three actions.
+  - **Save edit** changes only what the model reads from now on; the story after it stays as written.
+  - **Save and regenerate from here** rewrites everything after the line. The old continuation is kept as the previous take.
+  - **Cancel.**
+  - When more than 2 messages come after the line, a warning sits above the buttons: "Regenerating from here rewrites the 5 messages after this one. They'll be kept as the previous take, so you can flip back." The lines that would be rewritten dim while the editor is open.
+- **Reactions** `.k-react`, one or more per line, wrapping. Each is a small pill: the character's face, an icon, and a sentence about them.
+  - **Feelings** (rose): "Tobin didn't like that", "Tobin is suspicious of you", "Mira is wary of Tobin".
+  - **Warmth** (sage): "Mira trusts you a little more", "Mira is glad to see you".
+  - **Mood** (sky blue): "Mira is worried for you".
+  - **Belief** (lilac): "Mira has her doubts", "Mira knows that's not true", "Mira believed you".
+  - **Memory** (amber): "Mira will remember this". Use it only for moments that matter, at most once every few lines.
+  - Feelings should outnumber memory signals by a wide margin.
+- **Recall box** `.k-recall`: the one place memory speaks up in the chat. It appears under a reply that leaned on a memory: "MIRA REMEMBERED, VAGUELY · The ledger is somewhere behind the bar." plus one line of context ("Six years ago she knew exactly where."). Use it when the recall changes the scene, not on every reply.
+- **Title card** `.k-titlecard`: "The Gull · the night of the storm", and "Six years later" (with Undo) after a skip.
+- **Story note** `.k-note`: arrivals and departures in plain story language. "Tobin joins." "Tobin went to the bar." There is no "he won't hear" text in Simple mode.
+- **A reply arriving:** the stamp reads "writing…", and text streams with an amber block caret. A collapsed "Thought for 4 s" chip opens the notes in Backstage. The speaker's character widget shows "thinking…" while a reasoning model works.
+
+**Composer** `.k-composer`, docked inside the chat column
+
+- **Simple (default):**
+  - The text area (Newsreader 18). Placeholder "Speak or act as Aren…", or "Direct the story…" when you play no one.
+  - Bottom left: the **Simple · Advanced** toggle and a Continue button (the story goes on without a line from you).
+  - Bottom right: the **mode chip** and **Send**. Send becomes **Stop** while a reply streams, and stopping keeps what was written.
+- **Mode chip** `.k-mode`: works like a model picker in an AI chat.
+  - The default is **Auto**. Auto reads the line's formatting: `*like this*` is an action, plain text or “quotes” is speech, `(like this)` is a thought no one hears, `@Mira …` is a whisper to Mira, and `>> …` is narration.
+  - While you type, the chip shows what Auto detected: "Auto · Do + Say".
+  - Clicking it opens a menu with Auto, Say, Do, Whisper, Think and Narrate, each with its syntax on the right. Picking one overrides Auto for this line only.
+- **Advanced** adds, above the text area:
+  - who will hear the line ("Only Mira will hear this", with away characters greyed)
+  - who answers next (Whoever fits, one chip per character, Narrator)
+  - Pass time
+  - the token count, and a token meter along the top edge
+
+  The toggle is remembered per user.
+
+**Widgets** `.k-widget`: glass cards, radius 24, independent of each other. Any number of any type, including several of the same type.
+
+- **Character widget** (one character each)
+  - Anatomy: portrait art in their current expression, name, expression chip (colour by feeling), and one line of how they are right now ("Worried someone overheard"), plus a pin button.
+  - The art crossfades when the expression changes.
+  - A compact row variant is used for away characters: face, name, "At the bar · away".
+  - Clicking it opens the character card.
+- **Story clock widget**
+  - The story time, big and 12-hour ("7:22 pm"); hovering it shows 24-hour and the full date.
+  - The story-relative date under it ("Six years after the storm").
+  - A sun/moon arc, the place, and **Pass time**.
+- **Music widget**
+  - Play/pause, the track name with a small level meter, where it comes from ("Matched to the scene", "Your upload"), and mute.
+  - Clicking the track opens the **music picker**:
+    - a "Match the scene" toggle
+    - suggested ambience and music
+    - the user's uploads
+    - **Upload a track…** (mp3, ogg, wav)
+    - volume
+- **Place widget:** the scene image in full colour, with the place name.
+- **Cast widget:** everyone in the scene as faces.
+- **Notes widget:** the user's own notes for this story.
+- **Pinned vs unpinned:** a pinned widget always shows. An unpinned widget stays tucked away and appears when something happens to it (a character's expression or feeling changes, the clock jumps, the track changes). It fades back after about six seconds unless hovered.
+
+**Edit widgets** (⋯ menu → Edit widgets)
+
+- The place dims under a dot grid. A bar at the top reads "Editing widgets · Drag anywhere…" with **Reset layout** and **Done**.
+- Every widget gets a dashed amber outline, a drag handle (top left, outside the card) and two buttons (top right): **Pin** (filled amber when pinned) and **Remove** (red).
+- Widgets drag freely anywhere on the screen. Where a widget came from, a dashed empty slot shows while you drag.
+- **Add widget** (top left) opens a list: Character, Story clock, Music, Place, Cast, Notes. Character asks which character. The same type can be added any number of times.
+- Layouts are saved per story, with a default for new stories.
+
+**Story menu** (⋯): Edit widgets, Reading mode, Scene and place, Story settings, Export story, then Delete story in red.
+
+**Character card** `.k-peek`: opens from a character widget, over a dimmed screen.
+
+- Header: portrait, name, expression, role, and **Add as widget**.
+- Right now: Holding, Wearing, Where.
+- How she feels about you: warmth, trust and doubt bars.
+- On her mind: one line.
+- Relationship chips; the Secret (blurred, Reveal).
+- Actions: Let her answer next, Send away, Edit.
+
+**Time skip** `.k-timeskip`: see §5.3.
 
 ### 4.3 Backstage
 
+The same scene from behind. It shows how a character's mind produced the last reply, not only what they remember. Mono type, blueprint lines.
+
 - **Panel** `.k-bs-panel` with a title bar `.k-bs-title` (mono, letter-spaced, dashed divider).
-- **Memory** panel:
-  - Character tabs, tier filters ("all 41, sharp 23, hazy 12, forgotten 6").
-  - Row columns (`.k-bs-row`): tier | memory text + story time (+ struck-through "was sharp: …") | how learned (witnessed, told by X, overheard, rumor, inferred) + "doubted" + recall score | importance meter `.k-importance` (10 bars) | Pin, Hide.
-  - Footer: "Pinned facts sit in every prompt".
-  - **Write a memory** form: text, importance 1–10, who knows (a character or "Everyone knows it"), "Keep it in every prompt", Save.
-- **Prompt:** "~7,300 / 16,384 tokens", counted tokens, cache reuse.
-  - A stacked bar `.k-tokenbar` of the prompt parts, with a legend showing each part against its limit.
-  - Recalled memories with scores, what was cut, and "full prompt".
-- **Cast:** one row per entity (avatar or icon, name, kind, current state such as "location: The Gull").
-  - A gold "found" badge for things the reader discovered.
-  - "These two are the same" merges duplicates.
-- **Reading:** memory reader runs (#, status dot, trigger, attempts, filed and skipped counts, a "stale" badge, errors).
-  - Buttons: "Read what is waiting now", "Read again carefully".
+- **Mind** (the main panel): the last reply, traced through the character's mind as a small network. Tabs switch between the characters and the Narrator.
+  - **IN:** what reached them this turn: heard ("Aren: 'buried it by the lighthouse'"), saw, place, time.
+  - **SENSE:** perception ("A claim that clashes with what she knows") and attention.
+  - **INSIDE:** the modules that shaped the reply: Recall, Feeling, Belief, Goals, Persona. Memory is one node among several.
+  - **DECIDE:** intent ("Question it, gently") and expression ("doubtful").
+  - Each node shows its activation (0–1) as a number and a thin bar. Edges are curves whose width is their weight. **The winning path is drawn in gold**, the rest in blueprint blue.
+  - Under the graph: **Spoke** (the line that came out, with its time and token count), and **How she feels about Aren, across the story** (warmth, trust and doubt lines, with story events such as "six years later" marked).
+  - Footer: "Memory · 41" (opens the full memory list), and "Replay this turn".
+  - Clicking a node shows what went into it and what came out.
+- **Prompt:** "~7,300 / 16,384 tokens", cache reuse, a stacked bar `.k-tokenbar` of the prompt parts (rules, cards, mind, examples, history, tail) with each part against its limit, what was cut, and "full prompt".
+- **Cast:** one row per entity (face or icon, name, kind, current state such as "here · doubtful · mug in hand"), with a gold "found" badge for things the reader discovered, and "These two are the same" to merge duplicates.
+- **Engine · this turn:** one row per job (Characters, Reasoning, Recall, Feelings, Memory reader, Narrator) with the model, time, tokens and status ("waiting · 2 new lines"), plus "Read what is waiting now" and Logs.
+- **Memory list** (from "Memory · 41"): tier, how it was learned, importance, recall score, pin, hide, and Write a memory. It is kept, but one click deeper than before.
 
----
+## 5. Behaviour rules for memory and feelings
 
-## 5. Behaviour rules for memory signals
+### 5.1 Who heard what (Advanced only)
 
-### 5.1 Receipt states (per character, per line)
+Hearing is still tracked for every line, but the chat doesn't show it by default. With the composer on **Advanced**, hovering a line shows small chips: "Mira heard it", "Tobin wasn't there". The composer shows who will hear the next line. Everywhere else, hearing only surfaces through its consequences: a reaction, a recall box, a belief.
 
-| State | Look | When |
-|---|---|---|
-| **heard** | avatar at 85%, thin white ring, plus three pending dots | **Instant.** The character was present when the line was said. |
-| **sharp** (lit) | amber ring with glow | **A few turns later**, when the memory reader has filed it and they remember it clearly. Crossfade 600 ms, like a read receipt arriving. |
-| **hazy** | 42% opacity, 0.5 px blur, faint ring | Story time has passed and only the gist is left. Transition 1.2 s. |
-| **forgotten** | avatar removed from the row | Faded out entirely. Backstage still lists it. |
-| **absent** | empty dashed circle with the initial, plus "Tobin wasn't there" | **Instant.** The character was not in the scene and heard nothing. |
+The underlying states, used in Advanced and in Backstage:
 
-The persona you play never gets a receipt; receipts are about the AI characters.
+| State | Meaning |
+|---|---|
+| heard | present when it was said; not yet filed by the memory reader |
+| sharp | filed, remembered clearly |
+| hazy | only the gist remains |
+| forgotten | gone |
+| absent | wasn't there, heard nothing |
 
-### 5.2 Callout wording
+### 5.2 Reaction wording
 
 - Memory: "Mira will remember this".
 - Feelings: "Tobin didn't like that", "Mira trusts you a little more", "Tobin is suspicious of you".
@@ -287,16 +330,21 @@ Callouts attach to the line they are about and also appear in Activity.
 
 ### 5.3 Time skip sequence
 
-1. The stage blurs and the clouds drift in.
-2. A title card shows "Six years later" (Newsreader italic 76), with the old clock struck through → the new clock.
-3. A summary pill reads "12 of Mira's memories are going hazy", with an Undo button.
-4. The clock rolls forward and the place re-lights (dusk → night: cooler, darker, moon in the window).
-5. Receipts across the whole conversation animate to their new states, so you watch characters forget.
-6. A title card "Six years later · Year 7" (with Undo) stays in the flow.
+1. The place blurs further, and a pale overlay (82%) with drifting clouds covers the whole screen, chat and widgets included.
+2. A solid white card (no transparency, so no text can show through) holds:
+   - "THE THIRD FLOORBOARD"
+   - "Six years later" (Newsreader italic 68, ink `#1f1a2b`)
+   - the old story date → the new one ("The night of the storm → Six years after the storm")
+   - a single line about memory ("Mira's memories of that night are growing hazy.")
+   - Undo (dark button, white text)
+3. The clock widget rolls forward, and the place crossfades to its new light (dusk → night: cooler, darker, moon in the window).
+4. A title card "Six years later" (with Undo) stays in the chat.
+
+All text in the sequence is dark on white, at a contrast of at least 7:1.
 
 ### 5.4 Arrivals and departures
 
-Only people on stage hear. Someone you bring in steps in (600 ms), gets a name card and a system note. Someone who leaves steps off and gets a system note.
+Only people on stage hear. Someone you bring in gets a story note ("Tobin joins.") and a character widget that appears with a "Joined" badge. If you don't pin it, it tucks away again. Someone who leaves gets a story note ("Tobin went to the bar."), and their widget turns into the compact grey row.
 
 When the story text itself says someone arrived or left, the stage follows once the memory reader notices, with Undo.
 
@@ -304,11 +352,31 @@ When the story text itself says someone arrived or left, the stage follows once 
 
 ## 6. Content style
 
-- Story clock everywhere a timestamp would go: "Day 1, 19:02", "Year 7, Day 1, 19:22".
+**Two clocks**
+
+Kataki has two: the real one (when you played) and the story one (when it happened). Use the real clock wherever the user is looking at their own history, and the story clock inside a story.
+
+| Where | Shows | On hover |
+|---|---|---|
+| Character card, profile, "Last played" | real time since you played ("Played 2 hours ago") | the exact date and place ("Today, 7:12 pm · at The Gull") |
+| Chats list | real time ("2 h ago"); the story date sits under it, with the persona | the exact date |
+| Activity | real time ("2 hours ago"); the story date in the item's second line | — |
+| Inside a story: line stamps, the clock widget, title cards | story time (12-hour) and the story-relative date | 24-hour time and the full story date |
+
+**Story dates**
+- Times are 12-hour everywhere in the chat and widgets ("7:02 pm"). Hovering shows the 24-hour time and the full date ("19:02 · Day 1 · the night of the storm").
+- A bare "Day 1, 19:00" tells the reader nothing, so it is the last resort, never the first choice. The date follows the story, in this order:
+  1. If the story, book or setting has a calendar, use it ("14 Frostmoon, 1203").
+  2. If it has a defining event, date relative to it: "The night of the storm", "5 days after the proposal", "Six years after the storm". Relative dates update as time passes.
+  3. Only if neither exists, use "Day 1", "Day 2"… ("Year 7, Day 1" after the first year).
+- The count (Day / Year) is always available on hover, so continuity is never lost.
+- Outside a story, prefer the real clock: "Played 2 hours ago", "Played yesterday", "Never played".
+
+**Voice**
 - Friendly, specific greetings in the Sky ("Good evening, Aren").
-- Write each signal as a sentence about a person: "Mira will remember that you hid the ledger." Avoid system phrasing like "Memory event created".
+- Write each signal as a sentence about a person: "Tobin is suspicious of you." Avoid system phrasing like "Memory event created".
+- Prefer feelings over mechanics in the chat. Keep "will remember" for the moments that matter.
 - In Models and Backstage, use the real names: server names, model ids, hosts, token counts.
-- Keep the copy from the current app where the reference in the brief quotes it, such as "No one: I direct the story", "away: hears nothing said here" and "Pinned facts sit in every prompt".
 
 ## 7. Not designed yet (leave room)
 

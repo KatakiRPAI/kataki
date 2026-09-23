@@ -1,172 +1,220 @@
 {
-  "v": 3,
-  "attachments": {},
-  "boards": {
-    "Main.dc.html": {
-      "h": 900,
-      "title": "Scene · one-to-one",
-      "w": 1440,
-      "x": 0,
-      "y": 0
-    },
-    "Scene-AfterSkip.dc.html": {
-      "h": 900,
-      "title": "Time skip · Year 7, re-lit",
-      "w": 1440,
-      "x": 3040,
-      "y": 1020
-    },
-    "Scene-Backstage.dc.html": {
-      "h": 900,
-      "title": "The backstage lens",
-      "w": 1440,
-      "x": 0,
-      "y": 2040
-    },
-    "Scene-Group-Joins.dc.html": {
-      "h": 900,
-      "title": "Scene · Tobin joins",
-      "w": 1440,
-      "x": 1520,
-      "y": 0
-    },
-    "Scene-Group-Secret.dc.html": {
-      "h": 900,
-      "title": "Scene · the secret (Tobin away)",
-      "w": 1440,
-      "x": 3040,
-      "y": 0
-    },
-    "Scene-Peek.dc.html": {
-      "h": 900,
-      "title": "Mira’s peek card",
-      "w": 1440,
-      "x": 4560,
-      "y": 1020
-    },
-    "Scene-Reply-Streaming.dc.html": {
-      "h": 900,
-      "title": "A reply arriving · streaming",
-      "w": 1440,
-      "x": 0,
-      "y": 1020
-    },
-    "Scene-Reply-Thinking.dc.html": {
-      "h": 900,
-      "title": "A reply arriving · thinking",
-      "w": 1440,
-      "x": 4560,
-      "y": 0
-    },
-    "Scene-TimeSkip.dc.html": {
-      "h": 900,
-      "title": "Time skip · transition",
-      "w": 1440,
-      "x": 1520,
-      "y": 1020
-    },
-    "Sky-Activity.dc.html": {
-      "h": 900,
-      "title": "Activity",
-      "w": 1440,
-      "x": 1520,
-      "y": 5020
-    },
-    "Sky-AddFriend.dc.html": {
-      "h": 900,
-      "title": "Add a friend",
-      "w": 1440,
-      "x": 3040,
-      "y": 3400
-    },
-    "Sky-Chats.dc.html": {
-      "h": 900,
-      "title": "Chats",
-      "w": 1440,
-      "x": 4560,
-      "y": 3400
-    },
-    "Sky-FirstRun.dc.html": {
-      "h": 900,
-      "title": "First run",
-      "w": 1440,
-      "x": 3040,
-      "y": 5020
-    },
-    "Sky-Home.dc.html": {
-      "h": 1190,
-      "title": "Home",
-      "w": 1440,
-      "x": 0,
-      "y": 3400
-    },
-    "Sky-Models.dc.html": {
-      "h": 1000,
-      "title": "Models (Settings)",
-      "w": 1440,
-      "x": 4560,
-      "y": 5020
-    },
-    "Sky-Profile-Mira.dc.html": {
-      "h": 1500,
-      "title": "Mira’s profile",
-      "w": 1440,
-      "x": 1520,
-      "y": 3400
-    },
-    "Sky-You.dc.html": {
-      "h": 900,
-      "title": "Persona switcher + your profile",
-      "w": 1440,
-      "x": 0,
-      "y": 5020
-    }
+ "v": 3,
+ "attachments": {},
+ "boards": {
+  "Main.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Scene · the chat and its widgets"
   },
-  "createdOnFiles": {
-    "at": "2026-09-19T00:59:18Z",
-    "v": 1
+  "Scene-AfterSkip.dc.html": {
+   "x": 3040,
+   "y": 2040,
+   "w": 1440,
+   "h": 900,
+   "title": "Six years after the storm"
   },
-  "designSystems": [],
-  "launch": {
-    "view": "canvas"
+  "Scene-Backstage.dc.html": {
+   "x": 1520,
+   "y": 3060,
+   "w": 1440,
+   "h": 900,
+   "title": "Backstage · the mind"
   },
-  "notes": {
-    "scene": {
-      "kind": "title1",
-      "maxW": 5960,
-      "text": "The Scene · inside a story",
-      "w": 240,
-      "x": 0,
-      "y": -320
-    },
-    "sky": {
-      "kind": "title1",
-      "maxW": 5960,
-      "text": "The Sky · outside a story",
-      "w": 240,
-      "x": 0,
-      "y": 3080
-    }
+  "Scene-Group-Joins.dc.html": {
+   "x": 4560,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Tobin joins"
   },
-  "order": [
-    "Main.dc.html",
-    "Scene-Group-Joins.dc.html",
-    "Scene-Group-Secret.dc.html",
-    "Scene-Reply-Thinking.dc.html",
-    "Scene-Reply-Streaming.dc.html",
-    "Scene-TimeSkip.dc.html",
-    "Scene-AfterSkip.dc.html",
-    "Scene-Peek.dc.html",
-    "Scene-Backstage.dc.html",
-    "Sky-Home.dc.html",
-    "Sky-Profile-Mira.dc.html",
-    "Sky-AddFriend.dc.html",
-    "Sky-Chats.dc.html",
-    "Sky-You.dc.html",
-    "Sky-Activity.dc.html",
-    "Sky-FirstRun.dc.html",
-    "Sky-Models.dc.html"
-  ],
-  "pages": [],
-  "title": "Kataki RPAI"
+  "Scene-Group-Secret.dc.html": {
+   "x": 0,
+   "y": 1020,
+   "w": 1440,
+   "h": 900,
+   "title": "The secret · feelings, not hearing"
+  },
+  "Scene-Peek.dc.html": {
+   "x": 0,
+   "y": 3060,
+   "w": 1440,
+   "h": 900,
+   "title": "Mira’s card"
+  },
+  "Scene-TimeSkip.dc.html": {
+   "x": 1520,
+   "y": 2040,
+   "w": 1440,
+   "h": 900,
+   "title": "Time skip · transition"
+  },
+  "Sky-Activity.dc.html": {
+   "x": 3040,
+   "y": 6040,
+   "w": 1440,
+   "h": 900,
+   "title": "Activity"
+  },
+  "Sky-Chats.dc.html": {
+   "x": 4560,
+   "y": 4420,
+   "w": 1440,
+   "h": 900,
+   "title": "Chats"
+  },
+  "Sky-FirstRun.dc.html": {
+   "x": 4560,
+   "y": 6040,
+   "w": 1440,
+   "h": 900,
+   "title": "First run"
+  },
+  "Sky-Home.dc.html": {
+   "x": 0,
+   "y": 4420,
+   "w": 1440,
+   "h": 1190,
+   "title": "Home"
+  },
+  "Sky-Models.dc.html": {
+   "x": 0,
+   "y": 7660,
+   "w": 1440,
+   "h": 1000,
+   "title": "Models (Settings)"
+  },
+  "Sky-Profile-Mira.dc.html": {
+   "x": 1520,
+   "y": 4420,
+   "w": 1440,
+   "h": 1500,
+   "title": "Mira’s profile"
+  },
+  "Sky-You.dc.html": {
+   "x": 1520,
+   "y": 6040,
+   "w": 1440,
+   "h": 900,
+   "title": "Persona switcher + your profile"
+  },
+  "Scene-Menu.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Story menu · Edit widgets"
+  },
+  "Scene-EditWidgets.dc.html": {
+   "x": 3040,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Editing widgets"
+  },
+  "Scene-Advanced.dc.html": {
+   "x": 1520,
+   "y": 1020,
+   "w": 1440,
+   "h": 900,
+   "title": "Advanced composer"
+  },
+  "Scene-ModePicker.dc.html": {
+   "x": 3040,
+   "y": 1020,
+   "w": 1440,
+   "h": 900,
+   "title": "Auto and the mode picker"
+  },
+  "Scene-EditLine.dc.html": {
+   "x": 4560,
+   "y": 1020,
+   "w": 1440,
+   "h": 900,
+   "title": "Edit, or edit and regenerate"
+  },
+  "Scene-Reply.dc.html": {
+   "x": 0,
+   "y": 2040,
+   "w": 1440,
+   "h": 900,
+   "title": "A reply arriving"
+  },
+  "Scene-MusicPicker.dc.html": {
+   "x": 4560,
+   "y": 2040,
+   "w": 1440,
+   "h": 900,
+   "title": "Choosing music"
+  },
+  "Sky-AddCharacter.dc.html": {
+   "x": 3040,
+   "y": 4420,
+   "w": 1440,
+   "h": 900,
+   "title": "Add a character"
+  },
+  "Sky-Library.dc.html": {
+   "x": 0,
+   "y": 6040,
+   "w": 1440,
+   "h": 1400,
+   "title": "Places and Plots"
+  }
+ },
+ "createdOnFiles": {
+  "at": "2026-09-19T00:59:18Z",
+  "v": 1
+ },
+ "designSystems": [],
+ "launch": {
+  "view": "canvas"
+ },
+ "notes": {
+  "scene": {
+   "kind": "title1",
+   "maxW": 5960,
+   "text": "The Scene · inside a story",
+   "w": 240,
+   "x": 0,
+   "y": -320
+  },
+  "sky": {
+   "kind": "title1",
+   "maxW": 5960,
+   "text": "The Sky · outside a story",
+   "w": 240,
+   "x": 0,
+   "y": 4100
+  }
+ },
+ "order": [
+  "Main.dc.html",
+  "Scene-Menu.dc.html",
+  "Scene-EditWidgets.dc.html",
+  "Scene-Group-Joins.dc.html",
+  "Scene-Group-Secret.dc.html",
+  "Scene-Advanced.dc.html",
+  "Scene-ModePicker.dc.html",
+  "Scene-EditLine.dc.html",
+  "Scene-Reply.dc.html",
+  "Scene-TimeSkip.dc.html",
+  "Scene-AfterSkip.dc.html",
+  "Scene-MusicPicker.dc.html",
+  "Scene-Peek.dc.html",
+  "Scene-Backstage.dc.html",
+  "Sky-Home.dc.html",
+  "Sky-Profile-Mira.dc.html",
+  "Sky-AddCharacter.dc.html",
+  "Sky-Chats.dc.html",
+  "Sky-Library.dc.html",
+  "Sky-You.dc.html",
+  "Sky-Activity.dc.html",
+  "Sky-FirstRun.dc.html",
+  "Sky-Models.dc.html"
+ ],
+ "pages": [],
+ "title": "Kataki RPAI"
 }

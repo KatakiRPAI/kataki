@@ -1,6 +1,6 @@
 # Kataki RPAI · design handoff
 
-This folder holds the visual design of Kataki RPAI: a design system, 17 desktop screen mockups, and the illustrations they use. It is written for the engineer (human or AI) who will build the real UI in `app/`.
+This folder holds the visual design of Kataki RPAI: a design system, 23 desktop screen mockups, and the illustrations they use. It is written for the engineer (human or AI) who will build the real UI in `app/`.
 
 Start with these three files, in this order:
 
@@ -25,7 +25,7 @@ design/
 ├─ screens/
 │  ├─ SCREENS.md              screen-by-screen spec
 │  ├─ index.html              clickable index of all screens
-│  ├─ html/*.html             each screen as a static page, opens offline
+│  ├─ html/*.html             each screen as a static page (23), opens offline
 │  └─ png/*.png               a screenshot of each screen
 ├─ assets/
 │  ├─ characters/*.svg        placeholder portraits (Mira in 5 expressions, Tobin in 2, Ilsa, Oren, Wren, Aren, Sable)
@@ -47,7 +47,7 @@ design/
 
 ## Two worlds, one sentence each
 
-- **The Sky** (outside a story): a bright social app above the clouds. Your characters are friends with profiles. Frosted glass, pills, candy icons, bouncy motion.
-- **The Scene** (inside a story): an intimate, lamplit room with the character in front of you. The story is set in book type, and the controls fade while you read.
+- **The Sky** (outside a story): a bright social app above the clouds. Your characters have profiles, and places and plots are filed under books and stories. Frosted glass, pills, candy icons, bouncy motion.
+- **The Scene** (inside a story): a full-height chat in book type over a dimmed, lamplit place, with widgets (characters, story clock, music…) that the user arranges around it.
 
 Moving between them is **the dive**: the clouds part and the scene fades in. Leaving floats you back up.

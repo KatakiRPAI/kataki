@@ -9,11 +9,11 @@ def skybg(w,h):
             f'<img src="{A["clouds"]}" alt="" style="position: absolute; left: 300px; top: -420px; width: 1400px; height: 875px; opacity: .45; transform: scaleY(-1);">')
 
 def rail(active, h):
-    items=[('Home','home'),('Friends','users'),('Chats','chat'),('Places','map'),('Activity','bell'),('You','user')]
+    items=[('Home','home'),('Characters','users'),('Chats','chat'),('Places &amp;<br>Plots','map'),('Activity','bell'),('You','user')]
     it=''
     for lab,ic in items:
         on = lab==active
-        it+=f'<a href="{ {"Home":"Sky-Home.dc.html","Chats":"Sky-Chats.dc.html","Activity":"Sky-Activity.dc.html","You":"Sky-You.dc.html","Friends":"Sky-Profile-Mira.dc.html","Places":"Sky-Home.dc.html"}[lab] }" style="width: 72px; height: 62px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-decoration: none; font-size: 11.5px; font-weight: {700 if on else 600}; color: {ACC if on else MUT}; background: {"#ffffff" if on else "transparent"}; {"box-shadow: 0 6px 16px rgba(47,99,240,.18);" if on else ""}">{icon(ic,21, ACC if on else MUT, 2 if on else 1.8)}{lab}</a>'
+        it+=f'<a href="{ {"Home":"Sky-Home.dc.html","Chats":"Sky-Chats.dc.html","Activity":"Sky-Activity.dc.html","You":"Sky-You.dc.html","Characters":"Sky-Profile-Mira.dc.html","Places &amp;<br>Plots":"Sky-Library.dc.html"}[lab] }" style="width: 76px; height: 68px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-decoration: none; font-size: 11.5px; line-height: 1.2; text-align: center; font-weight: {700 if on else 600}; color: {ACC if on else MUT}; background: {"#ffffff" if on else "transparent"}; {"box-shadow: 0 6px 16px rgba(47,99,240,.18);" if on else ""}">{icon(ic,21, ACC if on else MUT, 2 if on else 1.8)}{lab}</a>'
     set_on = active=='Settings'
     return f'''<nav aria-label="Main" style="position: absolute; left: 20px; top: 20px; width: 92px; height: {h-40}px; box-sizing: border-box; border-radius: 32px; padding: 18px 0; display: flex; flex-direction: column; align-items: center; gap: 6px; z-index: 5; {GL}">
 <div style="display: flex; flex-direction: column; align-items: center; gap: 6px; margin-bottom: 14px;"><div style="width: 34px; height: 34px; border-radius: 12px; background: linear-gradient(150deg, #7fb0ff, #3d63f2); display: flex; align-items: center; justify-content: center; box-shadow: inset 0 2px 0 rgba(255,255,255,.6);">{icon('cloud',20,'#fff',2.2)}</div><span style="font-family: {DISPLAY}; font-size: 15px; color: {INK};">Kataki</span></div>
@@ -53,7 +53,7 @@ def ring(pct, s=56, sw=6, col=ACC, label=None):
 
 # ---------- HOME ----------
 W,H=1440,1190
-def friend_card(who, tag, status, fav=False, in_story=True, pct=None):
+def friend_card(who, tag, status, tip='', fav=False, in_story=True, pct=None):
     st_dot = '#23b26d' if in_story else '#9aa6bf'
     fav_btn = f'<button aria-label="Favourite {NAME[who]}" style="position: absolute; right: 12px; top: 12px; width: 36px; height: 36px; border-radius: 50%; border: 0; background: rgba(255,255,255,.7); color: {"#ff4f7b" if fav else MUT}; display: flex; align-items: center; justify-content: center;">{icon("heart",17,"#ff4f7b" if fav else MUT)}</button>'
     extra = f'<div style="position: absolute; left: 12px; top: 12px;">{ring(pct,40,4,label=str(pct))}</div>' if pct else ''
@@ -63,7 +63,7 @@ def friend_card(who, tag, status, fav=False, in_story=True, pct=None):
 <div style="position: absolute; left: 8px; right: 8px; bottom: 8px; padding: 10px 12px; border-radius: 20px; display: flex; flex-direction: column; gap: 3px; {GL} background: rgba(255,255,255,.78);">
 <span style="font-size: 16px; font-weight: 800;">{NAME[who]}</span>
 <span style="font-size: 11.5px; color: {MUT}; line-height: 1.3; height: 30px; overflow: hidden;">{tag}</span>
-<span style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: {INK};"><span style="width: 7px; height: 7px; border-radius: 4px; background: {st_dot}; display: block;"></span>{status}</span>
+<span title="{tip}" style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: {INK};"><span style="width: 7px; height: 7px; border-radius: 4px; background: {st_dot}; display: block;"></span>{status}</span>
 </div></a>'''
 
 def act_item(who, text, story, clock, kind, compact=True):
@@ -79,9 +79,9 @@ fchips=''.join(f'<button aria-pressed="{"true" if i==0 else "false"}" style="dis
 moment = lambda title, sub, layers: f'''<a href="Scene-Group-Secret.dc.html" style="position: relative; display: block; width: 604px; height: 220px; border-radius: 28px; overflow: hidden; text-decoration: none; box-shadow: 0 14px 30px rgba(62,92,170,.2);">
 <img src="{A['gull-night']}" alt="" style="position: absolute; left: 0; top: -120px; width: 720px; height: 450px;">{layers}
 <div style="position: absolute; left: 12px; bottom: 12px; padding: 10px 14px; border-radius: 18px; display: flex; flex-direction: column; gap: 2px; {GL} background: rgba(255,255,255,.82);"><span style="font-size: 15px; font-weight: 800; color: {INK};">{title}</span><span style="font-size: 12px; color: {MUT};">{sub}</span></div></a>'''
-m1 = moment('A secret at The Gull','The Third Floorboard · Day 1, night',
+m1 = moment('A secret at The Gull','The Third Floorboard · the night of the storm',
     f'<img src="{A["tobin"]}" alt="" style="position: absolute; left: 400px; top: 40px; width: 150px; height: 169px; filter: blur(2px) brightness(.6);"><img src="{A["aren"]}" alt="" style="position: absolute; left: 60px; top: 40px; width: 260px; height: 292px; filter: brightness(.9) sepia(.2);"><img src="{A["mira-wary"]}" alt="" style="position: absolute; left: 250px; top: 30px; width: 270px; height: 304px; transform: scaleX(-1); filter: brightness(.9) sepia(.2);">')
-m2 = moment('Reunion, six years later','The Third Floorboard · Year 7, night',
+m2 = moment('Reunion, six years later','The Third Floorboard · six years later',
     f'<img src="{A["mira-smile"]}" alt="" style="position: absolute; left: 330px; top: 20px; width: 290px; height: 326px; filter: brightness(.85) sepia(.15);"><img src="{A["aren"]}" alt="" style="position: absolute; left: 120px; top: 40px; width: 260px; height: 292px; filter: brightness(.8) sepia(.2);">')
 
 home = f'''<div style="position: absolute; left: 144px; top: 28px; width: 1272px; display: flex; flex-direction: column; gap: 30px;">
@@ -91,9 +91,9 @@ home = f'''<div style="position: absolute; left: 144px; top: 28px; width: 1272px
 <div style="display: flex; flex-direction: column;"><span style="font-size: 14px; font-weight: 600; color: {MUT};">Good evening,</span><span style="font-family: {DISPLAY}; font-size: 44px; line-height: 1; color: {INK};">Aren</span></div>
 </div>
 <div style="display: flex; align-items: center; gap: 10px;">
-<label style="display: flex; align-items: center; gap: 10px; width: 340px; height: 48px; padding: 0 18px; box-sizing: border-box; border-radius: 24px; {GL}">{icon('search',18,MUT)}<span class="sr">Search</span><input type="search" placeholder="Search friends, stories, places" style="border: 0; outline: none; background: transparent; font-size: 14px; color: {INK}; flex-grow: 1;"></label>
+<label style="display: flex; align-items: center; gap: 10px; width: 340px; height: 48px; padding: 0 18px; box-sizing: border-box; border-radius: 24px; {GL}">{icon('search',18,MUT)}<span class="sr">Search</span><input type="search" placeholder="Search characters, stories, places" style="border: 0; outline: none; background: transparent; font-size: 14px; color: {INK}; flex-grow: 1;"></label>
 <a href="Sky-Activity.dc.html" aria-label="Activity, 4 new" style="position: relative; width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: {INK}; {GL}">{icon('bell',20)}<span style="position: absolute; right: -2px; top: -2px; min-width: 20px; height: 20px; border-radius: 10px; background: #ff4f7b; color: #fff; font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center; border: 2px solid #fff;">4</span></a>
-{pill('Add a friend','plus',dark=True,h=48,href='Sky-AddFriend.dc.html')}
+{pill('Add a character','plus',dark=True,h=48,href='Sky-AddCharacter.dc.html')}
 </div>
 </header>
 <div style="display: flex; gap: 24px;">
@@ -104,27 +104,27 @@ home = f'''<div style="position: absolute; left: 144px; top: 28px; width: 1272px
 <div style="position: absolute; left: 380px; top: 34px; width: 360px; display: flex; flex-direction: column; gap: 12px; color: #fff;">
 <span style="align-self: flex-start; height: 28px; padding: 0 12px; border-radius: 14px; background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.3); font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 6px;">{icon('spark',13,'#ffd08a')}Continue · 3 new memory events</span>
 <span style="font-family: {SERIF}; font-size: 34px; line-height: 1.05;">The Third Floorboard</span>
-<span style="font-size: 13px; color: rgba(255,255,255,.78);">The Gull · Year 7, Day 1, 19:22 · with Mira · as Aren</span>
+<span style="font-size: 13px; color: rgba(255,255,255,.78);" title="Today, 7:12 pm">The Gull · six years after the storm · with Mira · as Aren</span>
 <p style="margin: 6px 0 0; font-family: {SERIF}; font-size: 19px; line-height: 1.45; color: #f4e9da;"><span style="font-weight: 600; color: #f2b870; font-family: {SANS}; font-size: 13px;">Mira&#160;&#160;</span><em>frowns</em> The lighthouse? I could have sworn… Six years is a long time.</p>
 </div>
 <a href="Main.dc.html" style="position: absolute; right: 28px; bottom: 26px; display: flex; align-items: center; gap: 14px; text-decoration: none; color: #fff;"><span style="font-size: 15px; font-weight: 800;">Dive back in</span>{orb(74)}</a>
 </section>
 <section style="flex-grow: 1; height: 372px; box-sizing: border-box; border-radius: 34px; padding: 22px; display: flex; flex-direction: column; gap: 10px; {GL}">
 {h2('Activity','<a href="Sky-Activity.dc.html" style="font-size: 13px; font-weight: 700; text-decoration: none;">See all</a>')}
-{act_item('mira','Mira has her doubts about the lighthouse.','The Third Floorboard','Year 7','belief')}
-{act_item('mira','Six years passed. 12 of Mira’s memories went hazy.','The Third Floorboard','Year 7','time')}
-{act_item('tobin','Tobin didn’t like being sent to the bar.','The Third Floorboard','Day 1','feeling')}
+{act_item('mira','Mira has her doubts about the lighthouse.','The Third Floorboard','2 h ago','belief')}
+{act_item('mira','Six years passed. 12 of Mira’s memories went hazy.','The Third Floorboard','2 h ago','time')}
+{act_item('tobin','Tobin didn’t like being sent to the bar.','The Third Floorboard','yesterday','feeling')}
 </section>
 </div>
 <section style="display: flex; flex-direction: column; gap: 18px;">
-<div style="display: flex; align-items: flex-end; justify-content: space-between;"><h2 style="margin: 0; font-size: 22px; font-weight: 800;">Friends</h2><div style="display: flex; gap: 22px;">{fchips}</div></div>
+<div style="display: flex; align-items: flex-end; justify-content: space-between;"><h2 style="margin: 0; font-size: 22px; font-weight: 800;">Characters</h2><div style="display: flex; gap: 22px;">{fchips}</div></div>
 <div style="display: flex; gap: 17px;">
-{friend_card('mira','Guild courier. Loyal to friends, wary of everyone else.','At The Gull · Year 7',fav=True)}
-{friend_card('tobin','Cheerful smuggler. Hears everything eventually.','Left The Gull · Day 1')}
-{friend_card('ilsa','A mountain guide who never loses a trail.','On the pass · Day 2',fav=True)}
-{friend_card('oren','A clockmaker who collects debts, and secrets.','In a story · Day 5')}
-{friend_card('wren','Just added. Finish their profile.','Not in a story yet',in_story=False,pct=60)}
-<a href="Sky-AddFriend.dc.html" style="width: 196px; height: 268px; box-sizing: border-box; border-radius: 28px; border: 2px dashed rgba(47,99,240,.35); background: rgba(255,255,255,.35); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-decoration: none; color: {INK};">{candy('plus','#7fb0ff','#3d63f2',56)}<span style="font-size: 15px; font-weight: 800;">Add a friend</span><span style="font-size: 12px; color: {MUT}; text-align: center; width: 140px;">Build a character like a profile, one step at a time</span></a>
+{friend_card('mira','Guild courier. Loyal to friends, wary of everyone else.','Played 2 hours ago','Today, 7:12 pm · at The Gull',fav=True)}
+{friend_card('tobin','Cheerful smuggler. Hears everything eventually.','Played 2 hours ago','Today, 6:48 pm · at The Gull')}
+{friend_card('ilsa','A mountain guide who never loses a trail.','Played yesterday','22 Sep, 10:20 pm · on the pass',fav=True)}
+{friend_card('oren','A clockmaker who collects debts, and secrets.','Played 5 days ago','18 Sep, 11:35 pm · at his workshop')}
+{friend_card('wren','Just added. Finish their profile.','Never played','Added 21 Sep',in_story=False,pct=60)}
+<a href="Sky-AddCharacter.dc.html" style="width: 196px; height: 268px; box-sizing: border-box; border-radius: 28px; border: 2px dashed rgba(47,99,240,.35); background: rgba(255,255,255,.35); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-decoration: none; color: {INK};">{candy('plus','#7fb0ff','#3d63f2',56)}<span style="font-size: 15px; font-weight: 800;">Add a character</span><span style="font-size: 12px; color: {MUT}; text-align: center; width: 140px;">Build them like a profile, one step at a time</span></a>
 </div>
 </section>
 <section style="display: flex; flex-direction: column; gap: 18px;">
@@ -150,20 +150,20 @@ membar = f'''<div style="display: flex; flex-direction: column; gap: 8px; paddin
 <div style="display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: rgba(20,38,77,.08);"><span style="width: 60%; background: {ACC}; display: block;"></span><span style="width: 32%; background: repeating-linear-gradient(135deg, rgba(47,99,240,.5) 0 4px, rgba(47,99,240,.25) 4px 8px); display: block;"></span></div>
 <div style="display: flex; gap: 16px; font-size: 12px; color: {MUT};"><span>23 sharp</span><span>12 hazy</span><span>3 forgotten</span></div></div>'''
 living = card('Right now', 
-    lrow('map-pin','Last seen','The Gull, corner table · Year 7, Day 1')+lrow('hand','Holding','A mug she hasn’t touched')+lrow('user','Wearing','Rain-dark courier’s cloak, guild badge')+lrow('heart','Feels about you','Trusts you, has her doubts about the lighthouse')+membar,
+    lrow('map-pin','Last seen','The Gull, corner table · <span title="Year 7, Day 1, 19:22" style="border-bottom: 1px dotted '+MUT+';">six years after the storm</span>')+lrow('hand','Holding','A mug she hasn’t touched')+lrow('user','Wearing','Rain-dark courier’s cloak, guild badge')+lrow('heart','Feels about you','Trusts you, has her doubts about the lighthouse')+membar,
     right=f'<button style="height: 34px; padding: 0 14px; border-radius: 17px; border: 1px solid rgba(255,255,255,.95); background: rgba(255,255,255,.8); color: {INK}; font-size: 12.5px; font-weight: 700; display: flex; align-items: center; gap: 6px;">{icon("book",14)}In The Third Floorboard{icon("down",14)}</button>')
 secret = f'''<section style="position: relative; border-radius: 28px; padding: 22px; overflow: hidden; background: linear-gradient(150deg, #2a2f5c, #151a3a); color: #fff; display: flex; flex-direction: column; gap: 12px;">
 <div style="display: flex; align-items: center; justify-content: space-between;"><span style="display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 800;">{icon('lock',18,'#ffd08a')}Only Mira knows this</span><button style="height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid rgba(255,255,255,.35); background: rgba(255,255,255,.08); color: #fff; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px;">{icon('eye',15)}Reveal as author</button></div>
 <span style="font-family: {SERIF}; font-size: 20px; filter: blur(7px); user-select: none;">She reads every letter she carries.</span>
 <span style="font-size: 12px; color: rgba(255,255,255,.7);">Other characters never see it. Mira acts on it.</span></section>'''
-stories = ''.join(f'<a href="{href}" style="display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 18px; background: rgba(255,255,255,.55); text-decoration: none; color: {INK};"><div style="width: 64px; height: 48px; border-radius: 12px; overflow: hidden; position: relative; flex-shrink: 0;"><img src="{A[bg]}" alt="" style="position: absolute; left: -20px; top: -10px; width: 110px; height: 69px;"></div><span style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 14px; font-weight: 800;">{t}</span><span style="font-size: 12px; color: {MUT};">{sub}</span></span></a>' for t,sub,bg,href in [('The Third Floorboard','with Tobin · as Aren · Year 7','gull-night','Main.dc.html'),('Letters for the Guild','as Sable · Day 2','market','Sky-Chats.dc.html')])
+stories = ''.join(f'<a href="{href}" style="display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 18px; background: rgba(255,255,255,.55); text-decoration: none; color: {INK};"><div style="width: 64px; height: 48px; border-radius: 12px; overflow: hidden; position: relative; flex-shrink: 0;"><img src="{A[bg]}" alt="" style="position: absolute; left: -20px; top: -10px; width: 110px; height: 69px;"></div><span style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 14px; font-weight: 800;">{t}</span><span style="font-size: 12px; color: {MUT};">{sub}</span></span></a>' for t,sub,bg,href in [('The Third Floorboard','with Tobin · as Aren · played 2 h ago','gull-night','Main.dc.html'),('Letters for the Guild','as Sable · played 2 weeks ago','market','Sky-Chats.dc.html')])
 places = ''.join(f'<div style="display: flex; flex-direction: column; gap: 6px; width: 150px;"><div style="width: 150px; height: 96px; border-radius: 16px; overflow: hidden; position: relative;"><img src="{A[bg]}" alt="" style="position: absolute; left: -30px; top: -20px; width: 220px; height: 138px;"></div><span style="font-size: 13px; font-weight: 700;">{t}</span></div>' for t,bg in [('The Gull','gull-dusk'),('Harbour Market','market')])
 profile = f'''<div style="position: absolute; left: 144px; top: 28px; width: 1272px; display: flex; gap: 28px;">
 <div style="width: 420px; display: flex; flex-direction: column; gap: 16px; flex-shrink: 0;">
-<a href="Sky-Home.dc.html" style="display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; text-decoration: none; color: {INK};">{icon('left',18)}Friends</a>
+<a href="Sky-Home.dc.html" style="display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; text-decoration: none; color: {INK};">{icon('left',18)}Characters</a>
 <div style="position: relative;">{portrait_card('mira',420,540,style='box-shadow: 0 24px 50px rgba(30,50,120,.25);')}
 <div style="position: absolute; left: 14px; right: 14px; bottom: 14px; padding: 16px 18px; border-radius: 24px; display: flex; flex-direction: column; gap: 8px; {GL} background: rgba(255,255,255,.82);">
-<div style="display: flex; align-items: center; gap: 10px;"><span style="font-family: {DISPLAY}; font-size: 46px; line-height: 1;">Mira</span><span style="height: 26px; padding: 0 10px; border-radius: 13px; background: rgba(35,178,109,.14); color: #11804b; font-size: 12px; font-weight: 800; display: flex; align-items: center; gap: 6px;"><span style="width: 7px; height: 7px; border-radius: 4px; background: #23b26d; display: block;"></span>At The Gull · Year 7</span></div>
+<div style="display: flex; align-items: center; gap: 10px;"><span style="font-family: {DISPLAY}; font-size: 46px; line-height: 1;">Mira</span><span style="height: 26px; padding: 0 10px; border-radius: 13px; background: rgba(35,178,109,.14); color: #11804b; font-size: 12px; font-weight: 800; display: flex; align-items: center; gap: 6px;"><span style="width: 7px; height: 7px; border-radius: 4px; background: #23b26d; display: block;"></span>Played 2 hours ago</span></div>
 <span style="font-size: 15px; color: {MUT};">Guild courier. Loyal to friends, wary of everyone else.</span>
 <div style="display: flex; gap: 6px;">{tagc('Courier')}{tagc('Loyal')}{tagc('Wary')}</div>
 </div></div>
@@ -172,21 +172,21 @@ profile = f'''<div style="position: absolute; left: 144px; top: 28px; width: 127
 <button style="align-self: center; height: 40px; padding: 0 14px; border: 0; background: none; color: {MUT}; font-size: 13.5px; font-weight: 700; display: flex; align-items: center; gap: 6px;">{icon('edit',15)}Edit profile</button>
 </div>
 <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 18px; padding-top: 36px;">
-<div style="display: flex; gap: 14px;">{stat('book','#c4a4ff','#7c4ff0','2 stories together','as Aren and as Sable')}{stat('spark','#ffd58a','#f0a020','Remembers 38 things','about Aren')}{stat('map-pin','#8fe0b0','#22b26d','Last seen: The Gull','Year 7, Day 1, 19:22')}</div>
+<div style="display: flex; gap: 14px;">{stat('book','#c4a4ff','#7c4ff0','2 stories together','as Aren and as Sable')}{stat('spark','#ffd58a','#f0a020','Remembers 38 things','about Aren')}{stat('clock','#8fe0b0','#22b26d','Last played 2 hours ago','Today, 7:12 pm · The Gull')}</div>
 {living}
 <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px;">
 {card('About', f'<p style="margin: 0; font-size: 15px; line-height: 1.5;">Guild courier. Loyal to friends, wary of everyone else.</p><span style="font-size: 12px; color: {MUT};">What anyone in a scene can see or know.</span><div style="display: flex; align-items: center; gap: 8px; font-size: 13px;"><span style="color: {MUT};">Also known as</span>{tagc("the courier")}</div>')}
 {card('How she talks', bubble('Coin first. Questions after.')+bubble('*taps the letter* You want it or not?'))}
 {card('How she says hi', bubble('*slides a sealed letter across the table* You’re late.'))}
 {secret}
-{card('Relationships', f'<div style="display: flex; flex-direction: column; gap: 10px;"><div style="display: flex; align-items: center; gap: 10px;">{face("aren",36)}<span style="font-size: 14.5px; font-weight: 700; flex-grow: 1;">Trusts Aren</span><span style="font-size: 12px; color: {MUT};">has her doubts, Year 7</span></div><div style="display: flex; align-items: center; gap: 10px;">{face("tobin",36)}<span style="font-size: 14.5px; font-weight: 700; flex-grow: 1;">Distrusts Tobin</span><span style="font-size: 12px; color: {MUT};">since Day 1</span></div></div>', right=f'<span style="font-size: 12px; color: {MUT};">The Third Floorboard</span>')}
+{card('Relationships', f'<div style="display: flex; flex-direction: column; gap: 10px;"><div style="display: flex; align-items: center; gap: 10px;">{face("aren",36)}<span style="font-size: 14.5px; font-weight: 700; flex-grow: 1;">Trusts Aren</span><span style="font-size: 12px; color: {MUT};">has her doubts · six years after the storm</span></div><div style="display: flex; align-items: center; gap: 10px;">{face("tobin",36)}<span style="font-size: 14.5px; font-weight: 700; flex-grow: 1;">Distrusts Tobin</span><span style="font-size: 12px; color: {MUT};">since the night of the storm</span></div></div>', right=f'<span style="font-size: 12px; color: {MUT};">The Third Floorboard</span>')}
 {card('Stories together', f'<div style="display: flex; flex-direction: column; gap: 8px;">{stories}</div>')}
 {card('Places she’s been', f'<div style="display: flex; gap: 12px;">{places}</div>')}
 {card('Moments', f'<div style="display: flex; gap: 12px;"><div style="width: 150px; height: 96px; border-radius: 16px; overflow: hidden; position: relative;"><img src="{A["gull-night"]}" alt="" style="position: absolute; left: -40px; top: -30px; width: 240px; height: 150px;"><img src="{A["mira-wary"]}" alt="" style="position: absolute; left: 50px; top: 6px; width: 100px; height: 112px;"></div><div style="width: 150px; height: 96px; border-radius: 16px; overflow: hidden; position: relative;"><img src="{A["gull-night"]}" alt="" style="position: absolute; left: -60px; top: -30px; width: 240px; height: 150px;"><img src="{A["mira-smile"]}" alt="" style="position: absolute; left: 30px; top: 6px; width: 100px; height: 112px;"></div></div><span style="font-size: 12px; color: {MUT};">A secret at The Gull · Reunion, six years later</span>')}
 </div>
 </div>
 </div>'''
-files['Sky-Profile-Mira.dc.html']=shell('Mira’s profile',PW,PH,profile,'Friends')
+files['Sky-Profile-Mira.dc.html']=shell('Mira’s profile',PW,PH,profile,'Characters')
 
 # ---------- ADD A FRIEND ----------
 SW,SH=1440,900
@@ -199,9 +199,9 @@ for i,(t,s) in enumerate(steps):
     st+=f'<button style="display: flex; align-items: center; gap: 12px; height: 52px; padding: 0 12px; border: 0; border-radius: 18px; background: {"#fff" if s=="now" else "transparent"}; color: {INK}; font-size: 14.5px; font-weight: {800 if s=="now" else 600}; text-align: left;">{dot}{t}</button>'
 prompts=''.join(f'<button style="height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid rgba(255,255,255,.95); background: rgba(255,255,255,.7); color: {INK}; font-size: 13px; font-weight: 700;">{t}</button>' for t in ['A fear','A debt','Something they did','Someone they protect','What they want'])
 addf = f'''<div style="position: absolute; left: 144px; top: 28px; width: 1272px; display: flex; flex-direction: column; gap: 22px;">
-<div style="display: flex; align-items: center; justify-content: space-between;"><a href="Sky-Home.dc.html" style="display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; text-decoration: none; color: {INK};">{icon('left',18)}Friends</a><span style="font-size: 13px; color: {MUT};">Saved as you go</span></div>
+<div style="display: flex; align-items: center; justify-content: space-between;"><a href="Sky-Home.dc.html" style="display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; text-decoration: none; color: {INK};">{icon('left',18)}Characters</a><span style="font-size: 13px; color: {MUT};">Saved as you go</span></div>
 <div style="display: flex; gap: 24px; align-items: flex-start;">
-<nav aria-label="Steps" style="width: 260px; padding: 14px; box-sizing: border-box; border-radius: 28px; display: flex; flex-direction: column; gap: 4px; {GL}"><span style="font-family: {DISPLAY}; font-size: 26px; padding: 6px 12px 12px;">Add a friend</span>{st}</nav>
+<nav aria-label="Steps" style="width: 260px; padding: 14px; box-sizing: border-box; border-radius: 28px; display: flex; flex-direction: column; gap: 4px; {GL}"><span style="font-family: {DISPLAY}; font-size: 26px; padding: 6px 12px 12px;">Add a character</span>{st}</nav>
 <section style="flex-grow: 1; height: 700px; box-sizing: border-box; padding: 36px 40px; border-radius: 34px; display: flex; flex-direction: column; gap: 20px; {GL}">
 <span style="font-size: 13px; font-weight: 800; letter-spacing: .1em; color: {ACC};">STEP 3 OF 6</span>
 <h1 style="margin: 0; font-family: {DISPLAY}; font-weight: 400; font-size: 48px; line-height: 1;">Their secret</h1>
@@ -222,18 +222,18 @@ addf = f'''<div style="position: absolute; left: 144px; top: 28px; width: 1272px
 </div>
 </aside>
 </div></div>'''
-files['Sky-AddFriend.dc.html']=shell('Add a friend',SW,SH,addf,'Friends')
+files['Sky-AddCharacter.dc.html']=shell('Add a character',SW,SH,addf,'Characters')
 
 # ---------- CHATS ----------
 def stack(ws, s=48):
     if len(ws)==1: return face(ws[0],s,ring='0 0 0 3px #fff')
     return f'<div style="position: relative; width: {s+14}px; height: {s}px; flex-shrink: 0;"><div style="position: absolute; left: 0; top: 0;">{face(ws[0],s-8,ring="0 0 0 3px #fff")}</div><div style="position: absolute; left: 18px; top: 12px;">{face(ws[1],s-8,ring="0 0 0 3px #fff")}</div></div>'
-def thread(ws, title, last, clock, persona, badge=0, sel=False, pinned=False):
+def thread(ws, title, last, ago, tip, persona, badge=0, sel=False, pinned=False):
     b = f'<span style="min-width: 24px; height: 24px; padding: 0 7px; box-sizing: border-box; border-radius: 12px; background: #f0a020; color: #fff; font-size: 11.5px; font-weight: 800; display: flex; align-items: center; gap: 3px;">{icon("spark",11,"#fff",2.4)}{badge}</span>' if badge else ''
     pn = icon('pushpin',13,MUT) if pinned else ''
     return f'''<a href="Main.dc.html" style="display: flex; align-items: center; gap: 14px; padding: 14px; border-radius: 22px; text-decoration: none; color: {INK}; background: {"#fff" if sel else "transparent"}; {"box-shadow: 0 8px 20px rgba(62,92,170,.14);" if sel else ""}">
 {stack(ws)}
-<span style="display: flex; flex-direction: column; gap: 3px; flex-grow: 1; min-width: 0;"><span style="display: flex; align-items: center; justify-content: space-between; gap: 8px;"><span style="font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 6px;">{title}{pn}</span><span style="font-size: 12px; color: {MUT}; white-space: nowrap; font-variant-numeric: tabular-nums;">{clock}</span></span>
+<span style="display: flex; flex-direction: column; gap: 3px; flex-grow: 1; min-width: 0;"><span style="display: flex; align-items: center; justify-content: space-between; gap: 8px;"><span style="font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 6px;">{title}{pn}</span><span title="{tip}" style="font-size: 12px; color: {MUT}; white-space: nowrap; font-variant-numeric: tabular-nums;">{ago}</span></span>
 <span style="display: flex; align-items: center; justify-content: space-between; gap: 8px;"><span style="font-size: 13.5px; color: {MUT}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{last}</span>{b}</span>
 <span style="font-size: 11.5px; font-weight: 700; color: {ACC};">as {persona}</span></span></a>'''
 chats = f'''<div style="position: absolute; left: 144px; top: 28px; width: 1272px; height: 844px; display: flex; gap: 24px;">
@@ -241,11 +241,11 @@ chats = f'''<div style="position: absolute; left: 144px; top: 28px; width: 1272p
 <h1 style="margin: 0; font-family: {DISPLAY}; font-weight: 400; font-size: 40px; line-height: 1;">Chats</h1><div style="display: flex; gap: 8px;">{pill('New chat','plus',dark=True,h=42)}{pill('New group scene','users',h=42)}</div>
 <div style="display: flex; gap: 6px;">{chip('All',True)}{chip('One-to-one')}{chip('Groups')}</div>
 <span style="font-size: 11.5px; font-weight: 800; letter-spacing: .12em; color: {MUT}; padding: 6px 4px 0;">PINNED</span>
-{thread(['mira','tobin'],'The Third Floorboard','Mira: The lighthouse? I could have sworn…','Year 7, Day 1, 19:22','Aren',3,True,True)}
+{thread(['mira','tobin'],'The Third Floorboard','Mira: The lighthouse? I could have sworn…','2 h ago','Today, 7:12 pm','Aren · six years after the storm',3,True,True)}
 <span style="font-size: 11.5px; font-weight: 800; letter-spacing: .12em; color: {MUT}; padding: 6px 4px 0;">ALL STORIES</span>
-{thread(['ilsa'],'Frost on the Pass','Ilsa: The pass won’t open before dawn.','Day 2, 06:40','Sable',1)}
-{thread(['oren'],'The Clockmaker’s Debt','Master Oren: Every debt comes due.','Day 5, 23:10','Aren')}
-{thread(['mira'],'Letters for the Guild','Mira: You’re late.','Day 2, 08:15','Sable')}
+{thread(['ilsa'],'Frost on the Pass','Ilsa: The pass won’t open before dawn.','Yesterday','22 Sep, 10:20 pm','Sable · the second day in the hut',1)}
+{thread(['oren'],'The Clockmaker’s Debt','Master Oren: Every debt comes due.','5 d ago','18 Sep, 11:35 pm','Aren · five days after the loan')}
+{thread(['mira'],'Letters for the Guild','Mira: You’re late.','2 w ago','8 Sep, 9:05 pm','Sable · the morning after the fair')}
 </section>
 <section style="flex-grow: 1; border-radius: 34px; overflow: hidden; display: flex; flex-direction: column; {GL} background: rgba(255,255,255,.7);">
 <div style="position: relative; height: 380px; flex-shrink: 0; overflow: hidden;">
@@ -253,7 +253,7 @@ chats = f'''<div style="position: absolute; left: 144px; top: 28px; width: 1272p
 <img src="{A['mira-doubtful']}" alt="Mira" style="position: absolute; left: 90px; top: 50px; width: 360px; height: 405px; filter: brightness(.88);">
 <div style="position: absolute; inset: 0; background: linear-gradient(180deg, rgba(10,8,14,0) 45%, rgba(10,8,14,.72));"></div>
 <span style="position: absolute; left: 22px; top: 20px; height: 28px; padding: 0 12px; border-radius: 14px; background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.35); color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 6px;">{icon('image',13,'#fff')}Last moment</span>
-<div style="position: absolute; left: 26px; bottom: 22px; display: flex; flex-direction: column; gap: 6px; color: #fff;"><span style="font-family: {SERIF}; font-size: 34px; line-height: 1;">The Third Floorboard</span><span style="font-size: 13.5px; color: rgba(255,255,255,.82);">The Gull · Year 7, Day 1, 19:22 · as Aren</span></div>
+<div style="position: absolute; left: 26px; bottom: 22px; display: flex; flex-direction: column; gap: 6px; color: #fff;"><span style="font-family: {SERIF}; font-size: 34px; line-height: 1;">The Third Floorboard</span><span style="font-size: 13.5px; color: rgba(255,255,255,.82);" title="Year 7, Day 1, 19:22">The Gull · six years after the storm · as Aren</span></div>
 <a href="Main.dc.html" style="position: absolute; right: 26px; bottom: 20px; display: flex; align-items: center; gap: 12px; text-decoration: none; color: #fff; font-size: 15px; font-weight: 800;">Dive in{orb(70)}</a>
 </div>
 <div style="padding: 24px 26px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px;">
@@ -262,9 +262,9 @@ chats = f'''<div style="position: absolute; left: 144px; top: 28px; width: 1272p
 <div style="display: flex; align-items: center; gap: 10px;">{face('tobin',40,fstyle='filter: grayscale(.8);')}<span style="display: flex; flex-direction: column;"><span style="font-size: 14.5px; font-weight: 800;">Tobin</span><span style="font-size: 12px; color: {MUT};">Away since Day 1 · knows nothing of the ledger</span></span></div>
 <a href="Sky-Profile-Mira.dc.html" style="margin-top: 6px; font-size: 13px; font-weight: 700; text-decoration: none;">Start a fresh story with Mira</a></div>
 <div style="display: flex; flex-direction: column; gap: 8px;"><span style="font-size: 11.5px; font-weight: 800; letter-spacing: .12em; color: {MUT};">NEW SINCE YOU LEFT</span>
-{act_item('mira','Mira has her doubts about the lighthouse.','Line at','19:22','belief')}
-{act_item('mira','Mira will remember you buried it by the lighthouse.','Line at','19:20','memory')}
-{act_item('mira','12 of Mira’s memories went hazy.','Six years later','Year 7','time')}
+{act_item('mira','Mira has her doubts about the lighthouse.','2 hours ago','7:22 pm, six years after the storm','belief')}
+{act_item('mira','Mira will remember you buried it by the lighthouse.','2 hours ago','7:20 pm','memory')}
+{act_item('mira','12 of Mira’s memories went hazy.','2 hours ago','the time skip','time')}
 </div></div>
 </section></div>'''
 files['Sky-Chats.dc.html']=shell('Chats',SW,SH,chats,'Chats')
@@ -303,7 +303,7 @@ files['Sky-You.dc.html']=shell('You and your personas',SW,SH,you,'You')
 def aitem(who, text, story, clock, kind, open_=False, quote=None):
     col={'memory':'#e59a1e','feeling':'#ff5d7e','belief':'#8a63f0','time':'#2f9bd6'}[kind]
     ic={'memory':'spark','feeling':'heart','belief':'help','time':'clock'}[kind]
-    q = f'''<div style="margin: 4px 0 0 66px; padding: 14px 18px; border-radius: 18px; background: #1a1411; color: #f4e9da; display: flex; flex-direction: column; gap: 6px;"><span style="font-size: 12px; font-weight: 700; color: #a9c8ff;">Aren · Day 1, 19:12</span><span style="font-family: {SERIF}; font-size: 17px; line-height: 1.45;">{quote}</span><a href="Scene-Group-Secret.dc.html" style="align-self: flex-start; margin-top: 4px; font-size: 13px; font-weight: 700; color: #f0b35a; text-decoration: none; display: flex; align-items: center; gap: 6px;">Open the line{icon("arrow",14,"#f0b35a")}</a></div>''' if quote else ''
+    q = f'''<div style="margin: 4px 0 0 66px; padding: 14px 18px; border-radius: 18px; background: #1a1411; color: #f4e9da; display: flex; flex-direction: column; gap: 6px;"><span style="font-size: 12px; font-weight: 700; color: #a9c8ff;">Aren · the night of the storm, 7:12 pm</span><span style="font-family: {SERIF}; font-size: 17px; line-height: 1.45;">{quote}</span><a href="Scene-Group-Secret.dc.html" style="align-self: flex-start; margin-top: 4px; font-size: 13px; font-weight: 700; color: #f0b35a; text-decoration: none; display: flex; align-items: center; gap: 6px;">Open the line{icon("arrow",14,"#f0b35a")}</a></div>''' if quote else ''
     return f'''<div style="display: flex; flex-direction: column; padding: 14px; border-radius: 22px; background: {"#fff" if open_ else "rgba(255,255,255,.5)"}; {"box-shadow: 0 10px 24px rgba(62,92,170,.14);" if open_ else ""}">
 <a href="Scene-AfterSkip.dc.html" style="display: flex; align-items: center; gap: 14px; text-decoration: none; color: {INK};"><div style="position: relative; flex-shrink: 0;">{face(who,52)}<span style="position: absolute; right: -4px; bottom: -4px; width: 26px; height: 26px; border-radius: 50%; background: {col}; border: 3px solid #fff; display: flex; align-items: center; justify-content: center;">{icon(ic,13,'#fff',2.4)}</span></div>
 <span style="display: flex; flex-direction: column; gap: 3px; flex-grow: 1;"><span style="font-size: 16px; font-weight: 700; line-height: 1.35;">{text}</span><span style="font-size: 12.5px; color: {MUT};">{story} · {clock}</span></span>{icon("right",18,MUT)}</a>{q}</div>'''
@@ -311,12 +311,12 @@ legend = f'''<div style="display: flex; flex-direction: column; gap: 10px; font-
 activity = f'''<div style="position: absolute; left: 144px; top: 28px; width: 1272px; display: flex; gap: 24px;">
 <section style="width: 820px; display: flex; flex-direction: column; gap: 14px;">
 <div style="display: flex; align-items: center; justify-content: space-between;"><h1 style="margin: 0; font-family: {DISPLAY}; font-weight: 400; font-size: 44px; line-height: 1;">Activity</h1><div style="display: flex; gap: 6px;">{chip('All',True)}{chip('Memories',ic='spark')}{chip('Feelings',ic='heart')}{chip('Beliefs',ic='help')}{chip('Time',ic='clock')}</div></div>
-<span style="font-size: 11.5px; font-weight: 800; letter-spacing: .12em; color: {MUT}; padding-top: 8px;">THE THIRD FLOORBOARD · YEAR 7</span>
-{aitem('mira','Mira has her doubts about the lighthouse.','Her memory is hazy, so she can be talked out of it','Year 7, Day 1, 19:22','belief')}
-{aitem('mira','Six years passed in The Third Floorboard. 12 of Mira’s memories went hazy.','Time skip','Year 7, Day 1','time')}
-<span style="font-size: 11.5px; font-weight: 800; letter-spacing: .12em; color: {MUT}; padding-top: 8px;">THE THIRD FLOORBOARD · DAY 1</span>
-{aitem('mira','Mira will remember that you hid the ledger.','Heard by Mira · Tobin wasn’t there','Day 1, 19:12','memory',True,'Quickly, while he’s gone. I hid the guild ledger under the third floorboard behind the bar. Tell no one, least of all Tobin.')}
-{aitem('tobin','Tobin didn’t like being sent to the bar.','The Third Floorboard','Day 1, 19:08','feeling')}
+<span style="font-size: 11.5px; font-weight: 800; letter-spacing: .12em; color: {MUT}; padding-top: 8px;">TODAY · THE THIRD FLOORBOARD</span>
+{aitem('mira','Mira has her doubts about the lighthouse.','Her memory is hazy, so she can be talked out of it','2 hours ago','belief')}
+{aitem('mira','Six years passed in The Third Floorboard. 12 of Mira’s memories went hazy.','Time skip · six years after the storm','2 hours ago','time')}
+<span style="font-size: 11.5px; font-weight: 800; letter-spacing: .12em; color: {MUT}; padding-top: 8px;">YESTERDAY · THE THIRD FLOORBOARD</span>
+{aitem('mira','Mira will remember that you hid the ledger.','The night of the storm, 7:12 pm','Yesterday, 9:40 pm','memory',True,'Quickly, while he’s gone. I hid the guild ledger under the third floorboard behind the bar. Tell no one, least of all Tobin.')}
+{aitem('tobin','Tobin didn’t like being sent to the bar.','The night of the storm, 7:08 pm','Yesterday, 9:36 pm','feeling')}
 </section>
 <aside style="flex-grow: 1; display: flex; flex-direction: column; gap: 16px; padding-top: 70px;">
 {card('Still being read', f'<p style="margin: 0; font-size: 14px; line-height: 1.5; color: {MUT};">The memory reader files new lines every few turns. These will show up here, and on the lines they belong to, once it has.</p><div style="display: flex; align-items: center; gap: 10px;">{face("mira",36)}<span style="font-size: 14px; font-weight: 700; flex-grow: 1;">2 lines in The Third Floorboard</span></div>{pill("Read now","refresh",h=42)}')}
@@ -334,7 +334,7 @@ found = f'''<div style="display: flex; align-items: center; gap: 14px; padding: 
 <div style="height: 1px; background: rgba(20,38,77,.08);"></div>
 <div style="display: flex; align-items: center; gap: 12px;">{candy('globe','#c4a4ff','#7c4ff0',40)}<span style="display: flex; flex-direction: column; flex-grow: 1;"><span style="font-size: 14.5px; font-weight: 800;">Or add an online API</span><span style="font-size: 12.5px; color: {MUT};">OpenRouter and others. Keys stay in your system keychain.</span></span>{pill('Add an API','plus',h=40)}</div>'''
 me = f'<div style="display: flex; align-items: center; gap: 12px;">{face("aren",56,extra_style="opacity: .7;")}<span style="font-size: 14px; color: {MUT}; line-height: 1.4;">Your first persona: a name, a portrait, one line about who you are.</span></div>'
-fr = f'<div style="display: flex; align-items: center; gap: 12px;"><div style="position: relative; width: 84px; height: 56px; flex-shrink: 0;"><div style="position: absolute; left: 0;">{face("mira",56,extra_style="opacity: .7;")}</div><div style="position: absolute; left: 28px;">{face("wren",56,extra_style="opacity: .7;",ring="0 0 0 3px #fff")}</div></div><span style="font-size: 14px; color: {MUT}; line-height: 1.4;">Then add your first friend, and message them.</span></div>'
+fr = f'<div style="display: flex; align-items: center; gap: 12px;"><div style="position: relative; width: 84px; height: 56px; flex-shrink: 0;"><div style="position: absolute; left: 0;">{face("mira",56,extra_style="opacity: .7;")}</div><div style="position: absolute; left: 28px;">{face("wren",56,extra_style="opacity: .7;",ring="0 0 0 3px #fff")}</div></div><span style="font-size: 14px; color: {MUT}; line-height: 1.4;">Then add your first character, and message them.</span></div>'
 first = f'''<img src="{A['clouds']}" alt="" style="position: absolute; left: -200px; top: 60px; width: 1840px; height: 1150px; opacity: .8;">
 <div style="position: absolute; left: 0; top: 70px; width: 1440px; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center;">
 <div style="display: flex; align-items: center; gap: 10px; font-family: {DISPLAY}; font-size: 22px; color: {INK};"><div style="width: 34px; height: 34px; border-radius: 12px; background: linear-gradient(150deg, #7fb0ff, #3d63f2); display: flex; align-items: center; justify-content: center;">{icon('cloud',20,'#fff',2.2)}</div>Kataki</div>
@@ -342,7 +342,7 @@ first = f'''<img src="{A['clouds']}" alt="" style="position: absolute; left: -20
 <p style="margin: 0; font-size: 20px; font-weight: 600; color: {INK};">Characters who see, hear, remember and forget, like people do.</p>
 </div>
 <div style="position: absolute; left: 90px; right: 90px; top: 380px; display: flex; gap: 20px; align-items: flex-start;">
-{step(1,'Connect a model',found,'now')}{step(2,'Make yourself',me,'todo')}{step(3,'Add your first friend',fr,'todo')}
+{step(1,'Connect a model',found,'now')}{step(2,'Make yourself',me,'todo')}{step(3,'Add your first character',fr,'todo')}
 </div>
 <div style="position: absolute; left: 90px; right: 90px; bottom: 44px; display: flex; align-items: center; justify-content: space-between;"><span style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: {INK}; font-weight: 600;">{icon('shield',16)}Everything runs on your computer. Text only leaves it for the models you connect.</span>{pill('Continue','arrow',dark=True,h=52)}</div>'''
 files['Sky-FirstRun.dc.html']=shell('First run',SW,SH,first,norail=True)
@@ -394,3 +394,103 @@ files['Sky-Models.dc.html']=shell('Models',MW,MH,models,'Settings')
 
 for k,v in files.items(): open(f'root/project/{k}','w').write(v)
 print(list(files))
+
+# ---------- PLACES AND PLOTS (the library) ----------
+LW,LH=1440,1400
+def facechip(w_, s=26): return face(w_,s,ring='0 0 0 2px #fff')
+def linkchips(items):
+    out=''
+    for kind,label in items:
+        ic={'book':'book','story':'chat','character':'user'}[kind]
+        out+=f'<span style="display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 13px; background: rgba(255,255,255,.72); font-size: 11.5px; font-weight: 700; color: {INK}; white-space: nowrap;">{icon(ic,13,MUT)}{label}</span>'
+    return out
+
+def place_card(name, desc, bg, times, chips, faces, w=396):  # times kept for the API; the strip is tinted from bg
+    TOD=[('dawn','saturate(1.1) brightness(1.15) sepia(.25) hue-rotate(-12deg)'),('day','brightness(1.3) saturate(1.05)'),('dusk','brightness(.95)'),('night','brightness(.5) saturate(.8) hue-rotate(200deg)')]
+    strip=''.join(f'<span style="flex: 1 1 0; height: 100%; position: relative; overflow: hidden; border-right: 1px solid rgba(255,255,255,.5);"><img src="{A[bg]}" alt="" style="position: absolute; left: -40%; top: -30%; width: 180%; filter: {f};"><span style="position: absolute; left: 6px; bottom: 4px; font-size: 9.5px; font-weight: 800; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.7);">{l}</span></span>' for l,f in TOD)
+    ff=''.join(f'<span style="margin-left: -8px;">{facechip(x)}</span>' for x in faces)
+    return f'''<article style="width: {w}px; border-radius: 28px; overflow: hidden; display: flex; flex-direction: column; {GL}">
+<div style="position: relative; height: 150px; overflow: hidden;"><img src="{A[bg]}" alt="{name}" style="position: absolute; left: 0; top: -40px; width: {w}px;">
+<div style="position: absolute; inset: 0; background: linear-gradient(180deg, rgba(10,12,30,0) 40%, rgba(10,12,30,.6));"></div>
+<span style="position: absolute; left: 14px; bottom: 10px; font-family: {DISPLAY}; font-size: 26px; color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,.5);">{name}</span>
+<button aria-label="Place options" style="position: absolute; right: 10px; top: 10px; width: 32px; height: 32px; border-radius: 50%; border: 0; background: rgba(255,255,255,.8); color: {INK}; display: flex; align-items: center; justify-content: center;">{icon('dots',16)}</button></div>
+<div style="display: flex; height: 34px;">{strip}</div>
+<div style="padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 10px;">
+<span style="font-size: 13.5px; color: {MUT};">{desc}</span>
+<div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">{linkchips(chips)}<span style="display: flex; margin-left: 8px; padding-left: 8px;">{ff}</span></div>
+<div style="display: flex; gap: 8px;">{pill('Start a scene here','play' if 'play' in I else 'ff',dark=True,h=38,extra=' flex-grow: 1;')}{pill('Edit','edit',h=38)}</div>
+</div></article>'''
+
+def plot_card(name, premise, opening, chips, faces, w=396):
+    ff=''.join(f'<span style="margin-left: -8px;">{facechip(x)}</span>' for x in faces)
+    return f'''<article style="width: {w}px; border-radius: 28px; overflow: hidden; display: flex; flex-direction: column; {GL}">
+<div style="position: relative; padding: 18px 16px 14px; background: linear-gradient(150deg, rgba(196,164,255,.5), rgba(124,79,240,.28));">
+<span style="display: flex; align-items: center; gap: 10px;">{candy('spark','#c4a4ff','#7c4ff0',40)}<span style="font-family: {DISPLAY}; font-size: 24px;">{name}</span></span>
+<button aria-label="Plot options" style="position: absolute; right: 10px; top: 10px; width: 32px; height: 32px; border-radius: 50%; border: 0; background: rgba(255,255,255,.8); color: {INK}; display: flex; align-items: center; justify-content: center;">{icon('dots',16)}</button></div>
+<div style="padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 10px;">
+<span style="font-family: {SERIF}; font-size: 16px; line-height: 1.4;">“{premise}”</span>
+<span style="font-size: 12px; color: {MUT};">Opening narration · {opening}</span>
+<div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">{linkchips(chips)}<span style="display: flex; margin-left: 8px;">{ff}</span></div>
+<div style="display: flex; gap: 8px;">{pill('Start this plot','arrow',dark=True,h=38,extra=' flex-grow: 1;')}{pill('Edit','edit',h=38)}</div>
+</div></article>'''
+
+def treerow(label, sub='', level=0, sel=False, ic=None, count=''):
+    pad = 12 + level*18
+    return f'''<button aria-pressed="{"true" if sel else "false"}" style="display: flex; align-items: center; gap: 10px; width: 100%; height: {44 if level==0 else 38}px; padding: 0 12px 0 {pad}px; box-sizing: border-box; border: 0; border-radius: 14px; background: {"#fff" if sel else "none"}; color: {INK}; text-align: left; {"box-shadow: 0 6px 14px rgba(62,92,170,.12);" if sel else ""}">
+{icon(ic,16, ACC if sel else MUT) if ic else ""}<span style="flex-grow: 1; font-size: {13.5 if level==0 else 13}px; font-weight: {800 if sel else 600};">{label}</span>{f'<span style="font-size: 11.5px; color: {MUT};">{count}</span>' if count else ''}</button>'''
+
+linkpop = f'''<div role="dialog" aria-label="Link The Lighthouse" style="position: absolute; right: 24px; top: 856px; width: 320px; padding: 14px; box-sizing: border-box; border-radius: 22px; z-index: 12; background: #fff; border: 1px solid rgba(255,255,255,.95); box-shadow: 0 24px 60px rgba(30,50,120,.28); display: flex; flex-direction: column; gap: 10px;">
+<span style="font-size: 14px; font-weight: 800;">Link “The Lighthouse” to…</span>
+<label class="k-field" style="display: flex; flex-direction: column; gap: 5px;"><span style="font-size: 12px; font-weight: 800; color: {MUT};">Book</span><select style="height: 40px; border-radius: 14px; border: 1px solid rgba(20,38,77,.14); font-size: 14px; font-weight: 600; color: {INK}; padding: 0 10px;"><option>The Harbour Guild</option><option>The Northern Roads</option><option>No book</option></select></label>
+<span style="font-size: 12px; font-weight: 800; color: {MUT};">Stories</span>
+<label style="display: flex; align-items: center; gap: 8px; font-size: 13px;"><input type="checkbox" checked="checked" style="accent-color: {ACC};">The Third Floorboard</label>
+<label style="display: flex; align-items: center; gap: 8px; font-size: 13px;"><input type="checkbox" style="accent-color: {ACC};">Letters for the Guild</label>
+<span style="font-size: 12px; font-weight: 800; color: {MUT};">Characters who know it</span>
+<div style="display: flex; gap: 6px; flex-wrap: wrap;">{''.join(f'<span style="display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px 0 3px; border-radius: 15px; background: rgba(47,99,240,.08); font-size: 12px; font-weight: 700;">{face(w_,24)}{NAME[w_]}</span>' for w_ in ('mira','tobin'))}<button style="height: 30px; padding: 0 10px; border-radius: 15px; border: 1px dashed rgba(47,99,240,.4); background: none; color: {ACC}; font-size: 12px; font-weight: 700;">+ Add</button></div>
+<div style="display: flex; gap: 8px; margin-top: 4px;">{pill('Cancel',h=38,extra=' flex: 1 1 0;')}{pill('Link','check',dark=True,h=38,extra=' flex: 1 1 0;')}</div></div>'''
+
+grouphead = lambda t, sub, ic, c1, c2: f'<div style="display: flex; align-items: center; gap: 12px; margin-top: 4px;">{candy(ic,c1,c2,40)}<span style="display: flex; flex-direction: column;"><span style="font-size: 18px; font-weight: 800;">{t}</span><span style="font-size: 12.5px; color: {MUT};">{sub}</span></span><span style="flex-grow: 1; height: 1px; background: rgba(20,38,77,.1); display: block; margin-left: 8px;"></span></div>'
+
+library = f'''<div style="position: absolute; left: 144px; top: 28px; width: 1272px; display: flex; flex-direction: column; gap: 20px;">
+<header style="display: flex; align-items: flex-end; justify-content: space-between;">
+<div style="display: flex; flex-direction: column; gap: 4px;"><h1 style="margin: 0; font-family: {DISPLAY}; font-weight: 400; font-size: 44px; line-height: 1;">Places and Plots</h1><span style="font-size: 14px; color: {MUT};">Where stories happen, and what they start from. Keep them with a book or a story so they stay findable.</span></div>
+<div style="display: flex; align-items: center; gap: 10px;">
+<label style="display: flex; align-items: center; gap: 10px; width: 280px; height: 48px; padding: 0 18px; box-sizing: border-box; border-radius: 24px; {GL}">{icon('search',18,MUT)}<span class="sr">Search places and plots</span><input type="search" placeholder="Search" style="border: 0; outline: none; background: transparent; font-size: 14px; color: {INK}; flex-grow: 1;"></label>
+{pill('New place','plus',dark=True,h=48)}{pill('New plot','spark',h=48)}</div>
+</header>
+<div style="display: flex; gap: 24px; align-items: flex-start;">
+<aside aria-label="Filter" style="width: 280px; flex-shrink: 0; padding: 14px; box-sizing: border-box; border-radius: 28px; display: flex; flex-direction: column; gap: 4px; {GL}">
+{treerow('Everything', sel=True, ic='grid', count='14')}
+<span style="font-size: 11px; font-weight: 800; letter-spacing: .12em; color: {MUT}; padding: 12px 12px 4px;">BOOKS</span>
+{treerow('The Harbour Guild', ic='book', count='9')}
+{treerow('The Third Floorboard', level=1, ic='chat', count='5')}
+{treerow('Letters for the Guild', level=1, ic='chat', count='3')}
+{treerow('The Northern Roads', ic='book', count='3')}
+{treerow('Frost on the Pass', level=1, ic='chat', count='3')}
+{treerow('Not in a book', ic='alert', count='2')}
+<span style="font-size: 11px; font-weight: 800; letter-spacing: .12em; color: {MUT}; padding: 12px 12px 6px;">CHARACTERS</span>
+<div style="display: flex; flex-wrap: wrap; gap: 6px; padding: 0 8px 8px;">{''.join(f'<button style="display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px 0 4px; border-radius: 17px; border: 1px solid {"rgba(47,99,240,.5)" if w_=="mira" else "rgba(255,255,255,.95)"}; background: {"rgba(47,99,240,.08)" if w_=="mira" else "rgba(255,255,255,.55)"}; color: {INK}; font-size: 12.5px; font-weight: 700;">{face(w_,26)}{NAME[w_]}</button>' for w_ in ('mira','tobin','ilsa','oren'))}</div>
+<div style="height: 1px; background: rgba(20,38,77,.08); margin: 4px 8px;"></div>
+<button style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 12px; border: 0; border-radius: 14px; background: none; color: {ACC}; font-size: 13px; font-weight: 700;">{icon('plus',16,ACC)}New book</button>
+</aside>
+<div style="flex-grow: 1; display: flex; flex-direction: column; gap: 18px;">
+<div style="display: flex; align-items: center; justify-content: space-between;">
+<div style="display: flex; gap: 6px;">{chip('All',True)}{chip('Places',ic='map-pin')}{chip('Plots',ic='spark')}</div>
+<div style="display: flex; align-items: center; gap: 10px;"><span style="font-size: 12.5px; color: {MUT};">Showing <b style="color: {INK};">Mira’s</b> places and plots</span>{pill('Recently used','down',h=38)}</div>
+</div>
+{grouphead('The Harbour Guild','Book · 2 stories · 4 places · 2 plots','book','#7fb0ff','#3d63f2')}
+<div style="display: flex; flex-wrap: wrap; gap: 20px;">
+{place_card('The Gull','A smoky dockside tavern. Lamplight, pipe smoke, rain on the windows.','gull-dusk',[('dawn','lighthouse','-10%'),('day','market','-20%'),('dusk','gull-dusk','-30%'),('night','gull-night','-30%')],[('story','The Third Floorboard'),('story','Letters for the Guild')],['mira','tobin'])}
+{place_card('Harbour Market','Stalls, bunting and gulls, by day.','market',[('dawn','lighthouse','-10%'),('day','market','-20%'),('dusk','gull-dusk','-30%'),('night','gull-night','-30%')],[('story','Letters for the Guild')],['mira'])}
+{plot_card('The Missing Ledger','The guild’s ledger vanished the night of the storm.','Rain hammers the shutters of The Gull…',[('story','The Third Floorboard'),('book','The Harbour Guild')],['mira','tobin'])}
+</div>
+{grouphead('The Northern Roads','Book · 1 story · 1 place · 1 plot','map','#8fe0b0','#22b26d')}
+<div style="display: flex; flex-wrap: wrap; gap: 20px;">
+{plot_card('Frost on the Pass','A blizzard traps three travellers in a mountain hut.','The wind takes the last of the daylight…',[('story','Frost on the Pass'),('book','The Northern Roads')],['ilsa'])}
+{place_card('The Lighthouse','A windy headland. The lamp still turns.','lighthouse',[('dawn','lighthouse','-10%'),('day','market','-20%'),('dusk','gull-dusk','-30%'),('night','gull-night','-30%')],[('book','Not in a book')],[])}
+</div>
+</div></div></div>{linkpop}'''
+files['Sky-Library.dc.html']=shell('Places and Plots',LW,LH,library,'Places &amp;<br>Plots')
+
+for k,v in files.items(): open(f'root/project/{k}','w').write(v)
+print('written', len(files))
