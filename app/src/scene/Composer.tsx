@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from 'react'
-import { SKIPS, type CastEntity, type Story } from '../api'
+import { SKIPS, type CastEntity, type Story, UNITS, later, type Unit } from '../api'
 import { Avatar } from '../art'
 import { useLibrary } from '../hooks'
 import { Icon, Menu } from '../ui'
@@ -41,17 +41,22 @@ export const remembered = () => {
 
 /** Pass time: a few set steps, or years. Used by the composer's Advanced row and the clock. */
 export function PassTime({ disabled, onPick, className = 'k-sbtn' }: { disabled: boolean; onPick: (s: Skip) => void; className?: string }) {
-  const [years, setYears] = useState(6)
+  const [count, setCount] = useState(2)
+  const [unit, setUnit] = useState<Unit>('hours')
+  const words = later(count, unit)
   return (
     <Menu label="Pass time" icon="clock" text="Pass time" className={className} disabled={disabled}>
       {SKIPS.map(([words, label]) => (
         <button key={words} type="button" onClick={() => onPick([words, label])}>{label}</button>
       ))}
       <div className="ka-years">
-        <input type="number" min={1} max={99} value={years} aria-label="Years"
-          onChange={(e) => setYears(Math.max(1, Math.min(99, Number(e.target.value) || 1)))} />
-        <span>years later</span>
-        <button type="button" onClick={() => onPick([`${years} years later`, `${years} years later`])}>Pass</button>
+        <input type="number" min={1} max={999} value={count} aria-label="How many"
+          onChange={(e) => setCount(Math.max(1, Math.min(999, Number(e.target.value) || 1)))} />
+        <select value={unit} aria-label="Minutes, hours, days, weeks, months or years" onChange={(e) => setUnit(e.target.value as Unit)}>
+          {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+        </select>
+        <span>later</span>
+        <button type="button" onClick={() => onPick([words, words[0].toUpperCase() + words.slice(1)])}>Pass</button>
       </div>
     </Menu>
   )

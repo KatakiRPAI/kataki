@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { api, SKIPS, type Cast, type CastEntity, type Item, type Story, type StorySummary } from '../api'
+import { api, later, SKIPS, UNITS, type Cast, type CastEntity, type Item, type Story, type StorySummary, type Unit } from '../api'
 import { Avatar, Room } from '../art'
 import { useAction, useLibrary, useLoad, type Moving } from '../hooks'
 import { Dialog, ErrorLine, Field, Icon } from '../ui'
@@ -119,11 +119,12 @@ function SceneForm({ story, cast, onClose, onCut }: { story: Story; cast: Cast; 
   const [who, setWho] = useState(people.filter((e) => e.present || e.persona).map((e) => e.id))
   const [title, setTitle] = useState('')
   const [when, setWhen] = useState('')
-  const [years, setYears] = useState(6)
+  const [count, setCount] = useState(2)
+  const [unit, setUnit] = useState<Unit>('hours')
   const place = places.find((p) => p.key === where)
   const cut = () =>
     run(async () => {
-      const skip = when === 'years' ? `${years} years later` : when
+      const skip = when === 'later' ? later(count, unit) : when
       await onCut({ present: who, ...place?.body, ...(title.trim() ? { title: title.trim() } : {}), ...(skip ? { skip } : {}) })
       onClose()
     })
@@ -155,14 +156,21 @@ function SceneForm({ story, cast, onClose, onCut }: { story: Story; cast: Cast; 
           <select className="k-select" value={when} onChange={(e) => setWhen(e.target.value)}>
             <option value="">Straight after</option>
             {SKIPS.map(([words, label]) => <option key={words} value={words}>{label}</option>)}
-            <option value="years">Years later…</option>
+            <option value="later">Some time later…</option>
           </select>
         </Field>
-        {when === 'years' && (
-          <Field label="Years">
-            <input className="k-input ka-years__n" type="number" min={1} max={99} value={years}
-              onChange={(e) => setYears(Math.max(1, Math.min(99, Number(e.target.value) || 1)))} />
-          </Field>
+        {when === 'later' && (
+          <>
+            <Field label="How many">
+              <input className="k-input ka-years__n" type="number" min={1} max={999} value={count}
+                onChange={(e) => setCount(Math.max(1, Math.min(999, Number(e.target.value) || 1)))} />
+            </Field>
+            <Field label="Of">
+              <select className="k-select" value={unit} onChange={(e) => setUnit(e.target.value as Unit)}>
+                {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+              </select>
+            </Field>
+          </>
         )}
       </div>
       <ErrorLine error={error} />

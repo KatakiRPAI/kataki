@@ -77,6 +77,11 @@ export const SKIPS: [string, string][] = [
   ['a week later', 'A week later'],
 ]
 
+/** Any amount of time, "X units later", in words the engine's clock reads ("1 hour later"). */
+export const UNITS = ['minutes', 'hours', 'days', 'weeks', 'months', 'years'] as const
+export type Unit = (typeof UNITS)[number]
+export const later = (n: number, unit: Unit) => `${n} ${n === 1 ? unit.slice(0, -1) : unit} later`
+
 /** An entity in a story, with the library item it came from (for its portrait and palette). */
 export type Ref = { id: number; name: string; lib_item_id: number | null }
 

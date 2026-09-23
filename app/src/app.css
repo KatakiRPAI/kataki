@@ -491,6 +491,7 @@ button.ka-widget:disabled { opacity: .5; cursor: default; }
 .ka-answers__label { margin-right: 4px; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--k-scene-muted); white-space: nowrap; }
 .ka-years { display: flex; align-items: center; gap: 8px; padding: 6px 6px 4px 12px; font-size: 14px; font-weight: 600; }
 .ka-years input { width: 58px; height: 32px; box-sizing: border-box; padding: 0 8px; border-radius: 10px; border: 1px solid var(--k-scene-glass-border); background: rgba(0,0,0,.25); color: inherit; font: inherit; }
+.ka-years select { height: 32px; padding: 0 6px; border-radius: 10px; border: 1px solid var(--k-scene-glass-border); background: rgba(0,0,0,.25); color: inherit; font: inherit; }
 .ka-years button { height: 32px; padding: 0 12px; border: 0; border-radius: 16px; background: var(--k-scene-amber); color: var(--k-scene-amber-ink); font-weight: 700; }
 .ka-thinking .k-sysnote { background: none; padding-inline: 0; }
 .ka-thinking .k-thinking__dots { margin-left: auto; }
