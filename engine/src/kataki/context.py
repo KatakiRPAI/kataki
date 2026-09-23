@@ -118,6 +118,27 @@ def _state(conn, entities: list, speaker_id: int | None, now: int, live: set[int
     return [f"{names[e]}: {'; '.join(parts)}" for e, parts in shown.items()]
 
 
+FEELINGS = 5  # at most this many "how they feel" lines in a prompt
+
+
+def _feelings(conn, speaker_id: int, others: dict[int, str], now: int, live: set[int]) -> list:
+    """How the speaker feels about whoever is here, as the memory reader filed it: the latest live
+    relationship to each, unless it has ended. -> [(edge id, line)]"""
+    live_sql, live_args = db.live_filter(live)
+    latest = {}
+    for e in conn.execute(
+        f"SELECT * FROM edges WHERE src_id=? AND story_time<=? AND {live_sql} ORDER BY id",
+        [speaker_id, now, *live_args],
+    ):
+        if e["dst_id"] in others:
+            latest[e["dst_id"]] = e
+    return [
+        (e["id"], f"- {e['rel']} {others[e['dst_id']]}" + (f" ({e['note']})" if e["note"] else ""))
+        for e in latest.values()
+        if not e["ended"]
+    ][:FEELINGS]
+
+
 def _clip(text: str, cap: int, ratio: float) -> tuple[str, int]:
     """Whole lines from the top that fit the cap: (text, 1 if anything was cut, else 0)."""
     if not text or estimate(text, ratio) <= cap:
@@ -321,6 +342,12 @@ def build(
     who = speaker["name"] if speaker else "the narrator"
     if speaker and speaker["private"]:
         state.append(f"[Only {who} knows]\n{speaker['private']}")
+    felt = []
+    if speaker:  # the narrator voices no one's feelings
+        here = {e["entity_id"]: e["name"] for e in present if e["entity_id"] != speaker_id}
+        felt = _feelings(conn, speaker_id, here, now, live)
+        if felt:
+            state.append(f"[How {who} feels]\n" + "\n".join(line for _, line in felt))
     talks = macros(speaker["examples"], user=player) if speaker else ""
     examples, clipped = _clip(talks, caps["examples"], ratio)
     if examples:
@@ -359,6 +386,7 @@ def build(
             "tokens": estimate(tail, ratio),
             "cap": tail_room,
             "evicted": 0,
+            "feelings": [edge_id for edge_id, _ in felt],  # what the Mind draws gold
         },
     ]
     total = sum(estimate(m["content"], ratio) for m in messages)

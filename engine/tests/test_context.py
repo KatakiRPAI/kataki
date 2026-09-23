@@ -315,3 +315,28 @@ def test_deleting_the_plot_of_an_older_story_copies_its_premise_into_the_story_f
     }
     prompt = context.build(conn, story, eid(conn, "Mira"), EP).messages[0]["content"]
     assert "## Scenario\nThe pass is snowed in." in prompt
+
+
+def test_how_the_speaker_feels_about_whoever_is_here_is_in_their_prompt_and_logged(conn, story):
+    say(conn, story, "Aren", "Hello.")
+    mira, tobin, aren = eid(conn, "Mira"), eid(conn, "Tobin"), eid(conn, "Aren")
+    edges = [
+        (mira, aren, "distrusts", "He lied about the ledger.", 0),
+        (mira, aren, "trusts", "Aren trusted her with the ledger.", 0),  # the latest wins
+        (mira, tobin, "resents", None, 1),  # ended: no longer
+        (tobin, aren, "fears", None, 0),  # Tobin's, not Mira's
+    ]
+    for src, dst, rel, note, ended in edges:
+        conn.execute(
+            "INSERT INTO edges(story_id, src_id, dst_id, rel, note, story_time, ended)"
+            " VALUES(?,?,?,?,?,0,?)",
+            (story, src, dst, rel, note, ended),
+        )
+    built = context.build(conn, story, mira, EP)
+    tail = built.messages[-1]["content"]
+    assert "[How Mira feels]\n- trusts Aren (Aren trusted her with the ledger.)" in tail
+    assert "distrusts" not in tail and "resents" not in tail and "fears" not in tail
+    trusts = conn.execute("SELECT id FROM edges WHERE rel='trusts'").fetchone()["id"]
+    assert next(s for s in built.sections if s["name"] == "tail")["feelings"] == [trusts]
+    narrated = context.build(conn, story, None, EP).messages[-1]["content"]
+    assert "feels]" not in narrated  # the narrator voices no one's feelings

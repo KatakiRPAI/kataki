@@ -8,11 +8,14 @@ from kataki import chat, mind
 from test_signals import DETAIL, eid, event, ledger, line, memory_id, read, story  # noqa: F401
 
 
-def reply(conn, story, text, who="Mira", recalled=(), cards=40):
+def reply(conn, story, text, who="Mira", recalled=(), cards=40, feelings=()):
     """A reply, with the context_log row the engine would have written for it."""
     message = line(conn, story, text, who=who)
     speaker = eid(conn, who) if who != "Narrator" else None
-    sections = [{"name": "cards", "tokens": cards, "cap": 2000, "evicted": 0}]
+    sections = [
+        {"name": "cards", "tokens": cards, "cap": 2000, "evicted": 0},
+        {"name": "tail", "tokens": 50, "cap": 900, "evicted": 0, "feelings": list(feelings)},
+    ]
     with conn:
         conn.execute(
             "INSERT INTO context_log(story_id, message_id, speaker_id, sections, memories)"
@@ -80,7 +83,7 @@ def test_a_doubt_shows_only_for_a_memory_that_reached_the_prompt(conn, story):
     assert kinds(mind.mind(conn, cut), "belief") == []
 
 
-def test_a_feeling_is_the_one_held_then_and_is_not_gold_while_the_prompt_leaves_it_out(conn, story):
+def test_a_feeling_is_the_one_held_then_and_gold_only_if_it_reached_the_prompt(conn, story):
     evening = line(conn, story, "Evening.")
     early = reply(conn, story, "Evening yourself.")
     read(conn, story, evening, early, [], edges=[
@@ -94,6 +97,9 @@ def test_a_feeling_is_the_one_held_then_and_is_not_gold_while_the_prompt_leaves_
         False,
         "warm",
     )
+    edge = conn.execute("SELECT id FROM edges WHERE rel='trusts'").fetchone()["id"]
+    felt = reply(conn, story, "I'll help.", feelings=[edge])
+    assert kinds(mind.mind(conn, felt), "feeling")[0]["gold"]  # it reached the prompt
 
 
 def test_the_narrator_has_no_feelings_or_persona_and_an_unlogged_reply_invents_nothing(conn, story):

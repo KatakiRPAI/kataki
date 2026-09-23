@@ -35,7 +35,7 @@ That rule splits the mockup in two:
 | SENSE · Perception ("a claim that clashes with what she knows") | **no** | the claim is only extracted *after* the reply |
 | SENSE · Attention | partly | the engine's speaker choice has a reason (picked by you / addressed by name / last to speak / quietest); nothing about attention within the line |
 | INSIDE · Recall | yes | `context_log.memories`: every candidate, its score (A), tier, and whether it was rendered, degraded or dropped |
-| INSIDE · Feeling (warmth, trust, doubt) | partly | live `edges` from the speaker, with the tones built in slice 4 (warm / feeling / mood); no numbers |
+| INSIDE · Feeling (warmth, trust, doubt) | yes (since 2026-09-23) | live `edges` from the speaker; now in the reply's prompt as `[How Mira feels]`, their ids logged with the tail; tones from slice 4, no numbers |
 | INSIDE · Belief | yes | `knowledge.belief` below 0.7 on memories that reached the prompt |
 | INSIDE · Goals | **no** | nothing records a goal |
 | INSIDE · Persona | yes | the card and primer sections of the prompt (`context_log.sections`) |

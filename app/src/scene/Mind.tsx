@@ -147,8 +147,8 @@ function Detail({ node }: { node: MindNode }) {
           ))}
         </dl>
       )}
-      {node.kind === 'feeling' && (
-        <span className="ka-bs-muted">Not in the prompt: feelings don't reach the reply yet, so this one didn't shape what they said.</span>
+      {node.kind === 'feeling' && !node.gold && (
+        <span className="ka-bs-muted">Not in the prompt for this reply (written before feelings reached replies), so it didn't shape what they said.</span>
       )}
     </div>
   )

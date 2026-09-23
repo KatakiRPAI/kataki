@@ -148,11 +148,12 @@ def mind(conn: sqlite3.Connection, message_id: int) -> dict | None:
             rel = e["rel"].strip().lower()
             tone = next((t for starts, _, t in FEELINGS if rel.startswith(starts)), "feeling")
             other = "you" if e["dst_id"] == story["persona_entity_id"] else names[e["dst_id"]]
-            # ponytail: relationships don't reach the reply's prompt yet, so a feeling is never
-            # gold; once context.py renders them, gold = that section made the prompt
-            detail = {"tone": tone, "note": e["note"], "in_prompt": False}
+            # gold if it reached the prompt (prompts log their feelings since 2026-09-23)
+            felt = e["id"] in sections.get("tail", {}).get("feelings", [])
+            detail = {"tone": tone, "note": e["note"], "in_prompt": felt}
             text = f"{rel.capitalize()} {other}"
-            node(f"f{e['id']}", "inside", "feeling", "Feeling", text, gold=False, detail=detail)
+            fid = node(f"f{e['id']}", "inside", "feeling", "Feeling", text, None, felt, detail)
+            inside.append((fid, felt))
         if len(shown) > FEELS:
             more["feeling"] = len(shown) - FEELS
 
