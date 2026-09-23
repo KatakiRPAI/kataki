@@ -246,6 +246,7 @@ export type Message = {
   scene_id: number | null
   audience?: number[] | null // who could hear it: null = everyone present, [] = a thought
   think_ms?: number | null
+  expression?: Expression | null // the face it was said with, for someone with sprites
   swipe: [number, number]
   reasoning: string | null
   finish: string | null
@@ -399,6 +400,7 @@ export type Signals = { read_to: number; lines: Record<string, LineSignal> }
 export type Version = { v: string; waiting: number }
 export type TurnDone = {
   message_id: number
+  expression: Expression | null
   text: string
   skip_minutes: number
   clock: string

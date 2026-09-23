@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react'
-import { mediaUrl, type Item, type Palette, type Pronouns } from './api'
+import { mediaUrl, type Expression, type Item, type Palette, type Pronouns } from './api'
 
 // Art for people and places until generated art arrives (M3): an uploaded image when there is
 // one, otherwise a stand-in drawn from the item's palette.
@@ -122,9 +122,15 @@ const SILHOUETTE =
   'M200 54C258 54 282 102 282 156C282 214 250 250 200 250C150 250 118 214 118 156C118 102 142 54 200 54Z' +
   'M168 238L168 282C120 292 58 314 36 356C22 384 16 420 14 450L386 450C384 420 378 384 364 356C342 314 280 292 232 282L232 238Z'
 
-/** Someone on the stage: their portrait melting into the room, or a silhouette with a rim light. */
-export function Figure({ item, name = item?.name ?? '', className = '' }: { item?: Item; name?: string; className?: string }) {
+/** Someone on the stage: their cut-out sprite for the face they last spoke with, else their
+ *  portrait melting into the room, else a silhouette with a rim light. */
+export function Figure({ item, name = item?.name ?? '', expression, className = '' }: {
+  item?: Item; name?: string; expression?: Expression | null; className?: string
+}) {
   const p = paletteOf(item, name)
+  const sprites = item?.data.pack?.sprites ?? {}
+  const sprite = sprites[expression ?? 'neutral'] ?? sprites.neutral ?? Object.values(sprites)[0]
+  if (sprite) return <img className={`ka-figure ka-figure--sprite ${className}`} src={mediaUrl(sprite)} alt="" />
   if (item?.data.portrait) return <img className={`ka-figure ka-figure--image ${className}`} src={mediaUrl(item.data.portrait)} alt="" />
   const style = { '--ink': p.ink, '--fill': `color-mix(in srgb, ${p.bg[1]} 32%, #120c09)` } as CSSProperties
   return (

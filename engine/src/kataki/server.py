@@ -325,6 +325,7 @@ def create_app(
                     "model": gen.get("model"),
                     "audience": chat.audience_of(m),
                     "think_ms": gen.get("think_ms"),
+                    "expression": m["expression"],
                 }
             )
         return out

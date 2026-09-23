@@ -306,6 +306,8 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
   }
   const { story, messages, cast, signals, chapters } = data
   const people = onStage(cast, messages, arriving)
+  // later lines win, so each speaker keeps the face of the last line that had one
+  const faces = new Map(messages.flatMap((m) => (m.speaker_id && m.expression ? [[m.speaker_id, m.expression] as const] : [])))
   const away = cast.entities.filter((e) => !e.present && e.is_ai && e.kind === 'character')
   const missing = !!line && !messages.some((m) => m.id === line)
   const peeking = peek && cast.entities.find((e) => e.id === peek.id)
@@ -337,7 +339,7 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
     <div className={`k-scene ka-scene${reading && !backstage ? ' is-reading' : ''}${awake ? ' is-awake' : ''}${backstage ? ' is-backstage' : ''}${skipping ? ' is-skipping' : ''}`}
       onPointerMove={reading ? wake : undefined}>
       {backstage && <Backstage story={story} cast={cast} tick={tick} focus={focus} onChange={refreshAll} />}
-      <Stage story={story} people={people} arriving={arriving} busy={acting || !!live} onMove={move}
+      <Stage story={story} people={people} faces={faces} arriving={arriving} busy={acting || !!live} onMove={move}
         onPeek={(id, at) => setPeek({ id, at })} />
       <div className="ka-veil" />
       <Nearby cast={cast} busy={acting || !!live} onMove={move} />

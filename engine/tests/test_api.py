@@ -258,6 +258,40 @@ def test_a_turn_streams_and_the_story_shows_it(api, story, backend):
     assert shown[-1]["swipe"] == [1, 1] and shown[-1]["clock"] == "Day 1, 08:04"
 
 
+def give_mira_sprites(api):
+    mira = next(i for i in api.get("/library?kind=character").json() if i["name"] == "Mira")
+    pack = {"from": "p.png", "sprites": {"neutral": "n.png", "smiling": "s.png"}}
+    api.patch(f"/library/{mira['id']}", json={"data": {**mira["data"], "pack": pack}})
+
+
+def test_someone_with_sprites_gets_a_face_for_each_line(api, story, backend):
+    give_mira_sprites(api)
+    mira = cast(api, story)["Mira"]["id"]
+    backend.say("*grins* You came back.", '{"expression": "smiling"}')
+    streamed = events(api.post(f"/stories/{story}/turn", json={"text": "Hi.", "speaker": mira}))
+    assert streamed[-1] == ("done", {**streamed[-1][1], "expression": "smiling"})
+    assert api.get(f"/stories/{story}/messages").json()[-1]["expression"] == "smiling"
+    asked = backend.requests[-1]
+    assert not asked.get("stream") and "*grins* You came back." in asked["messages"][-1]["content"]
+    enum = asked["response_format"]["json_schema"]["schema"]["properties"]["expression"]["enum"]
+    assert enum == ["neutral", "smiling", "wary", "surprised", "doubtful"]
+
+
+def test_no_sprites_no_extra_call_and_a_bad_answer_costs_only_the_face(api, story, backend):
+    mira = cast(api, story)["Mira"]["id"]
+    backend.say("Evening.")
+    done = events(api.post(f"/stories/{story}/turn", json={"text": "Hi.", "speaker": mira}))[-1]
+    assert done[1]["expression"] is None and len(backend.requests) == 1
+
+    give_mira_sprites(api)
+    backend.say(
+        "Hm.", '{"expression": "smug"}', '{"expression": "smug"}'
+    )  # one retry, then give up
+    done = events(api.post(f"/stories/{story}/turn", json={"text": "And?", "speaker": mira}))[-1]
+    assert done[0] == "done" and done[1]["expression"] is None
+    assert api.get(f"/stories/{story}/messages").json()[-1]["text"] == "Hm."
+
+
 def test_a_whisper_is_kept_with_its_line_and_foreign_listeners_are_refused(api, story, conn):
     mira = cast(api, story)["Mira"]["id"]
     assert (

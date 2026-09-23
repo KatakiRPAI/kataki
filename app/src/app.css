@@ -406,6 +406,9 @@ span.k-orb { display: block; }
 .ka-stage { position: absolute; inset: 0; }
 .ka-stage__slot { position: absolute; left: 6vw; bottom: -2vh; width: 44vw; z-index: 1; }
 .ka-stage__peek > .ka-figure { position: relative; width: 100%; height: auto; } /* the slot places it, not .k-stage__char */
+/* a cut-out stands whole: sized by height so a waist-up sprite never fills the window */
+.ka-stage__peek > .ka-figure--sprite { width: auto; max-width: 100%; height: 78vh; margin: 0 auto; object-fit: contain; object-position: bottom; }
+.ka-figure--sprite { filter: var(--k-scene-character-filter); }
 .ka-stage[data-count="2"] [data-slot="0"] { left: 24vw; width: 40vw; z-index: 2; }
 .ka-stage[data-count="2"] [data-slot="1"] { left: -4vw; width: 37vw; }
 .ka-stage[data-count="3"] [data-slot="0"] { left: 14vw; width: 36vw; z-index: 2; }

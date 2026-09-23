@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import type { CastEntity, Story } from '../api'
+import type { CastEntity, Expression, Story } from '../api'
 import { Avatar, Figure, MIDDAY, paletteOf, Room, timeOfDay, type TimeOfDay } from '../art'
 import { DRAG, useLibrary, type Moving } from '../hooks'
 import { Icon } from '../ui'
@@ -15,9 +15,10 @@ const beside = (el: HTMLElement) => {
  *  the others softened) and anyone beyond that as a row of avatars. Drop someone from the tray
  *  here to bring them in; drag a figure off to the tray, or use its button, to send them away.
  *  `arriving` steps in with a name card. */
-export default function Stage({ story, people, arriving, busy, onMove, onPeek }: {
+export default function Stage({ story, people, faces, arriving, busy, onMove, onPeek }: {
   story: Story
   people: CastEntity[]
+  faces: Map<number, Expression> // the face each person last spoke with
   arriving?: number
   busy: boolean
   onMove: (m: Moving) => void
@@ -65,7 +66,7 @@ export default function Stage({ story, people, arriving, busy, onMove, onPeek }:
           <button type="button" className="ka-stage__peek" aria-label={`Look at ${e.name}`} draggable
             onDragStart={(d) => d.dataTransfer.setData(DRAG, JSON.stringify({ kind: 'here', id: e.id }))}
             onClick={(c) => onPeek(e.id, beside(c.currentTarget))}>
-            <Figure item={item(e)} name={e.name} className={`k-stage__char${i ? ' is-softened' : ''}${e.id === arriving ? ' is-entering' : ''}`} />
+            <Figure item={item(e)} name={e.name} expression={faces.get(e.id)} className={`k-stage__char${i ? ' is-softened' : ''}${e.id === arriving ? ' is-entering' : ''}`} />
           </button>
           <button type="button" className="k-sbtn ka-stage__away" disabled={busy} onClick={() => onMove({ kind: 'here', id: e.id })}>
             <Icon name="arrow" size={14} />

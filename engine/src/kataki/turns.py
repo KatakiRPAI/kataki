@@ -15,7 +15,7 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import aclosing
 from typing import Any
 
-from kataki import chat, clock, context, embed, extract, retrieve, roles
+from kataki import chat, clock, context, embed, extract, images, retrieve, roles
 from kataki.llm import LLM, LLMError
 
 Event = tuple[str, Any]
@@ -137,6 +137,58 @@ async def _read_past_before_skip(
         status = conn.execute("SELECT status FROM extraction_runs WHERE id=?", (run_id,))
         if (row := status.fetchone()) is None or row[0] != "ok":
             return  # the model can't read right now: reply anyway, the window stays whole
+
+
+FACE = {
+    "type": "object",
+    "properties": {"expression": {"type": "string", "enum": list(images.EXPRESSIONS)}},
+    "required": ["expression"],
+    "additionalProperties": False,
+}
+
+
+def _face(data: dict) -> str:
+    if (face := data.get("expression")) not in images.EXPRESSIONS:
+        raise ValueError(f"expression must be one of {', '.join(images.EXPRESSIONS)}")
+    return face
+
+
+async def _expression(
+    conn: sqlite3.Connection,
+    llm: LLM,
+    story_id: int,
+    speaker_id: int,
+    message_id: int,
+    name: str,
+    text: str,
+    get_key: Callable[[str], str | None],
+) -> str | None:
+    """Which of the speaker's sprites fits the line they just said (M3 spec §7.1): one small
+    call to the memory reader's model, and only for someone who has sprites to show. A failure
+    costs nothing but the face: they stay as they were."""
+    row = conn.execute(
+        "SELECT l.data FROM entities e JOIN lib_items l ON l.id = e.lib_item_id WHERE e.id=?",
+        (speaker_id,),
+    ).fetchone()
+    if not row or not json.loads(row["data"]).get("pack"):
+        return None
+    if (ep := roles.resolve(conn, "utility", story_id, get_key)) is None:
+        return None
+    ask = [
+        {
+            "role": "system",
+            "content": f"Pick the facial expression {name} has while saying this line. Reply with "
+            f'JSON only: {{"expression": one of {", ".join(images.EXPRESSIONS)}}}.',
+        },
+        {"role": "user", "content": text[-1500:]},
+    ]
+    try:
+        face = await llm.complete_json(ep, ask, FACE, _face, name="expression")
+    except LLMError:
+        return None
+    with conn:
+        conn.execute("UPDATE messages SET expression=? WHERE id=?", (face, message_id))
+    return face
 
 
 async def _generate(
@@ -265,6 +317,11 @@ async def _generate(
         yield ("error", {"message": "The model returned an empty reply."})
     else:
         now = chat.get_message(conn, message_id)["story_time"]
+        face = None  # the reply is already on screen; its face follows a moment later
+        if speaker_id is not None:
+            face = await _expression(
+                conn, llm, story_id, speaker_id, message_id, name, text, get_key
+            )
         yield (
             "done",
             {
@@ -273,6 +330,7 @@ async def _generate(
                 "skip_minutes": skip,
                 "clock": clock.label(now, story["epoch_offset_min"]),
                 "usage": done.get("usage"),
+                "expression": face,
             },
         )
 
