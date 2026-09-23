@@ -426,7 +426,7 @@ span.k-orb { display: block; }
 .ka-widget { position: relative; flex-shrink: 0; padding: 0; text-align: left; font: inherit; color: var(--k-scene-ink); }
 button.ka-widget { cursor: pointer; }
 button.ka-widget:disabled { opacity: .5; cursor: default; }
-.ka-cwidget { display: flex; flex-direction: column; }
+.ka-cwidget { display: flex; flex-direction: column; width: 100%; padding: 0; border: 0; border-radius: inherit; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .ka-cwidget.is-joined { animation: k-land var(--k-dur-slow) var(--k-ease-bounce) both; }
 .ka-cwidget__art { display: block; width: 100%; }
 .ka-cwidget__art > .ka-figure { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 18%; mask-image: none; }
@@ -849,3 +849,41 @@ a.ka-event:hover { background: #fff; }
 .ka-edit__cancel { margin-right: auto; border-color: transparent; }
 .ka-edit__hint { font-size: 11.5px; color: var(--k-scene-muted); }
 .ka-edit__hint strong { color: var(--k-scene-ink); }
+
+/* ---- widgets you arrange: placed anywhere, pinned or not, and Edit widgets ---- */
+.ka-widgets--free { inset: 0; width: auto; display: block; pointer-events: none; }
+.ka-widgets--free > .ka-widget { position: absolute; pointer-events: auto; }
+.ka-widgets--free > .ka-widget.is-placed:not(.is-dragging) { left: clamp(0px, calc(var(--x) * 100%), calc(100% - 272px)); top: clamp(0px, calc(var(--y) * 100%), calc(100% - 80px)); }
+.ka-widgets--free > .k-widget-slot { position: absolute; }
+.ka-cwidget--row { flex-direction: row; align-items: center; gap: 12px; }
+.k-widget--row.ka-widget { padding: 10px 14px; }
+.k-widget--row .ka-avatar { filter: grayscale(.85) brightness(.8); } /* away; static */
+.ka-widget.is-unpinned:not(.is-showing) { visibility: hidden; transition: opacity var(--k-dur-slow), transform var(--k-dur-slow) var(--k-ease-bounce), visibility 0s var(--k-dur-slow); }
+.ka-widgets--right, .ka-widgets--left { pointer-events: none; } .ka-widgets--right > *, .ka-widgets--left > * { pointer-events: auto; }
+/* edit mode: every widget shows, and the whole card is the handle */
+.is-editing-widgets .ka-widget.is-unpinned { visibility: visible; opacity: 1; transform: none; pointer-events: auto; }
+.is-editing-widgets .ka-widget { touch-action: none; user-select: none; }
+.is-editing-widgets .ka-widget > :not(.k-widget__handle, .k-widget__edit) { pointer-events: none; }
+.is-editing-widgets .ka-corner { z-index: 6; }
+.k-widget__handle { width: 28px; height: 28px; border-radius: 9px; align-items: center; justify-content: center; background: rgba(20,14,10,.9); color: var(--k-scene-muted); }
+.ka-editbar { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); z-index: 7; display: flex; align-items: center; gap: 12px; height: 50px; padding: 0 7px 0 18px; border-radius: 25px; border-color: rgba(240,179,90,.45); color: var(--k-scene-ink); font-size: 13px; white-space: nowrap; }
+.ka-editbar > .k-icon { color: var(--k-scene-amber); }
+.ka-editbar__hint { color: var(--k-scene-muted); overflow: hidden; text-overflow: ellipsis; }
+.ka-editbar .k-send { height: 36px; }
+@media (max-width: 1500px) { .ka-editbar__hint { display: none; } }
+.ka-addwidget { position: absolute; left: 24px; top: 92px; z-index: 7; width: 300px; display: flex; flex-direction: column; gap: 10px; }
+.ka-addwidget__open { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; height: 42px; padding: 0 16px; border-radius: 21px; border: 1px dashed var(--k-scene-amber); background: rgba(26,19,15,.8); color: var(--k-scene-amber); font-size: 14px; font-weight: 700; }
+.ka-addwidget__menu { color: var(--k-scene-ink); }
+.ka-addwidget__menu > .ka-modeitem { display: grid; grid-template-columns: 32px 1fr 16px; align-items: center; gap: 12px; padding: 8px 10px; }
+.ka-addwidget__title { padding: 6px 10px 4px; font-size: 14px; }
+.ka-addwidget__who { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; padding: 10px; border-radius: 14px; background: rgba(255,236,210,.05); font-size: 12px; color: var(--k-scene-muted); }
+.ka-addwidget__who .ka-row { flex-wrap: wrap; gap: 6px; }
+.ka-placewidget { display: flex; flex-direction: column; }
+.ka-placewidget__room { position: relative; display: block; height: 150px; overflow: hidden; border-radius: 24px 24px 0 0; }
+.ka-placewidget > strong { padding: 10px 14px 12px; font-family: var(--k-font-story); font-size: 18px; font-weight: 400; }
+.ka-castwidget, .ka-noteswidget { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; }
+.ka-castwidget__title { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--k-scene-muted); }
+.ka-castwidget__faces { display: flex; flex-wrap: wrap; gap: 8px; }
+.ka-castwidget__faces > button { padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; }
+.ka-noteswidget textarea { resize: vertical; min-height: 80px; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--k-scene-glass-border); background: rgba(0,0,0,.25); color: var(--k-scene-ink); font: 14px/1.45 var(--k-font-story); }
+.is-editing-widgets .ka-widgets--right { overflow: visible; } /* the handles sit outside the cards */

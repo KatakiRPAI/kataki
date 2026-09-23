@@ -230,7 +230,13 @@ export type Story = Standing & {
   epoch_offset_min: number
   start_clock: string
   roles: Record<string, unknown>
+  ui: StoryUi // the app's own state for this story; the engine keeps it and never reads it
 }
+
+/** A widget in the Scene: what it shows, whether it stays out, and where you put it (fractions of
+ *  the window; none = its column, characters on the right and the clock bottom left). */
+export type WidgetSpec = { id: string; kind: 'character' | 'clock' | 'place' | 'cast' | 'notes'; entity?: number; pinned: boolean; at?: { x: number; y: number } }
+export type StoryUi = { widgets?: WidgetSpec[]; dismissed?: number[]; notes?: string }
 
 export type Message = {
   id: number

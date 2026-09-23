@@ -29,10 +29,16 @@ function candidates(cast: Cast, items: Item[], byId: Map<number, Item>): Candida
 
 /** Who is nearby, as compact widget rows under the characters: a click brings them in. The rest
  *  are a click further, in "Bring someone in". */
-export function Nearby({ cast, busy, onMove }: { cast: Cast; busy: boolean; onMove: (m: Moving) => void }) {
+export function Nearby({ cast, busy, onMove, shown = [] }: {
+  cast: Cast
+  busy: boolean
+  onMove: (m: Moving) => void
+  shown?: number[] // characters with a widget of their own: no row here as well
+}) {
   const { items, byId } = useLibrary()
   const [picking, setPicking] = useState(false)
   const all = candidates(cast, items, byId)
+  const rows = all.filter((c) => !(c.move.kind === 'away' && shown.includes(c.move.id)))
   const row = (c: Candidate, onPick: () => void, widget = true) => (
     <button key={`${c.move.kind}-${c.move.id}`} type="button" disabled={busy} onClick={onPick}
       className={`${widget ? 'k-widget ka-widget ' : ''}k-widget--row is-away ka-nearby`} aria-label={`Bring ${c.name} in (${c.status})`}>
@@ -45,7 +51,7 @@ export function Nearby({ cast, busy, onMove }: { cast: Cast; busy: boolean; onMo
   )
   return (
     <>
-      {all.slice(0, 2).map((c) => row(c, () => onMove(c.move)))}
+      {rows.slice(0, 2).map((c) => row(c, () => onMove(c.move)))}
       <button type="button" className="ka-nearby__bring" disabled={busy} onClick={() => setPicking(true)}>
         <Icon name="plus" size={14} />
         Bring someone in

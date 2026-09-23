@@ -8,7 +8,7 @@ import Lines, { LiveLine, SaidLine, TimeSkip, type Live } from './Lines'
 import { Nearby, NewScene, type SceneBody } from './Nearby'
 import Backstage from './Backstage'
 import Peek from './Peek'
-import { CharacterWidget, ClockWidget, Place } from './Widgets'
+import { Place, WidgetBoard } from './Widgets'
 
 /** Who is here: the AI characters present, whoever just arrived or else the last to speak
  *  first. */
@@ -130,6 +130,7 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
   const [picked, setPicked] = useState<Speaker>(null) // who answers next
   const [skip, setSkip] = useState<Skip | null>(null) // time to pass before the next line
   const [advanced, setAdvanced] = useState(remembered) // the composer's toggle; the chat follows it
+  const [arranging, setArranging] = useState(false) // Edit widgets
   const [peek, setPeek] = useState<{ id: number; at: { x: number; y: number } } | null>(null)
   const [focus, setFocus] = useState<number | undefined>(opened) // the character Backstage opens on
 
@@ -347,7 +348,7 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
   const offline = /model|reach|connect|provider/i.test(failed)
 
   return (
-    <div className={`k-scene ka-scene${reading && !backstage ? ' is-reading' : ''}${awake ? ' is-awake' : ''}${backstage ? ' is-backstage' : ''}${skipping ? ' is-skipping' : ''}`}
+    <div className={`k-scene ka-scene${arranging ? ' is-editing-widgets' : ''}${reading && !backstage ? ' is-reading' : ''}${awake ? ' is-awake' : ''}${backstage ? ' is-backstage' : ''}${skipping ? ' is-skipping' : ''}`}
       onPointerMove={reading ? wake : undefined}>
       {backstage && <Backstage story={story} cast={cast} tick={tick} focus={focus} onChange={refreshAll} />}
       <Place item={story.place ? item(story.place) : undefined} minute={story.minute_of_day} />
@@ -376,6 +377,7 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
           <span className={`k-switch${backstage ? ' is-on' : ''}`} aria-hidden="true" />
         </button>
         <StoryMenu story={story} chapters={chapters} messages={messages} at={newest?.id} reading={reading}
+          onArrange={backstage ? undefined : () => { setReading(false); setArranging(true) }}
           onReading={backstage ? undefined : () => setReading((r) => !r)} onChange={refreshAll}
           onNewScene={() => setNewScene(true)} />
       </div>
@@ -419,18 +421,26 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
           onStop={() => controller.current?.abort()}
         />
       </section>
-      <aside className="ka-widgets ka-widgets--right" aria-label="Who is here">
-        {people.map((e) => (
-          <CharacterWidget key={e.id} entity={e} item={item(e)} face={faces.get(e.id)} joined={e.id === arriving}
-            state={live?.speakerId === e.id ? (live.text ? 'writing' : 'thinking') : undefined}
-            onPeek={(at) => setPeek({ id: e.id, at })} />
-        ))}
-        <Nearby cast={cast} busy={acting || !!live} onMove={move} />
-      </aside>
-      <aside className="ka-widgets ka-widgets--left" aria-label="The story clock">
-        <ClockWidget story={story} chapter={here?.title} rolling={rolling}
-          passTime={<PassTime disabled={!!live} onPick={setSkip} className="ka-clock__pass" />} />
-      </aside>
+      <WidgetBoard
+        story={story}
+        people={people}
+        everyone={cast.entities.filter((e) => e.is_ai && e.kind === 'character')}
+        itemOf={item}
+        faces={faces}
+        stateOf={(who) => (live?.speakerId === who ? (live.text ? 'writing' : 'thinking') : undefined)}
+        arriving={arriving}
+        chapter={here?.title}
+        rolling={rolling}
+        passTime={<PassTime disabled={!!live} onPick={setSkip} className="ka-clock__pass" />}
+        nearby={(shown) => <Nearby cast={cast} busy={acting || !!live} onMove={move} shown={shown} />}
+        editing={arranging}
+        onDone={() => setArranging(false)}
+        onPeek={(who, at) => setPeek({ id: who, at })}
+        onSave={(ui) => act(async () => {
+          await api(`/stories/${id}`, 'PATCH', { ui: { ...story.ui, ...ui } })
+          refreshAll()
+        })}
+      />
       {peeking && (
         <Peek
           key={peeking.id}
@@ -477,13 +487,14 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
 type Dialogs = 'rename' | 'minutes' | 'delete' | 'chapter' | 'chapters' | 'export' | null
 
 /** The story menu: reading mode, chapters, rename, minutes per turn, pin, delete (with a confirm). */
-function StoryMenu({ story, chapters, messages, at, reading, onReading, onChange, onNewScene }: {
+function StoryMenu({ story, chapters, messages, at, reading, onReading, onArrange, onChange, onNewScene }: {
   story: Story
   chapters: Chapter[]
   messages: Message[] // the take this story is reading: what "go to it" can actually come to
   at?: number // the newest line: where a chapter started "here" begins
   reading: boolean
   onReading?: () => void // none while Backstage is open
+  onArrange?: () => void // Edit widgets; none while Backstage is open
   onChange: () => void
   onNewScene: () => void
 }) {
@@ -527,6 +538,10 @@ function StoryMenu({ story, chapters, messages, at, reading, onReading, onChange
   return (
     <>
       <Menu label="Story menu" className="k-scene-round k-sglass">
+        <button type="button" disabled={!onArrange} onClick={onArrange}>
+          <Icon name="grid" size={16} />
+          Edit widgets
+        </button>
         <button type="button" disabled={!onReading} onClick={onReading}>
           <Icon name="book" size={16} />
           {reading ? 'Leave reading mode' : 'Reading mode'}

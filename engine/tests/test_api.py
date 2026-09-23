@@ -350,6 +350,13 @@ def test_rewriting_a_line_plays_on_from_it_and_the_old_take_is_a_swipe_away(api,
     assert [m["text"] for m in back] == ["Hello.", "Evening.", "How was the docks?", "Rough night."]
 
 
+def test_a_story_keeps_the_apps_own_state_beside_its_roles(api, story):
+    ui = {"widgets": [{"kind": "clock", "pinned": True}], "notes": "Ask about the ledger."}
+    assert api.patch(f"/stories/{story}", json={"ui": ui}).json()["ui"] == ui
+    got = api.patch(f"/stories/{story}", json={"title": "Renamed"}).json()
+    assert (got["ui"], got["roles"]) == (ui, {})  # a patch of something else leaves it be
+
+
 def test_regenerate_then_swipe_back_and_forth(api, story, backend):
     backend.say("First.", "Second.")
     api.post(f"/stories/{story}/turn", json={"text": "Mira?"})

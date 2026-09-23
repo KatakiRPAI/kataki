@@ -148,6 +148,7 @@ class StoryPatch(BaseModel):
     book_id: int | None = None
     tags: list[str] | None = None
     roles: dict | None = None  # per-story role overrides, same shape as PUT /roles/{role}
+    ui: dict | None = None  # the app's own per-story state (widget layout, notes); never read here
 
 
 class TurnIn(BaseModel):
@@ -865,19 +866,20 @@ def create_app(
             "epoch_offset_min": story["epoch_offset_min"],
             "start_clock": clock.label(0, story["epoch_offset_min"]),  # for the opening card
             "roles": overrides.get("roles", {}),
+            "ui": overrides.get("ui", {}),
             **standing(story),
         }
 
     @app.patch("/stories/{story_id}")
     async def edit_story(story_id: int, s: StoryPatch):
         story = story_row(story_id)
-        fields = s.model_dump(exclude_unset=True, exclude={"roles", "book_id", "tags"})
+        fields = s.model_dump(exclude_unset=True, exclude={"roles", "ui", "book_id", "tags"})
         if s.tags is not None:
             with conn:  # its own commit: a patch of tags alone writes nothing else
                 library.set_tags(conn, "story", story_id, s.tags)
-        if s.roles is not None:
+        if s.roles is not None or s.ui is not None:
             overrides = json.loads(story["overrides"])
-            overrides["roles"] = s.roles
+            overrides |= s.model_dump(include={"roles", "ui"}, exclude_none=True)
             fields["overrides"] = json.dumps(overrides)
         if "book_id" in s.model_fields_set:
             try:
