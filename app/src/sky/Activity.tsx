@@ -1,7 +1,7 @@
 import { useState, type CSSProperties } from 'react'
 import { api, type ActivityEvent, type StorySummary } from '../api'
 import { Avatar } from '../art'
-import { diveLink, useAction, useLibrary, useLoad } from '../hooks'
+import { ago, diveLink, inline, useAction, useLibrary, useLoad, whichDay } from '../hooks'
 import { Chip, ErrorLine, Glass, Icon, Prose } from '../ui'
 
 type Kind = ActivityEvent['kind']
@@ -16,9 +16,9 @@ const KINDS: [Kind, string, string][] = [
 
 const iconOf = (kind: Kind) => KINDS.find(([k]) => k === kind)![1]
 
-/** What it was about and when: "Heard by Mira · Tobin wasn't there · Day 1, 19:12". A time skip
- *  already ends on the clock it moved to, and doesn't want it twice. */
-const meta = (e: ActivityEvent) => (e.sub.endsWith(e.clock) ? e.sub : [e.sub, e.clock].filter(Boolean).join(' · '))
+/** What it was about, when in the story, and when in yours: "Heard by Mira · the evening of the
+ *  storm · 2 hours ago". */
+const meta = (e: ActivityEvent) => [e.sub, inline(e.date), ago(e.at)].filter(Boolean).join(' · ')
 
 /** Whoever it happened to, with the kind on the corner. Time happens to no one, so it wears a clock. */
 function Face({ e, size }: { e: ActivityEvent; size: number }) {
@@ -38,8 +38,8 @@ function Face({ e, size }: { e: ActivityEvent; size: number }) {
   )
 }
 
-/** Where it happened: "The Third Floorboard · Year 7", the feed's group head and Home's sub. */
-const where = (e: ActivityEvent) => `${e.story} · ${e.clock.split(',')[0]}`
+/** Where it happened: "The Third Floorboard · six years after the storm", for Home and Chats. */
+const where = (e: ActivityEvent) => `${e.story} · ${inline(e.date)}`
 
 /** An event as a link straight into the line it came from: Home's preview and the Chats panel,
  *  which names the story or not depending on whether the page already has. */
@@ -85,11 +85,13 @@ function Event({ e }: { e: ActivityEvent }) {
   )
 }
 
-/** Runs of events that share a story and a stretch of story time: "THE THIRD FLOORBOARD · YEAR 7". */
+/** Runs of events by when you played and in which story: "TODAY · THE THIRD FLOORBOARD", newest
+ *  first. */
 function group(events: ActivityEvent[]): [string, ActivityEvent[]][] {
   const out: [string, ActivityEvent[]][] = []
-  for (const e of events) {
-    const label = where(e)
+  const newest = [...events].sort((a, b) => b.at.localeCompare(a.at) || b.message_id - a.message_id)
+  for (const e of newest) {
+    const label = `${whichDay(e.at)} · ${e.story}`
     const last = out[out.length - 1]
     if (last && last[0] === label) last[1].push(e)
     else out.push([label, [e]])

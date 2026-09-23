@@ -299,6 +299,7 @@ def test_activity_lists_what_happened_newest_first(conn, story):
     }
     assert (remembered["story_id"], remembered["story"]) == (story, "Low Tide")
     assert remembered["message_id"] == secret and remembered["clock"].startswith("Day 1, ")
+    assert remembered["date"] == "Day 1" and len(remembered["at"]) == 19  # "YYYY-MM-DD HH:MM:SS"
     assert all(e["new"] for e in events)  # nothing has been seen yet
     assert [e["kind"] for e in signals.activity(conn, kind="memory")] == ["memory"]
     assert signals.activity(conn, story_id=story + 999) == []

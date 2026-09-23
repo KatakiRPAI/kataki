@@ -211,6 +211,8 @@ export type ActivityEvent = {
   story: string
   message_id: number
   clock: string
+  date: string // the story's date in its own words
+  at: string // when it happened in real time (SQLite UTC)
   who: Ref[]
   text: string
   sub: string

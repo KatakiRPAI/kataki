@@ -438,7 +438,8 @@ def activity(
 ) -> list[dict]:
     """The same signals as a feed, newest first: what someone will remember, what they made of
     a claim, how they felt, and what time cost them. `new` means a read you have not seen wrote
-    it; time passing is never new.
+    it; time passing is never new. `at` is when it happened in real time (the read that wrote it
+    finished, or the line was written), `date` the story's date in its own words.
 
     ponytail: every story is worked out from scratch on each call; cache per story version if a
     library ever holds hundreds of stories.
@@ -451,6 +452,13 @@ def activity(
     for story in rows:
         s = scene(conn, story)
         lines = {m["id"]: m for m in s.path}
+        finished = dict(
+            conn.execute(
+                "SELECT id, finished_at FROM extraction_runs WHERE story_id=?", (story["id"],)
+            ).fetchall()
+        )
+        moments = json.loads(story["overrides"]).get("moments", [])
+
         heard = {m: summary(r, s.names) for m, r in _receipts(s).items()}
         for message_id, callouts in _callouts(s).items():
             line = lines[message_id]
@@ -466,6 +474,8 @@ def activity(
                         "story": story["title"],
                         "message_id": message_id,
                         "clock": clock.label(line["story_time"], story["epoch_offset_min"]),
+                        "date": clock.date(line["story_time"], story["epoch_offset_min"], moments),
+                        "at": finished.get(c["run"]) or line["created_at"],
                         "who": _who(s, c["who"]),
                         "text": text,
                         "sub": c["reason"] or heard.get(message_id, ""),
@@ -484,6 +494,8 @@ def activity(
                     "story": story["title"],
                     "message_id": message_id,
                     "clock": skip["to_clock"],
+                    "date": clock.date(line["story_time"], story["epoch_offset_min"], moments),
+                    "at": line["created_at"],
                     "who": [],
                     "text": f"{passed} {_cost(skip['faded'], s.names)}".strip(),
                     "sub": f"{skip['from_clock']} to {skip['to_clock']}",

@@ -162,6 +162,13 @@ export function exact(at: string): string {
   return `${d.toDateString() === new Date().toDateString() ? 'Today' : d.toLocaleDateString('en-GB', { dateStyle: 'medium' })}, ${time}`
 }
 
+/** Which day it was, for grouping a feed: "Today", "Yesterday", or "22 Sept 2026". */
+export function whichDay(at: string): string {
+  const d = new Date(utc(at))
+  const days = Math.round((new Date().setHours(0, 0, 0, 0) - new Date(d).setHours(0, 0, 0, 0)) / 86_400_000)
+  return days === 0 ? 'Today' : days === 1 ? 'Yesterday' : d.toLocaleDateString('en-GB', { dateStyle: 'medium' })
+}
+
 /** Leave a scene: the reverse of the dive, up to the last Sky page. */
 export const rise = () => dispatchEvent(new CustomEvent('ka-rise', { detail: lastSky.path }))
 
