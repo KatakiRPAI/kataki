@@ -169,3 +169,92 @@ async def test_a_model_no_provider_we_speak_serves_is_an_error_before_any_spend(
     with pytest.raises(ImageError, match="not served"):
         await fake.client.draw("org/model", "x", 512, 512)
     assert len(fake.requests) == 1  # only the Hub lookup
+
+
+# --- the app's door: POST /library/{id}/draw ------------------------------------------------
+
+
+def drawing_app(conn, backend, fake: Fake, base_url=f"{images.ROUTER}/v1"):
+    from fastapi.testclient import TestClient
+
+    from kataki.server import create_app
+
+    app = create_app(
+        conn, "t", llm=backend.llm, worker_delay=60, image_transport=httpx2.MockTransport(fake)
+    )
+    client = TestClient(app, headers={"Authorization": "Bearer t"})
+    hf = client.post(
+        "/providers", json={"name": "HuggingFace", "base_url": base_url, "api_key": "hf_k"}
+    )
+    client.put("/roles/image", json={"provider_id": hf.json()["id"], "model": "org/model"})
+    return client
+
+
+def ws_draw(reply):
+    ws = f"{images.ROUTER}/wavespeed"
+    return Fake(
+        {
+            **hub(),
+            f"{ws}/api/v3/ws/model": [
+                {"data": {"urls": {"get": "https://x/api/v3/predictions/9/result"}}}
+            ],
+            f"{ws}/api/v3/predictions/9/result": [reply],
+            "https://cdn.example/": [httpx2.Response(200, content=PNG)],
+        }
+    )
+
+
+def test_drawing_a_place_keeps_the_picture_as_its_image(conn, backend):
+    fake = ws_draw({"data": {"status": "completed", "outputs": ["https://cdn.example/9.png"]}})
+    api = drawing_app(conn, backend, fake)
+    gull = api.post(
+        "/library",
+        json={
+            "kind": "place",
+            "name": "The Gull",
+            "description": "A harbour tavern.",
+            "data": {"palette": {"ink": "#fff"}},
+        },
+    ).json()
+    drawn = api.post(f"/library/{gull['id']}/draw", json={})
+    assert drawn.status_code == 200
+    data = drawn.json()["data"]
+    assert data["palette"] == {"ink": "#fff"}  # the rest of the item's data is kept
+    assert api.get(f"/media/{data['image']}").content == PNG
+    prompt = fake.body(1)["prompt"]
+    assert "empty room, interior view. A harbour tavern." in prompt
+    assert "Gull" not in prompt  # a place called "The Gull" would come with a gull
+    assert fake.requests[1].headers["authorization"] == "Bearer hf_k"
+
+
+def test_a_refused_place_says_why_and_which_provider_to_try(conn, backend):
+    fake = ws_draw({"data": {"status": "failed", "error": "content policy violation"}})
+    api = drawing_app(conn, backend, fake)
+    gull = api.post("/library", json={"kind": "place", "name": "The Gull"}).json()
+    r = api.post(f"/library/{gull['id']}/draw", json={})
+    assert r.status_code == 502
+    assert r.json()["detail"] == {
+        "message": "content policy violation",
+        "refused": True,
+        "alt": "fal-ai",
+    }
+    assert "image" not in api.get(f"/library/{gull['id']}").json()["data"]
+
+
+def test_drawing_needs_a_huggingface_image_job_and_a_place(conn, backend):
+    fake = Fake({})
+    api = drawing_app(conn, backend, fake, base_url="http://localhost:8080/v1")
+    gull = api.post("/library", json={"kind": "place", "name": "The Gull"}).json()
+    assert api.post(f"/library/{gull['id']}/draw", json={}).status_code == 409
+    mira = api.post("/library", json={"kind": "character", "name": "Mira"}).json()
+    assert api.post(f"/library/{mira['id']}/draw", json={}).status_code == 422
+    assert fake.requests == []  # nothing was spent
+
+
+def test_a_place_outdoors_is_drawn_deserted_not_as_a_room():
+    prompt = images.place_prompt(
+        {"name": "The Lighthouse", "description": "A lighthouse on a windy headland."}
+    )
+    assert "A deserted, unoccupied place. A lighthouse on a windy headland." in prompt
+    assert "room" not in prompt and "The Lighthouse" not in prompt
+    assert "A deserted" in images.place_prompt({"name": "Harbour Market", "description": ""})

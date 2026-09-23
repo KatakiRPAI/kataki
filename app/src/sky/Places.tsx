@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { api, upload, type Item } from '../api'
+import { api, upload, type Item, type RoleRow } from '../api'
 import { Room } from '../art'
-import { dive, useAction, useLibrary } from '../hooks'
+import { dive, useAction, useLibrary, useLoad } from '../hooks'
 import { Dialog, ErrorLine, Field, Icon, Prose, SkyHeader } from '../ui'
 import NewChat, { type Preset } from './NewChat'
 
@@ -106,9 +106,30 @@ function ItemDialog({ open, kind, item, onClose }: { open: boolean; kind: Kind; 
   )
 }
 
+/** Draw a place's background through the Pictures job: one click, one paid picture, no retries. */
+function DrawButton({ place }: { place: Item }) {
+  const { reload } = useLibrary()
+  const [run, error, busy] = useAction()
+  const draw = () => run(async () => {
+    await api(`/library/${place.id}/draw`, 'POST', {})
+    reload()
+  })
+  return (
+    <>
+      <button type="button" className="k-btn k-btn--ghost k-btn--sm" disabled={busy} onClick={draw}>
+        <Icon name="image" size={14} />
+        {busy ? 'Drawing…' : place.data.image ? 'Draw again' : 'Draw background'}
+      </button>
+      {error && <span className="ka-error ka-place__error" role="alert">{error}</span>}
+    </>
+  )
+}
+
 /** #/places — places to set a story, and plots to start one from. */
 export default function Places() {
   const { items, error } = useLibrary()
+  const [roles] = useLoad(() => api<RoleRow[]>('/roles'), [])
+  const pictures = !!roles?.find((r) => r.role === 'image')?.effective_model
   // the dialog stays mounted and opens by prop; n gives each opening a fresh form
   const [editing, setEditing] = useState<{ kind: Kind; item?: Item; open: boolean; n: number }>({ kind: 'place', open: false, n: 0 })
   const edit = (kind: Kind, item?: Item) => setEditing((e) => ({ kind, item, open: true, n: e.n + 1 }))
@@ -143,6 +164,7 @@ export default function Places() {
                   <Icon name="edit" size={14} />
                   Edit
                 </button>
+                {pictures && <DrawButton place={p} />}
               </span>
             </div>
           </article>

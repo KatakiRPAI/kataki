@@ -403,10 +403,14 @@ function headers(json: boolean): Record<string, string> {
   return { Authorization: `Bearer ${token}`, ...(json ? { 'Content-Type': 'application/json' } : {}) }
 }
 
-async function failure(r: Response): Promise<Error> {
+/** A picture that failed says why, whether the provider refused it, and who else could try. */
+export type PictureFailure = { message: string; refused?: boolean; alt?: string | null }
+
+async function failure(r: Response): Promise<Error & { detail?: unknown }> {
   const body = await r.json().catch(() => null)
   const detail = body?.detail
-  return new Error(typeof detail === 'string' ? detail : detail ? JSON.stringify(detail) : `HTTP ${r.status}`)
+  const said = typeof detail === 'string' ? detail : detail?.message ?? (detail ? JSON.stringify(detail) : `HTTP ${r.status}`)
+  return Object.assign(new Error(said), { detail })
 }
 
 export async function api<T>(path: string, method = 'GET', json?: unknown): Promise<T> {

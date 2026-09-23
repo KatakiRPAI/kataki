@@ -15,6 +15,7 @@ import sqlite3
 import tempfile
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,6 +31,7 @@ from kataki import (
     chats,
     clock,
     extract,
+    images,
     intake,
     library,
     lore,
@@ -79,6 +81,10 @@ class ItemIn(BaseModel):
     private: str = ""
     data: dict = {}
     tags: list[str] = []
+
+
+class DrawIn(BaseModel):
+    provider: str | None = None  # None: the first HF provider that serves the model
 
 
 class ItemPatch(BaseModel):
@@ -239,6 +245,7 @@ def create_app(
     llm: LLM | None = None,
     worker_delay: float = 3.0,
     get_key=roles.get_key,
+    image_transport=None,  # tests script the HF router here
 ) -> FastAPI:
     llm = llm or LLM()
     worker = extract.Worker(conn, llm, get_key, delay=worker_delay)
@@ -523,6 +530,38 @@ def create_app(
         library.delete_item(conn, item_id)
 
     # --- media: portraits and place images ------------------------------------------------
+
+    @app.post("/library/{item_id}/draw")
+    async def draw_item(item_id: int, d: DrawIn):
+        """A place's background from its own words, through the image job. One paid call."""
+        item = await get_item(item_id)
+        if item["kind"] != "place":
+            raise HTTPException(422, "only places can be drawn so far")
+        ep = roles.resolve(conn, "image", None, get_key)
+        if (
+            ep is None
+            or not ep.api_key
+            or urlparse(ep.base_url).hostname != "router.huggingface.co"
+        ):
+            raise HTTPException(
+                409, "Pictures need the image job set to a HuggingFace model, with its key."
+            )
+        client = images.Images(ep.api_key, transport=image_transport)
+        try:
+            data = await client.draw(
+                ep.model, images.place_prompt(item), *images.PLACE_SIZE, d.provider
+            )
+        except images.ImageError as e:
+            raise HTTPException(502, {"message": str(e), "refused": e.refused, "alt": e.alt}) from e
+        finally:
+            await client.aclose()
+        if (ext := media.sniff(data)) is None:
+            raise HTTPException(
+                502, {"message": "the provider sent something that is not a picture"}
+            )
+        name = media.save(conn, data, ext)
+        library.update_item(conn, item_id, data={**item["data"], "image": name})
+        return library.get_item(conn, item_id)
 
     @app.post("/media", status_code=201)
     async def add_media(request: Request):

@@ -282,6 +282,7 @@ span.k-orb { display: block; }
 .ka-place { position: relative; height: 260px; border-radius: 28px; overflow: hidden; box-shadow: 0 14px 30px rgba(62,92,170,.18); }
 .ka-place .k-nameplate { gap: 6px; }
 .ka-place__name { font-size: 17px; font-weight: 800; }
+.ka-place__error { flex-basis: 100%; }
 .ka-plots { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 20px; }
 .ka-plot__premise { font-size: 15px; line-height: 1.5; }
 .ka-plot__opening { padding: 12px 16px; border-radius: 18px; background: rgba(255,255,255,.6); font-family: var(--k-font-story); font-size: 16px; line-height: 1.5; }

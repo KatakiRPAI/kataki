@@ -26,6 +26,33 @@ REFUSAL = re.compile(r"nsfw|safety|content.?polic|moderat|inappropriate|not allo
 
 _mappings: dict[str, dict[str, str]] = {}  # model -> {provider: provider's own id}, per process
 
+# the image job's model draws from words; its params may name the other two (M3 spec §7.1)
+DEFAULTS = {"edit_model": "Qwen/Qwen-Image-Edit-2511", "cutout_model": "briaai/RMBG-2.0"}
+PLACE_SIZE = (1536, 864)
+# Z-Image-Turbo takes every word literally and ignores "no": "no people" and "do not draw the
+# name" put people and a sign reading "The Gull" into the picture, and "stage backdrop" drew a
+# theatre stage. So the prompt only ever says what to draw (docs/images/findings.md).
+PLACE = (
+    "Medieval fantasy concept art, realistic painterly environment painting. {empty}. {what}. "
+    "Eye level, wide angle, {light}, rich detail."
+)
+# ponytail: a word list decides inside or out; a place-kind field if it guesses wrong too often
+INDOORS = re.compile(
+    r"\b(tavern|inn|room|hall|shop|house|home|library|chamber|cellar|kitchen|temple|church|"
+    r"chapel|cabin|study|bar|pub|hut|bedroom|attic|workshop|dungeon|throne|parlou?r|salon)s?\b",
+    re.I,
+)
+
+
+def place_prompt(item: dict) -> str:
+    """The name is never in the prompt: a place called "The Gull" would come with a gull."""
+    what = item["description"].strip().rstrip(".") or item["name"].strip()
+    if INDOORS.search(f"{item['name']} {what}"):
+        empty, light = "An unoccupied, empty room, interior view", "warm lantern light"
+    else:
+        empty, light = "A deserted, unoccupied place", "natural light"
+    return PLACE.format(empty=empty, what=what, light=light)
+
 
 class ImageError(Exception):
     def __init__(self, message: str, refused: bool = False, alt: str | None = None):

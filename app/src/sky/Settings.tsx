@@ -27,7 +27,12 @@ const JOBS: Job[] = [
     help: 'Careful re-reads when a scene closes, and on request. A reasoning model shines here.' },
   { role: 'embed', label: 'Recall by meaning', short: 'Finds memories that fit the moment', icon: 'search', color: 'blue',
     help: 'Lets "that treachery" find "Tobin betrayed us". Works out of the box: a small built-in model runs on this computer (downloaded once, 125 MB). Pick a server only to use your own embedding model, such as nomic-embed-text in Ollama.' },
-] // one job per model role; images and music get theirs in later milestones
+  { role: 'image', label: 'Pictures', short: 'Draws places and faces', icon: 'image', color: 'gold',
+    help: 'Backgrounds for places, drawn when you ask. Needs the HuggingFace server; each picture costs a few cents. Nothing needs it: without it, places look as they do today.' },
+] // one job per model role; music gets its own in a later milestone
+
+// what the Pictures job can draw with on HuggingFace, cheapest first (docs/images/findings.md)
+const PICTURE_MODELS = ['Tongyi-MAI/Z-Image-Turbo', 'black-forest-labs/FLUX.1-schnell', 'Qwen/Qwen-Image']
 
 const SAMPLERS: Record<string, Record<string, number>> = {
   Balanced: { temperature: 1.0, min_p: 0.05 },
@@ -198,7 +203,7 @@ function Models() {
 
 /** What a collapsed job shows: where its model comes from, and one more line. */
 function summary(job: Job, row: RoleRow, providers: Provider[]): [string, string] {
-  if (!row.effective_model) return job.role === 'embed' ? ['Built-in', 'Runs on this computer, no server needed'] : ['No model yet', job.short]
+  if (!row.effective_model) return job.role === 'embed' ? ['Built-in', 'Runs on this computer, no server needed'] : job.role === 'image' ? ['No pictures', 'Nothing needs them'] : ['No model yet', job.short]
   const server = providers.find((p) => p.id === row.effective_provider_id)?.name ?? 'a server'
   if (row.inherited_from) return [`Same as ${jobOf(row.inherited_from)?.label ?? row.inherited_from}`, `${server} · ${row.effective_model}`]
   const thinking = row.params.thinking === 'enabled' ? ' · thinking on' : row.params.thinking === 'disabled' ? ' · thinking off' : ''
@@ -390,9 +395,10 @@ function JobEditor({ job, row, providers, onChange }: { job: Job; row: RoleRow; 
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
+    if (job.role === 'image') return setModels(PICTURE_MODELS) // a server's /models lists text models
     setModels([])
     if (providerId) api<{ models: string[] }>(`/providers/${providerId}/models`).then((r) => setModels(r.models), () => {})
-  }, [providerId])
+  }, [providerId, job.role])
 
   const set = (key: string, value: unknown) => {
     setSaved(false)
@@ -421,7 +427,7 @@ function JobEditor({ job, row, providers, onChange }: { job: Job; row: RoleRow; 
     })
   const probe = () => run(async () => { await api(`/roles/${job.role}/probe`, 'POST'); onChange() })
 
-  const simple = job.role === 'embed' // a model and nothing else
+  const simple = job.role === 'embed' || job.role === 'image' // a model and nothing else
   const shownKind = simple ? null : kind === 'auto' ? row.effective_kind : kind
   const sampler = Object.entries(SAMPLERS).find(([, v]) => JSON.stringify(v) === JSON.stringify(safeParse(body)))?.[0] ?? ''
   const inherited = row.inherited_from && !providerId
@@ -441,12 +447,12 @@ function JobEditor({ job, row, providers, onChange }: { job: Job; row: RoleRow; 
       <div className="ka-grid2">
         <Field label="Server">
           <select className="k-select" value={providerId ?? ''} onChange={(e) => { setSaved(false); setProviderId(e.target.value ? Number(e.target.value) : null) }}>
-            <option value="">{job.role === 'rp' ? 'Choose…' : simple ? 'Built-in' : `Same as ${jobOf(row.inherited_from ?? 'rp')?.label ?? 'Characters'}`}</option>
+            <option value="">{job.role === 'rp' ? 'Choose…' : job.role === 'image' ? 'None' : simple ? 'Built-in' : `Same as ${jobOf(row.inherited_from ?? 'rp')?.label ?? 'Characters'}`}</option>
             {providers.map((p) => <option key={p.id} value={p.id}>{p.name}{isLocal(p.base_url) ? ' · this computer' : ''}</option>)}
           </select>
         </Field>
         <Field label="Model">
-          <input className="k-input" list={`models-${job.role}`} value={model} disabled={!providerId} placeholder={providerId ? 'Type or pick a model' : ''} onChange={(e) => { setSaved(false); setModel(e.target.value) }} />
+          <input className="k-input" list={`models-${job.role}`} value={model} disabled={!providerId} placeholder={providerId ? (job.role === 'image' ? PICTURE_MODELS[0] : 'Type or pick a model') : ''} onChange={(e) => { setSaved(false); setModel(e.target.value) }} />
           <datalist id={`models-${job.role}`}>{models.map((m) => <option key={m} value={m} />)}</datalist>
         </Field>
         {!simple && (
