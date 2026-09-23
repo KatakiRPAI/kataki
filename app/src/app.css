@@ -551,8 +551,8 @@ button.ka-widget:disabled { opacity: .5; cursor: default; }
    The scene stays mounted underneath, hidden, so a draft or a reply in progress survives. ---- */
 .ka-scene.is-backstage :is(.k-place, .ka-widgets, .k-chat) { display: none; }
 .ka-bs-toggle { gap: 10px; padding: 0 12px 0 14px; color: var(--k-scene-ink); font-size: 13px; font-weight: 600; }
-.ka-backstage { position: absolute; inset: 0; padding: 104px 24px 24px; box-sizing: border-box; display: grid; grid-template-columns: minmax(0, 820fr) minmax(0, 548fr); gap: 24px; }
-.ka-backstage__side { display: grid; grid-template-rows: 236fr 262fr 242fr; gap: 16px; min-height: 0; }
+.ka-backstage { position: absolute; inset: 0; padding: 104px 24px 24px; box-sizing: border-box; display: grid; grid-template-columns: minmax(0, 864fr) minmax(0, 512fr); gap: 24px; }
+.ka-backstage__side { display: grid; grid-template-rows: 220fr 230fr 300fr; gap: 16px; min-height: 0; }
 .ka-backstage .k-bs-panel { min-height: 0; }
 .ka-bs-muted { color: var(--k-bs-muted); font-family: var(--k-font-mono); font-size: 11.5px; letter-spacing: 0; }
 .k-bs-btn[aria-pressed="true"] { border-color: var(--k-bs-line); background: rgba(140,195,255,.16); }
@@ -926,3 +926,10 @@ a.ka-event:hover { background: #fff; }
 .ka-mind__skip { stroke: var(--k-bs-muted); stroke-dasharray: 3 3; }
 .ka-mind__skips { position: relative; height: 14px; }
 .ka-mind__skips > span { position: absolute; transform: translateX(-50%); font: 11px var(--k-font-mono); color: var(--k-bs-muted); white-space: nowrap; }
+.ka-bs-turn { display: flex; flex-direction: column; padding: 4px 0 8px; border-bottom: 1px dashed var(--k-bs-border); }
+.ka-bs-job { display: grid; grid-template-columns: 10px 110px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 5px 16px; font: 12px var(--k-font-mono); }
+.ka-bs-job > .ka-bs-muted { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ka-bs-job__name { font-weight: 600; color: var(--k-bs-ink); }
+.ka-bs-job__total { padding: 2px 16px 0 36px; }
+.ka-bs-job .ka-bs-dot:not(.is-ok) { background: var(--k-bs-border); }
+.ka-bs-reading .ka-bs-scroll { overflow-x: hidden; }

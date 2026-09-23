@@ -1,5 +1,5 @@
 import { useState, type CSSProperties, type ReactNode } from 'react'
-import { api, type Cast, type ContextLog, type Entity, type KnownMemory, type Run, type Story, type Version } from '../api'
+import { api, type Cast, type ContextLog, type Entity, type KnownMemory, type Message, type Mind as MindGraph, type Run, type Story, type Version } from '../api'
 import { Avatar, pronounsOf } from '../art'
 import { useAction, useLibrary, useLoad } from '../hooks'
 import { Dialog, ErrorLine, Icon } from '../ui'
@@ -41,7 +41,7 @@ export default function Backstage({ story, cast, tick, focus, onChange }: { stor
       <div className="ka-backstage__side">
         <Prompt story={story} tick={tick} />
         <CastPanel story={story} tick={tick} onChange={onChange} />
-        <Reading story={story} tick={tick} />
+        <Engine story={story} tick={tick} />
       </div>
     </div>
   )
@@ -372,7 +372,15 @@ const TRIGGERS: Record<string, string> = {
 }
 const STATUS: Record<string, string> = { ok: 'done', failed: 'failed', pending: 'waiting', running: 'reading', cancelled: 'stopped' }
 
-function Reading({ story, tick }: { story: Story; tick: number }) {
+const secs = (ms?: number) => (ms === undefined ? '' : ms < 100 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`)
+
+/** What each job did for the last reply (its model, time, tokens), then the memory reader: what
+ *  is waiting, its runs, and reading now. */
+function Engine({ story, tick }: { story: Story; tick: number }) {
+  const [last] = useLoad(async () => {
+    const reply = (await api<Message[]>(`/stories/${story.id}/messages`)).findLast((m) => m.role === 'assistant')
+    return reply ? api<MindGraph>(`/messages/${reply.id}/mind`) : undefined
+  }, [story.id, tick])
   const [runs, reload, error] = useLoad(() => api<Run[]>(`/stories/${story.id}/runs`), [story.id, tick])
   const [version, reloadVersion] = useLoad(() => api<Version>(`/stories/${story.id}/version`), [story.id, tick])
   const [run, actionError, busy] = useAction()
@@ -386,12 +394,14 @@ function Reading({ story, tick }: { story: Story; tick: number }) {
       reloadVersion()
     })
   return (
-    <section className="k-bs-panel ka-bs-reading" aria-label="Reading">
+    <section className="k-bs-panel ka-bs-reading" aria-label="Engine">
       <div className="k-bs-title">
-        <span>READING</span>
-        <span className="ka-bs-muted">{latest ? `memory reader · ${latest.model ?? latest.role ?? '?'}` : 'memory reader'}</span>
+        <span>ENGINE · THIS TURN</span>
+        <span className="ka-bs-muted">{last ? `${last.speaker.name}'s reply` : 'no reply yet'}</span>
       </div>
       <div className="ka-bs-scroll">
+        {last && <Turn mind={last} reader={latest?.model ?? latest?.role ?? undefined} waiting={version?.waiting ?? 0} />}
+        <div className="ka-bs-head">MEMORY READER{latest ? ` · ${latest.model ?? latest.role ?? '?'}` : ''}</div>
         {!!version?.waiting && (
           <div className="ka-bs-run">
             <i className="ka-bs-dot is-waiting" />
@@ -427,5 +437,35 @@ function Reading({ story, tick }: { story: Story; tick: number }) {
         </button>
       </div>
     </section>
+  )
+}
+
+/** One row per job the last reply ran: model, time, tokens; "idle" where it didn't run. */
+function Turn({ mind, reader, waiting }: { mind: MindGraph; reader?: string; waiting: number }) {
+  const t = mind.spoke.timings
+  const tokens = mind.spoke.tokens
+  const writing = t.reply !== undefined && t.first_token !== undefined ? (t.reply - t.first_token) / 1000 : undefined
+  const rate = tokens && writing ? `${Math.round(tokens / writing)} tok/s` : ''
+  const recalled = mind.nodes.filter((n) => n.kind === 'recall').length + (mind.more.recall ?? 0)
+  const rows: [string, string | null | undefined, string][] = [
+    [mind.speaker.id === null ? 'Narrator' : 'Characters', mind.spoke.model,
+      [secs(t.reply), tokens && `${tokens} tok`, rate].filter(Boolean).join(' · ')],
+    ['Recall', 'by meaning and words', t.recall === undefined ? 'idle' : `${secs(t.recall)} · ${recalled} recalled`],
+    ['Prompt', 'built here', secs(t.prompt) || '—'],
+    ['Face', mind.nodes.some((n) => n.kind === 'expression') ? 'memory reader' : '—', t.face === undefined ? 'idle' : secs(t.face)],
+    ['Memory reader', reader, waiting ? `waiting · ${waiting} new ${waiting === 1 ? 'line' : 'lines'}` : 'idle'],
+  ]
+  return (
+    <div className="ka-bs-turn">
+      {rows.map(([job, model, what]) => (
+        <div key={job} className="ka-bs-job">
+          <i className={`ka-bs-dot${what === 'idle' ? '' : ' is-ok'}`} />
+          <span className="ka-bs-job__name">{job}</span>
+          <span className="ka-bs-muted">{model ?? '—'}</span>
+          <span>{what}</span>
+        </div>
+      ))}
+      {t.total !== undefined && <div className="ka-bs-muted ka-bs-job__total">whole turn {secs(t.total)}</div>}
+    </div>
   )
 }
