@@ -16,6 +16,9 @@ import httpx2
 
 Event = tuple[str, Any]  # ("thought" | "token", text) ... then ("done", {"usage": ...})
 DEFAULT_THINK_TAGS = ("<think>", "</think>")
+# Hosted providers cap a request that names no limit (together: 2048 tokens), and a thinking
+# model can spend all of that thinking and never answer. Room for both; a job's own body wins.
+MAX_TOKENS = 8192
 
 
 class LLMError(Exception):
@@ -113,7 +116,7 @@ class LLM:
 
     @staticmethod
     def _body(ep: Endpoint, messages: list[dict], **extra) -> dict:
-        body = {"model": ep.model, "messages": messages, **extra}
+        body = {"model": ep.model, "messages": messages, "max_tokens": MAX_TOKENS, **extra}
         if (thinking := ep.params.get("thinking", "default")) != "default":
             body["chat_template_kwargs"] = {"enable_thinking": thinking == "enabled"}
         if effort := ep.params.get("reasoning_effort"):
@@ -196,7 +199,13 @@ class LLM:
                 self._rejected.add(key)  # this backend cannot do that format; do not ask again
                 continue
             self._check(r)
-            return r.json()["choices"][0]["message"].get("content") or ""
+            choice = r.json()["choices"][0]
+            if choice.get("finish_reason") == "length":  # cut off: asking again pays again
+                raise LLMError(
+                    f"the model ran out of room ({body.get('max_tokens')} tokens) before it "
+                    "finished answering"
+                )
+            return choice["message"].get("content") or ""
         raise LLMError(f"{url} rejected every request form")  # unreachable: None is never skipped
 
     async def complete_json[T](

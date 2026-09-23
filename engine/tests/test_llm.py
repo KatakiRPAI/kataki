@@ -3,6 +3,7 @@ import json
 import httpx2
 import pytest
 
+from kataki import llm as llm_module
 from kataki.llm import LLM, Endpoint, LLMError, ThinkSplitter
 
 pytestmark = pytest.mark.anyio
@@ -153,6 +154,27 @@ async def test_json_task_steps_down_when_the_backend_rejects_response_format():
     assert await backend.llm.complete_json(EP, [], SCHEMA, parse_n) == 3
     formats = [b.get("response_format", {}).get("type") for b in backend.bodies]
     assert formats == ["json_schema", "json_object", None]
+
+
+async def test_every_request_leaves_room_to_think_and_answer():
+    # hosted providers cap a request with no max_tokens (together: 2048), and a thinking
+    # model spent all of it thinking before a memory read on HF; the user's own body still wins
+    backend = Recorder(completion('{"n": 1}'), completion('{"n": 2}'))
+    await backend.llm.complete_json(EP, [], SCHEMA, parse_n)
+    assert backend.bodies[0]["max_tokens"] == llm_module.MAX_TOKENS >= 8192
+    own = Endpoint(base_url="http://x/v1", model="m", params={"body": {"max_tokens": 300}})
+    await backend.llm.complete_json(own, [], SCHEMA, parse_n)
+    assert backend.bodies[1]["max_tokens"] == 300
+
+
+async def test_an_answer_cut_off_by_the_limit_says_so_and_is_not_paid_for_twice():
+    cut = httpx2.Response(
+        200, json={"choices": [{"message": {"content": ""}, "finish_reason": "length"}]}
+    )
+    backend = Recorder(cut)
+    with pytest.raises(LLMError, match="ran out of room"):
+        await backend.llm.complete_json(EP, [], SCHEMA, parse_n)
+    assert len(backend.bodies) == 1
 
 
 async def test_think_wrapped_json_is_stripped_before_parsing():
