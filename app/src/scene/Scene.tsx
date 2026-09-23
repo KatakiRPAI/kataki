@@ -8,7 +8,7 @@ import Lines, { LiveLine, SaidLine, TimeSkip, type Live } from './Lines'
 import { Nearby, NewScene, type SceneBody } from './Nearby'
 import Backstage from './Backstage'
 import Peek from './Peek'
-import { Place, WidgetBoard } from './Widgets'
+import { hasWidget, Place, WidgetBoard, withCharacter } from './Widgets'
 
 /** Who is here: the AI characters present, whoever just arrived or else the last to speak
  *  first. */
@@ -463,6 +463,11 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
             setBackstage(true)
             setPeek(null)
           }}
+          about={story.persona?.name}
+          onWidget={hasWidget(story, people, peeking.id) ? undefined : () => act(async () => {
+            await api(`/stories/${id}`, 'PATCH', { ui: { ...story.ui, ...withCharacter(story, people, peeking.id) } })
+            refreshAll()
+          })}
         />
       )}
       <NewScene open={newScene} story={story} cast={cast} onClose={() => setNewScene(false)} onCut={cut} />

@@ -978,3 +978,8 @@ a.ka-event:hover { background: #fff; }
 .ka-timeskip__card .ka-timeskip__clocks { color: #5a5068; } .ka-timeskip__card .ka-timeskip__clocks strong { color: #1f1a2b; }
 .ka-timeskip__card .ka-timeskip__report { margin: 0; padding: 0; background: none; border: 0; }
 .ka-timeskip__card .ka-timeskip__undo { border: 0; background: #1f1a2b; color: #fff; }
+.ka-peek__widget { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid var(--k-scene-glass-border); background: rgba(20,14,10,.5); color: var(--k-scene-ink); font: 700 12px var(--k-font-ui); cursor: pointer; }
+.ka-peek__widget + .ka-peek__close { margin-left: 8px; }
+.ka-peek__bar { display: grid; grid-template-columns: 70px 1fr; align-items: center; gap: 12px; font-size: 13px; cursor: help; }
+.ka-peek__track { height: 5px; border-radius: 3px; background: rgba(255,236,210,.1); overflow: hidden; }
+.ka-peek__track > i { display: block; height: 100%; border-radius: 3px; }

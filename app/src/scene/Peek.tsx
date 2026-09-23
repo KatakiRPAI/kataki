@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { api, type CastEntity, type Person } from '../api'
+import { api, type CastEntity, type Feelings, type Person, type Pronouns } from '../api'
 import { Avatar, paletteOf, pronounsOf } from '../art'
 import { href, useLibrary, useLoad } from '../hooks'
 import Elsewhere from '../sky/Elsewhere'
@@ -12,6 +12,7 @@ const HER = { she: 'her', he: 'his', they: 'their' } // on ___ mind
 const HER_TOO = { she: 'her', he: 'him', they: 'them' } // let ___ answer next
 const SHE = { she: 'she', he: 'he', they: 'they' }
 const KNOWS = { she: 'knows', he: 'knows', they: 'know' }
+const FEELS = { she: 'feels', he: 'feels', they: 'feel' }
 
 const STATE_ICON: Record<string, string> = {
   holding: 'hand',
@@ -29,7 +30,7 @@ function Tier({ tier }: { tier: string }) {
 
 /** Everything the story knows about one character right now, over the stage. Esc closes it; so
  *  does a click anywhere else. */
-export default function Peek({ story, entity, at, tick, busy, onClose, onAnswer, onMove, onBackstage }: {
+export default function Peek({ story, entity, at, tick, busy, onClose, onAnswer, onMove, onBackstage, onWidget, about }: {
   story: number
   entity: CastEntity
   at: { x: number; y: number }
@@ -39,6 +40,8 @@ export default function Peek({ story, entity, at, tick, busy, onClose, onAnswer,
   onAnswer: () => void
   onMove: () => void
   onBackstage: () => void
+  onWidget?: () => void // "Add as widget"; none when they already have one
+  about?: string // who "you" is (the persona), for how they feel about you
 }) {
   const { byId } = useLibrary()
   const [people, , error] = useLoad(() => api<Person[]>(`/stories/${story}/people`), [story, entity.id, tick])
@@ -92,6 +95,12 @@ export default function Peek({ story, entity, at, tick, busy, onClose, onAnswer,
           <span className="ka-peek__name">{name}</span>
           <span className="ka-peek__role">{[role, entity.present ? 'present' : 'away'].filter(Boolean).join(' · ')}</span>
         </span>
+        {onWidget && (
+          <button type="button" className="ka-peek__widget" onClick={onWidget}>
+            <Icon name="plus" size={14} />
+            Add as widget
+          </button>
+        )}
         <button type="button" className="ka-peek__close" aria-label="Close" onClick={onClose}>
           <Icon name="x" size={16} />
         </button>
@@ -116,6 +125,8 @@ export default function Peek({ story, entity, at, tick, busy, onClose, onAnswer,
               </div>
             ))}
           </div>
+
+          {about && entity.is_ai && <FeelsAboutYou story={story} entity={entity} tick={tick} they={they} />}
 
           <div className="ka-peek__block">
             <span className="ka-peek__eyebrow">On {HER[they]} mind</span>
@@ -196,6 +207,36 @@ export default function Peek({ story, entity, at, tick, busy, onClose, onAnswer,
           </div>
         </>
       )}
+    </div>
+  )
+}
+
+const BARS: ['warmth' | 'trust' | 'doubt', string, string][] = [
+  ['warmth', 'Warmth', 'var(--k-scene-sage)'],
+  ['trust', 'Trust', 'var(--k-scene-amber)'],
+  ['doubt', 'Doubt', 'var(--k-scene-lilac)'],
+]
+
+/** Warmth, trust and doubt toward you, as of the last memory read. They are counts (a warm feeling
+ *  +1, a cold one -1; doubt is how many of your claims they disbelieve), drawn on a short scale:
+ *  a bar never claims to be a measurement, and its hover says what it counts. */
+function FeelsAboutYou({ story, entity, tick, they }: { story: number; entity: CastEntity; tick: number; they: Pronouns }) {
+  const [got] = useLoad(() => api<Feelings>(`/stories/${story}/feelings?who=${entity.id}`), [story, entity.id, tick])
+  const now = got?.points.at(-1)
+  if (!now) return null
+  const width = (k: 'warmth' | 'trust' | 'doubt') =>
+    k === 'doubt' ? Math.min(now.doubt, 4) / 4 : (Math.max(-2, Math.min(2, now[k])) + 2) / 4
+  const said = (k: 'warmth' | 'trust' | 'doubt') =>
+    k === 'doubt' ? `${now.doubt} of your claims doubted` : `${now[k] > 0 ? '+' : ''}${now[k]}, counted from what memory has read`
+  return (
+    <div className="ka-peek__block">
+      <span className="ka-peek__eyebrow">How {SHE[they]} {FEELS[they]} about you</span>
+      {BARS.map(([k, label, color]) => (
+        <div key={k} className="ka-peek__bar" title={said(k)}>
+          <span>{label}</span>
+          <span className="ka-peek__track"><i style={{ width: `${width(k) * 100}%`, background: color }} /></span>
+        </div>
+      ))}
     </div>
   )
 }

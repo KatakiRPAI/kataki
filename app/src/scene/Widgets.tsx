@@ -58,6 +58,23 @@ const defaults = (people: CastEntity[]): WidgetSpec[] => [
 let made = 0
 const freshId = (kind: string) => `${kind}-${Date.now().toString(36)}-${made++}`
 
+/** Whether this character has a widget: one you placed, or the one everyone here gets unless you
+ *  removed theirs. The same rule the board draws by. */
+export function hasWidget(story: Story, people: CastEntity[], id: number): boolean {
+  const widgets = story.ui.widgets ?? defaults(people)
+  if (widgets.some((w) => w.kind === 'character' && w.entity === id)) return true
+  return people.some((e) => e.id === id) && !(story.ui.dismissed ?? []).includes(id)
+}
+
+/** The layout with a pinned widget for this character added (the card's "Add as widget"). */
+export function withCharacter(story: Story, people: CastEntity[], id: number): Partial<StoryUi> {
+  const widgets = story.ui.widgets ?? defaults(people)
+  return {
+    widgets: [...widgets, { id: freshId('character'), kind: 'character', entity: id, pinned: true }],
+    dismissed: (story.ui.dismissed ?? []).filter((x) => x !== id),
+  }
+}
+
 type Grab = Record<'onPointerDown' | 'onPointerMove' | 'onPointerUp', (e: PointerEvent<HTMLElement>) => void>
 type Drag = { id: string; dx: number; dy: number; x: number; y: number; slot: { left: number; top: number; width: number; height: number } }
 
