@@ -9,6 +9,7 @@ import { Chip, Dialog, ErrorLine, Icon, Seg } from '../ui'
 type Draft = {
   name: string
   description: string
+  looks: string
   private: string
   example_dialogue: string
   first_message: string
@@ -24,6 +25,7 @@ export function draftOf(item?: Item, persona = false): Draft {
   return {
     name: item?.name ?? '',
     description: item?.description ?? '',
+    looks: item?.data.looks ?? '',
     private: item?.private ?? '',
     example_dialogue: item?.data.example_dialogue ?? '',
     first_message: item?.data.first_message ?? '',
@@ -66,7 +68,7 @@ const STARTERS: Record<number, [string, string][]> = {
 
 const HELP = [
   'Who are we meeting? A name is enough to start; everything else can wait.',
-  'What they do and what they are like. The first line becomes their tagline.',
+  'Who {name} is: known to {name}, and to others only once the story shows them. What others see is all anyone knows without being told. The first line of who they are becomes their tagline.',
   'Something only {name} knows. Other characters never see it, but {name} acts on it, and you can reveal it as the author.',
   'A few lines in their voice, one per line. They reach the model only when {name} speaks.',
   'The first thing {name} says or does when a new story starts with them.',
@@ -84,6 +86,7 @@ function payload(d: Draft, base: ItemData) {
     data: {
       ...base,
       aliases: list(d.aliases),
+      looks: d.looks,
       example_dialogue: d.example_dialogue,
       first_message: d.first_message,
       pronouns: d.pronouns,
@@ -255,7 +258,16 @@ function Form({ item, persona, initialStep }: { item?: Item; persona: boolean; i
               </div>
             </div>
           )}
-          {step === 1 && field('{name} is…', 'description', 'A lamplighter’s apprentice who talks to gulls.')}
+          {step === 1 && (
+            <div className="ka-form">
+              {field('{name} is…', 'description', 'A lamplighter’s apprentice who talks to gulls.')}
+              <label className="ka-label">
+                {fill('What others see when they meet {name}')}
+                <textarea className="k-textarea" rows={3} value={draft.looks} placeholder={fill('A wiry kid with soot on his sleeves and a ladder over one shoulder.')}
+                  onChange={(e) => set({ looks: e.target.value })} onBlur={save} />
+              </label>
+            </div>
+          )}
           {step === 2 && field('Only {name} knows…', 'private', 'Write it the way {name} would never say it out loud.')}
           {step === 3 && field('{name} says…', 'example_dialogue', '{name}: Coin first. Questions after.')}
           {step === 4 && field('{name} opens with…', 'first_message', '*slides a sealed letter across the table* You’re late.')}

@@ -101,7 +101,17 @@ def _unsign(text: str, name: str) -> str:
     small models sign off in the 'Name: line' shape of the history. A name inside a sentence
     stays."""
     pattern = rf"(?:(?<=[.!?\"”*…])\s+|\n+){re.escape(name)}:?\s*$"
-    return re.sub(pattern, "", text).rstrip()
+    return re.sub(pattern, "", _unnoted(text)).rstrip()
+
+
+# a model that copies the prompt's memory notes into the story ("I type a quick thought to my
+# own memory bank: [SHARP] Kai is my driver…") loses that whole paragraph from what is kept
+NOTE = re.compile(r"\[(SHARP|HAZY)\]", re.I)
+
+
+def _unnoted(text: str) -> str:
+    kept = [p for p in re.split(r"(\n\s*\n)", text) if not NOTE.search(p)]
+    return re.sub(r"\n{3,}", "\n\n", "".join(kept)).strip()
 
 
 class _Prefix:

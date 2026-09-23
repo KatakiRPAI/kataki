@@ -214,6 +214,7 @@ class EntityPatch(BaseModel):
     name: str | None = None
     summary: str | None = None
     description: str | None = None
+    looks: str | None = None
     private: str | None = None
     hidden: bool | None = None
 

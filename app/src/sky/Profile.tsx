@@ -306,7 +306,7 @@ export default function Profile({ id }: { id: number }) {
             </Glass>
             <Glass title="About">
               <div className="ka-prose-sky"><Prose text={item.description || `Nothing written about ${item.name} yet.`} /></div>
-              <span className="ka-muted ka-small">What anyone in a scene can see or know.</span>
+              <span className="ka-muted ka-small">Who they are. Others learn it only as the story shows them.</span>
               {(item.data.aliases ?? []).length > 0 && (
                 <span className="ka-row ka-row--gap">
                   <span className="ka-muted ka-small">Also known as</span>

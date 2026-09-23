@@ -6,6 +6,8 @@ it is yielded on its own `thought` channel whether the backend sends `reasoning_
 or inline think tags.
 """
 
+import asyncio
+import contextlib
 import json
 import re
 from collections.abc import AsyncIterator, Callable
@@ -21,6 +23,7 @@ DEFAULT_THINK_TAGS = ("<think>", "</think>")
 # own body wins). It also thinks at its own temperature: greedy decoding made its thinking loop
 # ("Wait, `flags`:" 17 times) and never answer. Without thinking, neither applies.
 THINKING_MAX_TOKENS = 16384
+RETRY_AFTER = 2.0  # seconds before asking a briefly unavailable provider once more
 THINKING_TEMPERATURE = 0.6  # Qwen's recommended thinking-mode temperature
 SPELLED_OUT = (
     "Reply with one JSON object that follows this JSON schema exactly, field names and all:\n"
@@ -157,9 +160,7 @@ class LLM:
         splitter = ThinkSplitter(*ep.think_tags)
         usage = timings = None
         try:
-            async with self._client.stream(
-                "POST", url, json=body, headers=self._headers(ep.api_key)
-            ) as r:
+            async with self._stream(url, body, ep.api_key) as r:
                 if r.status_code >= 400:
                     await r.aread()
                     self._check(r)
@@ -178,6 +179,20 @@ class LLM:
         for event in splitter.flush():
             yield event
         yield ("done", {"usage": usage, **({"timings": timings} if timings else {})})
+
+    @contextlib.asynccontextmanager
+    async def _stream(self, url: str, body: dict, api_key: str | None):
+        """A streamed POST. A provider that is briefly unavailable (502/503: nothing was
+        generated, so nothing is billed) is asked once more after a moment."""
+        for attempt in (0, 1):
+            async with self._client.stream(
+                "POST", url, json=body, headers=self._headers(api_key)
+            ) as r:
+                if attempt or r.status_code not in (502, 503):
+                    yield r
+                    return
+                await r.aread()
+            await asyncio.sleep(RETRY_AFTER)
 
     @staticmethod
     async def _chunks(r: httpx2.Response, url: str) -> AsyncIterator[dict]:
@@ -215,9 +230,7 @@ class LLM:
                 body["response_format"] = fmt
             text, finish = [], None
             try:
-                async with self._client.stream(
-                    "POST", url, json=body, headers=self._headers(ep.api_key)
-                ) as r:
+                async with self._stream(url, body, ep.api_key) as r:
                     if fmt and r.status_code in (400, 422):
                         self._rejected.add(key)  # this backend cannot do that format; stop asking
                         continue

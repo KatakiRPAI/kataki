@@ -17,6 +17,7 @@ def story(conn):
         "Mira",
         description="A guild courier.",
         private="Reports to the harbour master.",
+        data={"looks": "A wiry woman in an oilskin coat."},
     )
     tobin = library.create_item(
         conn, "character", "Tobin", description="A smuggler.", private="Plans to betray the guild."
@@ -51,7 +52,8 @@ def test_prompt_runs_stable_to_volatile(conn, story):
 
     system, *history = built.messages
     assert system["role"] == "system"
-    assert "A guild courier." in system["content"] and "A smuggler." in system["content"]
+    assert "A wiry woman in an oilskin coat." in system["content"]  # what anyone can see
+    assert "A guild courier." not in system["content"]  # who she is: hers, not shared
     assert "A dockside tavern." in system["content"]
     assert [m["role"] for m in history] == ["user", "assistant", "user"]
     assert history[1]["content"] == "Mira: He left an hour ago."
@@ -59,6 +61,7 @@ def test_prompt_runs_stable_to_volatile(conn, story):
     assert last.endswith("Aren: Where to?")
     assert "[SHARP] Tobin said he was going to the docks." in last
     assert "Reply only as Mira" in last
+    assert "[Who Mira is]\nA guild courier." in last
 
 
 def test_only_the_speakers_private_card_is_ever_in_the_prompt(conn, story):
@@ -340,3 +343,19 @@ def test_how_the_speaker_feels_about_whoever_is_here_is_in_their_prompt_and_logg
     assert next(s for s in built.sections if s["name"] == "tail")["feelings"] == [trusts]
     narrated = context.build(conn, story, None, EP).messages[-1]["content"]
     assert "feels]" not in narrated  # the narrator voices no one's feelings
+
+
+def test_others_know_only_what_anyone_can_see(conn, story):
+    # Kai's description said he came from a combat family; Payton read it and called him a
+    # fighter without ever being told. Who someone is stays in their own prompt.
+    say(conn, story, "Aren", "Hello.")
+    tobin = flat(context.build(conn, story, eid(conn, "Tobin"), EP).messages)
+    assert "A guild courier." not in tobin and "A newcomer." not in tobin
+    assert "A wiry woman in an oilskin coat." in tobin
+    assert "A smuggler." in tobin  # his own
+
+
+def test_the_rules_keep_notes_out_of_the_story_and_the_story_in_english(conn, story):
+    say(conn, story, "Aren", "Hello.")
+    system = context.build(conn, story, eid(conn, "Mira"), EP).messages[0]["content"]
+    assert "English" in system and "never mention" in system.lower()

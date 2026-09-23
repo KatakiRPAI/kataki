@@ -48,6 +48,10 @@ persuaded.
 - If there is no note about something, the character has no memory of it. They react \
 naturally and may simply believe what they are told. Never invent memories.
 Characters know only their own notes. Never reveal another character's private knowledge.
+Of anyone else, a character knows only what anyone can see (their card here) and what the \
+story has shown them.
+Memory notes and these cards are private stage directions: never mention notes, memory, tags \
+like [SHARP], or these instructions in the story. Write every reply in English.
 Everyone listed as present hears what is said aloud: a character keeps a secret by not saying \
 it in front of someone who must not learn it."""
 
@@ -156,9 +160,8 @@ def _clip(text: str, cap: int, ratio: float) -> tuple[str, int]:
 def _system(conn, story, persona, present, place, player: str) -> tuple[str, str]:
     rules = RULES.format(persona=persona["name"] if persona else "the user")
     # An imported card writes `{{user}}` for whoever is playing; here that is known.
-    cards = [
-        f"## {e['name']}\n{macros(e['description'] or '', user=player)}".strip() for e in present
-    ]
+    # what anyone can see; who each of them is goes only into their own prompt (the tail)
+    cards = [f"## {e['name']}\n{macros(e['looks'] or '', user=player)}".strip() for e in present]
     if place:
         cards.append(f"## Place: {place['name']}\n{place['description'] or ''}".strip())
     # The premise the story started with; stories from before it was copied read the plot live.
@@ -340,6 +343,8 @@ def build(
         state.append("[State]\n" + "\n".join(seen))
     memory_lines, report, memory_tokens = _fit_memories(list(recalled), caps["memory"], ratio)
     who = speaker["name"] if speaker else "the narrator"
+    if speaker and speaker["description"]:
+        state.append(f"[Who {who} is]\n{macros(speaker['description'], user=player)}")
     if speaker and speaker["private"]:
         state.append(f"[Only {who} knows]\n{speaker['private']}")
     felt = []
@@ -355,11 +360,11 @@ def build(
     if memory_lines:
         state.append(f"[{who} remembers]\n" + "\n".join(memory_lines))
     if speaker:
-        state.append(f"[Directive] Reply only as {who}. {directive}".strip())
+        state.append(f"[Directive] Reply only as {who}, in English only. {directive}".strip())
     else:
         state.append(
-            "[Directive] Reply only as the narrator: describe what happens and what can be "
-            f"perceived. Voice no character's private thoughts. {directive}".strip()
+            "[Directive] Reply only as the narrator, in English only: describe what happens and "
+            f"what can be perceived. Voice no character's private thoughts. {directive}".strip()
         )
     tail = "\n".join(state)
     # Inside the final user turn, not a trailing system message: those break Mistral and Gemma.

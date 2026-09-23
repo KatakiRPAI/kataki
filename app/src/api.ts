@@ -43,6 +43,7 @@ export type ItemData = {
   pronouns?: Pronouns
   palette?: Palette
   portrait?: string // media name (characters, personas)
+  looks?: string // what anyone can see of them; the description stays their own
   image?: string // media name (places)
   pack?: Pack // sprites made from the portrait (characters)
   links?: { book?: number; stories?: number[]; characters?: number[] } // places and plots, filed by hand

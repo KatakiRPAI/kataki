@@ -95,6 +95,17 @@ async def test_a_time_skip_in_what_the_user_writes_moves_the_story_clock(conn, s
     assert user["skip_minutes"] == 6 * 365 * 1440
 
 
+async def test_a_memory_note_copied_into_the_reply_is_not_kept(conn, story, backend):
+    # Qwen3.5-9B on HF wrote this paragraph into the story, copying the prompt's note format
+    backend.say(
+        '"Kai," I repeat.\n\nI type a quick thought to my own memory bank: [SHARP] Kai is my '
+        'driver.\n\n"Ready?"'
+    )
+    done = (await play(turns.turn(conn, backend.llm, story, "Hi.")))[-1][1]
+    assert done["text"] == '"Kai," I repeat.\n\n"Ready?"'
+    assert path(conn, story)[-1][2] == done["text"]
+
+
 async def test_the_reply_after_years_pass_sees_only_memory_of_the_old_lines(conn, story, backend):
     backend.say("I hid it under the third floorboard.")
     await play(turns.turn(conn, backend.llm, story, "Mira, where is it?"))
@@ -210,8 +221,12 @@ async def test_stopping_midway_keeps_what_was_written(conn, story, backend):
     assert json.loads(last["gen"])["finish"] == "stopped"
 
 
-async def test_a_failed_call_reports_the_error_and_keeps_no_reply(conn, story, backend):
-    backend.say(httpx2.Response(503, text="model is loading"))
+async def test_a_failed_call_reports_the_error_and_keeps_no_reply(
+    conn, story, backend, monkeypatch
+):
+    monkeypatch.setattr("kataki.llm.RETRY_AFTER", 0)
+    loading = httpx2.Response(503, text="model is loading")
+    backend.say(loading, loading)  # asked once more, then it is the answer
     events = await play(turns.turn(conn, backend.llm, story, "Mira?"))
     assert events[-1][0] == "error" and "model is loading" in events[-1][1]["message"]
     assert path(conn, story)[-1][0] == "user"  # the user's line is kept, no empty reply

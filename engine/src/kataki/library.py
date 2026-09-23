@@ -109,8 +109,8 @@ def delete_item(conn: sqlite3.Connection, item_id: int) -> None:
 def _instantiate(conn: sqlite3.Connection, story_id: int, item: dict, is_ai: bool) -> int:
     """Snapshot a template into the story. The story may diverge; library edits never reach it."""
     entity_id = conn.execute(
-        "INSERT INTO entities(story_id, kind, name, description, private, examples, lib_item_id,"
-        " is_ai) VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO entities(story_id, kind, name, description, private, examples, looks,"
+        " lib_item_id, is_ai) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             story_id,
             item["kind"],
@@ -118,6 +118,7 @@ def _instantiate(conn: sqlite3.Connection, story_id: int, item: dict, is_ai: boo
             item["description"],
             item["private"],
             item["data"].get("example_dialogue") or "",
+            item["data"].get("looks") or "",
             item["id"],
             is_ai,
         ),
@@ -494,7 +495,7 @@ def adopt(conn: sqlite3.Connection, entity_id: int) -> int:
         e["name"],
         description=e["description"] or e["summary"] or "",
         private=e["private"] or "",
-        data={"aliases": aliases, "example_dialogue": e["examples"] or ""},
+        data={"aliases": aliases, "example_dialogue": e["examples"] or "", "looks": e["looks"]},
     )
     with conn:
         conn.execute("UPDATE entities SET lib_item_id=? WHERE id=?", (item_id, entity_id))

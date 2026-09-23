@@ -4,7 +4,7 @@ import sqlite3
 from importlib.resources import files
 from pathlib import Path
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 # version -> the SQL that brings a library up from the version before it; schema.sql is v1
 MIGRATIONS = {
     2: "ALTER TABLE entities ADD COLUMN examples TEXT NOT NULL DEFAULT ''",  # example dialogue
@@ -45,6 +45,8 @@ MIGRATIONS = {
         "CREATE INDEX ix_ent_origin ON entities(origin_entity_id);"
     ),
     8: "ALTER TABLE messages ADD COLUMN expression TEXT",  # the face a line is said with (M3 §7)
+    # what anyone can see of someone; who they are (description) stays in their own prompt
+    9: "ALTER TABLE entities ADD COLUMN looks TEXT NOT NULL DEFAULT ''",
 }
 
 

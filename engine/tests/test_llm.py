@@ -113,9 +113,21 @@ async def test_thinking_disabled_is_requested_through_the_chat_template():
 
 
 async def test_http_error_raises_with_status_and_body():
-    backend = Recorder(httpx2.Response(503, text="model is loading"))
-    with pytest.raises(LLMError, match="503.*model is loading"):
+    backend = Recorder(httpx2.Response(500, text="model is loading"))
+    with pytest.raises(LLMError, match="500.*model is loading"):
         await collect(backend.llm.chat_stream(EP, []))
+
+
+async def test_a_provider_that_is_briefly_unavailable_is_asked_once_more(monkeypatch):
+    # together on HF answered 503 twice in minutes; nothing is generated, so nothing is billed
+    monkeypatch.setattr(llm_module, "RETRY_AFTER", 0)
+    busy = httpx2.Response(503, text='{"error": {"message": "Service unavailable"}}')
+    backend = Recorder(busy, httpx2.Response(200, text=sse({"content": "Hello"})), busy, busy)
+    events = await collect(backend.llm.chat_stream(EP, []))
+    assert events[0] == ("token", "Hello")
+    with pytest.raises(LLMError, match="503"):  # only once: a second 503 is the provider's answer
+        await collect(backend.llm.chat_stream(EP, []))
+    assert len(backend.bodies) == 4
 
 
 async def test_error_event_inside_a_200_stream_raises():
