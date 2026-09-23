@@ -842,6 +842,13 @@ a.ka-event:hover { background: #fff; }
 .ka-widgets--free > .ka-widget { position: absolute; pointer-events: auto; }
 .ka-widgets--free > .ka-widget.is-placed:not(.is-dragging) { left: clamp(0px, calc(var(--x) * 100%), calc(100% - 272px)); top: clamp(0px, calc(var(--y) * 100%), calc(100% - 80px)); }
 .ka-widgets--free > .k-widget-slot { position: absolute; }
+/* alignment guides while dragging: shown only when an edge or centre lines up */
+.ka-guide { position: absolute; pointer-events: none; background: var(--k-scene-amber); opacity: .8; z-index: 6; }
+.ka-guide--v { top: 0; bottom: 0; width: 1px; }
+.ka-guide--h { left: 0; right: 0; height: 1px; }
+.ka-nearbywidget { display: flex; flex-direction: column; gap: 6px; padding: 14px; }
+.ka-nearbywidget .ka-nearby { display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px; border: 0; border-radius: 16px; background: none; color: inherit; text-align: left; cursor: pointer; }
+.ka-nearbywidget .ka-nearby:hover { background: rgba(255,236,210,.06); }
 .ka-cwidget--row { flex-direction: row; align-items: center; gap: 12px; }
 .k-widget--row.ka-widget { padding: 10px 14px; }
 .k-widget--row .ka-avatar { filter: grayscale(.85) brightness(.8); } /* away; static */

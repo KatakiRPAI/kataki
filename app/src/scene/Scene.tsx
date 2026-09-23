@@ -432,7 +432,7 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
         chapter={here?.title}
         rolling={rolling}
         passTime={<PassTime disabled={!!live} onPick={setSkip} className="ka-clock__pass" />}
-        nearby={(shown) => <Nearby cast={cast} busy={acting || !!live} onMove={move} shown={shown} />}
+        nearby={(shown) => <Nearby story={story} cast={cast} busy={acting || !!live} onMove={move} shown={shown} />}
         editing={arranging}
         onDone={() => setArranging(false)}
         onPeek={(who, at) => setPeek({ id: who, at })}

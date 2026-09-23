@@ -1,13 +1,28 @@
 import { useState } from 'react'
-import { SKIPS, type Cast, type CastEntity, type Item, type Story } from '../api'
+import { api, SKIPS, type Cast, type CastEntity, type Item, type Story, type StorySummary } from '../api'
 import { Avatar, Room } from '../art'
-import { useAction, useLibrary, type Moving } from '../hooks'
+import { useAction, useLibrary, useLoad, type Moving } from '../hooks'
 import { Dialog, ErrorLine, Field, Icon } from '../ui'
 
 type Candidate = { move: Moving; name: string; item?: Item; status: string }
 
-/** Who could come in: story characters who are away, then library friends not in the story. */
-function candidates(cast: Cast, items: Item[], byId: Map<number, Item>): Candidate[] {
+/** Library characters this story touches: the casts of other stories in its book, from its plot
+ *  or at its places, and anyone filed on its place or plot by hand. A stranger to all of those
+ *  is not suggested (you can still bring anyone in on purpose). */
+function related(story: Story, stories: StorySummary[], byId: Map<number, Item>): Set<number> {
+  const places = new Set([...story.places, ...(story.place?.lib_item_id ? [story.place.lib_item_id] : [])])
+  const near = stories.filter((s) => s.id !== story.id && (
+    (story.book && s.book?.id === story.book.id) ||
+    (story.plot_id !== null && s.plot_id === story.plot_id) ||
+    s.places.some((p) => places.has(p))))
+  const filed = [...places, ...(story.plot_id !== null ? [story.plot_id] : [])]
+    .flatMap((id) => byId.get(id)?.data.links?.characters ?? [])
+  return new Set([...near.flatMap((s) => s.cast.map((c) => c.lib_item_id)), ...filed].filter((id): id is number => id !== null))
+}
+
+/** Who could come in: story characters who are away, then library friends not in the story
+ *  (all of them for "Bring someone in"; only related ones as suggestions). */
+function candidates(cast: Cast, items: Item[], byId: Map<number, Item>, only?: Set<number>): Candidate[] {
   const away = cast.entities
     .filter((e) => e.kind === 'character' && e.is_ai && !e.present)
     .map((e): Candidate => {
@@ -21,7 +36,7 @@ function candidates(cast: Cast, items: Item[], byId: Map<number, Item>): Candida
     })
   const inStory = new Set(cast.entities.map((e) => e.lib_item_id))
   const friends = items
-    .filter((i) => i.kind === 'character' && !i.data.persona && !inStory.has(i.id))
+    .filter((i) => i.kind === 'character' && !i.data.persona && !inStory.has(i.id) && (!only || only.has(i.id)))
     .sort((a, b) => Number(!!b.data.favourite) - Number(!!a.data.favourite) || a.id - b.id)
     .map((i): Candidate => ({ move: { kind: 'friend', id: i.id }, name: i.name, item: i, status: 'could join' }))
   return [...away, ...friends]
@@ -29,7 +44,8 @@ function candidates(cast: Cast, items: Item[], byId: Map<number, Item>): Candida
 
 /** Who is nearby, as compact widget rows under the characters: a click brings them in. The rest
  *  are a click further, in "Bring someone in". */
-export function Nearby({ cast, busy, onMove, shown = [] }: {
+export function Nearby({ story, cast, busy, onMove, shown = [] }: {
+  story: Story
   cast: Cast
   busy: boolean
   onMove: (m: Moving) => void
@@ -37,8 +53,10 @@ export function Nearby({ cast, busy, onMove, shown = [] }: {
 }) {
   const { items, byId } = useLibrary()
   const [picking, setPicking] = useState(false)
+  const [stories] = useLoad(() => api<StorySummary[]>('/stories'), [story.id])
   const all = candidates(cast, items, byId)
-  const rows = all.filter((c) => !(c.move.kind === 'away' && shown.includes(c.move.id)))
+  const suggested = candidates(cast, items, byId, related(story, stories ?? [], byId))
+  const rows = suggested.filter((c) => !(c.move.kind === 'away' && shown.includes(c.move.id)))
   const row = (c: Candidate, onPick: () => void, widget = true) => (
     <button key={`${c.move.kind}-${c.move.id}`} type="button" disabled={busy} onClick={onPick}
       className={`${widget ? 'k-widget ka-widget ' : ''}k-widget--row is-away ka-nearby`} aria-label={`Bring ${c.name} in (${c.status})`}>
@@ -51,7 +69,8 @@ export function Nearby({ cast, busy, onMove, shown = [] }: {
   )
   return (
     <>
-      {rows.slice(0, 2).map((c) => row(c, () => onMove(c.move)))}
+      {rows.slice(0, 2).map((c) => row(c, () => onMove(c.move), false))}
+      {!rows.length && <span className="ka-muted ka-small">No one else belongs here yet.</span>}
       <button type="button" className="ka-nearby__bring" disabled={busy} onClick={() => setPicking(true)}>
         <Icon name="plus" size={14} />
         Bring someone in

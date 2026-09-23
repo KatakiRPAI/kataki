@@ -47,12 +47,18 @@ const ADDABLE: [WidgetSpec['kind'], string, string, string][] = [
   ['place', 'image', 'Place', 'The scene, full colour'],
   ['cast', 'users', 'Cast', 'Everyone here, as faces'],
   ['notes', 'edit', 'Notes', 'Your own notes for this story'],
+  ['nearby', 'users', 'Could join', 'Who might come in next'],
 ]
+
+// "Could join" is one widget, not a character, so removing it is remembered by this stand-in
+// in `dismissed` (which otherwise holds the characters whose widget you removed)
+const NEARBY_OFF = -1
 
 /** Before you arrange anything: a widget for each character here, and the clock. */
 const defaults = (people: CastEntity[]): WidgetSpec[] => [
   ...people.map((e): WidgetSpec => ({ id: `c${e.id}`, kind: 'character', entity: e.id, pinned: true })),
   { id: 'clock', kind: 'clock', pinned: true },
+  { id: 'nearby', kind: 'nearby', pinned: true },
 ]
 
 let made = 0
@@ -76,7 +82,22 @@ export function withCharacter(story: Story, people: CastEntity[], id: number): P
 }
 
 type Grab = Record<'onPointerDown' | 'onPointerMove' | 'onPointerUp', (e: PointerEvent<HTMLElement>) => void>
-type Drag = { id: string; dx: number; dy: number; x: number; y: number; slot: { left: number; top: number; width: number; height: number } }
+type Box = { left: number; top: number; width: number; height: number }
+type Drag = { id: string; dx: number; dy: number; x: number; y: number; slot: Box; others: Box[]; guides: { x?: number; y?: number } }
+
+const SNAP = 6 // px: how close an edge or centre must come to another's to line up with it
+
+/** Line a dragged box up with the others: the nearest edge or centre within SNAP, per axis. */
+function snap(x: number, y: number, w: number, h: number, others: Box[]) {
+  let best = { x, y, gx: undefined as number | undefined, gy: undefined as number | undefined, dx: SNAP + 1, dy: SNAP + 1 }
+  for (const o of others) {
+    for (const [mine, theirs] of [[x, o.left], [x + w / 2, o.left + o.width / 2], [x + w, o.left + o.width], [x, o.left + o.width], [x + w, o.left]])
+      if (Math.abs(mine - theirs) < best.dx) best = { ...best, x: x + theirs - mine, gx: theirs, dx: Math.abs(mine - theirs) }
+    for (const [mine, theirs] of [[y, o.top], [y + h / 2, o.top + o.height / 2], [y + h, o.top + o.height], [y, o.top + o.height], [y + h, o.top]])
+      if (Math.abs(mine - theirs) < best.dy) best = { ...best, y: y + theirs - mine, gy: theirs, dy: Math.abs(mine - theirs) }
+  }
+  return { x: best.x, y: best.y, guides: { x: best.gx, y: best.gy } }
+}
 
 /** Every widget around the chat, and Edit widgets: drag anywhere, pin, remove, add, reset. The
  *  layout is the story's (saved on Done); new arrivals get a widget of their own, unpinned once
@@ -92,7 +113,7 @@ export function WidgetBoard({ story, people, everyone, itemOf, faces, stateOf, a
   chapter?: string
   rolling: boolean
   passTime: ReactNode
-  nearby: (shown: number[]) => ReactNode // who could come in; not a widget, so not in edit mode
+  nearby: (shown: number[]) => ReactNode // who could come in, for the "Could join" widget
   editing: boolean
   onDone: () => void
   onPeek: (id: number, at: { x: number; y: number }) => void
@@ -105,6 +126,8 @@ export function WidgetBoard({ story, people, everyone, itemOf, faces, stateOf, a
   for (const e of people)
     if (!widgets.some((w) => w.kind === 'character' && w.entity === e.id) && !base.dismissed.includes(e.id))
       widgets.push({ id: `c${e.id}`, kind: 'character', entity: e.id, pinned: !saved })
+  if (!widgets.some((w) => w.kind === 'nearby') && !base.dismissed.includes(NEARBY_OFF))
+    widgets.push({ id: 'nearby', kind: 'nearby', pinned: true }) // layouts saved before it existed
 
   // editing works on a draft of what is on screen; Done saves it, and Esc is Done
   useEffect(() => {
@@ -127,8 +150,20 @@ export function WidgetBoard({ story, people, everyone, itemOf, faces, stateOf, a
     setDraft((d) => d && { widgets: fn(d.widgets), dismissed: dismissed ? dismissed(d.dismissed) : d.dismissed })
   const [adding, setAdding] = useState<'list' | 'who' | null>(null)
   const add = (kind: WidgetSpec['kind'], entity?: number) => {
-    change((ws) => [...ws, { id: freshId(kind), kind, entity, pinned: true }], (d) => d.filter((id) => id !== entity))
+    const off = kind === 'nearby' ? NEARBY_OFF : entity
+    change((ws) => [...ws, { id: freshId(kind), kind, entity, pinned: true, at: freeSpot() }], (d) => d.filter((id) => id !== off))
     setAdding(null)
+  }
+  // a new widget lands on top, in the first gap clear of the others and the chat, not tucked
+  // behind a widget you placed
+  const freeSpot = () => {
+    const s = layer.current!.getBoundingClientRect()
+    const taken = [...document.querySelectorAll('.ka-widget, .k-chat, .ka-editbar, .ka-addwidget')].map((el) => el.getBoundingClientRect())
+    const clear = (x: number, y: number) => !taken.some((r) => x < r.right && x + 272 > r.left && y < r.bottom && y + 180 > r.top)
+    for (let y = s.top + 84; y < s.bottom - 180; y += 24)
+      for (let x = s.left + 24; x < s.right - 296; x += 24)
+        if (clear(x, y)) return { x: (x - s.left) / s.width, y: (y - s.top) / s.height }
+    return { x: 0.5 - 136 / s.width, y: 0.3 }
   }
 
   // dragging: the widget follows the pointer, its old place shows as an empty slot, and where it
@@ -142,12 +177,17 @@ export function WidgetBoard({ story, people, everyone, itemOf, faces, stateOf, a
       const s = layer.current!.getBoundingClientRect()
       e.currentTarget.setPointerCapture(e.pointerId)
       const at = { left: r.left - s.left, top: r.top - s.top, width: r.width, height: r.height }
-      setDrag({ id: w.id, dx: e.clientX - r.left, dy: e.clientY - r.top, x: at.left, y: at.top, slot: at })
+      const others = [...document.querySelectorAll('.ka-widget')].filter((el) => el !== e.currentTarget).map((el) => {
+        const o = el.getBoundingClientRect()
+        return { left: o.left - s.left, top: o.top - s.top, width: o.width, height: o.height }
+      })
+      setDrag({ id: w.id, dx: e.clientX - r.left, dy: e.clientY - r.top, x: at.left, y: at.top, slot: at, others, guides: {} })
     },
     onPointerMove: (e: PointerEvent<HTMLElement>) => {
       if (drag?.id !== w.id) return
       const s = layer.current!.getBoundingClientRect()
-      setDrag({ ...drag, x: e.clientX - s.left - drag.dx, y: e.clientY - s.top - drag.dy })
+      const lined = snap(e.clientX - s.left - drag.dx, e.clientY - s.top - drag.dy, drag.slot.width, drag.slot.height, drag.others)
+      setDrag({ ...drag, ...lined })
     },
     onPointerUp: () => {
       if (drag?.id !== w.id) return
@@ -170,7 +210,8 @@ export function WidgetBoard({ story, people, everyone, itemOf, faces, stateOf, a
     const frame = { w, editing, dragging, style, grab: grab(w) }
     const flip = (ws: WidgetSpec[]) => ws.map((v) => (v.id === w.id ? { ...v, pinned: !v.pinned } : v))
     const toggle = () => (editing ? change(flip) : onSave({ widgets: flip(widgets), dismissed: base.dismissed }))
-    const remove = () => change((ws) => ws.filter((v) => v.id !== w.id), (d) => (w.kind === 'character' && w.entity !== undefined ? [...d, w.entity] : d))
+    const gone = w.kind === 'nearby' ? NEARBY_OFF : w.kind === 'character' ? w.entity : undefined
+    const remove = () => change((ws) => ws.filter((v) => v.id !== w.id), (d) => (gone !== undefined ? [...d, gone] : d))
     const edit = { onPin: toggle, onRemove: remove }
     if (w.kind === 'character' && who && !here) {
       return (
@@ -236,6 +277,13 @@ export function WidgetBoard({ story, people, everyone, itemOf, faces, stateOf, a
           <strong>{story.place?.name ?? 'Nowhere yet'}</strong>
         </Frame>
       )
+    if (w.kind === 'nearby')
+      return (
+        <Frame key={w.id} {...frame} {...edit} label="Could join" pulse="" className="ka-nearbywidget">
+          <span className="ka-castwidget__title">Could join</span>
+          {nearby(widgets.flatMap((v) => (v.kind === 'character' && v.entity !== undefined ? [v.entity] : [])))}
+        </Frame>
+      )
     if (w.kind === 'cast')
       return (
         <Frame key={w.id} {...frame} {...edit} label="Cast" pulse={people.map((e) => e.id).join()} className="ka-castwidget">
@@ -266,11 +314,12 @@ export function WidgetBoard({ story, people, everyone, itemOf, faces, stateOf, a
     <>
       <aside className="ka-widgets ka-widgets--right" aria-label="Widgets">
         {column(false).map(render)}
-        {!editing && nearby(widgets.flatMap((w) => (w.kind === 'character' && w.entity !== undefined ? [w.entity] : [])))}
       </aside>
       <aside className="ka-widgets ka-widgets--left" aria-label="More widgets">{column(true).map(render)}</aside>
       <div className="ka-widgets ka-widgets--free" ref={layer}>
         {drag && <span className="k-widget-slot" style={drag.slot} />}
+        {drag?.guides.x !== undefined && <span className="ka-guide ka-guide--v" style={{ left: drag.guides.x }} />}
+        {drag?.guides.y !== undefined && <span className="ka-guide ka-guide--h" style={{ top: drag.guides.y }} />}
         {free.map(render)}
       </div>
       {editing && (

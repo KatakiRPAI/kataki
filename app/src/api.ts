@@ -247,7 +247,7 @@ export type Moment = { name: string; at: number }
 
 /** A widget in the Scene: what it shows, whether it stays out, and where you put it (fractions of
  *  the window; none = its column, characters on the right and the clock bottom left). */
-export type WidgetSpec = { id: string; kind: 'character' | 'clock' | 'place' | 'cast' | 'notes'; entity?: number; pinned: boolean; at?: { x: number; y: number } }
+export type WidgetSpec = { id: string; kind: 'character' | 'clock' | 'place' | 'cast' | 'notes' | 'nearby'; entity?: number; pinned: boolean; at?: { x: number; y: number } }
 export type StoryUi = { widgets?: WidgetSpec[]; dismissed?: number[]; notes?: string }
 
 export type Message = {
