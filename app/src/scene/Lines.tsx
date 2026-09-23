@@ -47,9 +47,10 @@ function names(ids: number[], cast: Cast) {
 /** The conversation: lines, title cards for the opening, scenes and skips, and notes on who came
  *  and went. `flash` marks a deep-linked line; `busy` while a reply is written. `advanced` (the
  *  composer's toggle) adds who heard what; Simple shows only how characters feel. */
-export default function Lines({ story, messages, cast, signals, chapters, flash, busy, advanced, onChange, onRetake }: {
+export default function Lines({ story, messages, cast, signals, chapters, flash, busy, advanced, onChange, onRetake, onRewrite }: {
   story: Story
   advanced: boolean
+  onRewrite: (m: Message, text: string) => void // save an edit and play on from that line
   messages: Message[]
   cast: Cast
   signals?: Signals
@@ -94,6 +95,8 @@ export default function Lines({ story, messages, cast, signals, chapters, flash,
       </p>,
     )
   const newest = messages.at(-1)
+  const [editingAt, setEditingAt] = useState<number>() // while a line is edited, what follows dims
+  const lines = messages.filter((m) => m.role !== 'system')
   let day = dayOf(story.start_clock)
   // A memory reaction is rare, at most one in any four lines, so feelings do the talking.
   let lastMemory = -Infinity
@@ -155,6 +158,10 @@ export default function Lines({ story, messages, cast, signals, chapters, flash,
           retake={m === newest && m.role === 'assistant' && m.parent_id !== null}
           signal={rare(signals?.lines[m.id], i)}
           advanced={advanced}
+          after={lines.length - 1 - lines.indexOf(m)}
+          dim={editingAt !== undefined && m.id > editingAt}
+          onEditing={(on) => setEditingAt(on ? m.id : undefined)}
+          onRewrite={(text) => onRewrite(m, text)}
           face={face}
           busy={busy}
           onChange={onChange}
@@ -197,9 +204,13 @@ function Card({ id, children }: { id?: string; children: ReactNode }) {
 
 /** One line, with its tools on hover or focus: takes (the last arrow on the newest reply asks for
  *  a new one), inline Edit, and Hide (the line stays in the story but never reaches the model). */
-function Line({ storyId, who, m, stamp, ink, to, flash, retake, signal, advanced, face, busy, onChange, onRetake }: {
+function Line({ storyId, who, m, stamp, ink, to, flash, retake, signal, advanced, after, dim, onEditing, onRewrite, face, busy, onChange, onRetake }: {
   storyId: number
   advanced: boolean
+  after: number // how many lines come after this one
+  dim: boolean // a line above is being edited, and regenerating from it would rewrite this one
+  onEditing: (on: boolean) => void
+  onRewrite: (text: string) => void
   who: string
   m: Message
   stamp: string
@@ -213,7 +224,11 @@ function Line({ storyId, who, m, stamp, ink, to, flash, retake, signal, advanced
   onChange: () => void
   onRetake: () => void
 }) {
-  const [editing, setEditing] = useState(false)
+  const [editing, setEditingState] = useState(false)
+  const setEditing = (on: boolean) => {
+    setEditingState(on)
+    onEditing(on)
+  }
   const [draft, setDraft] = useState(m.text)
   const [run, error, working] = useAction()
   const off = busy || working
@@ -227,9 +242,15 @@ function Line({ storyId, who, m, stamp, ink, to, flash, retake, signal, advanced
       await api(`/stories/${storyId}/swipe`, 'POST', { message_id: m.id, step })
       onChange()
     })
+  // Save edit changes only what the model reads from now on; the story after it stays as written
   const save = async () => {
     if (draft.trim() && draft !== m.text) await patch({ text: draft.trim() })
     setEditing(false)
+  }
+  const regenerate = () => {
+    if (!draft.trim()) return
+    setEditing(false)
+    onRewrite(draft.trim())
   }
   const [recalling, setRecalling] = useState(false)
   const [index, count] = m.swipe
@@ -237,7 +258,7 @@ function Line({ storyId, who, m, stamp, ink, to, flash, retake, signal, advanced
   return (
     <article
       id={`line-${m.id}`}
-      className={`k-line ka-line${m.hidden ? ' is-hidden' : ''}${flash ? ' is-flash' : ''}`}
+      className={`k-line ka-line${m.hidden ? ' is-hidden' : ''}${flash ? ' is-flash' : ''}${dim ? ' is-will-regenerate' : ''}${editing ? ' is-editing' : ''}`}
       style={{ '--speaker': ink } as CSSProperties}
     >
       {!editing && (
@@ -283,7 +304,7 @@ function Line({ storyId, who, m, stamp, ink, to, flash, retake, signal, advanced
         )}
       </div>
       {editing ? (
-        <div className="ka-edit">
+        <div className="k-edit ka-edit">
           <label className="k-sr" htmlFor={`edit-${m.id}`}>Edit the line</label>
           <textarea id={`edit-${m.id}`} rows={Math.min(10, draft.split('\n').length + 2)} value={draft} autoFocus
             onChange={(e) => setDraft(e.target.value)}
@@ -291,10 +312,26 @@ function Line({ storyId, who, m, stamp, ink, to, flash, retake, signal, advanced
               if (e.key === 'Escape') setEditing(false)
               if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) save()
             }} />
-          <div className="ka-row ka-row--end">
-            <button type="button" className="k-sbtn" onClick={() => setEditing(false)}>Cancel</button>
-            <button type="button" className="k-sbtn ka-sbtn--primary" disabled={working} onClick={save}>Save</button>
+          {after > 2 && (
+            <p className="k-edit__warn" role="note">
+              <Icon name="alert" size={16} />
+              <span>
+                <strong>Regenerating from here rewrites the {after} messages after this one.</strong> They'll be kept as the
+                previous take, so you can flip back.
+              </span>
+            </p>
+          )}
+          <div className="ka-row ka-edit__actions">
+            <button type="button" className="k-sbtn ka-edit__cancel" onClick={() => setEditing(false)}>Cancel</button>
+            <button type="button" className="k-sbtn" disabled={working} onClick={save}>Save edit</button>
+            {after > 0 && (
+              <button type="button" className="k-sbtn ka-sbtn--primary" disabled={off || !draft.trim()} onClick={regenerate}>
+                <Icon name="refresh" size={14} />
+                Save and regenerate from here
+              </button>
+            )}
           </div>
+          <span className="ka-edit__hint"><strong>Save edit</strong> only changes what the model reads from now on. The story after it stays as written.</span>
         </div>
       ) : (
         <div className="k-line__body">
@@ -338,6 +375,7 @@ export type Live = {
   clock?: string // the reply's, and the one before any time passed (from meta)
   from?: string
   replacing?: number // a new take: the reply it will stand in for, hidden meanwhile
+  rewriting?: number // an edited line played on from: it and everything after it, hidden meanwhile
   thoughtAt?: number // performance.now() of the first thought
   thinkMs?: number // first thought to first word
 }

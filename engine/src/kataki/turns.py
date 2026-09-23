@@ -427,3 +427,29 @@ async def regenerate(
     ) as events:
         async for event in events:
             yield event
+
+
+async def rewrite(
+    conn: sqlite3.Connection,
+    llm: LLM,
+    story_id: int,
+    message_id: int,
+    text: str,
+    get_key: Callable[[str], str | None] = roles.get_key,
+) -> AsyncIterator[Event]:
+    """Edit a line and play on from it: the edited line is a new take beside the old one, and a
+    fresh reply follows it. The old line and everything after it stay, a take to flip back to."""
+    m = chat.get_message(conn, message_id)
+    if m is None or m["story_id"] != story_id or m["role"] == "system":
+        yield ("error", {"message": "Only a line in this story can be rewritten."})
+        return
+    if not text.strip():
+        yield ("error", {"message": "Write something, or hide the line instead."})
+        return
+    take = chat.append_sibling(conn, message_id, text.strip())
+    chat.set_leaf(conn, story_id, take)
+    async with aclosing(
+        _generate(conn, llm, story_id, take, select_speaker(conn, story_id), get_key)
+    ) as events:
+        async for event in events:
+            yield event

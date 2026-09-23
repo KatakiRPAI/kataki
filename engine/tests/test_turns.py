@@ -159,6 +159,24 @@ async def test_regenerate_adds_a_swipe_built_from_the_same_prompt(conn, story, b
     assert backend.requests[0]["messages"] == backend.requests[1]["messages"]
 
 
+async def test_rewriting_a_line_starts_a_new_take_from_it_and_keeps_the_old_one(
+    conn, story, backend
+):
+    backend.say("Evening.", "The ledger?", "Back again?")
+    await play(turns.turn(conn, backend.llm, story, "Hello."))
+    asked = chat.active_path(conn, story)[0]
+    await play(turns.turn(conn, backend.llm, story, "The ledger is safe."))
+    old = [m["id"] for m in chat.active_path(conn, story)]
+
+    await play(turns.rewrite(conn, backend.llm, story, asked["id"], "Hello again."))
+    now = chat.active_path(conn, story)
+    assert [m["text"] for m in now] == ["Hello again.", "Back again?"]
+    assert (now[0]["parent_id"], now[0]["speaker_id"]) == (asked["parent_id"], asked["speaker_id"])
+    assert chat.sibling_position(conn, now[0]["id"]) == (2, 2)
+    # the old take, and everything after it, is still there to flip back to
+    assert [m["id"] for m in chat.path_to(conn, old[-1])] == old
+
+
 async def test_stopping_midway_keeps_what_was_written(conn, story, backend):
     backend.say("One two three four five six seven.")
     stream = turns.turn(conn, backend.llm, story, "Mira?")

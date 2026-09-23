@@ -337,6 +337,19 @@ def test_narrating_as_a_persona_writes_a_line_no_one_said(api, story, backend):
     assert "The lamps gutter." in sent and "Aren: The lamps gutter." not in sent
 
 
+def test_rewriting_a_line_plays_on_from_it_and_the_old_take_is_a_swipe_away(api, story, backend):
+    backend.say("Evening.", "Rough night.", "Back again?")
+    api.post(f"/stories/{story}/turn", json={"text": "Hello."})
+    api.post(f"/stories/{story}/turn", json={"text": "How was the docks?"})
+    first = api.get(f"/stories/{story}/messages").json()[0]
+    done = events(api.post(f"/messages/{first['id']}/rewrite", json={"text": "Hello again."}))[-1]
+    assert done[0] == "done"
+    now = api.get(f"/stories/{story}/messages").json()
+    assert [m["text"] for m in now] == ["Hello again.", "Back again?"] and now[0]["swipe"] == [2, 2]
+    back = api.post(f"/stories/{story}/swipe", json={"message_id": now[0]["id"], "step": -1}).json()
+    assert [m["text"] for m in back] == ["Hello.", "Evening.", "How was the docks?", "Rough night."]
+
+
 def test_regenerate_then_swipe_back_and_forth(api, story, backend):
     backend.say("First.", "Second.")
     api.post(f"/stories/{story}/turn", json={"text": "Mira?"})

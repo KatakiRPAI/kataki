@@ -59,7 +59,7 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
     }
   }, [id])
   const [live, setLive] = useState<Live | null>(null)
-  const [said, setSaid] = useState<{ text: string; audience: number[] | null; narrate: boolean } | null>(null)
+  const [said, setSaid] = useState<{ text: string; audience: number[] | null; narrate: boolean; who?: string } | null>(null)
   const [settling, setSettling] = useState(false) // the reply ended; keep it shown until fresh data lands
   const [failed, setFailed] = useState('')
   const [act, actError, acting] = useAction()
@@ -187,11 +187,11 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
       refreshAll()
     })
 
-  const generate = async (path: string, body: object, replacing?: number) => {
+  const generate = async (path: string, body: object, replacing?: number, rewriting?: number) => {
     const was = { clock: data?.story.clock ?? '' } // the clock before this turn, for a skip the reply itself takes
     const ctl = new AbortController()
     controller.current = ctl
-    setLive({ speaker: '', speakerId: null, text: '', thoughts: '', strained: false, replacing })
+    setLive({ speaker: '', speakerId: null, text: '', thoughts: '', strained: false, replacing, rewriting })
     try {
       await stream(path, body, (kind, value) => {
         if (kind === 'meta') {
@@ -199,7 +199,7 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
           setLive((l) => l && { ...l, speaker: meta.speaker?.name ?? 'The narrator', speakerId: meta.speaker?.id ?? null, strained: meta.strained, clock: meta.clock, from: meta.from_clock })
           setMeter(meterOf(meta.context.est_tokens, meta.context.budget, meta.context.recalled))
           beforeReply.current = meta.clock
-          if (!replacing && meta.skip >= 1440 && meta.parent_id) {
+          if (!replacing && !rewriting && meta.skip >= 1440 && meta.parent_id) {
             playSkip(meta.skip, meta.from_clock, meta.clock, meta.parent_id)
           }
         } else if (kind === 'thought') {
@@ -321,7 +321,14 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
   ].join(' · ')
   const writer = cast.entities.find((e) => e.id === live?.speakerId)
   const writerItem = writer && item(writer)
-  const shown = live?.replacing ? messages.filter((m) => m.id !== live.replacing) : messages
+  const cutAt = live?.rewriting ? messages.findIndex((m) => m.id === live.rewriting) : -1
+  const shown = live?.replacing ? messages.filter((m) => m.id !== live.replacing) : cutAt >= 0 ? messages.slice(0, cutAt) : messages
+  // an edited line, played on from: the new take streams in after it; the old one is a swipe away
+  const rewrite = (m: Message, text: string) => {
+    setFailed('')
+    setSaid({ text, audience: m.audience ?? null, narrate: false, who: m.speaker ?? (story.persona ? 'Narrator' : 'You') })
+    return generate(`/messages/${m.id}/rewrite`, { text }, undefined, m.id)
+  }
   const newest = messages.at(-1)
   // Which chapter you are in: the one whose stretch the newest line falls in, and whose own
   // opening is on the take this story is reading — otherwise the bar would name a chapter the
@@ -376,10 +383,10 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
         <div className="k-chat__scroll ka-chat__scroll" ref={convo}>
           <div className="k-chat__inner ka-chat__inner">
             <Lines story={story} messages={shown} cast={cast} signals={signals} chapters={chapters} flash={line} advanced={advanced}
-              busy={!!live} onChange={refreshAll} onRetake={retake} />
+              busy={!!live} onChange={refreshAll} onRetake={retake} onRewrite={rewrite} />
             {missing && <p className="k-sysnote">That line is no longer in this version of the story.</p>}
             {said && (
-              <SaidLine who={said.narrate ? 'Narrator' : (story.persona?.name ?? 'You')} text={said.text} audience={said.audience} advanced={advanced}
+              <SaidLine who={said.who ?? (said.narrate ? 'Narrator' : (story.persona?.name ?? 'You'))} text={said.text} audience={said.audience} advanced={advanced}
                 hearers={said.audience === null ? people : people.filter((e) => said.audience!.includes(e.id))} />
             )}
             {live && <LiveLine live={live} item={writerItem} ink={writer ? paletteOf(writerItem, writer.name).ink : undefined} />}

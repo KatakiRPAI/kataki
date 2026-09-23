@@ -166,6 +166,10 @@ class LineIn(BaseModel):
     narrate: bool = False
 
 
+class RewriteIn(BaseModel):
+    text: str
+
+
 class SwipeIn(BaseModel):
     message_id: int
     step: Literal[-1, 1]
@@ -1105,6 +1109,15 @@ def create_app(
         story_row(story_id)
         make_way(story_id)
         return stream(story_id, turns.regenerate(conn, llm, story_id, get_key))
+
+    @app.post("/messages/{message_id}/rewrite")
+    async def rewrite(message_id: int, r: RewriteIn):
+        """Edit a line and play on from it; the old line and what followed stay as a take."""
+        m = _row(conn, "SELECT * FROM messages WHERE id=?", (message_id,))
+        make_way(m["story_id"])
+        return stream(
+            m["story_id"], turns.rewrite(conn, llm, m["story_id"], message_id, r.text, get_key)
+        )
 
     @app.post("/stories/{story_id}/swipe")
     async def swipe(story_id: int, s: SwipeIn):

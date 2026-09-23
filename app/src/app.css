@@ -838,3 +838,14 @@ a.ka-event:hover { background: #fff; }
 .k-react.is-faded { opacity: .45; }
 .k-react[title] { cursor: help; }
 .k-reacts .ka-callout__why { flex-basis: 100%; margin-top: 0; }
+
+/* ---- editing a line: Save edit, or Save and regenerate from here ---- */
+.ka-line.is-editing { background: rgba(255,236,210,.04); }
+.ka-edit.k-edit textarea { border: 1px solid var(--k-scene-glass-border); background: transparent; font-family: var(--k-font-story); font-size: 18px; line-height: 1.5; }
+.k-edit__warn { margin: 0; color: var(--k-scene-ink); }
+.k-edit__warn > .k-icon { flex-shrink: 0; color: var(--k-scene-amber); }
+.k-edit__warn strong { color: var(--k-scene-amber); font-weight: 600; }
+.ka-edit__actions { justify-content: flex-end; gap: 8px; }
+.ka-edit__cancel { margin-right: auto; border-color: transparent; }
+.ka-edit__hint { font-size: 11.5px; color: var(--k-scene-muted); }
+.ka-edit__hint strong { color: var(--k-scene-ink); }
