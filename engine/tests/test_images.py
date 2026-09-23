@@ -43,6 +43,8 @@ class Fake:
         reply = (
             self.routes[prefix].pop(0) if len(self.routes[prefix]) > 1 else self.routes[prefix][0]
         )
+        if callable(reply):
+            reply = reply(request)
         return reply if isinstance(reply, httpx2.Response) else httpx2.Response(200, json=reply)
 
     @property
@@ -241,13 +243,13 @@ def test_a_refused_place_says_why_and_which_provider_to_try(conn, backend):
     assert "image" not in api.get(f"/library/{gull['id']}").json()["data"]
 
 
-def test_drawing_needs_a_huggingface_image_job_and_a_place(conn, backend):
+def test_drawing_needs_a_huggingface_image_job_and_something_drawable(conn, backend):
     fake = Fake({})
     api = drawing_app(conn, backend, fake, base_url="http://localhost:8080/v1")
     gull = api.post("/library", json={"kind": "place", "name": "The Gull"}).json()
     assert api.post(f"/library/{gull['id']}/draw", json={}).status_code == 409
-    mira = api.post("/library", json={"kind": "character", "name": "Mira"}).json()
-    assert api.post(f"/library/{mira['id']}/draw", json={}).status_code == 422
+    plot = api.post("/library", json={"kind": "scenario", "name": "The Ledger"}).json()
+    assert api.post(f"/library/{plot['id']}/draw", json={}).status_code == 422
     assert fake.requests == []  # nothing was spent
 
 
@@ -258,3 +260,141 @@ def test_a_place_outdoors_is_drawn_deserted_not_as_a_room():
     assert "A deserted, unoccupied place. A lighthouse on a windy headland." in prompt
     assert "room" not in prompt and "The Lighthouse" not in prompt
     assert "A deserted" in images.place_prompt({"name": "Harbour Market", "description": ""})
+
+
+# --- a character's look ---------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "words",
+    [
+        "a 16-year-old runaway",
+        "a teenager with a grudge",
+        "aged 12, small for it",
+        "a little girl",
+        "She is 15 years old.",
+        "a child of the docks",
+    ],
+)
+def test_a_character_who_sounds_underage_is_never_drawn(words):
+    assert images.minor({"name": "X", "description": words, "private": ""})
+
+
+@pytest.mark.parametrize(
+    "words",
+    ["a 23-year-old courier", "she is 34 years old", "eighteen and fearless", "a kidnapper"],
+)
+def test_adults_are_drawn(words):
+    assert not images.minor({"name": "X", "description": words, "private": None})
+
+
+def everything_works():
+    ws = f"{images.ROUTER}/wavespeed"
+    return Fake(
+        {
+            **hub(),
+            f"{ws}/api/v3/ws/model": [
+                {"data": {"urls": {"get": "https://x/api/v3/predictions/1/result"}}}
+            ],
+            f"{ws}/api/v3/predictions/1/result": [
+                {"data": {"status": "completed", "outputs": ["https://cdn.example/1.png"]}}
+            ],
+            "https://cdn.example/": [httpx2.Response(200, content=PNG)],
+        }
+    )
+
+
+def mira(api, **data):
+    body = {
+        "kind": "character",
+        "name": "Mira",
+        "description": "A courier with a scar.",
+        "data": data,
+    }
+    return api.post("/library", json=body).json()
+
+
+def test_drawing_a_character_makes_her_portrait(conn, backend):
+    fake = everything_works()
+    api = drawing_app(conn, backend, fake)
+    her = mira(api, pronouns="she")
+    drawn = api.post(f"/library/{her['id']}/draw", json={}).json()
+    assert api.get(f"/media/{drawn['data']['portrait']}").content == PNG
+    assert fake.body(1)["size"] == "768*1024"
+    prompt = fake.body(1)["prompt"]
+    assert "medieval fantasy world" in prompt and "An adult woman: A courier with a scar." in prompt
+
+
+def test_an_underage_character_is_refused_before_anything_is_spent(conn, backend):
+    fake = everything_works()
+    api = drawing_app(conn, backend, fake)
+    kid = api.post(
+        "/library", json={"kind": "character", "name": "Pip", "description": "A 12-year-old thief."}
+    ).json()
+    r = api.post(f"/library/{kid['id']}/draw", json={})
+    assert r.status_code == 422 and "adults" in r.json()["detail"]
+    assert fake.requests == []
+
+
+def test_a_look_is_five_sprites_edited_from_the_portrait_and_cut_out(conn, backend):
+    fake = everything_works()
+    api = drawing_app(conn, backend, fake)
+    sheet = api.post("/media", content=PNG).json()["name"]
+    her = mira(api, pronouns="she", portrait=sheet)
+    made = api.post(f"/library/{her['id']}/look", json={}).json()
+    assert made["failed"] == {}
+    pack = made["item"]["data"]["pack"]
+    assert pack["from"] == sheet and list(pack["sprites"]) == list(images.EXPRESSIONS)
+    posts = [json.loads(r.content) for r in fake.requests if r.method == "POST"]
+    edits = [b for b in posts if "prompt" in b]
+    assert len(edits) == 5 and len(posts) == 10  # an edit and a cutout each
+    assert all(b["images"][0].startswith("data:image/png;base64,") for b in edits)  # from the sheet
+    assert "The same adult woman as in the picture" in edits[0]["prompt"]
+
+
+def test_one_refused_expression_keeps_the_others_and_says_why(conn, backend):
+    fake = everything_works()
+    ws = f"{images.ROUTER}/wavespeed/api/v3/ws/model"
+    ok = fake.routes[ws][0]
+    fake.routes[ws] = [
+        lambda r: httpx2.Response(400, text="content policy") if b"wary" in r.content else ok
+    ]
+    api = drawing_app(conn, backend, fake)
+    her = mira(api, portrait=api.post("/media", content=PNG).json()["name"])
+    made = api.post(f"/library/{her['id']}/look", json={}).json()
+    assert set(made["item"]["data"]["pack"]["sprites"]) == {
+        "neutral",
+        "smiling",
+        "surprised",
+        "doubtful",
+    }
+    assert made["failed"]["wary"]["refused"] is True and made["failed"]["wary"]["alt"] == "fal-ai"
+
+
+def test_redrawing_one_keeps_the_rest_unless_the_portrait_changed(conn, backend):
+    fake = everything_works()
+    api = drawing_app(conn, backend, fake)
+    old = api.post("/media", content=PNG).json()["name"]
+    her = mira(
+        api, portrait=old, pack={"from": old, "sprites": {"neutral": "n.png", "wary": "w.png"}}
+    )
+    one = api.post(f"/library/{her['id']}/look", json={"expressions": ["wary"]}).json()["item"]
+    assert one["data"]["pack"]["sprites"]["neutral"] == "n.png"
+    assert one["data"]["pack"]["sprites"]["wary"] != "w.png"
+    new = api.post("/media", content=PNG + b"new").json()["name"]
+    api.patch(f"/library/{her['id']}", json={"data": {**one["data"], "portrait": new}})
+    fresh = api.post(f"/library/{her['id']}/look", json={"expressions": ["smiling"]}).json()["item"]
+    assert fresh["data"]["pack"] == {
+        "from": new,
+        "sprites": {"smiling": fresh["data"]["pack"]["sprites"]["smiling"]},
+    }
+
+
+def test_a_look_needs_a_portrait_and_a_real_expression(conn, backend):
+    fake = everything_works()
+    api = drawing_app(conn, backend, fake)
+    bare = mira(api)
+    assert api.post(f"/library/{bare['id']}/look", json={}).status_code == 422
+    her = mira(api, portrait=api.post("/media", content=PNG).json()["name"])
+    assert api.post(f"/library/{her['id']}/look", json={"expressions": ["smug"]}).status_code == 422
+    assert fake.requests == []

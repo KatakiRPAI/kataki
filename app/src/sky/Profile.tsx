@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { api, type Item, type Profile as Profiled, type StorySummary } from '../api'
+import { api, EXPRESSIONS, mediaUrl, type Expression, type Item, type PictureFailure, type Profile as Profiled, type RoleRow, type StorySummary } from '../api'
 import { Avatar, Orb, Portrait, pronounsOf, Room } from '../art'
-import { dive, diveLink, href, useLibrary, useLoad } from '../hooks'
+import { dive, diveLink, href, useAction, useLibrary, useLoad } from '../hooks'
 import { Candy, ErrorLine, Glass, Icon, Menu, Prose } from '../ui'
 import Elsewhere from './Elsewhere'
 import { status, storiesWith } from './Friends'
@@ -103,11 +103,86 @@ export function RightNow({ item, profile, prefer }: { item: Item; profile: Profi
   )
 }
 
+/** A character's look: their picture (the sheet) and the five expressions made from it. Every
+ *  button is one click and real money, so each says roughly what it costs. */
+function Look({ item }: { item: Item }) {
+  const { reload } = useLibrary()
+  const [run, error, busy] = useAction()
+  const [doing, setDoing] = useState<string>()
+  const [failed, setFailed] = useState<Partial<Record<Expression, PictureFailure>>>({})
+  const { portrait, pack } = item.data
+  const stale = pack && pack.from !== portrait
+
+  const act = (what: string, fn: () => Promise<unknown>) => {
+    setDoing(what)
+    run(fn).finally(() => setDoing(undefined))
+  }
+  const draw = () => act('draw', async () => {
+    await api(`/library/${item.id}/draw`, 'POST', {})
+    reload()
+  })
+  const make = (expressions?: Expression[]) => act(expressions?.[0] ?? 'all', async () => {
+    const made = await api<{ failed: typeof failed }>(`/library/${item.id}/look`, 'POST', { expressions })
+    // a redraw of one leaves the others' failures as they were
+    setFailed((f) => ({ ...(expressions ? f : {}), ...Object.fromEntries((expressions ?? EXPRESSIONS).map((e) => [e, undefined])), ...made.failed }))
+    reload()
+  })
+
+  return (
+    <Glass title="Look" className="ka-cards__wide">
+      <span className="ka-muted ka-small">
+        {portrait
+          ? `The five expressions are made from ${item.name}'s picture, never from each other, so the face stays the same.`
+          : `${item.name} has no picture yet. Draw one from the description, or add your own in Edit profile.`}
+      </span>
+      <span className="ka-row ka-row--gap">
+        <button type="button" className="k-btn k-btn--sm" disabled={busy} onClick={draw}>
+          <Icon name="image" size={15} />
+          {doing === 'draw' ? 'Drawing…' : portrait ? 'Draw a new picture' : `Draw ${item.name}`}
+        </button>
+        {portrait && (
+          <button type="button" className="k-btn k-btn--dark k-btn--sm" disabled={busy} onClick={() => make()}>
+            <Icon name="spark" size={15} />
+            {doing === 'all' ? 'Making five expressions… about half a minute' : pack && !stale ? 'Remake all five' : 'Use this look'}
+          </button>
+        )}
+        <span className="ka-muted ka-small">A picture costs about $0.005; five expressions about $0.24.</span>
+      </span>
+      {stale && <span className="ka-small">These were made from an earlier picture. Remake them to match the new one.</span>}
+      <ErrorLine error={error} />
+      {pack && (
+        <div className="ka-look">
+          {EXPRESSIONS.map((e) => {
+            const sprite = pack.sprites[e]
+            return (
+              <figure key={e} className="ka-look__tile">
+                <span className="ka-look__art">
+                  {sprite ? <img src={mediaUrl(sprite)} alt={`${item.name}, ${e}`} /> : <span className="ka-muted ka-small">Not made</span>}
+                </span>
+                <figcaption className="ka-row ka-row--gap">
+                  <span className="ka-small">{sentence(e)}</span>
+                  <button type="button" className="k-btn k-btn--ghost k-btn--sm ka-push-right" disabled={busy} onClick={() => make([e])}
+                    aria-label={`Redraw ${e}`}>
+                    {doing === e ? 'Drawing…' : 'Redraw'}
+                  </button>
+                </figcaption>
+                {failed[e] && <span className="ka-error" role="alert">{failed[e]!.message}</span>}
+              </figure>
+            )
+          })}
+        </div>
+      )}
+    </Glass>
+  )
+}
+
 /** #/friend/:id — a friend before you message them. */
 export default function Profile({ id }: { id: number }) {
   const { byId, loaded } = useLibrary()
   const [stories, reload, error] = useLoad(() => api<StorySummary[]>('/stories'), [])
   const [profile] = useLoad(() => api<Profiled>(`/library/${id}/profile`), [id])
+  const [roles] = useLoad(() => api<RoleRow[]>('/roles'), [])
+  const pictures = !!roles?.find((r) => r.role === 'image')?.effective_model
   const [newChat, setNewChat] = useState<{ preset?: Preset; n: number }>({ n: 0 })
   const [revealed, setRevealed] = useState(false)
   const item = byId.get(id)
@@ -215,6 +290,7 @@ export default function Profile({ id }: { id: number }) {
             )}
           </div>
           <div className="ka-cards">
+            {pictures && item.kind === 'character' && <Look item={item} />}
             {profile && <RightNow item={item} profile={profile} prefer={latest?.id} />}
             <Glass title={`Where else ${item.name} is`}>
               <Elsewhere item={item.id} name={item.name} />

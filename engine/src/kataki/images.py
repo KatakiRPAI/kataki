@@ -54,6 +54,63 @@ def place_prompt(item: dict) -> str:
     return PLACE.format(empty=empty, what=what, light=light)
 
 
+# --- a character's look: a sheet (their portrait) and five sprites made from it -------------
+
+PORTRAIT_SIZE = (768, 1024)
+ADULT = {"she": "an adult woman", "he": "an adult man"}  # anyone else: "an adult"
+# the setting is said outright: "Guild courier" alone came out in a baseball cap
+PORTRAIT = (
+    "Character portrait, detailed digital illustration of a character from a medieval fantasy "
+    "world, in period clothing. {who}: {what}. Waist-up, facing the viewer, plain flat light "
+    "grey background, soft even light."
+)
+# the sheet is always the source, never another sprite (M3 spec §1 rule 1)
+SPRITE = (
+    "The same {who} as in the picture: same face, same hair, same clothes, same art style. "
+    "Waist-up, facing the viewer, plain flat light grey background. {expression}"
+)
+EXPRESSIONS = {  # the five the design brief names, in the order the profile shows them
+    "neutral": "A calm, neutral expression.",
+    "smiling": "A warm, genuine smile.",
+    "wary": "A wary, guarded look, eyes narrowed.",
+    "surprised": "A surprised look, eyebrows raised, lips parted.",
+    "doubtful": "A doubtful, sceptical look, one eyebrow raised, lips pressed together.",
+}
+# Adults only (M3 spec §7.2): a character whose own words make them a minor is never drawn.
+# ponytail: a word list, not a classifier; it errs towards refusing, and rewording fixes that
+MINOR = re.compile(
+    r"\b(child|children|kid|kids|toddler|infant|baby|minor|underage|preteen|pre-teen|teen|"
+    r"teens|teenage|teenager|loli|shota|little (girl|boy)|young (girl|boy)|schoolchild)\b"
+    r"|\b([1-9]|1[0-7])[- ]?(years?[- ]old|yo|y/o|yrs?)\b|\bage[ds]?[: ]+([1-9]|1[0-7])\b",
+    re.I,
+)
+
+
+MINOR_SAID = (
+    "Kataki only draws adults, and this character's own words make them sound younger than 18. "
+    "If they are an adult, say so in their description."
+)
+
+
+def minor(item: dict) -> bool:
+    return bool(
+        MINOR.search(" ".join((item["name"], item["description"], item.get("private") or "")))
+    )
+
+
+def adult(item: dict) -> str:
+    return ADULT.get(item["data"].get("pronouns", ""), "an adult")
+
+
+def portrait_prompt(item: dict) -> str:
+    what = item["description"].strip().rstrip(".") or "an ordinary person"
+    return PORTRAIT.format(who=adult(item)[0].upper() + adult(item)[1:], what=what)
+
+
+def sprite_prompt(item: dict, expression: str) -> str:
+    return SPRITE.format(who=adult(item).removeprefix("an "), expression=EXPRESSIONS[expression])
+
+
 class ImageError(Exception):
     def __init__(self, message: str, refused: bool = False, alt: str | None = None):
         super().__init__(message)

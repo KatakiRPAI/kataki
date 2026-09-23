@@ -87,6 +87,11 @@ class DrawIn(BaseModel):
     provider: str | None = None  # None: the first HF provider that serves the model
 
 
+class LookIn(BaseModel):
+    expressions: list[str] | None = None  # None: all five
+    provider: str | None = None  # for the edits; the cutout has one provider
+
+
 class ItemPatch(BaseModel):
     name: str | None = None
     description: str | None = None
@@ -529,39 +534,98 @@ def create_app(
     async def remove_item(item_id: int):
         library.delete_item(conn, item_id)
 
-    # --- media: portraits and place images ------------------------------------------------
+    # --- pictures, through the image job (M3 spec §7): every one is a click and costs money --
 
-    @app.post("/library/{item_id}/draw")
-    async def draw_item(item_id: int, d: DrawIn):
-        """A place's background from its own words, through the image job. One paid call."""
-        item = await get_item(item_id)
-        if item["kind"] != "place":
-            raise HTTPException(422, "only places can be drawn so far")
+    def picture_job():
+        """The image job's endpoint and a client for it, or why there is none."""
         ep = roles.resolve(conn, "image", None, get_key)
-        if (
-            ep is None
-            or not ep.api_key
-            or urlparse(ep.base_url).hostname != "router.huggingface.co"
-        ):
+        hf = ep and urlparse(ep.base_url).hostname == "router.huggingface.co"
+        if not hf or not ep.api_key:
             raise HTTPException(
                 409, "Pictures need the image job set to a HuggingFace model, with its key."
             )
-        client = images.Images(ep.api_key, transport=image_transport)
+        return ep, images.Images(ep.api_key, transport=image_transport)
+
+    def refused(e: images.ImageError) -> dict:
+        return {"message": str(e), "refused": e.refused, "alt": e.alt}
+
+    def keep(data: bytes) -> str:
+        if (ext := media.sniff(data)) is None:
+            raise images.ImageError("the provider sent something that is not a picture")
+        return media.save(conn, data, ext)
+
+    @app.post("/library/{item_id}/draw")
+    async def draw_item(item_id: int, d: DrawIn):
+        """A place's background, or a character's first picture, from their own words: one
+        paid call through the image job. It replaces the picture they had."""
+        item = await get_item(item_id)
+        if item["kind"] not in ("place", "character"):
+            raise HTTPException(422, "only places and characters can be drawn")
+        if item["kind"] == "character" and images.minor(item):
+            raise HTTPException(422, images.MINOR_SAID)
+        ep, client = picture_job()
+        place = item["kind"] == "place"
+        prompt = images.place_prompt(item) if place else images.portrait_prompt(item)
+        size = images.PLACE_SIZE if place else images.PORTRAIT_SIZE
         try:
-            data = await client.draw(
-                ep.model, images.place_prompt(item), *images.PLACE_SIZE, d.provider
-            )
+            name = keep(await client.draw(ep.model, prompt, *size, d.provider))
         except images.ImageError as e:
-            raise HTTPException(502, {"message": str(e), "refused": e.refused, "alt": e.alt}) from e
+            raise HTTPException(502, refused(e)) from e
         finally:
             await client.aclose()
-        if (ext := media.sniff(data)) is None:
-            raise HTTPException(
-                502, {"message": "the provider sent something that is not a picture"}
-            )
-        name = media.save(conn, data, ext)
-        library.update_item(conn, item_id, data={**item["data"], "image": name})
+        library.update_item(
+            conn, item_id, data={**item["data"], ("image" if place else "portrait"): name}
+        )
         return library.get_item(conn, item_id)
+
+    @app.post("/library/{item_id}/look")
+    async def make_look(item_id: int, d: LookIn):
+        """A character's sprites: each asked-for expression edited from their portrait (the
+        sheet) and cut out, all at once. Two paid calls each. What worked is kept even when
+        some fail; those come back in `failed`, each with its reason."""
+        item = await get_item(item_id)
+        sheet = item["data"].get("portrait")
+        if item["kind"] != "character" or not sheet or not (path := media.find(conn, sheet)):
+            raise HTTPException(
+                422, "a look is made from a character's picture; draw or add one first"
+            )
+        if images.minor(item):
+            raise HTTPException(422, images.MINOR_SAID)
+        if unknown := set(d.expressions or ()) - set(images.EXPRESSIONS):
+            raise HTTPException(422, f"no such expression: {', '.join(sorted(unknown))}")
+        ep, client = picture_job()
+        edit = ep.params.get("edit_model", images.DEFAULTS["edit_model"])
+        cutout = ep.params.get("cutout_model", images.DEFAULTS["cutout_model"])
+        source = path.read_bytes()
+
+        async def sprite(expression: str) -> str:
+            made = await client.edit(
+                edit, source, images.sprite_prompt(item, expression), d.provider
+            )
+            return keep(await client.cutout(cutout, made))
+
+        wanted = d.expressions or list(images.EXPRESSIONS)
+        try:
+            results = await asyncio.gather(*map(sprite, wanted), return_exceptions=True)
+        finally:
+            await client.aclose()
+        old = item["data"].get("pack") or {}
+        # redrawing a few keeps the rest, unless the rest were made from another picture
+        sprites = dict(old.get("sprites", {})) if old.get("from") == sheet else {}
+        failed = {}
+        for expression, result in zip(wanted, results, strict=True):
+            if isinstance(result, images.ImageError):
+                failed[expression] = refused(result)
+            elif isinstance(result, BaseException):
+                raise result
+            else:
+                sprites[expression] = result
+        if sprites:
+            pack = {"from": sheet, "sprites": sprites}
+            library.update_item(conn, item_id, data={**item["data"], "pack": pack})
+        return {"item": library.get_item(conn, item_id), "failed": failed}
+
+    # --- media: portraits and place images ------------------------------------------------
 
     @app.post("/media", status_code=201)
     async def add_media(request: Request):

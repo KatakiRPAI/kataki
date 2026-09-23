@@ -44,7 +44,14 @@ export type ItemData = {
   palette?: Palette
   portrait?: string // media name (characters, personas)
   image?: string // media name (places)
+  pack?: Pack // sprites made from the portrait (characters)
 }
+
+/** The five expressions the stage can show, in the order the profile shows them. */
+export const EXPRESSIONS = ['neutral', 'smiling', 'wary', 'surprised', 'doubtful'] as const
+export type Expression = (typeof EXPRESSIONS)[number]
+/** Cut-out sprites and the portrait they were made from (stale once the portrait changes). */
+export type Pack = { from: string; sprites: Partial<Record<Expression, string>> }
 
 export type Item = {
   id: number

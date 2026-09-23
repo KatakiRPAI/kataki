@@ -226,6 +226,12 @@ span.k-orb { display: block; }
 .ka-stat strong { font-size: 16px; }
 .ka-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: start; }
 .ka-cards__wide { grid-column: 1 / -1; }
+.ka-look { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+.ka-look__tile { margin: 0; display: grid; gap: 6px; align-content: start; }
+/* a checkerboard, so a cut-out reads as cut out */
+.ka-look__art { display: grid; place-items: center; aspect-ratio: 3 / 4; border-radius: 16px; overflow: hidden;
+  background: repeating-conic-gradient(rgba(20,38,77,.07) 0 25%, transparent 0 50%) 0 0 / 16px 16px; }
+.ka-look__art img { width: 100%; height: 100%; object-fit: contain; }
 .ka-prose-sky { font-size: 15px; line-height: 1.5; }
 .ka-prose-sky > p { margin: 0 0 6px; }
 .ka-said { display: flex; align-items: flex-end; gap: 10px; }
