@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { api, EXPRESSIONS, mediaUrl, type Expression, type Item, type PictureFailure, type Profile as Profiled, type RoleRow, type StorySummary } from '../api'
 import { Avatar, Orb, Portrait, pronounsOf, Room } from '../art'
 import { dive, diveLink, href, useAction, useLibrary, useLoad } from '../hooks'
-import { Candy, ErrorLine, Glass, Icon, Menu, Prose } from '../ui'
+import { Candy, ErrorLine, Glass, Icon, Menu, PictureTrouble, pictureFailure, Prose } from '../ui'
 import Elsewhere from './Elsewhere'
 import { status, storiesWith } from './Friends'
 import NewChat, { type Preset } from './NewChat'
@@ -110,6 +110,7 @@ function Look({ item }: { item: Item }) {
   const [run, error, busy] = useAction()
   const [doing, setDoing] = useState<string>()
   const [failed, setFailed] = useState<Partial<Record<Expression, PictureFailure>>>({})
+  const [drawFailed, setDrawFailed] = useState<PictureFailure>()
   const { portrait, pack } = item.data
   const stale = pack && pack.from !== portrait
 
@@ -117,12 +118,19 @@ function Look({ item }: { item: Item }) {
     setDoing(what)
     run(fn).finally(() => setDoing(undefined))
   }
-  const draw = () => act('draw', async () => {
-    await api(`/library/${item.id}/draw`, 'POST', {})
+  const draw = (provider?: string) => act('draw', async () => {
+    setDrawFailed(undefined)
+    try {
+      await api(`/library/${item.id}/draw`, 'POST', { provider })
+    } catch (e) {
+      const failure = pictureFailure(e)
+      if (!failure) throw e
+      return setDrawFailed(failure)
+    }
     reload()
   })
-  const make = (expressions?: Expression[]) => act(expressions?.[0] ?? 'all', async () => {
-    const made = await api<{ failed: typeof failed }>(`/library/${item.id}/look`, 'POST', { expressions })
+  const make = (expressions?: Expression[], provider?: string) => act(expressions?.[0] ?? 'all', async () => {
+    const made = await api<{ failed: typeof failed }>(`/library/${item.id}/look`, 'POST', { expressions, provider })
     // a redraw of one leaves the others' failures as they were
     setFailed((f) => ({ ...(expressions ? f : {}), ...Object.fromEntries((expressions ?? EXPRESSIONS).map((e) => [e, undefined])), ...made.failed }))
     reload()
@@ -136,7 +144,7 @@ function Look({ item }: { item: Item }) {
           : `${item.name} has no picture yet. Draw one from the description, or add your own in Edit profile.`}
       </span>
       <span className="ka-row ka-row--gap">
-        <button type="button" className="k-btn k-btn--sm" disabled={busy} onClick={draw}>
+        <button type="button" className="k-btn k-btn--sm" disabled={busy} onClick={() => draw()}>
           <Icon name="image" size={15} />
           {doing === 'draw' ? 'Drawing…' : portrait ? 'Draw a new picture' : `Draw ${item.name}`}
         </button>
@@ -150,10 +158,11 @@ function Look({ item }: { item: Item }) {
       </span>
       {stale && <span className="ka-small">These were made from an earlier picture. Remake them to match the new one.</span>}
       <ErrorLine error={error} />
-      {pack && (
+      {drawFailed && <PictureTrouble failure={drawFailed} busy={busy} onRetry={draw} />}
+      {(pack || Object.values(failed).some(Boolean)) && (
         <div className="ka-look">
           {EXPRESSIONS.map((e) => {
-            const sprite = pack.sprites[e]
+            const sprite = pack?.sprites[e]
             return (
               <figure key={e} className="ka-look__tile">
                 <span className="ka-look__art">
@@ -166,7 +175,7 @@ function Look({ item }: { item: Item }) {
                     {doing === e ? 'Drawing…' : 'Redraw'}
                   </button>
                 </figcaption>
-                {failed[e] && <span className="ka-error" role="alert">{failed[e]!.message}</span>}
+                {failed[e] && <PictureTrouble failure={failed[e]!} busy={busy} onRetry={(alt) => make([e], alt)} />}
               </figure>
             )
           })}

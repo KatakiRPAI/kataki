@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { api, upload, type Item, type RoleRow } from '../api'
+import { api, upload, type Item, type PictureFailure, type RoleRow } from '../api'
 import { Room } from '../art'
 import { dive, useAction, useLibrary, useLoad } from '../hooks'
-import { Dialog, ErrorLine, Field, Icon, Prose, SkyHeader } from '../ui'
+import { Dialog, ErrorLine, Field, Icon, PictureTrouble, pictureFailure, Prose, SkyHeader } from '../ui'
 import NewChat, { type Preset } from './NewChat'
 
 type Kind = 'place' | 'scenario'
@@ -110,17 +110,26 @@ function ItemDialog({ open, kind, item, onClose }: { open: boolean; kind: Kind; 
 function DrawButton({ place }: { place: Item }) {
   const { reload } = useLibrary()
   const [run, error, busy] = useAction()
-  const draw = () => run(async () => {
-    await api(`/library/${place.id}/draw`, 'POST', {})
+  const [failure, setFailure] = useState<PictureFailure>()
+  const draw = (provider?: string) => run(async () => {
+    setFailure(undefined)
+    try {
+      await api(`/library/${place.id}/draw`, 'POST', { provider })
+    } catch (e) {
+      const failed = pictureFailure(e)
+      if (!failed) throw e
+      return setFailure(failed)
+    }
     reload()
   })
   return (
     <>
-      <button type="button" className="k-btn k-btn--ghost k-btn--sm" disabled={busy} onClick={draw}>
+      <button type="button" className="k-btn k-btn--ghost k-btn--sm" disabled={busy} onClick={() => draw()}>
         <Icon name="image" size={14} />
         {busy ? 'Drawing…' : place.data.image ? 'Draw again' : 'Draw background'}
       </button>
       {error && <span className="ka-error ka-place__error" role="alert">{error}</span>}
+      {failure && <span className="ka-place__error"><PictureTrouble failure={failure} busy={busy} onRetry={draw} /></span>}
     </>
   )
 }

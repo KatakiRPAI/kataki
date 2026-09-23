@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import type { PictureFailure } from './api'
 
 // Thin wrappers over the design system's classes (design/components.css). Anything the design
 // doesn't cover lives in app.css under ka- classes.
@@ -161,6 +162,29 @@ export function Trouble({ title, children, action }: { title: string; children: 
       {action}
     </section>
   )
+}
+
+const PROVIDER: Record<string, string> = { 'fal-ai': 'fal', wavespeed: 'WaveSpeed' }
+
+/** A picture that didn't come: why, and when another provider serves the model, a one-click
+ *  retry there. Nothing retries by itself: every try costs money (M3 spec §7.2). */
+export function PictureTrouble({ failure, busy, onRetry }: { failure: PictureFailure; busy: boolean; onRetry: (alt: string) => void }) {
+  return (
+    <span className="ka-error ka-trouble" role="alert">
+      {failure.refused ? 'The provider refused this picture' : 'The picture failed'}: {failure.message}
+      {failure.alt && (
+        <button type="button" className="k-btn k-btn--sm" disabled={busy} onClick={() => onRetry(failure.alt!)}>
+          Try on {PROVIDER[failure.alt] ?? failure.alt}
+        </button>
+      )}
+    </span>
+  )
+}
+
+/** The picture failure an engine error carries, if it is one (see api.ts `failure`). */
+export const pictureFailure = (e: unknown): PictureFailure | undefined => {
+  const detail = (e as { detail?: unknown })?.detail
+  return detail && typeof detail === 'object' && 'message' in detail ? (detail as PictureFailure) : undefined
 }
 
 export function ErrorLine({ error }: { error: string }) {

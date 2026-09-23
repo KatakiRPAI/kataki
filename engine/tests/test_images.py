@@ -398,3 +398,23 @@ def test_a_look_needs_a_portrait_and_a_real_expression(conn, backend):
     her = mira(api, portrait=api.post("/media", content=PNG).json()["name"])
     assert api.post(f"/library/{her['id']}/look", json={"expressions": ["smug"]}).status_code == 422
     assert fake.requests == []
+
+
+def test_try_on_the_other_provider_goes_there(conn, backend):
+    fal = f"{images.ROUTER}/fal-ai"
+    fake = Fake(
+        {
+            **hub(),
+            f"{fal}/fal-ai/model?_subdomain=queue": [
+                {"request_id": "r", "response_url": "https://q/fal-ai/model/requests/r"}
+            ],
+            f"{fal}/fal-ai/model/requests/r/status": [{"status": "COMPLETED"}],
+            f"{fal}/fal-ai/model/requests/r?": [{"images": [{"url": "https://cdn.example/r.png"}]}],
+            "https://cdn.example/": [httpx2.Response(200, content=PNG)],
+        }
+    )
+    api = drawing_app(conn, backend, fake)
+    gull = api.post("/library", json={"kind": "place", "name": "The Gull"}).json()
+    assert api.post(f"/library/{gull['id']}/draw", json={"provider": "fal-ai"}).status_code == 200
+    assert fake.requests[1].url.path == "/fal-ai/fal-ai/model"
+    assert fake.body(1)["image_size"] == {"width": 1536, "height": 864}
