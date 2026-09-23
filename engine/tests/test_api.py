@@ -517,6 +517,37 @@ def test_rereading_twice_leaves_one_presence_row_and_runs_say_what_they_filed(
     ]
 
 
+def test_a_reread_that_fails_keeps_the_memories_it_meant_to_replace(api, story, backend):
+    who = cast(api, story)
+    backend.say("Hm.")
+    api.post(f"/stories/{story}/turn", json={"text": "Tobin, fetch a round from the bar."})
+    found = {
+        "memories": [
+            {"kind": "event", "detail": "Aren sent Tobin to the bar.",
+             "gist": "Tobin was sent off.", "importance": 3, "line": 1,
+             "participants": [{"ref": f"E{who['Aren']['id']}", "role": "actor"},
+                              {"ref": f"E{who['Tobin']['id']}", "role": "target"}]}
+        ],
+    }  # fmt: skip
+    backend.say(json.dumps(found))
+    run = api.post(f"/stories/{story}/extract").json()["run"]
+    memories = api.get(f"/stories/{story}/memories").json()
+    assert [m["detail"] for m in memories] == ["Aren sent Tobin to the bar."]
+
+    backend.say("not json", "still not json")
+    failed = api.post(f"/runs/{run['id']}/reread", json={})
+    assert failed.status_code == 502 and "invalid JSON" in failed.json()["detail"]
+    assert api.get(f"/stories/{story}/memories").json() == memories
+    assert [r["id"] for r in api.get(f"/stories/{story}/runs").json()] == [run["id"]]
+
+    backend.say(json.dumps({"memories": []}))
+    again = api.post(f"/runs/{run['id']}/reread", json={}).json()
+    assert again["status"] == "ok"
+    assert "Earlier memories" not in backend.requests[-1]["messages"][-1]["content"]
+    assert api.get(f"/stories/{story}/memories").json() == []
+    assert [r["status"] for r in api.get(f"/stories/{story}/runs").json()] == ["ok"]
+
+
 def test_the_version_changes_when_memory_reads_the_story(api, story, backend):
     backend.say("Hm.")
     api.post(f"/stories/{story}/turn", json={"text": "Mira, the ledger is under the floorboard."})

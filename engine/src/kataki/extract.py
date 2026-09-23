@@ -558,14 +558,42 @@ async def reread(
     role: str = "reasoning",
     get_key=roles.get_key,
 ) -> int | None:
-    """Read a run's window again: it went stale, or deserves a stronger model."""
+    """Read a run's window again: it went stale, or deserves a stronger model.
+
+    What the old run filed stays until the new read has succeeded; a failed model call
+    raises LLMError and changes nothing."""
     run = conn.execute("SELECT * FROM extraction_runs WHERE id=?", (run_id,)).fetchone()
     if run is None or (ep := roles.resolve(conn, role, run["story_id"], get_key)) is None:
         return None
+    story_id = run["story_id"]
     path = chat.path_to(conn, run["to_message_id"])
     chunk = [m for m in path if m["id"] >= run["from_message_id"] and not m["hidden"]]
-    db.discard_run(conn, run_id)
-    return await read(conn, llm, run["story_id"], chunk, run["trigger"], role, ep)
+    if run["status"] != "ok":  # it filed nothing, so there is nothing to keep
+        db.discard_run(conn, run_id)
+        return await read(conn, llm, story_id, chunk, run["trigger"], role, ep)
+    conn.execute("SAVEPOINT peek")  # the prompt sees the story as if the old run were gone
+    try:
+        db.delete_run(conn, run_id)
+        messages, schema = prompt(conn, story_id, chunk)
+    finally:
+        conn.execute("ROLLBACK TO peek")
+        conn.execute("RELEASE peek")
+    data = await llm.complete_json(ep, messages, schema, _check_document, "story_memory")
+    if conn.execute("SELECT 1 FROM extraction_runs WHERE id=?", (run_id,)).fetchone() is None:
+        return run_id  # gone while the model was busy (another reread, a deleted branch)
+    # One transaction: the window has one run (UNIQUE), so the old one goes as the new one
+    # arrives. apply()'s own `with conn` commits all of it, or its failure rolls all of it back;
+    # its bad-document path can't fire here, _check_document already passed this data.
+    with conn:
+        db.delete_run(conn, run_id)
+        new_id = conn.execute(
+            "INSERT INTO extraction_runs(story_id, from_message_id, to_message_id, trigger,"
+            " status, role, model, attempts, started_at)"
+            " VALUES(?, ?, ?, ?, 'running', ?, ?, 1, CURRENT_TIMESTAMP)",
+            (story_id, chunk[0]["id"], chunk[-1]["id"], run["trigger"], role, ep.model),
+        ).lastrowid
+        apply(conn, new_id, data)
+    return new_id
 
 
 def recover(conn: sqlite3.Connection) -> None:

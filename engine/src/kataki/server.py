@@ -1410,7 +1410,10 @@ def create_app(
     @app.post("/runs/{run_id}/reread")
     async def reread(run_id: int, r: RereadIn):
         _row(conn, "SELECT id FROM extraction_runs WHERE id=?", (run_id,))
-        new_id = await extract.reread(conn, llm, run_id, r.role, get_key)
+        try:
+            new_id = await extract.reread(conn, llm, run_id, r.role, get_key)
+        except LLMError as e:  # the old reading is still there
+            raise HTTPException(502, str(e)) from e
         if new_id is None:
             raise HTTPException(409, f"no model is set for {r.role!r}")
         return run_out(_row(conn, "SELECT * FROM extraction_runs WHERE id=?", (new_id,)))

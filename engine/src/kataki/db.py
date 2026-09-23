@@ -100,12 +100,18 @@ def live_filter(live: set[int], column: str = "run_id") -> tuple[str, list[int]]
 
 
 def discard_run(conn: sqlite3.Connection, run_id: int) -> None:
-    """Undo a run completely. FKs cascade everything except taggings, which are polymorphic."""
+    """Undo a run completely."""
     with conn:
-        for obj, table in (("memory", "memories"), ("entity", "entities")):
-            conn.execute(
-                f"DELETE FROM taggings WHERE obj=? AND obj_id IN"
-                f" (SELECT id FROM {table} WHERE run_id=?)",
-                (obj, run_id),
-            )
-        conn.execute("DELETE FROM extraction_runs WHERE id=?", (run_id,))
+        delete_run(conn, run_id)
+
+
+def delete_run(conn: sqlite3.Connection, run_id: int) -> None:
+    """`discard_run` inside the caller's transaction. FKs cascade everything except taggings,
+    which are polymorphic."""
+    for obj, table in (("memory", "memories"), ("entity", "entities")):
+        conn.execute(
+            f"DELETE FROM taggings WHERE obj=? AND obj_id IN"
+            f" (SELECT id FROM {table} WHERE run_id=?)",
+            (obj, run_id),
+        )
+    conn.execute("DELETE FROM extraction_runs WHERE id=?", (run_id,))
