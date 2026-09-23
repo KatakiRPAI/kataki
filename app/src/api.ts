@@ -503,3 +503,26 @@ export async function stream(
     }
   }
 }
+
+/** `GET /messages/{id}/mind`: how one reply came about, only from what the engine recorded.
+ *  `gold`: it reached the prompt the reply was written from. */
+export type MindNode = {
+  id: string
+  column: 'in' | 'sense' | 'inside' | 'decide'
+  kind: 'heard' | 'saw' | 'place' | 'time' | 'recall' | 'belief' | 'feeling' | 'persona' | 'expression'
+  title: string
+  text: string
+  weight: number | null
+  gold: boolean
+  detail: Record<string, unknown> | null
+}
+export type Mind = {
+  message_id: number
+  speaker: { id: number | null; name: string }
+  clock: string
+  date: string
+  nodes: MindNode[]
+  links: { from: string; to: string; gold: boolean }[]
+  more: { recall?: number; feeling?: number }
+  spoke: { text: string; model: string | null; tokens: number | null }
+}

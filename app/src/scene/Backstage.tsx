@@ -1,8 +1,9 @@
-import { useState, type CSSProperties } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import { api, type Cast, type ContextLog, type Entity, type KnownMemory, type Run, type Story, type Version } from '../api'
 import { Avatar, pronounsOf } from '../art'
 import { useAction, useLibrary, useLoad } from '../hooks'
 import { Dialog, ErrorLine, Icon } from '../ui'
+import Mind from './Mind'
 
 type Tier = 'sharp' | 'hazy' | 'forgotten'
 type StoryMemory = { id: number; detail: string; gist: string; pinned: number; knowers: number[] }
@@ -23,9 +24,20 @@ const n = (x: number) => x.toLocaleString('en')
 /** Backstage: what each character remembers, the last prompt, the cast as the memory reader sees
  *  it, and the reads themselves. `tick` moves when the story's version does. */
 export default function Backstage({ story, cast, tick, focus, onChange }: { story: Story; cast: Cast; tick: number; focus?: number; onChange: () => void }) {
+  // the Mind first; a deep link to someone's memories ("See her memories") opens on Memory
+  const [view, setView] = useState<'mind' | 'memory'>(focus === undefined ? 'mind' : 'memory')
+  const swap = (
+    <span className="ka-bs-group" role="tablist" aria-label="Show">
+      {(['mind', 'memory'] as const).map((v) => (
+        <button key={v} type="button" role="tab" aria-selected={view === v} className="k-bs-btn" onClick={() => setView(v)}>
+          {v === 'mind' ? 'Mind' : 'Memory'}
+        </button>
+      ))}
+    </span>
+  )
   return (
     <div className="k-backstage ka-backstage">
-      <Memory story={story} cast={cast} tick={tick} focus={focus} />
+      {view === 'mind' ? <Mind story={story} cast={cast} tick={tick} swap={swap} /> : <Memory story={story} cast={cast} tick={tick} focus={focus} swap={swap} />}
       <div className="ka-backstage__side">
         <Prompt story={story} tick={tick} />
         <CastPanel story={story} tick={tick} onChange={onChange} />
@@ -35,7 +47,7 @@ export default function Backstage({ story, cast, tick, focus, onChange }: { stor
   )
 }
 
-function Memory({ story, cast, tick, focus }: { story: Story; cast: Cast; tick: number; focus?: number }) {
+function Memory({ story, cast, tick, focus, swap }: { story: Story; cast: Cast; tick: number; focus?: number; swap: ReactNode }) {
   const { byId } = useLibrary()
   const people = cast.entities.filter((e) => e.kind === 'character').sort((a, b) => Number(a.persona) - Number(b.persona))
   const [picked, setPicked] = useState<number | undefined>(focus) // the peek card opens on its character
@@ -60,7 +72,10 @@ function Memory({ story, cast, tick, focus }: { story: Story; cast: Cast; tick: 
     <section className="k-bs-panel ka-bs-memory" aria-label="Memory">
       <div className="k-bs-title">
         <span>MEMORY</span>
-        <span className="ka-bs-muted">As each memory would come back if it came up now.</span>
+        <span className="ka-row">
+          <span className="ka-bs-muted">As each memory would come back if it came up now.</span>
+          {swap}
+        </span>
       </div>
       <div className="ka-bs-bar">
         <div className="ka-bs-group" role="tablist" aria-label="Whose memory">
