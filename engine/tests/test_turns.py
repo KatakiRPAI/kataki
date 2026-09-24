@@ -234,7 +234,7 @@ async def test_a_failed_call_reports_the_error_and_keeps_no_reply(
 ):
     monkeypatch.setattr("kataki.llm.RETRY_AFTER", 0)
     loading = httpx2.Response(503, text="model is loading")
-    backend.say(loading, loading)  # asked once more, then it is the answer
+    backend.say(loading, loading, loading)  # asked twice more, then it is the answer
     events = await play(turns.turn(conn, backend.llm, story, "Mira?"))
     assert events[-1][0] == "error" and "model is loading" in events[-1][1]["message"]
     assert path(conn, story)[-1][0] == "user"  # the user's line is kept, no empty reply

@@ -23,7 +23,9 @@ DEFAULT_THINK_TAGS = ("<think>", "</think>")
 # own body wins). It also thinks at its own temperature: greedy decoding made its thinking loop
 # ("Wait, `flags`:" 17 times) and never answer. Without thinking, neither applies.
 THINKING_MAX_TOKENS = 16384
-RETRY_AFTER = 2.0  # seconds before asking a briefly unavailable provider once more
+RETRY_AFTER = 2.0  # seconds before asking a busy provider again; doubled each time
+BUSY = (429, 502, 503)  # busy or briefly down: nothing was generated, so nothing is billed
+TRIES = 3
 THINKING_TEMPERATURE = 0.6  # Qwen's recommended thinking-mode temperature
 SPELLED_OUT = (
     "Reply with one JSON object that follows this JSON schema exactly, field names and all:\n"
@@ -182,17 +184,17 @@ class LLM:
 
     @contextlib.asynccontextmanager
     async def _stream(self, url: str, body: dict, api_key: str | None):
-        """A streamed POST. A provider that is briefly unavailable (502/503: nothing was
-        generated, so nothing is billed) is asked once more after a moment."""
-        for attempt in (0, 1):
+        """A streamed POST. A provider that is busy or briefly unavailable (429/502/503: nothing
+        was generated, so nothing is billed) is asked again after a moment, twice at most."""
+        for attempt in range(TRIES):
             async with self._client.stream(
                 "POST", url, json=body, headers=self._headers(api_key)
             ) as r:
-                if attempt or r.status_code not in (502, 503):
+                if attempt == TRIES - 1 or r.status_code not in BUSY:
                     yield r
                     return
                 await r.aread()
-            await asyncio.sleep(RETRY_AFTER)
+            await asyncio.sleep(RETRY_AFTER * 2**attempt)
 
     @staticmethod
     async def _chunks(r: httpx2.Response, url: str) -> AsyncIterator[dict]:
