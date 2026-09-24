@@ -1,14 +1,17 @@
-import { api, type Profile, type StorySummary } from '../api'
+import { api, type Profile, type RoleRow, type StorySummary } from '../api'
 import { Avatar, Portrait, Room } from '../art'
 import { diveLink, go, href, useLibrary, useLoad } from '../hooks'
 import { ErrorLine, Glass, Icon } from '../ui'
 import { PersonaChoices } from './Home'
+import { Look } from './Profile'
 
 /** #/you and #/you/:id — who you play, and who you are in new chats. */
 export default function You({ id }: { id?: number }) {
   const { items, byId, loaded } = useLibrary()
   const [settings, reloadSettings, settingsError] = useLoad(() => api<{ persona?: number | null }>('/settings'), [])
   const [stories, , storiesError] = useLoad(() => api<StorySummary[]>('/stories'), [])
+  const [roles] = useLoad(() => api<RoleRow[]>('/roles'), [])
+  const pictures = !!roles?.find((r) => r.role === 'image')?.effective_model
   const who = id ?? settings?.persona
   const [profile] = useLoad(
     () => (who ? api<Profile>(`/library/${who}/profile`).then((p) => ({ who, p })) : Promise.resolve(null)),
@@ -80,6 +83,7 @@ export default function You({ id }: { id?: number }) {
         </div>
 
         <div className="ka-stack ka-stack--18">
+        {shown && pictures && <Look key={shown.id} item={shown} />}
         {shown && knowers.length > 0 && (
           <Glass title={`Who knows ${shown.name}`}>
             {knowers.map(({ story, k }) => (

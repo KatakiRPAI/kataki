@@ -106,7 +106,7 @@ export function RightNow({ item, profile, prefer }: { item: Item; profile: Profi
 
 /** A character's look: their picture (the sheet) and the five expressions made from it. Every
  *  button is one click and real money, so each says roughly what it costs. */
-function Look({ item }: { item: Item }) {
+export function Look({ item }: { item: Item }) {
   const { reload } = useLibrary()
   const [run, error, busy] = useAction()
   const [doing, setDoing] = useState<string>()

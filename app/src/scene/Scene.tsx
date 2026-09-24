@@ -267,8 +267,36 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
   }, [reading, skipping])
   useEffect(() => () => clearTimeout(sleepTimer.current), [])
 
-  // Open at the newest line, or at the deep-linked one; follow a reply as it is written.
+  // Open at the newest line, or at the deep-linked one. A reply writes on below the fold, under a
+  // fade and an arrow, rather than pushing the lines up as it goes; the arrow follows it down, line
+  // by line, until you scroll for yourself.
   const convo = useRef<HTMLDivElement>(null)
+  const follow = useRef(true) // held at the newest line: on opening, and after the arrow
+  const [below, setBelow] = useState(false) // more to read under the fold
+  const measure = () => {
+    const el = convo.current
+    if (el) setBelow(el.scrollHeight - el.scrollTop - el.clientHeight > 24)
+  }
+  const ready = !!data
+  useEffect(() => {
+    const el = convo.current
+    if (!el) return
+    const grown = new ResizeObserver(() => {
+      if (follow.current) el.scrollTop = el.scrollHeight
+      measure()
+    })
+    grown.observe(el)
+    if (el.firstElementChild) grown.observe(el.firstElementChild)
+    return () => grown.disconnect()
+  }, [ready])
+  const jump = () => {
+    follow.current = true
+    if (convo.current) convo.current.scrollTop = convo.current.scrollHeight
+    measure()
+  }
+  const unfollow = () => {
+    follow.current = false
+  }
   const count = data?.messages.length ?? 0
   const marked = data?.chapters.length ?? 0 // a chapter card is height the conversation gained
   const landed = useRef<number>(undefined) // the deep-linked line we have already come to rest on
@@ -276,10 +304,11 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
     if (line && landed.current === line) return // a line you send after is not a reason to go back
     const target = line ? document.getElementById(`line-${line}`) : null
     if (!target) {
-      if (convo.current) convo.current.scrollTop = convo.current.scrollHeight
+      if (follow.current && convo.current) convo.current.scrollTop = convo.current.scrollHeight
       return
     }
     landed.current = line
+    follow.current = false
     // Arriving through the dive, the lines are still settling (fonts, portraits, receipts), and
     // the one we came for drifts away under them. Hold it in the middle until they stop moving,
     // or until you scroll for yourself.
@@ -304,9 +333,14 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
       removeEventListener('pointerdown', stop)
     }
   }, [line, count, marked, backstage])
-  useEffect(() => {
-    if (convo.current && (live || said)) convo.current.scrollTop = convo.current.scrollHeight
-  }, [live, said])
+  // a new turn brings your line and where the reply starts into view, once
+  const starting = !!live || !!said
+  useLayoutEffect(() => {
+    if (!starting || !convo.current) return
+    convo.current.scrollTop = convo.current.scrollHeight
+    follow.current = false
+    measure()
+  }, [starting])
 
   if (!data) {
     return (
@@ -389,7 +423,9 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
           onNewScene={() => setNewScene(true)} />
       </div>
       <section className="k-chat ka-chat" aria-label="The story">
-        <div className="k-chat__scroll ka-chat__scroll" ref={convo}>
+        <div className={`k-chat__scroll ka-chat__scroll${below ? ' is-below' : ''}`} ref={convo} onScroll={measure}
+          onWheel={unfollow} onTouchMove={unfollow} onPointerDown={(e) => e.target === e.currentTarget && unfollow()}
+          onKeyDown={(e) => /^(Arrow|Page|Home|End| )/.test(e.key) && unfollow()}>
           <div className="k-chat__inner ka-chat__inner">
             <Lines story={story} messages={shown} cast={cast} signals={signals} chapters={chapters} flash={line} advanced={advanced}
               busy={!!live} onChange={refreshAll} onRetake={retake} onRewrite={rewrite} />
@@ -410,6 +446,11 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
               <ErrorLine error={failed || actError || error} />
             )}
           </div>
+        </div>
+        <div className={`ka-more${below ? ' is-on' : ''}`}>
+          <button type="button" aria-label="Follow the newest line" tabIndex={below ? 0 : -1} onClick={jump}>
+            <Icon name="down" size={18} />
+          </button>
         </div>
         <Composer
           story={story}

@@ -1001,3 +1001,13 @@ a.ka-event:hover { background: #fff; }
 
 /* the editor's "Describe them in your own words" */
 .ka-describe { display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 20px; background: rgba(20,38,77,.05); }
+
+/* the composer grows with what you write, up to a limit; past it, it scrolls, and you can drag it taller */
+.ka-composer textarea { field-sizing: content; max-height: min(40vh, 320px); resize: vertical; overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(255,236,210,.25) transparent; }
+
+/* more to read under the fold: the lines fade out at the bottom, and an arrow follows them down */
+.ka-chat .ka-chat__scroll.is-below { mask-image: linear-gradient(transparent, #000 70px, #000 calc(100% - 140px), transparent); }
+.ka-more { position: relative; height: 0; z-index: 2; }
+.ka-more > button { position: absolute; left: 50%; bottom: 14px; translate: -50% 0; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.25); background: rgba(0,0,0,.55); color: #fff; cursor: pointer; opacity: 0; pointer-events: none; transition: opacity .25s, translate .25s; }
+.ka-more.is-on > button { opacity: 1; pointer-events: auto; translate: -50% -4px; }
+.ka-more > button:hover { background: rgba(0,0,0,.75); }

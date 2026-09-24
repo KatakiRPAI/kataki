@@ -1,7 +1,7 @@
 import { useState, type CSSProperties } from 'react'
 import { SKIPS, type CastEntity, type Story, UNITS, later, type Unit } from '../api'
 import { Avatar } from '../art'
-import { useLibrary } from '../hooks'
+import { useKept, useLibrary } from '../hooks'
 import { Icon, Menu } from '../ui'
 import { readLine, type Mode, type Reading } from './auto'
 
@@ -83,7 +83,9 @@ export default function Composer({ story, people, away, live, advanced, onAdvanc
 }) {
   const { byId } = useLibrary()
   const item = (e: CastEntity) => (e.lib_item_id ? byId.get(e.lib_item_id) : undefined)
-  const [text, setText] = useState('')
+  const [kept, keep] = useKept(`kataki.draft.${story.id}`) // what you were writing, when you come back
+  const text = kept ?? ''
+  const setText = (t: string) => keep(t || null)
   const [mode, setMode] = useState<Mode>('auto') // a pick other than Auto is for this line only
   const [whisperTo, setWhisperTo] = useState<number[]>([])
   const speaker = typeof picked === 'number' && !people.some((e) => e.id === picked) ? null : picked

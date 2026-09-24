@@ -11,6 +11,28 @@ import {
 } from 'react'
 import { api, type Item } from './api'
 
+/** A draft kept in this browser, so leaving and coming back finds it as it was. null: nothing
+ *  kept. Storage can be missing (private mode); the draft then lasts only while you stay. */
+export function useKept(key: string): [string | null, (v: string | null) => void] {
+  const [value, setValue] = useState(() => {
+    try {
+      return localStorage.getItem(key)
+    } catch {
+      return null
+    }
+  })
+  const set = (v: string | null) => {
+    setValue(v)
+    try {
+      if (v === null) localStorage.removeItem(key)
+      else localStorage.setItem(key, v)
+    } catch {
+      /* kept while you stay */
+    }
+  }
+  return [value, set]
+}
+
 /** Load data, with a reload function and the last error. Only the newest load may land, so a
  *  slow early response can never overwrite a later one. Reloading is awaitable: an action that
  *  reads what it just wrote has to wait for the fresh data, not race the next click against it. */

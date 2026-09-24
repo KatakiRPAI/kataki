@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { api, type Callout, type Cast, type CastEntity, type Chapter, type Item, type LineSignal, type Message, type Receipt, type Recall, type Signals, type Story } from '../api'
 import clouds from '../design/clouds.svg'
 import { Avatar, paletteOf, pronounsOf } from '../art'
-import { fullTime, inline, twelve, useAction, useLibrary } from '../hooks'
+import { fullTime, inline, twelve, useAction, useKept, useLibrary } from '../hooks'
 import { ErrorLine, Icon, Prose } from '../ui'
 
 const YEAR = 365 * 1440
@@ -203,12 +203,18 @@ function Line({ storyId, who, m, stamp, tip, ink, to, flash, retake, signal, adv
   onChange: () => void
   onRetake: () => void
 }) {
-  const [editing, setEditingState] = useState(false)
+  // an edit you leave half-done is still open, as you left it, when you come back
+  const [kept, keep] = useKept(`kataki.edit.${m.id}`)
+  const editing = kept !== null
+  const draft = kept ?? m.text
+  const setDraft = (text: string) => keep(text)
   const setEditing = (on: boolean) => {
-    setEditingState(on)
+    keep(on ? m.text : null)
     onEditing(on)
   }
-  const [draft, setDraft] = useState(m.text)
+  useEffect(() => {
+    if (editing) onEditing(true)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- once, for an edit kept from before
   const [run, error, working] = useAction()
   const off = busy || working
   const patch = (body: object) =>
@@ -257,7 +263,7 @@ function Line({ storyId, who, m, stamp, tip, ink, to, flash, retake, signal, adv
               <span className="ka-tools__rule" />
             </>
           )}
-          <button type="button" disabled={off} onClick={() => { setDraft(m.text); setEditing(true) }}>
+          <button type="button" disabled={off} onClick={() => setEditing(true)}>
             <Icon name="edit" size={14} />
             Edit
           </button>
