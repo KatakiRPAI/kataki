@@ -190,7 +190,9 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
       refreshAll()
     })
 
+  const asked = useRef<{ path: string; body: object; replacing?: number }>(undefined) // for Try again
   const generate = async (path: string, body: object, replacing?: number, rewriting?: number) => {
+    asked.current = { path, body, replacing }
     const was = { date: data?.story.date ?? '' } // the date before this turn, for a skip the reply itself takes
     const ctl = new AbortController()
     controller.current = ctl
@@ -238,6 +240,7 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
     if (s.text) setSaid({ text: s.text, audience: s.audience, narrate: s.narrate })
     if (s.reply) return generate(`/stories/${id}/turn`, { text: s.text, speaker: s.speaker, audience: s.audience, skip: s.skip, narrate: s.narrate })
     const before = data?.story.date ?? ''
+    asked.current = undefined // nothing to retry: a line that didn't save is still in the composer
     try {
       const after = await api<Message[]>(`/stories/${id}/line`, 'POST', { text: s.text, audience: s.audience, skip: s.skip, narrate: s.narrate })
       const last = after.at(-1)
@@ -385,6 +388,14 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
         messages.some((m) => m.id === c.from_message_id),
     )
   const retake = () => newest && generate(`/stories/${id}/regenerate`, {}, newest.id)
+  // A reply that failed: your line was kept, so ask only for the reply to it (a retake, again)
+  const retry = () => {
+    const was = asked.current
+    if (!was) return
+    setFailed('')
+    if (was.path.endsWith('/regenerate')) return generate(was.path, was.body, was.replacing)
+    return generate(`/stories/${id}/turn`, { text: null, speaker: (was.body as { speaker?: unknown }).speaker ?? null })
+  }
   // "no model is set", "could not reach ...": something to go and fix, not a line to shrug at
   const offline = /model|reach|connect|provider/i.test(failed)
 
@@ -435,15 +446,25 @@ export default function Scene({ id, line, backstage: opened }: { id: number; lin
                 hearers={said.audience === null ? people : people.filter((e) => said.audience!.includes(e.id))} />
             )}
             {live && <LiveLine live={live} item={writerItem} ink={writer ? paletteOf(writerItem, writer.name).ink : undefined} />}
-            {offline ? (
+            {failed ? (
               <Trouble
-                title="The model isn't answering"
-                action={<a className="k-btn k-btn--sm" href={href('/settings')}><Icon name="server" size={15} />Check Models</a>}
+                title={offline ? "The model isn't answering" : "That reply didn't come"}
+                action={
+                  <span className="ka-row ka-row--gap">
+                    {asked.current && (
+                      <button type="button" className="k-btn k-btn--dark k-btn--sm" disabled={!!live} onClick={retry}>
+                        <Icon name="refresh" size={15} />
+                        Try again
+                      </button>
+                    )}
+                    {offline && <a className="k-btn k-btn--sm" href={href('/settings')}><Icon name="server" size={15} />Check Models</a>}
+                  </span>
+                }
               >
                 {failed}
               </Trouble>
             ) : (
-              <ErrorLine error={failed || actError || error} />
+              <ErrorLine error={actError || error} />
             )}
           </div>
         </div>
