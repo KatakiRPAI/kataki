@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { api, type Book, type StorySummary } from '../api'
 import { Avatar, AvatarStack } from '../art'
-import { diveLink, go, href, useAction, useLibrary, useLoad } from '../hooks'
+import { dive, diveLink, go, href, useAction, useLibrary, useLoad } from '../hooks'
 import { Dialog, ErrorLine, Field, Icon, Menu, SkyHeader } from '../ui'
+import NewChat from './NewChat'
 
 /** The stories of one book, in the order it reads. */
 const inOrder = (stories: StorySummary[], book: Book) =>
@@ -19,6 +20,7 @@ export default function Books({ selected }: { selected?: number }) {
   const [naming, setNaming] = useState<{ book?: Book; open: boolean }>({ open: false })
   const [adding, setAdding] = useState(false)
   const [deleting, setDeleting] = useState<Book>()
+  const [starting, setStarting] = useState(0) // n > 0: the new-story dialog, fresh each time
 
   const all = books ?? []
   const current = all.find((b) => b.id === selected) ?? all[0]
@@ -185,6 +187,10 @@ export default function Books({ selected }: { selected?: number }) {
               <Icon name="plus" size={16} />
               Add a story
             </button>
+            <button type="button" className="k-btn k-btn--dark ka-self-start" onClick={() => setStarting((n) => Math.abs(n) + 1)}>
+              <Icon name="ff" size={16} />
+              Start a new story in this book
+            </button>
           </section>
         )}
       </div>
@@ -243,6 +249,10 @@ export default function Books({ selected }: { selected?: number }) {
           </button>
         </div>
       </Dialog>
+      {current && (
+        <NewChat key={`new-${Math.abs(starting)}`} open={starting > 0} preset={{ book: current.id }}
+          onClose={() => setStarting((n) => -Math.abs(n))} onCreated={(story) => dive(`/story/${story.id}`)} />
+      )}
     </>
   )
 }

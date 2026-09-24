@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { api, type Item, type Story } from '../api'
+import { api, type Book, type Item, type Story } from '../api'
 import { Avatar, type TimeOfDay } from '../art'
 import { useAction, useLibrary, useLoad } from '../hooks'
 import { Dialog, ErrorLine, Field, Seg } from '../ui'
 
-export type Preset = { friends?: number[]; place?: number; plot?: number; group?: boolean }
+export type Preset = { friends?: number[]; place?: number; plot?: number; book?: number; group?: boolean }
 
 // the story clock at the start of each time of day (minutes after midnight)
 const STARTS: Record<TimeOfDay, number> = { dawn: 360, day: 720, dusk: 1140, night: 1320 }
@@ -27,6 +27,9 @@ export default function NewChat({ open, preset, onClose, onCreated }: {
   const [when, setWhen] = useState<TimeOfDay>('day')
   const [persona, setPersona] = useState<number | null>() // undefined: whoever you are in Settings
   const [title, setTitle] = useState('')
+  const [books] = useLoad(() => api<Book[]>('/books'), [])
+  const [book, setBook] = useState<number | null>(preset.book ?? null)
+  const [q, setQ] = useState('')
   const [run, error, busy] = useAction()
 
   const of = (kind: Item['kind']) => items.filter((i) => i.kind === kind)
@@ -35,8 +38,10 @@ export default function NewChat({ open, preset, onClose, onCreated }: {
   const name = (id: number | null) => items.find((i) => i.id === id)?.name
   const you = persona !== undefined ? persona : personas.some((p) => p.id === settings?.persona) ? settings!.persona! : null
 
-  const pick = (id: number) =>
-    setFriends((f) => (f.includes(id) ? f.filter((x) => x !== id) : preset.group ? [...f, id] : [id]))
+  // one or many: pick as many as you like, whichever button opened this
+  const pick = (id: number) => setFriends((f) => (f.includes(id) ? f.filter((x) => x !== id) : [...f, id]))
+  const needle = q.trim().toLowerCase()
+  const shown = people.filter((f) => !needle || friends.includes(f.id) || f.name.toLowerCase().includes(needle))
   const cast = joined(friends.map((id) => name(id) ?? ''))
   const auto = name(plot) ?? (place && cast ? `${cast} at ${name(place)}` : cast) ?? ''
 
@@ -50,11 +55,12 @@ export default function NewChat({ open, preset, onClose, onCreated }: {
         persona_id: you,
         epoch_offset_min: STARTS[when],
       })
+      if (book) await api(`/stories/${story.id}`, 'PATCH', { book_id: book })
       onCreated(story)
     })
 
   return (
-    <Dialog open={open} onClose={onClose} title={preset.group ? 'New group scene' : 'New chat'}>
+    <Dialog open={open} onClose={onClose} title="New story">
       <form
         className="ka-form"
         onSubmit={(e) => {
@@ -63,9 +69,12 @@ export default function NewChat({ open, preset, onClose, onCreated }: {
         }}
       >
         <fieldset className="ka-fieldset">
-          <legend>{preset.group ? 'Who is in it' : 'Who with'}</legend>
+          <legend>Who is in it <span className="ka-muted ka-small">(one or more)</span></legend>
+          {people.length > 8 && (
+            <input className="k-input" type="search" value={q} placeholder="Find someone…" aria-label="Find someone" onChange={(e) => setQ(e.target.value)} />
+          )}
           <div className="ka-row">
-            {people.map((f) => (
+            {shown.map((f) => (
               <button key={f.id} type="button" className="k-chip ka-chip-person" aria-pressed={friends.includes(f.id)} onClick={() => pick(f.id)}>
                 <Avatar item={f} size={26} />
                 {f.name}
@@ -102,6 +111,14 @@ export default function NewChat({ open, preset, onClose, onCreated }: {
             <input className="k-input" value={title} placeholder={auto || 'A new story'} onChange={(e) => setTitle(e.target.value)} />
           </Field>
         </div>
+        {!!books?.length && (
+          <Field label="Book">
+            <select className="k-select" value={book ?? ''} onChange={(e) => setBook(e.target.value ? Number(e.target.value) : null)}>
+              <option value="">Not in a book</option>
+              {books.map((b) => <option key={b.id} value={b.id}>{b.title}</option>)}
+            </select>
+          </Field>
+        )}
         <ErrorLine error={error} />
         <div className="ka-row ka-row--end">
           <button type="button" className="k-btn" onClick={onClose}>Cancel</button>

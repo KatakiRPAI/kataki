@@ -9,8 +9,9 @@ type Kind = 'place' | 'scenario'
 
 const list = (s: string) => s.split(',').map((x) => x.trim()).filter(Boolean)
 
-/** Add or edit a place or a plot. Deleting leaves stories their own copy. */
-function ItemDialog({ open, kind, item, onClose }: { open: boolean; kind: Kind; item?: Item; onClose: () => void }) {
+/** Add or edit a place or a plot. Deleting leaves stories their own copy. A new one is filed
+ *  to the book (or story) the page is filtered by. */
+function ItemDialog({ open, kind, item, fileTo = {}, onClose }: { open: boolean; kind: Kind; item?: Item; fileTo?: Filter; onClose: () => void }) {
   const { reload } = useLibrary()
   const [name, setName] = useState(item?.name ?? '')
   const [description, setDescription] = useState(item?.description ?? '')
@@ -25,7 +26,8 @@ function ItemDialog({ open, kind, item, onClose }: { open: boolean; kind: Kind; 
 
   const save = () =>
     run(async () => {
-      const data = place ? { ...item?.data, aliases: list(aliases), image } : { ...item?.data, first_message: opening }
+      const filed = item ? {} : { links: { book: fileTo.book, stories: fileTo.story ? [fileTo.story] : undefined } }
+      const data = place ? { ...item?.data, ...filed, aliases: list(aliases), image } : { ...item?.data, ...filed, first_message: opening }
       const body = { name: name.trim(), description, tags: list(tags), data }
       await (item ? api(`/library/${item.id}`, 'PATCH', body) : api('/library', 'POST', { kind, ...body }))
       reload()
@@ -276,7 +278,7 @@ export default function Places() {
           {i.description && <p className="ka-lib__text">{i.description}</p>}
           {chips}
           <span className="ka-row ka-row--gap">
-            <button type="button" className="k-btn k-btn--dark ka-lib__go" onClick={() => startNew({ place: i.id })}>
+            <button type="button" className="k-btn k-btn--dark ka-lib__go" onClick={() => startNew({ place: i.id, book: bookOf(i) ?? filter.book })}>
               <Icon name="ff" size={15} />
               Start a scene here
             </button>
@@ -301,7 +303,7 @@ export default function Places() {
           {i.data.first_message && <p className="ka-lib__text ka-lib__opening">Opening narration · {i.data.first_message.replace(/\*/g, '')}</p>}
           {chips}
           <span className="ka-row ka-row--gap">
-            <button type="button" className="k-btn k-btn--dark ka-lib__go" onClick={() => startNew({ plot: i.id })}>
+            <button type="button" className="k-btn k-btn--dark ka-lib__go" onClick={() => startNew({ plot: i.id, book: bookOf(i) ?? filter.book })}>
               <Icon name="arrow" size={15} />
               Start this plot
             </button>
@@ -434,7 +436,7 @@ export default function Places() {
         </div>
       </div>
 
-      <ItemDialog key={`item-${editing.n}`} open={editing.open} kind={editing.kind} item={editing.item} onClose={() => setEditing((e) => ({ ...e, open: false }))} />
+      <ItemDialog key={`item-${editing.n}`} open={editing.open} kind={editing.kind} item={editing.item} fileTo={filter} onClose={() => setEditing((e) => ({ ...e, open: false }))} />
       <LinkDialog key={`link-${linking.n}`} item={linking.item} books={books ?? []} stories={played} onClose={() => setLinking((l) => ({ n: l.n }))} />
       <NewChat
         key={`chat-${newChat.n}`}
