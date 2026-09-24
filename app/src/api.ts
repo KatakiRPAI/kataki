@@ -51,6 +51,19 @@ export type ItemData = {
   links?: { book?: number; stories?: number[]; characters?: number[] } // places and plots, filed by hand
 }
 
+/** A character profile the model wrote from your own words (`POST /library/draft`). */
+export type Drafted = {
+  name: string
+  pronouns: Pronouns
+  looks: string
+  description: string
+  secret: string
+  example_dialogue: string
+  first_message: string
+  aliases: string[]
+  tags: string[]
+}
+
 /** The five expressions the stage can show, in the order the profile shows them. */
 export const EXPRESSIONS = ['neutral', 'smiling', 'wary', 'surprised', 'doubtful'] as const
 export type Expression = (typeof EXPRESSIONS)[number]

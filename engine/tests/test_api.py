@@ -1213,3 +1213,31 @@ def test_two_stories_linked_and_played_through(api, story, backend, conn):
 
     api.delete(f"/links/{made[0]['id']}")
     assert api.get(f"/stories/{later}/links").json() == []
+
+
+# --- a character from a few words ----------------------------------------------------------
+
+
+def test_a_few_words_become_a_whole_profile_for_the_editor(api, backend):
+    local = api.post("/providers", json={"name": "local", "base_url": "http://fake/v1/"}).json()
+    api.put("/roles/rp", json={"provider_id": local["id"], "model": "rp-model"})
+    profile = {
+        "name": "Kai", "pronouns": "he", "looks": "A tall young driver in a dark suit.",
+        "description": "The prince's driver and bodyguard, from a family of fighters.",
+        "secret": "He reports everything to the royal family.",
+        "example_dialogue": "Kai: Buckle up.\nKai: I'll handle it.\nKai: Sir.",
+        "first_message": "*opens the car door* Your Highness.", "aliases": ["the driver"],
+        "tags": ["driver", "bodyguard"],
+    }  # fmt: skip
+    backend.say(json.dumps(profile))
+    got = api.post("/library/draft", json={"words": "Kai, the prince's quiet driver"}).json()
+    assert got == profile
+    asked = backend.requests[-1]
+    assert "Kai, the prince's quiet driver" in asked["messages"][-1]["content"]
+    assert "adult" in asked["messages"][0]["content"]
+    assert api.get("/library").json() == []  # a draft, not a character: nothing is saved
+
+
+def test_a_draft_needs_words_and_a_model(api):
+    assert api.post("/library/draft", json={"words": "  "}).status_code == 422
+    assert api.post("/library/draft", json={"words": "a pirate"}).status_code == 409

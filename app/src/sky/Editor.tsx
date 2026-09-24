@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { api, upload, type Item, type ItemData, type Pronouns } from '../api'
+import { api, upload, type Drafted, type Item, type ItemData, type Pronouns } from '../api'
 import { nextPalette, Portrait } from '../art'
 import { go, href, useAction, useLibrary } from '../hooks'
 import { Chip, Dialog, ErrorLine, Icon, Seg } from '../ui'
@@ -95,6 +95,31 @@ function payload(d: Draft, base: ItemData) {
       portrait: d.portrait, // undefined drops the key: the portrait is removed
     },
   }
+}
+
+/** Describe someone however you like; the model fills in the profile. It only fills what is
+ *  still empty, so nothing you wrote is replaced, and you can describe more to fill the rest. */
+function Describe({ onFill }: { onFill: (p: Drafted) => void }) {
+  const [words, setWords] = useState('')
+  const [run, error, busy] = useAction()
+  const fill = () => run(async () => onFill(await api<Drafted>('/library/draft', 'POST', { words })))
+  return (
+    <div className="ka-describe">
+      <label className="ka-label">
+        Describe them in your own words
+        <textarea className="k-textarea" rows={4} value={words} onChange={(e) => setWords(e.target.value)}
+          placeholder="A quiet royal driver in his twenties, from a family of fighters. Calm, loyal to the prince, secretly reports to the king…" />
+      </label>
+      <span className="ka-row ka-row--gap">
+        <button type="button" className="k-btn k-btn--dark" disabled={busy || !words.trim()} onClick={fill}>
+          <Icon name="spark" size={16} />
+          {busy ? 'Writing their profile…' : 'Fill in the profile for me'}
+        </button>
+        <span className="ka-muted ka-small">Fills only the empty fields: look it over in each step. About a tenth of a cent.</span>
+      </span>
+      <ErrorLine error={error} />
+    </div>
+  )
 }
 
 /** #/friends/new, #/you/new and #/friend/:id/edit?step=n */
@@ -228,6 +253,20 @@ function Form({ item, persona, initialStep }: { item?: Item; persona: boolean; i
 
           {step === 0 && (
             <div className="ka-form">
+              <Describe onFill={(p) => {
+                const keep = (mine: string, theirs: string) => (mine.trim() ? mine : theirs)
+                set({
+                  name: keep(draft.name, p.name),
+                  pronouns: item || draft.name.trim() ? draft.pronouns : p.pronouns,
+                  looks: keep(draft.looks, p.looks),
+                  description: keep(draft.description, p.description),
+                  private: keep(draft.private, p.secret),
+                  example_dialogue: keep(draft.example_dialogue, p.example_dialogue),
+                  first_message: keep(draft.first_message, p.first_message),
+                  aliases: keep(draft.aliases, p.aliases.join(', ')),
+                  tags: keep(draft.tags, p.tags.join(', ')),
+                })
+              }} />
               <label className="ka-label">
                 Name
                 <input className="k-input ka-input-lg" value={draft.name} placeholder={draft.persona ? 'Your name in the story' : 'Wren'} autoFocus onChange={(e) => set({ name: e.target.value })} onBlur={save} />

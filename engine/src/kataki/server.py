@@ -30,6 +30,7 @@ from kataki import (
     chat,
     chats,
     clock,
+    draft,
     extract,
     images,
     intake,
@@ -86,6 +87,10 @@ class ItemIn(BaseModel):
 
 class DrawIn(BaseModel):
     provider: str | None = None  # None: the first HF provider that serves the model
+
+
+class DraftIn(BaseModel):
+    words: str  # the character, described however you like
 
 
 class PickIn(BaseModel):
@@ -580,6 +585,19 @@ def create_app(
         if (ext := media.sniff(data)) is None:
             raise images.ImageError("the provider sent something that is not a picture")
         return media.save(conn, data, ext)
+
+    @app.post("/library/draft")
+    async def draft_character(d: DraftIn):
+        """A character profile from your own words, filled in by the memory reader's model. It
+        is only a draft: the editor shows it, and nothing is saved until you save it."""
+        if not d.words.strip():
+            raise HTTPException(422, "Describe them in a few words first.")
+        if (ep := roles.resolve(conn, "utility", None, get_key)) is None:
+            raise HTTPException(409, "No model is set for the Memory reader or Characters yet.")
+        try:
+            return await draft.character(llm, ep, d.words)
+        except LLMError as e:
+            raise HTTPException(502, f"The model could not write a profile: {e}") from e
 
     @app.post("/library/{item_id}/draw")
     async def draw_item(item_id: int, d: DrawIn):
