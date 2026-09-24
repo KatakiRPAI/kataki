@@ -100,8 +100,9 @@ def _unsign(text: str, name: str) -> str:
     """Drop the speaker's own name left dangling after the last sentence ('...due. Mira'):
     small models sign off in the 'Name: line' shape of the history. A name inside a sentence
     stays."""
-    # ... or signed like a letter: '... the crown." — Payton Lin'
-    pattern = rf"(?:(?<=[.!?\"”*…])\s+|\n+)(?:[—–-]\s*)?{re.escape(name)}:?\s*$"
+    # ... or signed like a letter ('... the crown." — Payton Lin'), or in asterisks ('*Payton*')
+    names = "|".join(re.escape(n) for n in dict.fromkeys([name, *name.split()[:1]]) if n)
+    pattern = rf"(?:(?<=[.!?\"”*…])\s+|\n+)(?:[—–-]\s*)?[*_]*(?:{names}):?[*_]*\s*$"
     return re.sub(pattern, "", _unnoted(text)).rstrip()
 
 

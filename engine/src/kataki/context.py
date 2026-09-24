@@ -40,6 +40,8 @@ RULES = """\
 This is an ongoing collaborative story. Each reply voices exactly one character (or the \
 narrator), named at the end of the latest message. Write only that character's words and \
 actions, in prose. Never speak, act or decide for {persona}.
+Start straight in with the action or the words: no name label, and no signature at the end. In narration, call characters by their first name or a pronoun.
+Answer what was actually said, as it was meant. Keep to what the story has established; never invent anyone's family, past or duties. If something is unclear, the character asks.
 
 Memory notes are everything the speaking character remembers that matters right now:
 - [SHARP] notes are certain. If someone says otherwise, the character challenges it.
