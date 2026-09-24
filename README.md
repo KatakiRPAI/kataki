@@ -100,8 +100,8 @@ Ollama works the same way (`ollama pull <model>`, then look for servers). It has
 
 With a HuggingFace token, [Inference Providers](https://huggingface.co/docs/inference-providers) can run every job, pictures included, with nothing on your GPU. Models → add the **HuggingFace** preset with your token (a fine-grained token with only *Make calls to Inference Providers* is enough), then give each job a model. Tested on 2026-09-23:
 
-- **Characters:** `Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra`, context 32k. About $0.0002 a reply. The 9B below muddles who said what and invents backstory; side by side on the same prompt this beat DeepSeek-V3.2 and cost less.
-- **Narrator, Memory reader:** `Qwen/Qwen3.5-9B` with thinking *off*. First words in about 2 s, a whole reply in about 6 s.
+- **Characters and Narrator:** `Qwen/Qwen3-235B-A22B-Instruct-2507:deepinfra`, context 32k. About $0.0002 a reply. The 9B below muddles who said what and invents backstory; side by side on the same prompt this beat DeepSeek-V3.2 and cost less.
+- **Memory reader:** `Qwen/Qwen3.5-9B` with thinking *off*. First words in about 2 s, a whole reply in about 6 s.
 - **Reasoning:** `Qwen/Qwen3.8-27B:deepinfra` with thinking *on*. A careful re-read of a scene takes about 3 minutes in the background and costs 1-3¢. (Qwen3.5-9B with thinking on does not work here: on a memory read it thinks for 7,000 to 16,000+ tokens and often never answers.)
 - **Pictures:** `Tongyi-MAI/Z-Image-Turbo`. Places get *Draw background*. Characters get a **Look** card on their profile: *Draw them* (a first picture from their description), then *Use this look*, which makes five expressions (neutral, smiling, wary, surprised, doubtful) from that one picture with `Qwen/Qwen-Image-Edit-2511` and cuts each out with `briaai/RMBG-2.0`. On stage, each character shows the expression that fits their last line.
 
