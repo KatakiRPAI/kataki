@@ -6,7 +6,7 @@
 > records work.
 >
 > Start the loop with:
-> `/loop Continue the Kataki UI rebuild: follow the loop protocol in docs/specs/2026-09-19-ui-redesign.md and do the next unchecked task (if that file does not exist yet, read C:\Users\user\.claude\plans\openroleplayai-openrpai-orpai-is-inherited-wadler.md and do task 1 first).`
+> `/loop Continue the Kataki UI rebuild: follow the loop protocol in docs/specs/2026-09-19-ui-redesign.md and do the next unchecked task (if that file does not exist yet, read C:\Users\user\.claude\plans\kataki-ui-rebuild-plan.md and do task 1 first).`
 
 ## Context
 
@@ -439,7 +439,7 @@ number if tasks move). Each one extends the migration test in `tests/test_db.py`
 - **Vendor** as in 1.2.
 - **Fonts:** download from the official google/fonts repo and check each `.ttf` starts with `00 01 00 00` and is over 20 KB.
   ```
-  G=https://raw.githubusercontent.com/google/fonts/main; D=D:/OpenRolePlayAI/app/src/design/fonts
+  G=https://raw.githubusercontent.com/google/fonts/main; D=D:/Kataki/app/src/design/fonts
   curl -fL -o $D/Chewy-Regular.ttf              $G/apache/chewy/Chewy-Regular.ttf                  # 41 KB
   curl -fL -o $D/LICENSE-Chewy.txt              $G/apache/chewy/LICENSE.txt
   curl -fL -o $D/Figtree-Variable.ttf           "$G/ofl/figtree/Figtree%5Bwght%5D.ttf"               # 63 KB
@@ -775,15 +775,15 @@ Verify: engine checks; the demo check passes.
 **Tools and servers**
 ```
 UV=C:/Users/user/AppData/Local/Microsoft/WinGet/Packages/astral-sh.uv_Microsoft.Winget.Source_8wekyb3d8bbwe/uv.exe
-PY=D:/OpenRolePlayAI/engine/.venv/Scripts/python.exe
-engine checks:  cd D:/OpenRolePlayAI/engine && "$UV" run ruff check . && "$UV" run ruff format --check . && "$UV" run pytest -q
-demo:           cd D:/OpenRolePlayAI/engine && "$UV" run python evals/demo.py build --db ../.dev/demo.db
+PY=D:/Kataki/engine/.venv/Scripts/python.exe
+engine checks:  cd D:/Kataki/engine && "$UV" run ruff check . && "$UV" run ruff format --check . && "$UV" run pytest -q
+demo:           cd D:/Kataki/engine && "$UV" run python evals/demo.py build --db ../.dev/demo.db
 background (run_in_background, stop with TaskStop when done):
-  "$PY" D:/OpenRolePlayAI/engine/evals/demo.py serve-model --port 8099
-  KATAKI_TOKEN=dev KATAKI_HOME=D:/OpenRolePlayAI/.dev "$PY" -m kataki serve --db D:/OpenRolePlayAI/.dev/demo.db --port 8765
-  corepack pnpm -C D:/OpenRolePlayAI/app exec vite --port 5173 --strictPort
-screenshot:     "C:/Program Files/Google/Chrome/Application/chrome.exe" --headless=new --hide-scrollbars --window-size=1440,900 --virtual-time-budget=5000 --screenshot=D:/OpenRolePlayAI/.dev/shots/<name>.png "http://localhost:5173/?port=8765&token=dev#/<route>"
-mockups:        file:///D:/OpenRolePlayAI/docs/kataki-design/kataki-design/screens/html/<Name>.html
+  "$PY" D:/Kataki/engine/evals/demo.py serve-model --port 8099
+  KATAKI_TOKEN=dev KATAKI_HOME=D:/Kataki/.dev "$PY" -m kataki serve --db D:/Kataki/.dev/demo.db --port 8765
+  corepack pnpm -C D:/Kataki/app exec vite --port 5173 --strictPort
+screenshot:     "C:/Program Files/Google/Chrome/Application/chrome.exe" --headless=new --hide-scrollbars --window-size=1440,900 --virtual-time-budget=5000 --screenshot=D:/Kataki/.dev/shots/<name>.png "http://localhost:5173/?port=8765&token=dev#/<route>"
+mockups:        file:///D:/Kataki/docs/kataki-design/kataki-design/screens/html/<Name>.html
 ```
 
 **Each iteration**
