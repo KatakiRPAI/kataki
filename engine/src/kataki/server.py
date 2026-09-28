@@ -422,6 +422,30 @@ def create_app(
         schema = conn.execute("PRAGMA user_version").fetchone()[0]
         return {"status": "ok", "version": __version__, "schema": schema}
 
+    @app.get("/search")
+    async def search(q: str, limit: int = Query(50, ge=1, le=500)):
+        """Names, lines and memories that contain `q` (C5–C9). The app ranks them."""
+        like = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+        rows = lambda sql: [dict(r) for r in conn.execute(sql, (like, limit))]  # noqa: E731
+        return {
+            "stories": rows("SELECT id, title FROM stories WHERE title LIKE ? ESCAPE '\\' LIMIT ?"),
+            "items": rows(
+                "SELECT id, kind, name FROM lib_items WHERE name LIKE ? ESCAPE '\\' ORDER BY name LIMIT ?"
+            ),
+            "books": rows("SELECT id, title FROM books WHERE title LIKE ? ESCAPE '\\' LIMIT ?"),
+            "lines": rows(
+                "SELECT m.id, m.story_id, s.title AS story_title, e.name AS speaker, m.text"
+                " FROM messages m JOIN stories s ON s.id=m.story_id LEFT JOIN entities e ON e.id=m.speaker_id"
+                " WHERE m.hidden=0 AND m.role!='system' AND m.text LIKE ? ESCAPE '\\'"
+                " ORDER BY m.id DESC LIMIT ?"
+            ),
+            "memories": rows(
+                "SELECT m.id, m.story_id, s.title AS story_title, m.detail FROM memories m"
+                " JOIN stories s ON s.id=m.story_id WHERE m.hidden=0 AND m.detail LIKE ? ESCAPE '\\'"
+                " ORDER BY m.id DESC LIMIT ?"
+            ),
+        }
+
     @app.get("/settings")
     async def get_settings():
         return {r["key"]: json.loads(r["value"]) for r in conn.execute("SELECT * FROM settings")}

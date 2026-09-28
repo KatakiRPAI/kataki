@@ -1315,3 +1315,20 @@ def test_you_can_become_someone_else_mid_story_or_no_one(api, story):
     assert api.patch(f"/stories/{story}", json={"persona_id": aren}).json()["persona"]["name"] == "Aren"
     assert len([e for e in cast(api, story).values() if e["name"] == "Aren"]) == 1  # not twice
     assert api.patch(f"/stories/{story}", json={"persona_id": None}).json()["persona"] is None
+
+
+def test_search_finds_names_lines_and_memories(api, story, conn):
+    api.post(f"/stories/{story}/line", json={"text": "The ledger is under the floorboard."})
+    conn.execute(
+        "INSERT INTO memories(story_id, kind, detail, gist, importance, story_time) VALUES(?, 'fact', ?, '', 5, 0)",
+        (story, "Aren hid the ledger."),
+    )
+    conn.commit()
+    found = api.get("/search", params={"q": "ledger"}).json()
+    assert [l["text"] for l in found["lines"]] == ["The ledger is under the floorboard."]
+    assert [m["detail"] for m in found["memories"]] == ["Aren hid the ledger."]
+    assert found["lines"][0]["story_title"] == "Low Tide"
+    names = api.get("/search", params={"q": "mir"}).json()
+    assert [i["name"] for i in names["items"]] == ["Mira"]
+    assert api.get("/search", params={"q": "tide"}).json()["stories"][0]["title"] == "Low Tide"
+    assert api.get("/search", params={"q": "%"}).json()["lines"] == []  # a wildcard is just a character

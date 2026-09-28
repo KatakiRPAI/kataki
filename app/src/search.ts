@@ -1,8 +1,6 @@
-// Local search over everything (C5–C9): names, lines, memories, places and plots. Built in the
-// renderer from what the engine already serves.
-// ponytail: reads every story's lines on first use and keeps them 30 s; an engine full-text
-// endpoint (SQLite FTS) replaces this when libraries get big.
-import { api, type Book, type Item, type Message, type StorySummary } from './api'
+// Search over everything (C5–C9): the engine finds names, lines and memories that contain the
+// words (GET /search); this ranks them and says where each one goes.
+import { api, type Item, type StorySummary } from './api'
 import { utc } from './hooks'
 
 export type Hit = {
@@ -14,63 +12,65 @@ export type Hit = {
   item?: Item
   story?: StorySummary
   speaker?: string
-  when?: string // the story's own time
+  when?: string
   at: number // real time, for Newest first
   score: number
 }
-type Index = { stories: StorySummary[]; items: Item[]; books: Book[]; lines: { m: Message; s: StorySummary }[]; memories: { id: number; detail: string; s: StorySummary; at: number }[] }
-
-let cached: { at: number; index: Promise<Index> } | null = null
-export function index(): Promise<Index> {
-  if (cached && Date.now() - cached.at < 30_000) return cached.index
-  const build = (async () => {
-    const [stories, items, books] = await Promise.all([api<StorySummary[]>('/stories'), api<Item[]>('/library'), api<Book[]>('/books')])
-    const lines: Index['lines'] = []
-    const memories: Index['memories'] = []
-    await Promise.all(stories.map(async (s) => {
-      const [ms, mems] = await Promise.all([api<Message[]>(`/stories/${s.id}/messages`), api<{ id: number; detail: string; hidden: number }[]>(`/stories/${s.id}/memories`)])
-      for (const m of ms) if (m.role !== 'system' && !m.hidden && m.text) lines.push({ m, s })
-      for (const r of mems) if (!r.hidden) memories.push({ id: r.id, detail: r.detail, s, at: utc(s.last_at) })
-    }))
-    return { stories, items, books, lines, memories }
-  })()
-  cached = { at: Date.now(), index: build }
-  return build
+type Found = {
+  stories: { id: number; title: string }[]
+  items: { id: number; kind: Item['kind']; name: string }[]
+  books: { id: number; title: string }[]
+  lines: { id: number; story_id: number; story_title: string; speaker: string | null; text: string }[]
+  memories: { id: number; story_id: number; story_title: string; detail: string }[]
 }
-export const forget = () => { cached = null }
+type Library = { stories: StorySummary[]; items: Item[] }
+
+let cached: { at: number; lib: Promise<Library> } | null = null
+/** The stories and library, to say where a hit goes; kept 30 s. */
+export function index(): Promise<Library> {
+  if (cached && Date.now() - cached.at < 30_000) return cached.lib
+  const lib = Promise.all([api<StorySummary[]>('/stories'), api<Item[]>('/library')]).then(([stories, items]) => ({ stories, items }))
+  cached = { at: Date.now(), lib }
+  return lib
+}
 
 const score = (text: string, q: string) => {
   const t = text.toLowerCase()
-  return t === q ? 100 : t.startsWith(q) ? 80 : new RegExp(`\\b${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(t) ? 60 : t.includes(q) ? 40 : 0
+  return t === q ? 100 : t.startsWith(q) ? 80 : new RegExp(`\\b${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(t) ? 60 : t.includes(q) ? 40 : 1
 }
 
-export function find(ix: Index, query: string): Hit[] {
+/** Everything that contains `query`, best first. */
+export async function lookup(query: string): Promise<Hit[]> {
   const q = query.trim().toLowerCase()
   if (!q) return []
+  const [lib, found] = await Promise.all([index(), api<Found>(`/search?q=${encodeURIComponent(q)}`)])
+  const story = (id: number) => lib.stories.find((s) => s.id === id)
+  const item = (id: number) => lib.items.find((i) => i.id === id)
   const hits: Hit[] = []
-  for (const s of ix.stories) { const n = score(s.title, q); if (n) hits.push({ kind: 'story', id: s.id, title: s.title, href: `/story/${s.id}`, story: s, at: utc(s.last_at), score: n + 5 }) }
-  for (const i of ix.items) {
-    const n = Math.max(score(i.name, q), ...(i.data.aliases ?? []).map((a) => score(a, q) - 5))
-    if (!n) continue
-    const kind = i.kind === 'character' ? (i.data.persona ? 'persona' : 'character') : i.kind
-    hits.push({ kind, id: i.id, title: i.name, item: i, href: kind === 'character' ? `/characters/${i.id}` : kind === 'persona' ? '/you' : '/world', at: utc(i.updated_at ?? i.created_at), score: n + 4 })
+  for (const s of found.stories) hits.push({ kind: 'story', id: s.id, title: s.title, href: `/story/${s.id}`, story: story(s.id), at: utc(story(s.id)?.last_at ?? '1970-01-01 00:00:00'), score: score(s.title, q) + 5 })
+  for (const f of found.items) {
+    const i = item(f.id)
+    if (i?.data.unlisted) continue
+    const kind = f.kind === 'character' ? (i?.data.persona ? 'persona' : 'character') : f.kind
+    hits.push({ kind, id: f.id, title: f.name, item: i, href: kind === 'character' ? `/characters/${f.id}` : kind === 'persona' ? '/you' : '/world', at: i ? utc(i.updated_at ?? i.created_at) : 0, score: score(f.name, q) + 4 })
   }
-  for (const b of ix.books) { const n = score(b.title, q); if (n) hits.push({ kind: 'book', id: b.id, title: b.title, href: '/world', at: 0, score: n + 3 }) }
-  for (const { m, s } of ix.lines) {
-    const n = score(m.text, q)
-    if (n) hits.push({ kind: 'line', id: m.id, title: m.text, text: m.text, speaker: m.speaker ?? '', story: s, when: m.date, href: `/story/${s.id}?line=${m.id}`, at: utc(s.last_at), score: n / 2 })
+  for (const b of found.books) hits.push({ kind: 'book', id: b.id, title: b.title, href: '/world', at: 0, score: score(b.title, q) + 3 })
+  for (const l of found.lines) {
+    const s = story(l.story_id)
+    hits.push({ kind: 'line', id: l.id, title: l.text, text: l.text, speaker: l.speaker ?? '', story: s, when: s?.date, href: `/story/${l.story_id}?line=${l.id}`, at: utc(s?.last_at ?? '1970-01-01 00:00:00'), score: score(l.text, q) / 2 })
   }
-  for (const r of ix.memories) {
-    const n = score(r.detail, q)
-    if (n) hits.push({ kind: 'memory', id: r.id, title: r.detail, text: r.detail, story: r.s, href: `/story/${r.s.id}?backstage=0`, at: r.at, score: n / 2 - 1 })
+  for (const m of found.memories) {
+    const s = story(m.story_id)
+    hits.push({ kind: 'memory', id: m.id, title: m.detail, text: m.detail, story: s, href: `/story/${m.story_id}?backstage=0`, at: utc(s?.last_at ?? '1970-01-01 00:00:00'), score: score(m.detail, q) / 2 - 1 })
   }
   return hits.sort((a, b) => b.score - a.score)
 }
 
 /** A name one letter away from what was typed ("Did you mean"). */
-export function nearly(ix: Index, query: string): string | undefined {
+export async function nearly(query: string): Promise<string | undefined> {
   const q = query.trim().toLowerCase()
-  const names = [...ix.items.map((i) => i.name), ...ix.stories.map((s) => s.title)]
+  const lib = await index()
+  const names = [...lib.items.map((i) => i.name), ...lib.stories.map((s) => s.title)]
   return names.find((n) => { const a = n.toLowerCase(); return a !== q && distance(a, q) === 1 })
 }
 function distance(a: string, b: string): number {

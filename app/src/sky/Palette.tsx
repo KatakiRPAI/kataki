@@ -8,7 +8,7 @@ import { K } from '../ds'
 import { face, useLibrary } from '../hooks'
 import { openMenu, Overlay, type MenuItem } from '../overlay'
 import { setPref, usePrefs } from '../prefs'
-import { find, index, nearly, recent, remember, type Hit } from '../search'
+import { index, lookup, nearly, recent, remember, type Hit } from '../search'
 import { is } from '../shortcuts'
 import { t, type Key } from '../strings'
 import { openFeedback } from './Feedback'
@@ -39,7 +39,7 @@ export function Palette() {
   const [prefs] = usePrefs()
   const [q, setQ] = useState('')
   const [hits, setHits] = useState<Hit[]>([])
-  const [ix, setIx] = useState<Awaited<ReturnType<typeof index>>>()
+  const [mean, setMean] = useState<string>()
   const [at, setAt] = useState(0)
   const seq = useRef(0)
 
@@ -75,15 +75,18 @@ export function Palette() {
     if (!isOpen) return
     setQ('')
     setAt(0)
-    index().then(setIx, () => {})
+    index().catch(() => {}) // warm the library for where each hit goes
   }, [isOpen])
   useEffect(() => {
     const mine = ++seq.current
-    if (!ix || !q.trim()) return setHits([])
-    const found = find(ix, q)
-    if (mine === seq.current) setHits(found)
-    setAt(0)
-  }, [q, ix])
+    if (!q.trim()) return setHits([])
+    // a short pause, so each keystroke doesn't ask the engine
+    const wait = setTimeout(() => {
+      lookup(q).then((found) => { if (mine === seq.current) { setHits(found); setAt(0) } }, () => {})
+      nearly(q).then((m) => { if (mine === seq.current) setMean(m) }, () => {})
+    }, 120)
+    return () => clearTimeout(wait)
+  }, [q])
   if (!isOpen) return null
 
   const go = (to: string, r?: Hit) => { if (r) remember({ kind: r.kind, title: r.title, href: r.href }); close(); navigate(to) }
@@ -125,7 +128,6 @@ export function Palette() {
       doRows.push({ label: t('pal.all', { n: hits.length, q: q.trim() }), icon: 'search', shortcut: ['Ctrl', 'Enter'], go: () => go(`/search?q=${encodeURIComponent(q.trim())}`) })
       groups.push({ title: t('pal.do'), rows: doRows })
     } else {
-      const mean = ix && nearly(ix, q)
       groups.push({ title: t('pal.nothing', { q: q.trim() }), rows: [
         ...(mean ? [{ label: t('pal.mean', { name: mean }), icon: 'help' as const, go: () => setQ(mean) }] : []),
         { label: t('pal.searchLines', { q: q.trim() }), icon: 'search', go: () => go(`/search?q=${encodeURIComponent(q.trim())}`) },

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { K } from '../ds'
 import { face } from '../hooks'
-import { find, index, nearly, remember, type Hit } from '../search'
+import { lookup, nearly, remember, type Hit } from '../search'
 import { t, type Key } from '../strings'
 
 type Tab = 'all' | 'lines' | 'stories' | 'characters' | 'places' | 'memories'
@@ -25,16 +25,21 @@ export default function Search() {
   const [params, setParams] = useSearchParams()
   const q = params.get('q') ?? ''
   const [typed, setTyped] = useState(q)
-  const [ix, setIx] = useState<Awaited<ReturnType<typeof index>>>()
+  const [hits, setHits] = useState<Hit[]>()
+  const [mean, setMean] = useState<string>()
   const [tab, setTab] = useState<Tab>('all')
   const [sort, setSort] = useState<Sort>('best')
   const [more, setMore] = useState<Tab[]>([])
-  useEffect(() => { index().then(setIx, () => {}) }, [])
+  useEffect(() => {
+    setHits(undefined)
+    lookup(q).then(setHits, () => setHits([]))
+    nearly(q).then(setMean, () => {})
+  }, [q])
   useEffect(() => setTyped(q), [q])
-  const hits = ix ? find(ix, q) : []
-  const sorted = sort === 'best' ? hits : [...hits].sort((a, b) => (sort === 'newest' ? b.at - a.at : a.at - b.at))
+  const all = hits ?? []
+  const sorted = sort === 'best' ? all : [...all].sort((a, b) => (sort === 'newest' ? b.at - a.at : a.at - b.at))
   const of = (tb: Exclude<Tab, 'all'>) => sorted.filter((h) => IN[tb].includes(h.kind))
-  const counts = Object.fromEntries(TABS.map((tb) => [t(`sr.${tb}` as Key), tb === 'all' ? hits.length : of(tb).length]))
+  const counts = Object.fromEntries(TABS.map((tb) => [t(`sr.${tb}` as Key), tb === 'all' ? all.length : of(tb).length]))
   const row = (h: Hit) => {
     const f: { who?: string; src?: string } = h.item ? face(h.item) : {}
     return (
@@ -51,17 +56,17 @@ export default function Search() {
       <form onSubmit={(e) => { e.preventDefault(); submit() }}>
         <K.SearchField size="lg" value={typed} onChange={setTyped} label={t('sr.search')} placeholder={t('sr.search')} shortcut={false} />
       </form>
-      {q && ix && hits.length === 0 ? (
+      {q && hits && hits.length === 0 ? (
         <div style={{ maxWidth: 640 }}>
           <K.EmptyState icon="search" title={t('sr.none', { q })} actions={[
-            ...[nearly(ix, q)].filter((x): x is string => !!x).map((m) => <K.Chip key={m} size="sm" onClick={() => setParams({ q: m })}>{m}</K.Chip>),
+            ...[mean].filter((x): x is string => !!x).map((m) => <K.Chip key={m} size="sm" onClick={() => setParams({ q: m })}>{m}</K.Chip>),
             <K.Button key="n" size="sm" icon="user" onClick={() => navigate(`/characters/new?name=${encodeURIComponent(q)}`)}>{t('pal.makeCharacter', { q })}</K.Button>,
             <K.Button key="c" size="sm" variant="ghost" onClick={() => setParams({})}>{t('sr.clear')}</K.Button>,
           ]}>{t('sr.noneBody')}</K.EmptyState>
         </div>
       ) : q ? (
         <>
-          <span className="t-meta">{t('sr.results', { n: hits.length })}</span>
+          <span className="t-meta">{t('sr.results', { n: all.length })}</span>
           <div className="row" style={{ justifyContent: 'space-between' }}>
             <K.Tabs label={t('sr.search')} tabs={TABS.map((tb) => t(`sr.${tb}` as Key))} counts={counts} value={t(`sr.${tab}` as Key)}
               onChange={(v) => setTab(TABS.find((tb) => t(`sr.${tb}` as Key) === v) ?? 'all')} />
