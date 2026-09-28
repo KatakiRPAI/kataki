@@ -35,7 +35,7 @@ export default function NewStory() {
   const [changing, setChanging] = useState(false)
   const [place, setPlace] = useState<number | 'new' | null>(() => Number(params.get('place')) || null)
   const [fresh, setFresh] = useState({ name: '', like: '', time: 'dusk' as Time, keep: true })
-  const [plot, setPlot] = useState<number | null>(null)
+  const [plot, setPlot] = useState<number | null>(() => Number(params.get('plot')) || null)
   const [name, setName] = useState('')
   const [book, setBook] = useState<number | 'none' | 'new'>('none')
   const [bookName, setBookName] = useState('')

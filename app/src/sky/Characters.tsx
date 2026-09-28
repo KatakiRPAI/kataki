@@ -8,6 +8,7 @@ import { face, useLibrary, useLoad, utc } from '../hooks'
 import { openMenu, Overlay, toast, withMenu } from '../overlay'
 import { relative, t, type Key } from '../strings'
 import { characterMenu, DeleteCharacter } from './characterActions'
+import Top from './Top'
 
 type Filter = 'all' | 'story' | 'fav' | 'drafts' | 'persona'
 type Sort = 'played' | 'written' | 'fav' | 'name' | 'most'
@@ -59,7 +60,7 @@ export default function Characters() {
 
   return (
     <main className="app__main" aria-label={t('chars.title')} style={{ gap: 26 }}>
-      <K.TopBar {...face(settings?.persona ? byId.get(settings.persona) : undefined)} />
+      <Top />
       <div className="pg-head">
         <div>
           <h1 className="pg-title">{t('chars.title')}</h1>

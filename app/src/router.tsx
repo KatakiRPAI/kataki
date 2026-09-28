@@ -16,6 +16,8 @@ import Characters from './sky/Characters'
 import Profile from './sky/Profile'
 import Editor from './sky/Editor'
 import Settings, { last as lastSettings } from './sky/Settings'
+import World from './sky/World'
+import You from './sky/You'
 import Scene from './scene/Scene'
 
 const RAIL: Record<string, string> = {
@@ -83,8 +85,10 @@ const routes: RouteObject[] = [
           sky('/characters/:id', <Profile />),
           sky('/characters/:id/edit', <Editor key="edit" />),
           sky('/settings/:panel', <Settings />),
+          sky('/world', <World />),
+          sky('/you', <You />),
           ...['/search',
-            '/world', '/you', '/status/model'].map((p) => sky(p)),
+            '/status/model'].map((p) => sky(p)),
           sky('*'),
         ],
       },

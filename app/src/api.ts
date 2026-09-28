@@ -63,6 +63,9 @@ export type ItemData = {
   doubt?: boolean // they can doubt you
   edits?: number // how many times the profile was saved
   source?: 'shipped' | 'made' | 'imported'
+  time?: 'dawn' | 'day' | 'dusk' | 'night' // a place's usual time
+  exits?: string[] // a place's ways out
+  place?: number // where a plot happens
 }
 
 /** A character profile the model wrote from your own words (`POST /library/draft`). */

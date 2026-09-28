@@ -6,6 +6,7 @@ import { K } from '../ds'
 import { face, scenery, twelve, useLibrary, useLoad, utc } from '../hooks'
 import { relative, t } from '../strings'
 import { isDraft } from '../characters'
+import Top from './Top'
 
 type Filter = 'all' | 'story' | 'drafts'
 const TONE = { memory: 'ok', belief: 'warm', feeling: 'warm', time: 'muted' } as const
@@ -33,7 +34,7 @@ export default function Home() {
 
   if (!stories) return <main className="app__main" aria-label={t('home.label')}><K.Skeleton /></main>
 
-  const top = <K.TopBar {...face(persona)} />
+  const top = <Top />
   const start = async (c: Item) => {
     const story = await api<Story>('/stories', 'POST', { title: c.name, character_ids: [c.id], persona_id: persona?.id ?? null })
     navigate(`/story/${story.id}`)

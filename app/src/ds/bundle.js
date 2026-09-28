@@ -523,7 +523,7 @@
   }
   function PlaceCard(p) {
     return h('article', { className: cx('k-place', p.selected && 'is-selected') },
-      h('div', { className: 'k-place__art' }, h('img', { src: p.src || (ART[p.place] || {}).src, alt: p.alt || '' }), h('div', { className: 'k-place__name' }, h(StoryName, { size: 'card' }, p.name))),
+      h('div', { className: 'k-place__art' }, p.src || (ART[p.place] || {}).src ? h('img', { src: p.src || (ART[p.place] || {}).src, alt: p.alt || '' }) : null, h('div', { className: 'k-place__name' }, h(StoryName, { size: 'card' }, p.name))),
       h('div', { className: 'k-place__body' },
         p.blurb ? h('p', { className: 'k-place__blurb' }, p.blurb) : null,
         p.time ? h(TimeStrip, { value: p.time }) : null,

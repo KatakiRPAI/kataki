@@ -235,3 +235,27 @@ button.k-addcard { background: transparent; font: inherit; font-size: 12.5px; fo
 button.k-shortrow, button.k-job { width: 100%; background: transparent; border: 0; font: inherit; color: inherit; text-align: start; cursor: pointer; }
 .k-shortrow.is-recording { background: var(--raise); }
 .k-shortrow__rec { color: var(--accent-text); font-size: 12.5px; }
+
+/* World */
+.w-grid { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 32px; align-items: start; }
+.tree { display: flex; flex-direction: column; gap: 2px; }
+.tree button { display: flex; width: 100%; align-items: center; gap: 8px; padding: 7px 10px; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--mid); font: inherit; font-size: 13.5px; text-align: start; cursor: pointer; }
+.tree button:hover { background: var(--raise); color: var(--ink); }
+.tree button[aria-current="page"] { background: var(--raise); color: var(--ink); font-weight: 700; }
+.tree__n { margin-inline-start: auto; font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.tree__l2 { padding-inline-start: 30px !important; }
+.tree__book { font-family: var(--font-story) !important; font-size: 15px !important; }
+.tree__h { font-size: 10.5px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: var(--faint); padding: 14px 10px 6px; }
+.wgrid { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+.w-card { position: relative; }
+.w-card__open { position: absolute; inset: 0; z-index: 1; border: 0; background: transparent; cursor: pointer; border-radius: var(--radius-lg); }
+.w-card__open:focus-visible { box-shadow: var(--focus-ring); outline: none; }
+.w-card__more { position: absolute; top: 10px; inset-inline-end: 10px; z-index: 2; opacity: 0; }
+.w-card:hover .w-card__more, .w-card:focus-within .w-card__more { opacity: 1; }
+.w-card__file { position: relative; z-index: 2; padding-top: 6px; }
+.w-thumb { width: 96px; height: 72px; object-fit: cover; border-radius: 10px; }
+.pdl { margin: 0; }
+.pdl dt { font-size: 12px; color: var(--faint); margin: 0; }
+.pdl dd { margin: 2px 0 12px; font-size: 14px; color: var(--mid); }
+.you-card { display: flex; flex-direction: column; gap: 8px; }
+.pf-memrow .k-btn { white-space: nowrap; }
