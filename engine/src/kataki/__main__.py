@@ -20,7 +20,7 @@ def default_db_path() -> Path:
     return data_dir() / "library.db"
 
 
-def serve(db_path: Path, parent_watch: bool, port: int = 0) -> None:
+def serve(db_path: Path, parent_watch: bool, port: int = 0, web: Path | None = None) -> None:
     token = os.environ.get("KATAKI_TOKEN")
     hello = {}
     # Headless use: mint a token and tell the user. A parent-supplied token is never echoed.
@@ -31,11 +31,13 @@ def serve(db_path: Path, parent_watch: bool, port: int = 0) -> None:
     sock.bind(("127.0.0.1", port))
     sock.listen()  # so clients that race the announcement queue instead of being refused
     hello["port"] = sock.getsockname()[1]
+    if web is not None and "token" in hello:  # headless with the app: where to open it
+        hello["open"] = f"http://127.0.0.1:{hello['port']}/app/?token={token}"
     print(json.dumps(hello), flush=True)
 
     # load (on first run, download) the built-in embedding model now, not on the first turn
     threading.Thread(target=embed.builtin, daemon=True).start()
-    config = uvicorn.Config(create_app(db.connect(db_path), token), log_level="warning")
+    config = uvicorn.Config(create_app(db.connect(db_path), token, web_dir=web), log_level="warning")
     server = uvicorn.Server(config)
     if parent_watch:
         # The desktop shell holds our stdin. EOF means it quit or crashed: never outlive it.
@@ -93,12 +95,13 @@ def main(argv: list[str] | None = None) -> None:
     s.add_argument("--db", type=Path, default=default_db_path())
     s.add_argument("--parent-watch", action="store_true", help="exit when stdin closes")
     s.add_argument("--port", type=int, default=0, help="default: any free port")
+    s.add_argument("--web", type=Path, help="serve the built app (app/dist-web) under /app/")
     c = sub.add_parser("chat", help="play a story in the terminal")
     c.add_argument("--db", type=Path, default=default_db_path())
     c.add_argument("--story", type=int, help="default: the newest story")
     args = parser.parse_args(argv)
     if args.cmd == "serve":
-        serve(args.db, args.parent_watch, args.port)
+        serve(args.db, args.parent_watch, args.port, args.web)
     elif args.cmd == "chat":
         asyncio.run(chat(args.db, args.story))
 

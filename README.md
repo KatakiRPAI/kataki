@@ -62,7 +62,8 @@ pnpm smoke                    # headless end-to-end check: shell -> engine -> re
 
 The engine also runs on its own:
 
-- `uv run kataki serve` prints `{"token", "port"}`. Open the renderer in any browser with `?port=<port>&token=<token>` after the address (the `#…` part is the app's route). For a fixed dev setup: `KATAKI_TOKEN=dev uv run kataki serve --port 8765`, `corepack pnpm -C app exec vite --port 5173`, then `http://localhost:5173/?port=8765&token=dev#/`.
+- `uv run kataki serve` prints `{"token", "port"}`. For a fixed dev setup: `KATAKI_TOKEN=dev uv run kataki serve --port 8765`, `corepack pnpm -C app exec vite --port 5173`, then `http://localhost:5173/?port=8765&token=dev` (the path is the app's route, e.g. `/story/4`).
+- The app in a browser, served by the engine: `corepack pnpm -C app run build:web`, then `uv run kataki serve --web ../app/dist-web` prints an `open` address (`http://127.0.0.1:<port>/app/?token=…`). The engine still binds 127.0.0.1 only.
 - `uv run kataki chat --db <library.db>` plays the newest story in the terminal.
 
 A demo library and a fake model let you try the whole app without a GPU (from `engine/`):

@@ -102,7 +102,9 @@ const routes: RouteObject[] = [
   },
 ]
 
-export const router = window.kataki ? createMemoryRouter(routes, { initialEntries: ['/'] }) : createBrowserRouter(routes)
+// the web build lives under /app/ (vite --base /app/); the desktop and dev builds at the root
+const basename = import.meta.env.BASE_URL.startsWith('/') ? import.meta.env.BASE_URL.replace(/\/$/, '') || '/' : '/'
+export const router = window.kataki ? createMemoryRouter(routes, { initialEntries: ['/'] }) : createBrowserRouter(routes, { basename })
 document.title = t('app.name')
 
 

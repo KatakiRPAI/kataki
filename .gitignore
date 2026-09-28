@@ -10,6 +10,7 @@ __pycache__/
 node_modules/
 dist/
 dist-electron/
+dist-web/
 
 # app data (never commit user libraries or secrets)
 *.db

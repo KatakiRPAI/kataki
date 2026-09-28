@@ -7,8 +7,10 @@ function connection(): { baseUrl: string; token: string } {
   // kept for the tab, since the router drops the query on its first navigation
   const query = new URLSearchParams(location.search)
   if (query.get('port')) sessionStorage.setItem('kataki', JSON.stringify({ port: query.get('port'), token: query.get('token') ?? '' }))
+  // served by the engine itself (kataki serve --web): the API is this page's own origin
+  if (!query.get('port') && query.get('token')) sessionStorage.setItem('kataki', JSON.stringify({ token: query.get('token') }))
   const kept = JSON.parse(sessionStorage.getItem('kataki') ?? '{}')
-  return { baseUrl: `http://127.0.0.1:${kept.port}`, token: kept.token ?? '' }
+  return { baseUrl: kept.port ? `http://127.0.0.1:${kept.port}` : location.origin, token: kept.token ?? '' }
 }
 
 const { baseUrl, token } = connection()

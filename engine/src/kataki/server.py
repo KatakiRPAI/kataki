@@ -22,6 +22,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.staticfiles import StaticFiles
 
 from kataki import (
     __version__,
@@ -273,6 +275,19 @@ def _patch(conn: sqlite3.Connection, table: str, row_id: int, fields: dict) -> N
             conn.execute(f"UPDATE {table} SET {sets} WHERE id=?", (*fields.values(), row_id))
 
 
+class WebApp(StaticFiles):
+    """The built app. A path with no file behind it is one of the router's pages, so it gets
+    index.html; a missing file (a path with an extension) is still a 404."""
+
+    async def get_response(self, path: str, scope):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as e:
+            if e.status_code != 404 or Path(path).suffix:
+                raise
+            return await super().get_response("index.html", scope)
+
+
 def create_app(
     conn: sqlite3.Connection,
     token: str,
@@ -280,6 +295,7 @@ def create_app(
     worker_delay: float = 3.0,
     get_key=roles.get_key,
     image_transport=None,  # tests script the HF router here
+    web_dir: Path | None = None,  # the built app, served under /app/ for any browser
 ) -> FastAPI:
     llm = llm or LLM()
     worker = extract.Worker(conn, llm, get_key, delay=worker_delay)
@@ -1415,5 +1431,9 @@ def create_app(
         for key in ("sections", "memories", "prompt"):
             row[key] = json.loads(row[key]) if row[key] else None
         return row
+
+    if web_dir is not None:
+        # The app's own files carry no data, so they need no token; every API call still does.
+        app.mount("/app", WebApp(directory=web_dir, html=True), name="app")
 
     return app

@@ -1252,3 +1252,17 @@ def test_a_few_words_become_a_whole_profile_for_the_editor(api, backend):
 def test_a_draft_needs_words_and_a_model(api):
     assert api.post("/library/draft", json={"words": "  "}).status_code == 422
     assert api.post("/library/draft", json={"words": "a pirate"}).status_code == 409
+
+
+def test_the_app_is_served_for_a_browser_and_the_api_still_wants_its_token(conn, backend, tmp_path):
+    """`kataki serve --web DIR`: the built app under /app/, any of its routes on reload."""
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "index.html").write_text("<!doctype html><title>Kataki</title>")
+    (tmp_path / "assets" / "app.js").write_text("console.log(1)")
+    client = TestClient(create_app(conn, "t", llm=backend.llm, worker_delay=60, web_dir=tmp_path))
+    with client:
+        assert "<title>Kataki</title>" in client.get("/app/").text
+        assert "<title>Kataki</title>" in client.get("/app/story/4").text  # the router's, not ours
+        assert client.get("/app/assets/app.js").text == "console.log(1)"
+        assert client.get("/app/assets/missing.js").status_code == 404  # a missing file isn't the page
+        assert client.get("/stories").status_code == 401

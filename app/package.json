@@ -11,7 +11,8 @@
     "smoke": "tsc -p electron && electron . --smoke",
     "build": "node checks/copy.mjs && tsc -p electron && vite build",
     "typecheck": "tsc --noEmit && tsc -p electron --noEmit",
-    "check:release": "node checks/copy.mjs --release"
+    "check:release": "node checks/copy.mjs --release",
+    "build:web": "node checks/copy.mjs && vite build --base /app/ --outDir dist-web"
   },
   "dependencies": {
     "intl-messageformat": "^12.1.2",
