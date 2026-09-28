@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 import { api, stream, type Provider, type RoleRow, type Cast, type CastEntity, type ContextLog, type KnownMemory, type Message, type Person, type Signals, type Story, type StoryUi, type TurnDone, type TurnMeta, type Version } from '../api'
 import { K } from '../ds'
-import { face, scenery, twelve, useLibrary, useLoad, usePoll } from '../hooks'
+import { face, scenery, twelve, useLibrary, useLoad, usePoll, useTitle } from '../hooks'
 import { openMenu, Overlay, toast, type MenuItem } from '../overlay'
 import { pacer, SPEEDS, type Speed } from '../pace'
 import { pref } from '../prefs'
@@ -50,6 +50,7 @@ export default function Scene() {
     }),
     [id],
   )
+  useTitle(data?.story.title)
   const [live, setLive] = useState<Live | null>(null)
   const [said, setSaid] = useState<string | null>(null)
   const [failed, setFailed] = useState('')

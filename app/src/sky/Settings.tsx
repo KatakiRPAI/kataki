@@ -79,7 +79,10 @@ function General() {
         <K.SettingsRow title={t('g.updates')}><Choice k="general.updates" fallback="weekly" options={[['weekly', 'g.updates.weekly'], ['daily', 'g.updates.daily'], ['never', 'g.updates.never']]} /></K.SettingsRow>
       </K.SettingsSection>
       <K.SettingsSection title={t('g.window')}>
-        <K.SettingsRow title={t('g.startup')}><Switch k="general.startup" fallback={false} label={t('g.startup')} /></K.SettingsRow>
+        <K.SettingsRow title={t('g.startup')}>
+          <K.Toggle label={t('g.startup')} on={!!prefs['general.startup']} disabled={!window.kataki?.startup}
+            onToggle={(v) => { setPref('general.startup', v); window.kataki?.startup?.(v) }} />
+        </K.SettingsRow>
         <K.SettingsRow title={t('g.close')}><Choice k="general.closeAction" fallback="quit" options={[['quit', 'g.close.quit'], ['tray', 'g.close.tray']]} /></K.SettingsRow>
         <K.SettingsRow title={t('g.usage')} description={t('g.usageSub')}><K.StatePill tone="muted">{t('g.notCollected')}</K.StatePill></K.SettingsRow>
       </K.SettingsSection>

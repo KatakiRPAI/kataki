@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from 'react'
 import { api, mediaUrl, type Item } from './api'
+import { t } from './strings'
 
 /** A draft kept in this browser, so leaving and coming back finds it as it was. null: nothing
  *  kept. Storage can be missing (private mode); the draft then lasts only while you stay. */
@@ -163,4 +164,9 @@ export function scenery(item: Item | undefined): { place?: string; src?: string 
 export function useNarrow(px: number): boolean {
   const q = `(max-width: ${px - 1}px)`
   return useSyncExternalStore((f) => { const m = matchMedia(q); m.addEventListener('change', f); return () => m.removeEventListener('change', f) }, () => matchMedia(q).matches)
+}
+
+/** The window title for a page that names itself: "{name} · Kataki". */
+export function useTitle(page: string | undefined) {
+  useEffect(() => { if (page) document.title = t('title.page', { page }) }, [page])
 }

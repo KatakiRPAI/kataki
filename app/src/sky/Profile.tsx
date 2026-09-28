@@ -4,7 +4,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router'
 import { api, type Feelings, type Item, type KnownMemory, type Profile as Profiled, type StorySummary } from '../api'
 import { pronoun, storiesWith, tagline } from '../characters'
 import { K } from '../ds'
-import { face, scenery, useLibrary, useLoad, utc } from '../hooks'
+import { face, scenery, useLibrary, useLoad, utc, useTitle } from '../hooks'
 import { openMenu, Overlay, toast, type MenuItem } from '../overlay'
 import { relative, t, type Key } from '../strings'
 import { characterMenu, DeleteCharacter } from './characterActions'
@@ -36,6 +36,7 @@ export default function Profile() {
   const [stories] = useLoad(() => api<StorySummary[]>('/stories'), [])
   const [profile] = useLoad(() => api<Profiled>(`/library/${id}/profile`), [id])
   const c = byId.get(id)
+  useTitle(c?.name)
   const theirs = c ? storiesWith(c, stories) : []
   const latest = theirs[0]
   const here = profile?.stories.find((s) => s.id === latest?.id)?.person ?? null

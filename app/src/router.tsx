@@ -7,7 +7,7 @@ import { K } from './ds'
 import { LibraryProvider, useNarrow } from './hooks'
 import { Menus, Toasts } from './overlay'
 import { loadPrefs, setPref, skyTheme, usePrefs } from './prefs'
-import { t } from './strings'
+import { t, type Key } from './strings'
 import Home from './sky/Home'
 import NotBuilt from './sky/NotBuilt'
 import Stories from './sky/Stories'
@@ -31,10 +31,23 @@ const RAIL: Record<string, string> = {
 }
 const ACTIVE: Record<string, string> = { home: 'Home', stories: 'Stories', characters: 'Characters', world: 'World', you: 'You', search: 'none', settings: 'Settings', status: 'Home' }
 
+// The window title (ROUTES.md › Title bar text); a story or a character names itself.
+const TITLES: [RegExp, Key | null][] = [
+  [/^\/welcome/, 'title.firstRun'], [/^\/search/, 'title.search'], [/^\/characters\/new$/, 'title.newCharacter'], [/^\/characters$/, 'title.characters'],
+  [/^\/stories\/new$/, 'title.newStory'], [/^\/stories$/, 'title.stories'], [/^\/world$/, 'title.world'], [/^\/you$/, 'title.you'],
+  [/^\/settings/, 'title.settings'], [/^\/status\/model$/, 'title.modelGone'], [/^\/(story|characters)\//, null],
+]
+
 /** Every in-app link is an <a href="/…"> (the design system's components render real links);
  *  a plain click on one navigates here instead of loading a page. */
 function Links({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
+  const { pathname } = useLocation()
+  useEffect(() => {
+    const hit = TITLES.find(([re]) => re.test(pathname))
+    if (hit?.[1] === null) return // the page sets its own
+    document.title = hit?.[1] === 'title.firstRun' ? t('title.firstRun') : hit ? t('title.page', { page: t(hit[1]!) }) : t('app.name')
+  }, [pathname])
   useEffect(() => {
     const on = (e: MouseEvent) => {
       const a = (e.target as Element).closest?.('a[href]')
@@ -46,6 +59,22 @@ function Links({ children }: { children: ReactNode }) {
     addEventListener('click', on)
     return () => removeEventListener('click', on)
   }, [navigate])
+  // Card grids and story lists (KEYBOARD.md › Focus order): arrows move between their items.
+  useEffect(() => {
+    const ITEMS = '.ch-card__link, .st-list [role="listitem"], .w-card__open, .sr-row, .ch-row a'
+    const on = (e: KeyboardEvent) => {
+      const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key]
+      const at = document.activeElement as HTMLElement | null
+      if (!step || !at?.matches(ITEMS) || e.altKey || e.ctrlKey) return
+      const list = at.closest('.ch-grid, .st-list, .wgrid, .sr-list, .card')
+      const all = [...(list?.querySelectorAll<HTMLElement>(ITEMS) ?? [])]
+      const rtl = document.documentElement.dir === 'rtl' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') ? -1 : 1
+      const next = all[all.indexOf(at) + step * rtl]
+      if (next) { e.preventDefault(); next.focus() }
+    }
+    addEventListener('keydown', on)
+    return () => removeEventListener('keydown', on)
+  }, [])
   return <LibraryProvider>{children}<Palette /><Feedback /><Toasts /><Menus /><DiskFull /></LibraryProvider>
 }
 

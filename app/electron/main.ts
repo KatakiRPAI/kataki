@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { once } from 'node:events'
-import { existsSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { createInterface } from 'node:readline'
 import { setTimeout as sleep } from 'node:timers/promises'
@@ -40,11 +40,27 @@ async function startEngine(token: string): Promise<number> {
   return JSON.parse(hello).port
 }
 
+// The window comes back where it was (ROUTES.md › Window), if that place is still on a screen.
+const boundsFile = () => join(app.getPath('userData'), 'window.json')
+function keptBounds(): Partial<Electron.Rectangle> {
+  try {
+    const b = JSON.parse(readFileSync(boundsFile(), 'utf8')) as Electron.Rectangle
+    const on = screen.getAllDisplays().some((d) => b.x >= d.workArea.x - 50 && b.y >= d.workArea.y - 50 && b.x < d.workArea.x + d.workArea.width && b.y < d.workArea.y + d.workArea.height)
+    return on ? b : { width: b.width, height: b.height }
+  } catch {
+    return {}
+  }
+}
+
 async function createWindow(port: number, token: string, crashed = false): Promise<BrowserWindow> {
   const work = screen.getPrimaryDisplay().workAreaSize // the design's 1440x900, capped to the screen
+  const kept = keptBounds()
   const win = new BrowserWindow({
     width: Math.min(1440, work.width),
     height: Math.min(900, work.height),
+    ...kept,
+    minWidth: 1024,
+    minHeight: 700,
     backgroundColor: '#c3dafc', // the Sky, so the first frame isn't white
     show: !smoke,
     webPreferences: {
@@ -52,6 +68,7 @@ async function createWindow(port: number, token: string, crashed = false): Promi
       additionalArguments: [`--kataki-port=${port}`, `--kataki-token=${token}`, ...(crashed ? ['--kataki-crashed'] : [])],
     },
   })
+  win.on('close', () => { try { writeFileSync(boundsFile(), JSON.stringify(win.getBounds())) } catch { /* next time, the default */ } })
   // Model output is untrusted text that can contain links: never open windows or leave the app.
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   win.webContents.on('will-navigate', (event, url) => {
@@ -103,6 +120,8 @@ const runningMark = () => join(app.getPath('userData'), 'running')
 app.on('will-quit', () => rmSync(runningMark(), { force: true }))
 // A restored backup is swapped in as the engine starts, so restoring ends in a restart (K12).
 ipcMain.on('kataki:restart', () => { app.relaunch(); app.quit() })
+// Settings › General › Start with Windows: only when the person turns it on or off there.
+ipcMain.on('kataki:startup', (_e, on: boolean) => app.setLoginItemSettings({ openAtLogin: !!on }))
 
 // No top-level await here: Electron holds `ready` until this module finishes evaluating,
 // so `await app.whenReady()` at module scope deadlocks.

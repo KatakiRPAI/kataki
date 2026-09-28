@@ -4,7 +4,7 @@ import { useBlocker, useNavigate, useParams } from 'react-router'
 import { api, mediaUrl, upload, type Item, type Pronouns, type RoleRow, type StorySummary } from '../api'
 import { storiesWith } from '../characters'
 import { K } from '../ds'
-import { useLibrary, useLoad, utc } from '../hooks'
+import { useLibrary, useLoad, utc, useTitle } from '../hooks'
 import { Overlay } from '../overlay'
 import { t, type Key } from '../strings'
 import { lines as linesOf } from './Profile'
@@ -63,6 +63,7 @@ export default function Editor() {
   const [stories] = useLoad(() => api<StorySummary[]>('/stories'), [])
   const [roles] = useLoad(() => api<RoleRow[]>('/roles'), [])
   const item = id ? byId.get(id) : undefined
+  useTitle(item ? t('title.edit', { name: item.name }) : undefined)
   const [base, setBase] = useState<Form>()
   const [f, setF] = useState<Form>(() => ({ ...formOf(), name: new URLSearchParams(location.search).get('name') ?? '' }))
   const [open, setOpen] = useState<Section[]>([])

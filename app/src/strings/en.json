@@ -1320,5 +1320,16 @@
   "place.t.dusk": "Dusk",
   "place.t.night": "Night",
   "bs.reread": "read again",
-  "bs.rereadCost": "A real model call: the memory reader reads these lines again"
+  "bs.rereadCost": "A real model call: the memory reader reads these lines again",
+  "title.firstRun": "Kataki · first run",
+  "title.search": "Search",
+  "title.newCharacter": "New character",
+  "title.characters": "Characters",
+  "title.newStory": "New story",
+  "title.stories": "Stories",
+  "title.world": "World",
+  "title.you": "You",
+  "title.settings": "Settings",
+  "title.modelGone": "Nobody is answering",
+  "title.edit": "Edit {name}"
 }
