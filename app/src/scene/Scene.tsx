@@ -1,802 +1,205 @@
+// The Scene (P1, P9, P19): docs/handoff/kataki-handoff/SCENE.md. Lines, the composer, a reply
+// streaming in, Stop, Try again, the cast and the clock. Takes, edits, modes, widgets editing,
+// time and Backstage come back in slice 4 of docs/specs/2026-09-28-handoff-3.md.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { api, download, stream, type Cast, type CastEntity, type Chapter, type ContextLog, type Message, type Signals, type Story, type TurnDone, type TurnMeta, type Version } from '../api'
-import { paletteOf } from '../art'
+import { useNavigate, useParams } from 'react-router'
+import { api, stream, type Cast, type CastEntity, type Message, type Story, type TurnMeta } from '../api'
+import { K } from '../ds'
+import { face, fullTime, scenery, twelve, useLibrary, useLoad } from '../hooks'
 import { pacer, SPEEDS, type Speed } from '../pace'
-import { href, inline, lastSky, rise, useAction, useLibrary, useLoad, usePoll, type Moving } from '../hooks'
-import { Dialog, ErrorLine, Field, Icon, Menu, Trouble, Waiting } from '../ui'
-import Composer, { PassTime, remembered, type Meter, type Send, type Skip, type Speaker } from './Composer'
-import Lines, { LiveLine, SaidLine, TimeSkip, type Live } from './Lines'
-import { Nearby, NewScene, type SceneBody } from './Nearby'
-import Backstage from './Backstage'
-import Peek from './Peek'
-import { hasWidget, Place, WidgetBoard, withCharacter } from './Widgets'
+import { t } from '../strings'
 
-/** Who is here: the AI characters present, whoever just arrived or else the last to speak
- *  first. */
-function onStage(cast: Cast, messages: Message[], arriving?: number): CastEntity[] {
-  const present = cast.entities.filter((e) => e.present && e.is_ai && e.kind === 'character')
-  const spoke = messages.findLast((m) => m.role === 'assistant' && present.some((e) => e.id === m.speaker_id))
-  const lead = present.find((e) => e.id === arriving) ?? present.find((e) => e.id === spoke?.speaker_id) ?? present[0]
-  return lead ? [lead, ...present.filter((e) => e !== lead)] : []
-}
+type Live = { speaker: string; speakerId: number | null; text: string; thoughtAt?: number; thinkMs?: number }
+type Answer = 'any' | 'narrator' | `${number}`
+const COLOURS = ['mike', 'theo', '4', '5', '6']
 
-const listed = (names: string[]) => (names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0])
-
-function meterOf(used: number, budget: number, recalled: number): Meter {
-  const memories = `${recalled} ${recalled === 1 ? 'memory' : 'memories'} recalled`
-  return { used: budget ? Math.min(1, used / budget) : 0, label: `~${used.toLocaleString('en')} / ${budget.toLocaleString('en')} tokens · ${memories}` }
-}
-
-/** A story, played: the place behind, the chat full height in the middle with the composer docked
- *  in it, the corners, and widgets either side (characters on the right, the clock bottom left). */
-export default function Scene({ id, line, backstage: opened }: { id: number; line?: number; backstage?: number }) {
+export default function Scene() {
+  const id = Number(useParams().id)
+  const navigate = useNavigate()
   const { byId } = useLibrary()
-  // One guarded load of everything the scene shows; every change calls it again.
-  // The version this data was loaded at: the poll compares with it, so a memory read that lands
-  // any time after a load (even before the first tick) refreshes the scene.
-  const version = useRef('')
   const [prefs] = useLoad(() => api<{ reply_speed?: Speed }>('/settings'), [])
-  const [data, refreshAll, error] = useLoad(
-    () =>
-      Promise.all([
-        api<Version>(`/stories/${id}/version`),
-        api<Story>(`/stories/${id}`),
-        api<Message[]>(`/stories/${id}/messages`),
-        api<Cast>(`/stories/${id}/cast`),
-        api<Signals>(`/stories/${id}/signals`),
-        api<Chapter[]>(`/stories/${id}/chapters`),
-      ]).then(([at, story, messages, cast, signals, chapters]) => {
-        version.current = `${at.v}|${at.waiting}`
-        return { story, messages, cast, signals, chapters }
-      }),
+  const [data, reload, error] = useLoad(
+    () => Promise.all([api<Story>(`/stories/${id}`), api<Message[]>(`/stories/${id}/messages`), api<Cast>(`/stories/${id}/cast`)])
+      .then(([story, messages, cast]) => ({ story, messages, cast })),
     [id],
   )
-  // Playing a story is looking at it: what the reader wrote is no longer new, here or in the Sky.
-  // Again on the way out, for the reads that landed while you played.
-  useEffect(() => {
-    const seen = () => api(`/stories/${id}/seen`, 'POST').catch(() => {})
-    seen()
-    return () => {
-      seen()
-    }
-  }, [id])
   const [live, setLive] = useState<Live | null>(null)
-  const [said, setSaid] = useState<{ text: string; audience: number[] | null; narrate: boolean; who?: string } | null>(null)
-  const [settling, setSettling] = useState(false) // the reply ended; keep it shown until fresh data lands
+  const [said, setSaid] = useState<string | null>(null)
   const [failed, setFailed] = useState('')
-  const [act, actError, acting] = useAction()
-  const [arriving, setArriving] = useState<number>()
-  const [cutting, setCutting] = useState(false)
-  const [newScene, setNewScene] = useState(false)
-  const arrivalTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
-  useEffect(() => () => clearTimeout(arrivalTimer.current), [])
-
-  // In and out of the scene: a friend from the library joins the story; someone away comes back;
-  // someone here goes. Whoever arrives steps in with a name card for 3 s.
-  const move = (m: Moving) =>
-    act(async () => {
-      let arrived: number | undefined = m.kind === 'away' ? m.id : undefined
-      if (m.kind === 'friend') {
-        const after = await api<Cast>(`/stories/${id}/cast`, 'POST', { library_id: m.id })
-        arrived = after.entities.find((e) => e.lib_item_id === m.id)?.id
-      } else {
-        await api(`/stories/${id}/presence`, 'POST', { entity_id: m.id, present: m.kind === 'away' })
-      }
-      refreshAll()
-      if (arrived) {
-        setArriving(arrived)
-        clearTimeout(arrivalTimer.current)
-        arrivalTimer.current = setTimeout(() => setArriving(undefined), 3000)
-      }
-    })
-  // A new scene: cut through black, the story changing under it.
-  const cut = async (body: SceneBody) => {
-    await api(`/stories/${id}/scene`, 'POST', body)
-    setCutting(true)
-    setTimeout(refreshAll, 300)
-    setTimeout(() => setCutting(false), 600)
-  }
-  const [meter, setMeter] = useState<Meter>()
+  const [draft, setDraft] = useState('')
+  const [advanced, setAdvanced] = useState(false)
+  const [answer, setAnswer] = useState<Answer>('any')
   const controller = useRef<AbortController | null>(null)
+  const retryBody = useRef<object | null>(null)
+  const lines = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    api<ContextLog>(`/stories/${id}/context`).then(
-      (c) => setMeter(meterOf(c.est_tokens, c.budget, c.memories.filter((m) => m.rendered !== 'dropped').length)),
-      () => {}, // no prompt built yet
-    )
-  }, [id])
   useEffect(() => () => controller.current?.abort(), []) // leaving the scene stops the reply
-  // before paint, so the saved reply never shows beside the live one
+  useEffect(() => {
+    api(`/stories/${id}/seen`, 'POST').catch(() => {})
+  }, [id])
+  // Opening a story, and every new line, scrolls to the end.
   useLayoutEffect(() => {
-    if (!settling) return
-    setLive(null)
-    setSaid(null)
-    setSettling(false)
-  }, [data]) // eslint-disable-line react-hooks/exhaustive-deps
+    const el = lines.current?.querySelector('.k-chat__lines')
+    if (el) el.scrollTop = el.scrollHeight
+  }, [data, live?.text, said, failed])
+  // Esc with nothing open goes back up to the Sky (ROUTES.md › Global navigation).
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return
+      if (controller.current) controller.current.abort()
+      else if (!document.querySelector('dialog[open], :popover-open')) navigate(-1)
+    }
+    addEventListener('keydown', on)
+    return () => removeEventListener('keydown', on)
+  }, [navigate])
 
-  // Memory reads in the background: when the version moves, what the scene shows may have too.
-  // Not while a reply streams: the fresh lines would double the ones on screen.
-  const [tick, setTick] = useState(0) // Backstage reloads when this moves
-  usePoll(() => {
-    api<Version>(`/stories/${id}/version`).then(({ v, waiting }) => {
-      const now = `${v}|${waiting}` // lines waiting to be read count too (Backstage shows them)
-      if (version.current && now !== version.current) {
-        version.current = now // the refresh below will confirm it
-        refreshAll()
-        setTick((t) => t + 1)
-      }
-    }, () => {})
-  }, 3000, !live)
-  // #/story/4/backstage/29 opens Backstage on that character (the profile's "See her memories")
-  const [backstage, setBackstage] = useState(opened !== undefined)
-  const [picked, setPicked] = useState<Speaker>(null) // who answers next
-  const [skip, setSkip] = useState<Skip | null>(null) // time to pass before the next line
-  const [advanced, setAdvanced] = useState(remembered) // the composer's toggle; the chat follows it
-  const [arranging, setArranging] = useState(false) // Edit widgets
-  const [peek, setPeek] = useState<{ id: number; at: { x: number; y: number } } | null>(null)
-  const [focus, setFocus] = useState<number | undefined>(opened) // the character Backstage opens on
-
-  // Time passing: the overlay holds for at least 1.8 s, fades out, and then the clock rolls.
-  const [skipping, setSkipping] = useState<{ minutes: number; from: string; to: string; line: number; report?: string; leaving?: boolean } | null>(null)
-  const [rolling, setRolling] = useState(false)
-  const skipTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
-  const rollTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
-  const played = useRef(new Set<number>()) // a line's skip is a moment, played once
-  const onScreen = useRef<{ line: number; leaving: boolean } | null>(null)
-  const beforeReply = useRef('') // the clock the reply starts from, for a skip in its own words
-  useEffect(() => () => {
-    clearTimeout(skipTimer.current)
-    clearTimeout(rollTimer.current)
-  }, [])
-  const closeSkip = () => {
-    clearTimeout(skipTimer.current)
-    if (onScreen.current) onScreen.current.leaving = true
-    setSkipping((was) => (was?.leaving ? was : was && { ...was, leaving: true }))
-    skipTimer.current = setTimeout(() => {
-      onScreen.current = null
-      setSkipping(null)
-      setRolling(true) // the clock rolls as the mist lifts
-      rollTimer.current = setTimeout(() => setRolling(false), 800)
-    }, 400)
-  }
-  const holdSkip = (ms: number) => {
-    clearTimeout(skipTimer.current)
-    skipTimer.current = setTimeout(closeSkip, ms)
-  }
-  const playSkip = (minutes: number, from: string, to: string, line: number) => {
-    if (played.current.has(line)) return // a retake of the reply after it is not a new skip
-    played.current.add(line)
-    onScreen.current = { line, leaving: false }
-    setSkipping({ minutes, from, to, line })
-    holdSkip(2600)
-    // the engine writes what it cost each of them; hold a moment longer once it arrives
-    api<Signals>(`/stories/${id}/signals`).then((s) => {
-      const report = s.lines[line]?.skip?.text
-      if (!report || onScreen.current?.line !== line || onScreen.current.leaving) return
-      setSkipping((was) => (was && was.line === line ? { ...was, report } : was))
-      holdSkip(1600) // long enough to read what it cost them
-    }, () => {})
-  }
-  const undoSkip = () =>
-    act(async () => {
-      const line = skipping?.line
-      if (!line) return
-      closeSkip()
-      // the line may have been written moments ago, before this scene's data was refreshed
-      const known = data?.messages.find((m) => m.id === line)
-      const message = known ?? (await api<Message[]>(`/stories/${id}/messages`)).find((m) => m.id === line)
-      const only = message?.role === 'system' // a marker with nothing but the skip goes too
-      await api(`/messages/${line}`, 'PATCH', only ? { skip_minutes: 0, hidden: true } : { skip_minutes: 0 })
-      refreshAll()
-    })
-
-  const asked = useRef<{ path: string; body: object; replacing?: number }>(undefined) // for Try again
-  const generate = async (path: string, body: object, replacing?: number, rewriting?: number) => {
-    asked.current = { path, body, replacing }
-    const was = { date: data?.story.date ?? '' } // the date before this turn, for a skip the reply itself takes
+  const generate = async (body: object) => {
+    retryBody.current = body
+    setFailed('')
     const ctl = new AbortController()
     controller.current = ctl
-    setLive({ speaker: '', speakerId: null, text: '', thoughts: '', strained: false, replacing, rewriting })
-    // the reply types out at your reading speed (Settings → Chat), however fast it streams in
-    const typed = pacer((text) => setLive((l) => l && { ...l, text: l.text + text, thinkMs: l.thinkMs ?? (l.thoughtAt === undefined ? undefined : performance.now() - l.thoughtAt) }),
+    setLive({ speaker: '', speakerId: null, text: '' })
+    const typed = pacer((text) => setLive((l) => l && { ...l, text: l.text + text, thinkMs: l.thinkMs ?? (l.thoughtAt ? performance.now() - l.thoughtAt : undefined) }),
       SPEEDS[prefs?.reply_speed ?? 'normal'] ?? SPEEDS.normal)
     try {
-      await stream(path, body, (kind, value) => {
+      await stream(`/stories/${id}/turn`, body, (kind, value) => {
         if (kind === 'meta') {
           const meta = value as TurnMeta
-          setLive((l) => l && { ...l, speaker: meta.speaker?.name ?? 'The narrator', speakerId: meta.speaker?.id ?? null, strained: meta.strained, clock: meta.clock, from: meta.from_clock })
-          setMeter(meterOf(meta.context.est_tokens, meta.context.budget, meta.context.recalled))
-          beforeReply.current = meta.date
-          if (!replacing && !rewriting && meta.skip >= 1440 && meta.parent_id) {
-            playSkip(meta.skip, meta.from_date, meta.date, meta.parent_id)
-          }
-        } else if (kind === 'thought') {
-          setLive((l) => l && { ...l, thoughts: l.thoughts + value, thoughtAt: l.thoughtAt ?? performance.now() })
-        } else if (kind === 'token') {
-          typed.push(value)
-        } else if (kind === 'done') {
-          const done = value as TurnDone
-          // the reply's own narration moved the clock: it starts from where the reply began
-          if (done.skip_minutes >= 1440) playSkip(done.skip_minutes, beforeReply.current || was.date, done.date, done.message_id)
-        } else if (kind === 'error') {
-          setFailed(value.message)
-        }
+          setLive((l) => l && { ...l, speaker: meta.speaker?.name ?? t('scene.narrator'), speakerId: meta.speaker?.id ?? null })
+        } else if (kind === 'thought') setLive((l) => l && { ...l, thoughtAt: l.thoughtAt ?? performance.now() })
+        else if (kind === 'token') typed.push(value)
+        else if (kind === 'error') setFailed(value.message)
       }, ctl.signal)
-      await typed.drain() // the saved line replaces this one only once it has all been read out
+      await typed.drain()
     } catch (e) {
       if (!ctl.signal.aborted) setFailed((e as Error).message)
     } finally {
-      typed.flush() // Stop, or an error: whatever arrived shows at once
+      typed.flush()
       if (controller.current === ctl) controller.current = null
-      // a stopped reply is saved by the engine a moment after the connection closes
-      if (ctl.signal.aborted) await new Promise((r) => setTimeout(r, 400))
-      setSettling(true)
-      refreshAll()
+      if (ctl.signal.aborted) await new Promise((r) => setTimeout(r, 400)) // the engine saves a stopped reply a moment later
+      await reload()
+      setLive(null)
+      setSaid(null)
     }
   }
 
-  const send = async (s: Send) => {
-    setFailed('')
-    if (s.text) setSaid({ text: s.text, audience: s.audience, narrate: s.narrate })
-    if (s.reply) return generate(`/stories/${id}/turn`, { text: s.text, speaker: s.speaker, audience: s.audience, skip: s.skip, narrate: s.narrate })
-    const before = data?.story.date ?? ''
-    asked.current = undefined // nothing to retry: a line that didn't save is still in the composer
-    try {
-      const after = await api<Message[]>(`/stories/${id}/line`, 'POST', { text: s.text, audience: s.audience, skip: s.skip, narrate: s.narrate })
-      const last = after.at(-1)
-      if (last && last.skip_minutes >= 1440) playSkip(last.skip_minutes, before, last.date, last.id)
-    } catch (e) {
-      setFailed((e as Error).message)
-    }
-    setSettling(true)
-    refreshAll()
+  const speaker = answer === 'any' ? null : answer === 'narrator' ? 'narrator' : Number(answer)
+  const send = (text: string) => {
+    if (live) return
+    const line = text.trim()
+    const narrate = line.startsWith('>')
+    const said = narrate ? line.replace(/^>+\s*/, '') : line
+    setDraft('')
+    if (said) setSaid(said)
+    // the user's line is written first; only the reply waits for a model (SCENE.md › A turn)
+    generate({ text: said || null, speaker, audience: null, skip: null, narrate })
   }
-
-  // Reading mode: the controls fade until the pointer moves or focus lands on them; Esc leaves.
-  const [reading, setReading] = useState(false)
-  const [awake, setAwake] = useState(false)
-  const sleepTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
-  const wake = () => {
-    setAwake(true)
-    clearTimeout(sleepTimer.current)
-    sleepTimer.current = setTimeout(() => setAwake(false), 2500)
-  }
-  useEffect(() => {
-    if (!reading) return
-    const leave = (e: KeyboardEvent) =>
-      e.key === 'Escape' && !skipping && !document.querySelector('dialog[open], :popover-open') && setReading(false)
-    addEventListener('keydown', leave)
-    return () => removeEventListener('keydown', leave)
-  }, [reading, skipping])
-  useEffect(() => () => clearTimeout(sleepTimer.current), [])
-
-  // Open at the newest line, or at the deep-linked one. A reply writes on below the fold, under a
-  // fade and an arrow, rather than pushing the lines up as it goes; the arrow follows it down, line
-  // by line, until you scroll for yourself.
-  const convo = useRef<HTMLDivElement>(null)
-  const follow = useRef(true) // held at the newest line: on opening, and after the arrow
-  const [below, setBelow] = useState(false) // more to read under the fold
-  const measure = () => {
-    const el = convo.current
-    if (el) setBelow(el.scrollHeight - el.scrollTop - el.clientHeight > 24)
-  }
-  const ready = !!data
-  useEffect(() => {
-    const el = convo.current
-    if (!el) return
-    const grown = new ResizeObserver(() => {
-      if (follow.current) el.scrollTop = el.scrollHeight
-      measure()
-    })
-    grown.observe(el)
-    if (el.firstElementChild) grown.observe(el.firstElementChild)
-    return () => grown.disconnect()
-  }, [ready])
-  const jump = () => {
-    follow.current = true
-    if (convo.current) convo.current.scrollTop = convo.current.scrollHeight
-    measure()
-  }
-  const unfollow = () => {
-    follow.current = false
-  }
-  const count = data?.messages.length ?? 0
-  const marked = data?.chapters.length ?? 0 // a chapter card is height the conversation gained
-  const landed = useRef<number>(undefined) // the deep-linked line we have already come to rest on
-  useEffect(() => {
-    if (line && landed.current === line) return // a line you send after is not a reason to go back
-    const target = line ? document.getElementById(`line-${line}`) : null
-    if (!target) {
-      if (follow.current && convo.current) convo.current.scrollTop = convo.current.scrollHeight
-      return
-    }
-    landed.current = line
-    follow.current = false
-    // Arriving through the dive, the lines are still settling (fonts, portraits, receipts), and
-    // the one we came for drifts away under them. Hold it in the middle until they stop moving,
-    // or until you scroll for yourself.
-    let frame = 0
-    let tall = -1
-    let raf = 0
-    const hold = () => {
-      const now = convo.current?.scrollHeight ?? 0
-      if (now !== tall) {
-        tall = now
-        target.scrollIntoView({ block: 'center' })
-      }
-      if (++frame < 90) raf = requestAnimationFrame(hold)
-    }
-    raf = requestAnimationFrame(hold)
-    const stop = () => cancelAnimationFrame(raf)
-    addEventListener('wheel', stop, { passive: true })
-    addEventListener('pointerdown', stop)
-    return () => {
-      stop()
-      removeEventListener('wheel', stop)
-      removeEventListener('pointerdown', stop)
-    }
-  }, [line, count, marked, backstage])
-  // a new turn brings your line and where the reply starts into view, once
-  const starting = !!live || !!said
-  useLayoutEffect(() => {
-    if (!starting || !convo.current) return
-    convo.current.scrollTop = convo.current.scrollHeight
-    follow.current = false
-    measure()
-  }, [starting])
+  const retry = () => generate({ text: null, speaker: (retryBody.current as { speaker?: unknown } | null)?.speaker ?? null })
 
   if (!data) {
     return (
-      <div className="k-scene ka-scene ka-scene--waiting">
-        {error ? <Trouble title="This story won't open">{error}</Trouble> : <Waiting rows={4} />}
+      <div className="scene">
+        <div className="scene__tint" />
+        <div className="scene__chat">
+          {error ? <K.Alert title={t('scene.wontOpen')}>{error}</K.Alert> : <K.Spinner label={t('scene.label')} />}
+        </div>
       </div>
     )
   }
-  const { story, messages, cast, signals, chapters } = data
+
+  const { story, messages, cast } = data
   const item = (e: { lib_item_id: number | null }) => (e.lib_item_id ? byId.get(e.lib_item_id) : undefined)
-  const people = onStage(cast, messages, arriving)
-  // later lines win, so each speaker keeps the face of the last line that had one
-  const faces = new Map(messages.flatMap((m) => (m.speaker_id && m.expression ? [[m.speaker_id, m.expression] as const] : [])))
-  const away = cast.entities.filter((e) => !e.present && e.is_ai && e.kind === 'character')
-  const missing = !!line && !messages.some((m) => m.id === line)
-  const peeking = peek && cast.entities.find((e) => e.id === peek.id)
-  const who = [
-    people.length ? `with ${listed(people.map((e) => e.name))}` : 'alone',
-    story.persona ? `as ${story.persona.name}` : 'directing',
-  ].join(' · ')
-  const writer = cast.entities.find((e) => e.id === live?.speakerId)
-  const writerItem = writer && item(writer)
-  const cutAt = live?.rewriting ? messages.findIndex((m) => m.id === live.rewriting) : -1
-  const shown = live?.replacing ? messages.filter((m) => m.id !== live.replacing) : cutAt >= 0 ? messages.slice(0, cutAt) : messages
-  // an edited line, played on from: the new take streams in after it; the old one is a swipe away
-  const rewrite = (m: Message, text: string) => {
-    setFailed('')
-    setSaid({ text, audience: m.audience ?? null, narrate: false, who: m.speaker ?? (story.persona ? 'Narrator' : 'You') })
-    return generate(`/messages/${m.id}/rewrite`, { text }, undefined, m.id)
+  const persona = story.persona?.name
+  const characters = cast.entities.filter((e) => e.is_ai && e.kind === 'character')
+  const present = characters.filter((e) => e.present)
+  const colour = (speakerId: number | null, role: Message['role']) => {
+    if (role === 'user') return 'var(--speaker-liv)'
+    const i = characters.findIndex((e) => e.id === speakerId)
+    return i < 0 ? 'var(--scene-ink)' : `var(--speaker-${COLOURS[i % COLOURS.length]})`
   }
-  const newest = messages.at(-1)
-  // Which chapter you are in: the one whose stretch the newest line falls in, and whose own
-  // opening is on the take this story is reading — otherwise the bar would name a chapter the
-  // conversation never shows. Between a chapter closed early and the next one there is none, and
-  // the bar says nothing rather than lie.
-  const here =
-    newest &&
-    chapters.findLast(
-      (c) =>
-        c.from_message_id <= newest.id &&
-        (c.ends_at ?? 0) >= newest.id &&
-        messages.some((m) => m.id === c.from_message_id),
-    )
-  const retake = () => newest && generate(`/stories/${id}/regenerate`, {}, newest.id)
-  // A reply that failed: your line was kept, so ask only for the reply to it (a retake, again)
-  const retry = () => {
-    const was = asked.current
-    if (!was) return
-    setFailed('')
-    if (was.path.endsWith('/regenerate')) return generate(was.path, was.body, was.replacing)
-    return generate(`/stories/${id}/turn`, { text: null, speaker: (was.body as { speaker?: unknown }).speaker ?? null })
-  }
-  // "no model is set", "could not reach ...": something to go and fix, not a line to shrug at
+  const lead = live?.speakerId ? characters.find((e) => e.id === live.speakerId) : present[0]
+  const place = story.place ? byId.get(story.place.lib_item_id ?? -1) : undefined
+  const art = scenery(place)
+  const artSrc = art.src ?? (art.place ? K.ART[art.place]?.src ?? undefined : undefined)
   const offline = /model|reach|connect|provider/i.test(failed)
+  const first = messages.length === 0 && !said
+  const placeholder = live
+    ? t('scene.placeholderAnswering', { name: live.speaker || lead?.name || t('scene.narrator') })
+    : first && lead ? t('scene.placeholderFirst', { name: lead.name, persona: persona ?? 'you' })
+    : t('scene.placeholder', { persona: persona ?? 'you' })
+  const hearing = present.map((e) => { const f = face(item(e), e.name); return { who: f.who, src: f.src } })
+  const answers = [
+    { id: 'any', label: t('scene.answers.any'), icon: 'users' as const },
+    ...present.map((e) => ({ id: String(e.id), label: e.name, ...face(item(e), e.name) })),
+    { id: 'narrator', label: t('scene.answers.narrator'), icon: 'quill' as const },
+  ]
 
   return (
-    <div className={`k-scene ka-scene${arranging ? ' is-editing-widgets' : ''}${reading && !backstage ? ' is-reading' : ''}${awake ? ' is-awake' : ''}${backstage ? ' is-backstage' : ''}${skipping ? ' is-skipping' : ''}`}
-      onPointerMove={reading ? wake : undefined}>
-      {backstage && <Backstage story={story} cast={cast} tick={tick} focus={focus} onChange={refreshAll} />}
-      <Place item={story.place ? item(story.place) : undefined} minute={story.minute_of_day} />
-      <div className="k-corner k-corner--left ka-corner">
-        <button type="button" className="k-scene-round k-sglass" onClick={rise} aria-label="Float back up to the Sky">
-          <Icon name="cloud" size={20} />
-        </button>
-        <div className="ka-corner__title">
-          <h1>{story.title}</h1>
-          <span>
-            {here && (
-              <>
-                <strong className="ka-corner__chapter">{here.title}</strong>
-                {' · '}
-              </>
-            )}
-            {who}
-          </span>
-        </div>
+    <div className="scene">
+      {artSrc ? <img className="scene__art" src={artSrc} alt={place?.name ?? ''} /> : <div className="scene__art scene__place" />}
+      <div className="scene__tint" />
+      <div className="scene__vig" />
+      <div className="scene__tl">
+        <K.SceneHeader title={story.title} backHref="/home"
+          subtitle={persona ? t('scene.subtitle', { persona, book: story.book?.title ?? 'none' }) : t('scene.directing')} />
       </div>
-      <div className="k-corner k-corner--right ka-corner">
-        <button type="button" role="switch" aria-checked={backstage} className="k-scene-pill k-sglass ka-bs-toggle"
-          onClick={() => setBackstage((b) => !b)}>
-          <Icon name="layers" size={16} />
-          Backstage
-          <span className={`k-switch${backstage ? ' is-on' : ''}`} aria-hidden="true" />
-        </button>
-        <StoryMenu story={story} chapters={chapters} messages={messages} at={newest?.id} reading={reading}
-          onArrange={backstage ? undefined : () => { setReading(false); setArranging(true) }}
-          onReading={backstage ? undefined : () => setReading((r) => !r)} onChange={refreshAll}
-          onNewScene={() => setNewScene(true)} />
+      <div className="scene__tr">
+        <K.BackstageToggle />
+        <K.SceneButton icon="search" label={t('scene.search')} />
+        <K.SceneButton icon="dots" label={t('scene.menu')} />
       </div>
-      <section className="k-chat ka-chat" aria-label="The story">
-        <div className={`k-chat__scroll ka-chat__scroll${below ? ' is-below' : ''}`} ref={convo} onScroll={measure}
-          onWheel={unfollow} onTouchMove={unfollow} onPointerDown={(e) => e.target === e.currentTarget && unfollow()}
-          onKeyDown={(e) => /^(Arrow|Page|Home|End| )/.test(e.key) && unfollow()}>
-          <div className="k-chat__inner ka-chat__inner">
-            <Lines story={story} messages={shown} cast={cast} signals={signals} chapters={chapters} flash={line} advanced={advanced}
-              busy={!!live} onChange={refreshAll} onRetake={retake} onRewrite={rewrite} />
-            {missing && <p className="k-sysnote">That line is no longer in this version of the story.</p>}
-            {said && (
-              <SaidLine who={said.who ?? (said.narrate ? 'Narrator' : (story.persona?.name ?? 'You'))} text={said.text} audience={said.audience} advanced={advanced}
-                hearers={said.audience === null ? people : people.filter((e) => said.audience!.includes(e.id))} />
-            )}
-            {live && <LiveLine live={live} item={writerItem} ink={writer ? paletteOf(writerItem, writer.name).ink : undefined} />}
-            {failed ? (
-              <Trouble
-                title={offline ? "The model isn't answering" : "That reply didn't come"}
-                action={
-                  <span className="ka-row ka-row--gap">
-                    {asked.current && (
-                      <button type="button" className="k-btn k-btn--dark k-btn--sm" disabled={!!live} onClick={retry}>
-                        <Icon name="refresh" size={15} />
-                        Try again
-                      </button>
-                    )}
-                    {offline && <a className="k-btn k-btn--sm" href={href('/settings')}><Icon name="server" size={15} />Check Models</a>}
-                  </span>
-                }
-              >
-                {failed}
-              </Trouble>
-            ) : (
-              <ErrorLine error={actError || error} />
-            )}
-          </div>
-        </div>
-        <div className={`ka-more${below ? ' is-on' : ''}`}>
-          <button type="button" aria-label="Follow the newest line" tabIndex={below ? 0 : -1} onClick={jump}>
-            <Icon name="down" size={18} />
-          </button>
-        </div>
-        <Composer
-          story={story}
-          people={people}
-          away={away}
-          live={!!live}
-          picked={picked}
-          onPick={setPicked}
-          advanced={advanced}
-          onAdvanced={setAdvanced}
-          skip={skip}
-          onSkip={setSkip}
-          writer={live && live.speakerId === null && live.speaker ? 'the narrator' : (live?.speaker ?? '')}
-          meter={meter}
-          onSend={send}
-          onStop={() => controller.current?.abort()}
-        />
-      </section>
-      <WidgetBoard
-        story={story}
-        people={people}
-        everyone={cast.entities.filter((e) => e.is_ai && e.kind === 'character')}
-        itemOf={item}
-        faces={faces}
-        stateOf={(who) => (live?.speakerId === who ? (live.text ? 'writing' : 'thinking') : undefined)}
-        arriving={arriving}
-        chapter={here?.title}
-        rolling={rolling}
-        passTime={<PassTime disabled={!!live} onPick={setSkip} className="ka-clock__pass" />}
-        nearby={(shown) => <Nearby story={story} cast={cast} busy={acting || !!live} onMove={move} shown={shown} />}
-        editing={arranging}
-        onDone={() => setArranging(false)}
-        onPeek={(who, at) => setPeek({ id: who, at })}
-        onSave={(ui) => act(async () => {
-          await api(`/stories/${id}`, 'PATCH', { ui: { ...story.ui, ...ui } })
-          refreshAll()
-        })}
-      />
-      {peeking && (
-        <Peek
-          key={peeking.id}
-          story={id}
-          entity={peeking}
-          at={peek!.at}
-          tick={tick}
-          busy={acting || !!live}
-          onClose={() => setPeek(null)}
-          onAnswer={() => {
-            setPicked(peeking.id)
-            setPeek(null)
-          }}
-          onMove={() => {
-            move({ kind: peeking.present ? 'here' : 'away', id: peeking.id })
-            setPeek(null)
-          }}
-          onBackstage={() => {
-            setFocus(peeking.id)
-            setBackstage(true)
-            setPeek(null)
-          }}
-          about={story.persona?.name}
-          onWidget={hasWidget(story, people, peeking.id) ? undefined : () => act(async () => {
-            await api(`/stories/${id}`, 'PATCH', { ui: { ...story.ui, ...withCharacter(story, people, peeking.id) } })
-            refreshAll()
-          })}
-        />
-      )}
-      <NewScene open={newScene} story={story} cast={cast} onClose={() => setNewScene(false)} onCut={cut} />
-      {cutting && <div className="ka-cut" aria-hidden="true" />}
-      {skipping && (
-        <TimeSkip
-          title={story.title}
-          minutes={skipping.minutes}
-          from={skipping.from}
-          to={skipping.to}
-          report={skipping.report}
-          leaving={!!skipping.leaving}
-          onUndo={undoSkip}
-          onHold={() => clearTimeout(skipTimer.current)}
-          onClose={closeSkip}
-        />
-      )}
-    </div>
-  )
-}
 
-type Dialogs = 'rename' | 'minutes' | 'delete' | 'chapter' | 'chapters' | 'export' | 'moment' | null
-
-/** The story menu: reading mode, chapters, rename, minutes per turn, pin, delete (with a confirm). */
-function StoryMenu({ story, chapters, messages, at, reading, onReading, onArrange, onChange, onNewScene }: {
-  story: Story
-  chapters: Chapter[]
-  messages: Message[] // the take this story is reading: what "go to it" can actually come to
-  at?: number // the newest line: where a chapter started "here" begins
-  reading: boolean
-  onReading?: () => void // none while Backstage is open
-  onArrange?: () => void // Edit widgets; none while Backstage is open
-  onChange: () => void
-  onNewScene: () => void
-}) {
-  const [open, setOpen] = useState<Dialogs>(null)
-  const [run, error, busy, forget] = useAction()
-  // what went wrong in the dialog you just closed is not news about the next one
-  const close = () => {
-    setOpen(null)
-    forget()
-  }
-  const save = (body: object) =>
-    run(async () => {
-      await api(`/stories/${story.id}`, 'PATCH', body)
-      close()
-      onChange()
-    })
-  /** The first line of this chapter that is on screen — a marker carries an anchor too. */
-  const opensAt = (c: Chapter) =>
-    messages.find((m) => m.id >= c.from_message_id && m.id <= (c.ends_at ?? m.id))
-  // Coming to a chapter is scrolling, not routing: the hash may already be that line, and
-  // assigning the same hash again changes nothing.
-  const goTo = (c: Chapter) => {
-    close()
-    const line = opensAt(c)
-    if (line) document.getElementById(`line-${line.id}`)?.scrollIntoView({ block: 'center' })
-  }
-  // Chapters are part of what the scene loads, so a change to one just asks it to load again.
-  const chapter = (fn: () => Promise<unknown>, thenClose = false) =>
-    run(async () => {
-      await fn()
-      if (thenClose) close()
-      onChange()
-    })
-  const remove = () =>
-    run(async () => {
-      await api(`/stories/${story.id}`, 'DELETE')
-      close()
-      lastSky.path = '/chats' // the story is gone; float up to the list of chats
-      rise()
-    })
-  return (
-    <>
-      <Menu label="Story menu" className="k-scene-round k-sglass">
-        <button type="button" disabled={!onArrange} onClick={onArrange}>
-          <Icon name="grid" size={16} />
-          Edit widgets
-        </button>
-        <button type="button" disabled={!onReading} onClick={onReading}>
-          <Icon name="book" size={16} />
-          {reading ? 'Leave reading mode' : 'Reading mode'}
-        </button>
-        <button type="button" onClick={onNewScene}>
-          <Icon name="film" size={16} />
-          New scene…
-        </button>
-        <button type="button" disabled={!at || chapters.some((c) => c.from_message_id === at)}
-          onClick={() => setOpen('chapter')}>
-          <Icon name="quill" size={16} />
-          Start a chapter here…
-        </button>
-        <button type="button" onClick={() => setOpen('moment')}>
-          <Icon name="star" size={16} />
-          Name this moment…
-        </button>
-        <button type="button" disabled={!chapters.length} onClick={() => setOpen('chapters')}>
-          <Icon name="book" size={16} />
-          Chapters
-        </button>
-        <button type="button" onClick={() => setOpen('export')}>
-          <Icon name="download" size={16} />
-          Take it out…
-        </button>
-        <button type="button" onClick={() => setOpen('rename')}>
-          <Icon name="edit" size={16} />
-          Rename…
-        </button>
-        <button type="button" onClick={() => setOpen('minutes')}>
-          <Icon name="clock" size={16} />
-          Minutes per turn…
-        </button>
-        <button type="button" onClick={() => save({ pinned: !story.pinned })}>
-          <Icon name="pin" size={16} />
-          {story.pinned ? 'Unpin story' : 'Pin story'}
-        </button>
-        <button type="button" onClick={() => setOpen('delete')}>
-          <Icon name="x" size={16} />
-          Delete story…
-        </button>
-      </Menu>
-      <Dialog open={open === 'rename'} onClose={close} title="Rename this story">
-        <OneField label="Title" initial={story.title} busy={busy} error={error} onSave={(title) => save({ title })} />
-      </Dialog>
-      <Dialog open={open === 'minutes'} onClose={close} title="Minutes per turn">
-        <p className="ka-muted">How far the story clock moves with each line. Skips come on top.</p>
-        <OneField label="Minutes" initial={String(story.minutes_per_turn)} number busy={busy} error={error}
-          onSave={(v) => save({ minutes_per_turn: Math.max(1, Math.round(Number(v))) })} />
-      </Dialog>
-      <Dialog open={open === 'moment'} onClose={close} title="Name this moment">
-        <p className="ka-muted">
-          Dates in this story count from the moments you name: “the evening of the storm”, “six years after the storm”.
-          Right now it is {inline(story.date)}.
-        </p>
-        <OneField label="What happened (the storm, the proposal…)" initial="" busy={busy} error={error}
-          onSave={(name) => save({ moments: [...story.moments.filter((m) => m.at !== story.story_time), { name, at: story.story_time }] })} />
-        {story.moments.length > 0 && (
-          <ul className="ka-moments">
-            {story.moments.map((m) => (
-              <li key={`${m.at}-${m.name}`}>
-                <span>{m.name}</span>
-                <button type="button" className="k-sbtn" disabled={busy}
-                  onClick={() => save({ moments: story.moments.filter((x) => x !== m) })}>
-                  Remove
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Dialog>
-      <Dialog open={open === 'chapter'} onClose={close} title="Start a chapter here">
-        <p className="ka-muted">
-          It begins at the newest line and runs on as you play. Whatever was running ends just before it.
-        </p>
-        <OneField label="Chapter title" initial="" busy={busy} error={error}
-          onSave={(title) =>
-            chapter(async () => { await api(`/stories/${story.id}/chapters`, 'POST', { title, from_message_id: at }) }, true)
-          } />
-      </Dialog>
-      <Dialog open={open === 'chapters'} onClose={close} title={`Chapters of “${story.title}”`}>
-        <ol className="ka-chapters">
-          {chapters.map((c, i) => (
-            <li key={c.id} className="ka-chapters__row">
-              <span className="ka-chapters__n" aria-hidden="true">{i + 1}</span>
-              <form
-                className="ka-chapters__body"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  const title = String(new FormData(e.currentTarget).get('title') ?? '').trim()
-                  if (title && title !== c.title) chapter(async () => { await api(`/chapters/${c.id}`, 'PATCH', { title }) })
-                }}
-              >
-                <input name="title" className="k-input" defaultValue={c.title} maxLength={200}
-                  aria-label={`Title of chapter ${i + 1}`} />
-                <span className="ka-muted ka-small">
-                  {[c.from_clock, `${c.lines} ${c.lines === 1 ? 'line' : 'lines'}`, c.open ? 'still running' : c.to_clock]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </span>
-                <span className="ka-row">
-                  <button type="submit" className="k-sbtn" disabled={busy}>Save the title</button>
-                  <button type="button" className="k-sbtn" disabled={busy || !opensAt(c)}
-                    onClick={() => goTo(c)}>
-                    Go to it
-                  </button>
-                  <button type="button" className="k-sbtn ka-sbtn--danger" disabled={busy}
-                    onClick={() => chapter(async () => { await api(`/chapters/${c.id}`, 'DELETE') })}>
-                    Delete
-                  </button>
-                </span>
-              </form>
-            </li>
+      <div className="scene__chat" ref={lines}>
+        <K.ChatPanel label={t('scene.label')} composer={
+          <K.Composer value={draft} onChange={setDraft} onSend={send} placeholder={placeholder}
+            streaming={!!live} onStop={() => controller.current?.abort()} onContinue={() => send('')}
+            advanced={advanced} onAdvanced={setAdvanced}
+            hearing={hearing} hearingText={present.length ? t('scene.hearingAll') : undefined}
+            answers={answers} answer={answer} onAnswer={(a) => setAnswer(a as Answer)} />
+        }>
+          {story.place && <K.TitleCard>{`${story.place.name} · ${story.date}`}</K.TitleCard>}
+          {messages.filter((m) => !m.hidden && m.text).map((m) => (
+            <K.ChatLine key={m.id} speaker={String(m.speaker_id ?? m.role)} color={colour(m.speaker_id, m.role)}
+              name={m.role === 'user' ? (persona ?? t('scene.narrator')) : (m.speaker ?? t('scene.narrator'))}
+              time={twelve(m.clock)} exact={m.clock.slice(-5)} timeDetail={fullTime(m.clock, m.date)} text={m.text}
+              take={m.swipe[1] > 1 ? `${m.swipe[0]}/${m.swipe[1]}` : undefined}
+              thought={m.think_ms ? t('scene.thought', { s: Math.round(m.think_ms / 1000) }) : undefined} />
           ))}
-        </ol>
-        <p className="ka-muted ka-small">
-          {chapters.length
-            ? 'Deleting a chapter gives its lines back to the one before it. The story keeps every line either way.'
-            : 'No chapters. The whole story is one stretch.'}
-        </p>
-        <ErrorLine error={error} />
-      </Dialog>
-      <Dialog open={open === 'export'} onClose={close} title={`Take “${story.title}” out`}>
-        <p className="ka-muted">
-          A copy, for you to keep or read anywhere. The story stays here either way.
-        </p>
-        <div className="ka-stack">
-          <button type="button" className="k-sbtn ka-out" disabled={busy}
-            onClick={() => run(async () => { await download(`/stories/${story.id}/export?as=markdown`); close() })}>
-            <Icon name="quote" size={16} />
-            <span className="ka-out__text">
-              <strong>As a page to read</strong>
-              <small>Markdown: its title, its chapters, and every line under the name that said it.</small>
-            </span>
-          </button>
-          <button type="button" className="k-sbtn ka-out" disabled={busy}
-            onClick={() => run(async () => { await download(`/stories/${story.id}/export?as=jsonl`); close() })}>
-            <Icon name="grid" size={16} />
-            <span className="ka-out__text">
-              <strong>As lines to keep</strong>
-              <small>JSONL: one line per message — what was said, by whom, and when. Nothing of the engine's.</small>
-            </span>
-          </button>
-        </div>
-        <ErrorLine error={error} />
-      </Dialog>
-      <Dialog open={open === 'delete'} onClose={close} title="Delete this story?">
-        <p className="ka-muted">
-          “{story.title}” and everything its characters remember of it will be gone. This can't be undone.
-        </p>
-        <ErrorLine error={error} />
-        <div className="ka-row ka-row--end">
-          <button type="button" className="k-sbtn" onClick={close}>Keep it</button>
-          <button type="button" className="k-sbtn ka-sbtn--danger" disabled={busy} onClick={remove}>Delete story</button>
-        </div>
-      </Dialog>
-    </>
-  )
-}
-
-/** One field and Save: mounted fresh each time its dialog opens. */
-function OneField({ label, initial, number, busy, error, onSave }: {
-  label: string
-  initial: string
-  number?: boolean
-  busy: boolean
-  error: string
-  onSave: (value: string) => void
-}) {
-  const [value, setValue] = useState(initial)
-  const ok = number ? Number(value) >= 1 : !!value.trim()
-  return (
-    <form className="ka-stack" onSubmit={(e) => { e.preventDefault(); if (ok) onSave(value.trim()) }}>
-      <Field label={label}>
-        <input className="k-input" autoFocus value={value} onChange={(e) => setValue(e.target.value)}
-          {...(number ? { type: 'number', min: 1, max: 1440 } : {})} />
-      </Field>
-      <ErrorLine error={error} />
-      <div className="ka-row ka-row--end">
-        <button type="submit" className="k-sbtn ka-sbtn--primary" disabled={busy || !ok}>Save</button>
+          {said && <K.ChatLine speaker="user" color="var(--speaker-liv)" name={persona ?? t('scene.narrator')} time="" text={said} />}
+          {live && (
+            <K.ChatLine speaker={String(live.speakerId)} color={colour(live.speakerId, 'assistant')} name={live.speaker || '…'} time=""
+              text={live.text} writing thought={live.thinkMs ? t('scene.thought', { s: Math.round(live.thinkMs / 1000) }) : undefined} />
+          )}
+          {failed && (
+            <div className="lineerr" role="alert">
+              <K.Icon name="alert" size={18} color="var(--bad)" />
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <b style={{ fontSize: 14 }}>{t(offline ? 'scene.err.offline' : 'scene.err.title')}</b>
+                <span className="scene-t">{failed}</span>
+                <div className="row" style={{ gap: 8 }}>
+                  <button type="button" className="k-btn k-btn--scene-send" onClick={retry}>{t('scene.err.retry')}</button>
+                  {offline && <a className="k-btn k-btn--scene-ghost" href="/settings/models">{t('scene.err.models')}</a>}
+                </div>
+              </div>
+            </div>
+          )}
+        </K.ChatPanel>
       </div>
-    </form>
+
+      <div className="scene__right">
+        {present.map((e: CastEntity) => {
+          const f = face(item(e), e.name)
+          return (
+            <K.CharacterWidget key={e.id} who={f.who ?? ''} src={f.src} name={e.name}
+              thinking={live?.speakerId === e.id && !live.text} status={t('scene.here')} />
+          )
+        })}
+      </div>
+      <div className="scene__left">
+        <K.ClockWidget time={twelve(story.clock)} rel={story.date} place={story.place?.name ?? ''}
+          exact={story.clock.slice(-5)} detail={fullTime(story.clock, story.date)}
+          kind={story.minute_of_day >= 1200 || story.minute_of_day < 360 ? 'night' : 'dusk'} />
+      </div>
+    </div>
   )
 }

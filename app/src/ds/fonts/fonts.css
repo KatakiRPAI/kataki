@@ -1,0 +1,7 @@
+/* Local copies, so every page renders with no network (README › Definition of done). */
+@font-face { font-family: 'Baloo 2'; src: url('./Baloo2-Variable.ttf') format('truetype'); font-weight: 400 800; font-display: swap; }
+@font-face { font-family: Figtree; src: url('./Figtree-Variable.ttf') format('truetype'); font-weight: 300 900; font-display: swap; }
+@font-face { font-family: Figtree; src: url('./Figtree-Italic-Variable.ttf') format('truetype'); font-weight: 300 900; font-style: italic; font-display: swap; }
+@font-face { font-family: Newsreader; src: url('./Newsreader-Variable.ttf') format('truetype'); font-weight: 200 800; font-display: swap; }
+@font-face { font-family: Newsreader; src: url('./Newsreader-Italic-Variable.ttf') format('truetype'); font-weight: 200 800; font-style: italic; font-display: swap; }
+@font-face { font-family: 'JetBrains Mono'; src: url('./JetBrainsMono-Variable.ttf') format('truetype'); font-weight: 100 800; font-display: swap; }

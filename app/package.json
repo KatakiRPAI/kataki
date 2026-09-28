@@ -13,8 +13,10 @@
     "typecheck": "tsc --noEmit && tsc -p electron --noEmit"
   },
   "dependencies": {
+    "intl-messageformat": "^12.1.2",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-dom": "^19.3.0",
+    "react-router": "^8.4.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

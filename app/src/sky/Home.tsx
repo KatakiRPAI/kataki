@@ -1,228 +1,170 @@
-import { useId, useState, type CSSProperties } from 'react'
-import { api, type ActivityEvent, type Item, type StorySummary } from '../api'
-import { Avatar, Figure, Orb, paletteOf, Room } from '../art'
-import { ago, diveLink, inline, exact, href, useArrivals, useLibrary, useLoad } from '../hooks'
-import { ErrorLine, Glass, Icon, Prose } from '../ui'
-import { EventLink } from './Activity'
-import Friends from './Friends'
+// Home (C1, C2, C3): docs/handoff/kataki-handoff/SCREENS.md › /home.
+import { useState } from 'react'
+import { useNavigate } from 'react-router'
+import { api, type ActivityEvent, type Item, type Person, type Story, type StorySummary } from '../api'
+import { K } from '../ds'
+import { face, scenery, twelve, useLibrary, useLoad, utc } from '../hooks'
+import { relative, t } from '../strings'
 
-type Settings = { persona?: number | null }
-
-const greeting = (hour = new Date().getHours()) =>
-  hour >= 5 && hour < 12 ? 'Good morning' : hour >= 12 && hour < 17 ? 'Good afternoon' : 'Good evening'
-
-/** The choice of who you are in new chats: each persona, the director, or a new persona. */
-export function PersonaChoices({ current, personas, onPick, big = false }: {
-  current?: Item
-  personas: Item[]
-  onPick: (id: number | null) => void
-  big?: boolean
-}) {
-  const size = big ? 48 : 40
-  return (
-    <div className="ka-choices">
-      {personas.map((p) => (
-        <button key={p.id} type="button" className="ka-choice" aria-pressed={p.id === current?.id} onClick={() => onPick(p.id)}>
-          <Avatar item={p} size={size} />
-          <span className="ka-stack ka-stack--tight">
-            <strong>{p.name}</strong>
-            {p.description && <span className="ka-muted ka-small">{p.description.split('\n')[0]}</span>}
-          </span>
-          {p.id === current?.id && <Icon name="check" size={18} />}
-        </button>
-      ))}
-      <button type="button" className="ka-choice" aria-pressed={!current} onClick={() => onPick(null)}>
-        <span className="ka-choice__tile" style={{ width: size, height: size }}><Icon name="quill" size={20} /></span>
-        <span className="ka-stack ka-stack--tight">
-          <strong>Director</strong>
-          <span className="ka-muted ka-small">Play no one. Direct the story.</span>
-        </span>
-        {!current && <Icon name="check" size={18} />}
-      </button>
-      <a className="ka-choice ka-choice--new" href={href('/you/new')}>
-        <span className="ka-choice__tile ka-choice__tile--new" style={{ width: size, height: size }}><Icon name="plus" size={20} /></span>
-        <strong>New persona</strong>
-      </a>
-      <span className="ka-muted ka-small ka-choice__note">
-        Each chat keeps the persona it started with. Characters know each of your personas separately.
-      </span>
-    </div>
-  )
-}
-
-/** Your avatar, which opens the choice of who you are in new chats. */
-export function PersonaSwitcher({ current, personas, onPick }: {
-  current?: Item
-  personas: Item[]
-  onPick: (id: number | null) => void
-}) {
-  const id = useId()
-  return (
-    <>
-      <button type="button" className="ka-me" popoverTarget={id} aria-label={`You are ${current?.name ?? 'the director'}. Switch who you are`}>
-        <Avatar item={current} name={current?.name ?? 'Director'} size={62} className="k-avatar--ring" />
-        <span className="ka-me__badge"><Icon name="swap" size={12} /></span>
-      </button>
-      <div id={id} popover="auto" className="ka-menu ka-switcher">
-        <span className="k-eyebrow ka-eyebrow">Who are you in new chats?</span>
-        <PersonaChoices
-          current={current}
-          personas={personas}
-          onPick={(value) => {
-            onPick(value)
-            document.getElementById(id)?.hidePopover()
-          }}
-        />
-      </div>
-    </>
-  )
-}
-
-/** The story you played last, as a still you can dive back into. */
-function Continue({ story, byId }: { story: StorySummary; byId: Map<number, Item> }) {
-  const lib = (libId: number | null) => byId.get(libId ?? -1)
-  const speaker = story.cast.find((c) => c.name === story.last_line?.speaker)
-  const shown = speaker ?? story.cast.find((c) => c.present) ?? story.cast[0]
-  const persona = story.last_line?.speaker === story.persona?.name
-  const ink = persona ? 'var(--k-speaker-aren)' : paletteOf(lib(speaker?.lib_item_id ?? null), speaker?.name).ink
-  const here = story.cast.filter((c) => c.present).map((c) => c.name)
-  const meta = [`Played ${ago(story.last_at)}`, story.place?.name, inline(story.date), here.length ? `with ${here.join(' and ')}` : '', story.persona ? `as ${story.persona.name}` : 'directing']
-  return (
-    <section className="k-continue ka-continue" aria-label="Continue your last scene">
-      <Room item={lib(story.place?.lib_item_id ?? null)} minute={story.minute_of_day} />
-      {shown && <Figure item={lib(shown.lib_item_id)} name={shown.name} className="ka-continue__figure" />}
-      <span className="k-continue__scrim" />
-      <div className="ka-continue__text">
-        <span className="ka-glass-chip">
-          <Icon name="spark" size={13} />
-          {story.new_events > 0
-            ? `Continue · ${story.new_events} new memory event${story.new_events === 1 ? '' : 's'}`
-            : 'Continue'}
-        </span>
-        <span className="ka-continue__title">{story.title}</span>
-        <span className="ka-continue__meta" title={exact(story.last_at)}>{meta.filter(Boolean).join(' · ')}</span>
-        {story.last_line && (
-          <div className="ka-continue__line">
-            {story.last_line.speaker && <span className="ka-continue__who" style={{ color: ink } as CSSProperties}>{story.last_line.speaker}</span>}
-            <Prose text={story.last_line.text} />
-          </div>
-        )}
-      </div>
-      <a className="ka-continue__dive" {...diveLink(`/story/${story.id}`)}>
-        Dive back in
-        <Orb size={74} />
-      </a>
-    </section>
-  )
-}
-
-/** Friends, stories and places whose words match. */
-function Results({ q, items, stories }: { q: string; items: Item[]; stories: StorySummary[] }) {
-  const has = (...texts: (string | undefined)[]) => texts.some((t) => t?.toLowerCase().includes(q.toLowerCase()))
-  const friends = items.filter((i) => i.kind === 'character' && !i.data.persona && has(i.name, i.description, ...(i.data.aliases ?? []), ...i.tags))
-  const chats = stories.filter((s) => has(s.title, s.place?.name, s.last_line?.text, ...s.cast.map((c) => c.name)))
-  const places = items.filter((i) => i.kind === 'place' && has(i.name, i.description, ...(i.data.aliases ?? [])))
-  const byLib = new Map(items.map((i) => [i.id, i]))
-  if (!friends.length && !chats.length && !places.length)
-    return <p className="ka-muted">Nothing matches “{q}”.</p>
-  return (
-    <section className="k-glass ka-results" aria-label="Search results">
-      {friends.length > 0 && <h2 className="k-eyebrow ka-eyebrow">Characters</h2>}
-      {friends.map((f) => (
-        <a key={f.id} className="ka-result" href={href(`/friend/${f.id}`)}>
-          <Avatar item={f} size={40} />
-          <span className="ka-stack ka-stack--tight"><strong>{f.name}</strong><span className="ka-muted ka-small">{f.description.split('\n')[0]}</span></span>
-        </a>
-      ))}
-      {chats.length > 0 && <h2 className="k-eyebrow ka-eyebrow">Stories</h2>}
-      {chats.map((s) => (
-        <a key={s.id} className="ka-result" href={href(`/chats/${s.id}`)}>
-          <Avatar item={byLib.get(s.cast[0]?.lib_item_id ?? -1)} name={s.cast[0]?.name ?? s.title} size={40} />
-          <span className="ka-stack ka-stack--tight"><strong>{s.title}</strong><span className="ka-muted ka-small">{[`Played ${ago(s.last_at)}`, s.place?.name, inline(s.date)].filter(Boolean).join(' · ')}</span></span>
-        </a>
-      ))}
-      {places.length > 0 && <h2 className="k-eyebrow ka-eyebrow">Places</h2>}
-      {places.map((p) => (
-        <a key={p.id} className="ka-result" href={href('/places')}>
-          <span className="ka-result__room"><Room item={p} minute={1140} /></span>
-          <span className="ka-stack ka-stack--tight"><strong>{p.name}</strong><span className="ka-muted ka-small">{p.description.split('\n')[0]}</span></span>
-        </a>
-      ))}
-    </section>
-  )
-}
+type Filter = 'all' | 'story' | 'drafts'
+const TONE = { memory: 'ok', belief: 'warm', feeling: 'warm', time: 'muted' } as const
+const EVENT = { memory: 'event.memory', belief: 'event.belief', feeling: 'event.feeling', time: 'event.time' } as const
+// a quote reads as words: the *action* markers of the chat are dropped
+const quoted = (text: string) => `“${text.replace(/\*/g, '').trim()}”`
 
 export default function Home() {
+  const navigate = useNavigate()
   const { items, byId } = useLibrary()
-  const [settings, reloadSettings, settingsError] = useLoad(() => api<Settings>('/settings'), [])
-  const [stories, reloadStories, storiesError] = useLoad(() => api<StorySummary[]>('/stories'), [])
-  const [recent, reloadRecent] = useLoad(() => api<ActivityEvent[]>('/activity?limit=3'), [])
-  // a whole library poured in from outside lands here, and Home is not remounted to see it
-  useArrivals(() => {
-    reloadSettings()
-    reloadStories()
-    reloadRecent()
-  })
-  const [q, setQ] = useState('')
-  const [error, setError] = useState('')
-  const unseen = (stories ?? []).reduce((n, s) => n + s.new_events, 0)
+  const [settings] = useLoad(() => api<{ persona?: number }>('/settings'), [])
+  const [stories] = useLoad(() => api<StorySummary[]>('/stories'), [])
+  const [events] = useLoad(() => api<ActivityEvent[]>('/activity?limit=12'), [])
+  const [filter, setFilter] = useState<Filter>('all')
+  const played = [...(stories ?? [])].sort((a, b) => utc(b.last_at) - utc(a.last_at))
+  const hero = played[0]
+  const [people] = useLoad(() => (hero ? api<Person[]>(`/stories/${hero.id}/people`) : Promise.resolve([])), [hero?.id])
 
-  const personas = items.filter((i) => i.kind === 'character' && i.data.persona).sort((a, b) => a.id - b.id)
-  const me = personas.find((p) => p.id === settings?.persona)
-  const last = [...(stories ?? [])].sort((a, b) => b.last_at.localeCompare(a.last_at))[0]
-  const pick = (persona: number | null) =>
-    api('/settings', 'PUT', { persona }).then(reloadSettings, (e: Error) => setError(e.message))
+  const persona = settings?.persona ? byId.get(settings.persona) : undefined
+  const characters = items.filter((i) => i.kind === 'character' && !i.data.persona)
+  const lastPlayed = (c: Item) => played.find((s) => s.cast.some((x) => x.lib_item_id === c.id))
+  const draft = (c: Item) => !c.description.trim()
+  const shown = characters.filter((c) => (filter === 'story' ? !!lastPlayed(c) : filter === 'drafts' ? draft(c) : true))
+  const lead = hero?.cast.find((c) => c.present) ?? hero?.cast[0]
+  const ordered = [...shown].sort((a, b) => (a.id === lead?.lib_item_id ? -1 : b.id === lead?.lib_item_id ? 1 : utc(lastPlayed(b)?.last_at ?? '1970-01-01 00:00:00') - utc(lastPlayed(a)?.last_at ?? '1970-01-01 00:00:00')))
+
+  if (!stories) return <main className="app__main" aria-label={t('home.label')}><K.Skeleton /></main>
+
+  const top = <K.TopBar {...face(persona)} />
+  const start = async (c: Item) => {
+    const story = await api<Story>('/stories', 'POST', { title: c.name, character_ids: [c.id], persona_id: persona?.id ?? null })
+    navigate(`/story/${story.id}`)
+  }
+
+  if (!hero) {
+    return (
+      <main className="app__main" aria-label={t('home.label')}>
+        {top}
+        <h1 className="pg-title">{t('home.empty.title')}</h1>
+        <section className="sec" aria-label={t('home.empty.start')}>
+          <h2 className="sec-title">{t('home.empty.start')}</h2>
+          <div className="row row--wrap" style={{ gap: 16, alignItems: 'flex-start' }}>
+            {characters.filter((c) => !draft(c)).map((c) => (
+              <div key={c.id} className="col">
+                <K.CharacterCard {...face(c)} name={c.name} when={t('card.when.never')} />
+                <K.Button variant="primary" size="sm" onClick={() => start(c)}>{t('home.empty.sayHello')}</K.Button>
+              </div>
+            ))}
+            <K.AddCard href="/characters/new" sub={t('home.newCharacterSub')}>{t('home.newCharacter')}</K.AddCard>
+          </div>
+        </section>
+        <Privacy />
+      </main>
+    )
+  }
+
+  const heroPerson = people?.find((p) => p.lib_item_id === lead?.lib_item_id)
+  const since = (events ?? []).filter((e) => e.new).slice(0, 3)
+  const place = hero.place ? byId.get(hero.place.lib_item_id ?? -1) : undefined
+  const counts = {
+    all: characters.length,
+    story: characters.filter((c) => lastPlayed(c)).length,
+    drafts: characters.filter(draft).length,
+  }
 
   return (
-    <>
-      <header className="ka-home-head">
-        <div className="ka-row ka-row--gap16">
-          <PersonaSwitcher current={me} personas={personas} onPick={pick} />
-          <span className="ka-stack ka-stack--tight">
-            <span className="ka-home-head__hello">{greeting()},</span>
-            <span className="k-display ka-home-head__name">{me?.name ?? 'Director'}</span>
-          </span>
-        </div>
-        <div className="ka-row ka-row--gap">
-          <label className="k-search k-glass ka-search">
-            <Icon name="search" />
-            <span className="k-sr">Search</span>
-            <input type="search" placeholder="Search characters, stories, places" value={q} onChange={(e) => setQ(e.target.value)} />
-          </label>
-          <a className="k-glass ka-bell" href={href('/activity')} aria-label={unseen ? `Activity, ${unseen} new` : 'Activity'}>
-            <Icon name="bell" size={20} />
-            {unseen > 0 && <span className="k-badge-count">{unseen}</span>}
-          </a>
-          <a className="k-btn k-btn--dark k-btn--lg" href={href('/friends/new')}>
-            <Icon name="plus" size={17} />
-            Add a character
-          </a>
-        </div>
-      </header>
-      <ErrorLine error={error || settingsError || storiesError} />
-      {q.trim() ? (
-        <Results q={q.trim()} items={items} stories={stories ?? []} />
-      ) : (
-        <>
-          <div className="ka-home-row">
-            {last && <Continue story={last} byId={byId} />}
-            <Glass
-              title="Activity"
-              action={<a className="ka-link ka-m0" href={href('/activity')}>See all</a>}
-              className="ka-home-activity"
-            >
-              {recent?.length ? (
-                recent.map((e) => <EventLink key={e.key} e={e} />)
-              ) : (
-                <p className="ka-muted ka-m0">What your friends make of a scene lands here.</p>
-              )}
-            </Glass>
+    <main className="app__main" aria-label={t('home.label')}>
+      <a href={`/story/${hero.id}`} className="sr">{t('home.skip')}</a>
+      {top}
+      <K.ContinueHero
+        title={hero.title}
+        book={hero.book?.title ?? t('home.noBook')}
+        lastLine={hero.last_line ? quoted(hero.last_line.text) : t('home.noLine')}
+        {...(() => { const f = face(byId.get(lead?.lib_item_id ?? -1), lead?.name); return { who: f.who, avatarSrc: f.src, avatarName: f.name } })()}
+        stats={t('home.stats', { memories: heroPerson?.remembers ?? 0, changed: hero.new_events })}
+        where={t('home.where', { relative: hero.date, place: hero.place?.name ?? '', time: twelve(hero.clock) })}
+        {...(() => { const s = scenery(place); return { place: s.place ?? '', placeSrc: s.src } })()}
+        caption={hero.scene_title ?? undefined}
+        placeAlt={hero.place?.name}
+        continueHref={`/story/${hero.id}`}
+        newHref="/stories/new"
+      />
+
+      {since.length > 0 && (
+        <section className="sec" aria-label={t('home.since')}>
+          <div style={{ display: 'flex', gap: 22, alignItems: 'baseline' }}>
+            <K.Eyebrow>{t('home.since')}</K.Eyebrow>
+            <span className="t-faint">{t('home.events', { n: since.length, lastPlayed: relative(utc(hero.last_at)) })}</span>
           </div>
-          <section className="ka-stack ka-stack--18" aria-label="Characters">
-            <Friends section />
-          </section>
-        </>
+          <div style={{ display: 'flex', gap: 12 }}>
+            {since.map((e) => {
+              const who = e.who[0]
+              const f = face(byId.get(who?.lib_item_id ?? -1), who?.name)
+              return (
+                <a key={e.key} href={who?.lib_item_id ? `/characters/${who.lib_item_id}` : `/story/${e.story_id}`} style={{ flex: 1, minWidth: 0 }}>
+                  <K.EventCard who={f.who ?? ''} avatarSrc={f.src} name={who?.name ?? ''} event={t(EVENT[e.kind])} tone={TONE[e.kind]}
+                    memory={quoted(e.text)} meta={e.sub} />
+                </a>
+              )
+            })}
+          </div>
+        </section>
       )}
-    </>
+
+      <section className="sec" aria-label={t('home.characters')}>
+        <div className="sec-head">
+          <h2 className="sec-title">{t('home.characters')}</h2>
+          <div className="row" style={{ gap: 8 }}>
+            {(['all', 'story', 'drafts'] as const).map((f) => (
+              <K.Chip key={f} size="sm" pressed={filter === f} count={counts[f]} onPress={() => setFilter(f)}>
+                {t(f === 'all' ? 'home.filter.all' : f === 'story' ? 'home.filter.inStory' : 'home.filter.drafts')}
+              </K.Chip>
+            ))}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', overflow: 'hidden' }}>
+          {ordered.slice(0, 5).map((c) => {
+            const last = lastPlayed(c)
+            const featured = c.id === lead?.lib_item_id
+            return (
+              <a key={c.id} href={`/characters/${c.id}`} aria-label={c.name}>
+                <K.CharacterCard {...face(c)} name={c.name} featured={featured}
+                  when={last ? t('card.when.played', { relative: relative(utc(last.last_at)) }) : t('card.when.never')}
+                  badge={featured ? t('home.inStory') : undefined} badgeTone={featured ? 'warm' : undefined} />
+              </a>
+            )
+          })}
+          <K.AddCard href="/characters/new" sub={t('home.newCharacterSub')}>{t('home.newCharacter')}</K.AddCard>
+        </div>
+      </section>
+
+      {played.length > 1 && (
+        <section className="sec" aria-label={t('home.threads')}>
+          <div className="sec-head">
+            <h2 className="sec-title">{t('home.threads')}</h2>
+            <K.TextLink href="/stories">{t('home.allStories')}</K.TextLink>
+          </div>
+          <div style={{ display: 'flex', gap: 14, alignItems: 'stretch' }}>
+            {played.slice(1, 4).map((s) => (
+              <a key={s.id} href={`/story/${s.id}`} style={{ flex: 1, minWidth: 0, display: 'flex' }}>
+                <K.StoryCard title={s.title} book={s.book?.title ?? t('home.noBook')} pinned={s.pinned}
+                  people={s.cast.map((c) => { const f = face(byId.get(c.lib_item_id ?? -1), c.name); return { who: f.who, src: f.src } })}
+                  quote={s.last_line ? quoted(s.last_line.text) : t('home.noLine')}
+                  when={t('card.when.played', { relative: relative(utc(s.last_at)) })} storyTime={s.date} />
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
+      <Privacy />
+    </main>
+  )
+}
+
+function Privacy() {
+  return (
+    <div className="privacy">
+      <K.Icon name="lock" size={16} />
+      <span>{t('home.privacy')}</span>
+      <a href="/settings/data">{t('home.whereData')}</a>
+    </div>
   )
 }

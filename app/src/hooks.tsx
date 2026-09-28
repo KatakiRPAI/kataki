@@ -6,10 +6,9 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
   type ReactNode,
 } from 'react'
-import { api, type Item } from './api'
+import { api, mediaUrl, type Item } from './api'
 
 /** A draft kept in this browser, so leaving and coming back finds it as it was. null: nothing
  *  kept. Storage can be missing (private mode); the draft then lasts only while you stay. */
@@ -97,32 +96,6 @@ export function usePoll(fn: () => void, ms: number, enabled = true) {
   }, [ms, enabled])
 }
 
-// ---- router: the hash is the route, e.g. #/friend/3/edit?step=2 ----
-
-export type Route = { path: string; parts: string[]; query: URLSearchParams }
-
-export function parse(hash: string): Route {
-  const [path, query = ''] = hash.replace(/^#/, '').split('?')
-  const clean = path || '/'
-  return { path: clean, parts: clean.split('/').filter(Boolean), query: new URLSearchParams(query) }
-}
-
-export const href = (path: string) => '#' + path
-
-export const go = (path: string) => {
-  location.hash = path
-}
-
-const onHashChange = (cb: () => void) => {
-  addEventListener('hashchange', cb)
-  return () => removeEventListener('hashchange', cb)
-}
-
-export function useRoute(): Route {
-  const hash = useSyncExternalStore(onHashChange, () => location.hash)
-  return useMemo(() => parse(hash), [hash])
-}
-
 // ---- the library: every item, loaded once and reloaded after any edit ----
 
 type Library = { items: Item[]; byId: Map<number, Item>; loaded: boolean; reload: () => void; error: string }
@@ -156,53 +129,9 @@ export function useArrivals(fn: () => void) {
   }, [])
 }
 
-/** Dive into a scene: App plays the clouds parting, then goes to `to`. */
-export const dive = (to: string) => dispatchEvent(new CustomEvent('ka-dive', { detail: to }))
-
-/** Someone moving in or out of a scene: a story character who is away, a library friend, or
- *  someone here (to send away). */
-export type Moving = { kind: 'away' | 'friend' | 'here'; id: number }
-
-/** Where the Scene's cloud button floats back up to: the last Sky page shown. */
-export const lastSky = { path: '/home' }
-
 // ---- real time: outside a story, times are yours ("Played 2 hours ago"), not the story's ----
 /** A SQLite UTC timestamp ("YYYY-MM-DD HH:MM:SS") as epoch ms. */
 export const utc = (at: string) => Date.parse(at.replace(' ', 'T') + 'Z')
-const RELATIVE = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
-const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [['year', 31_536_000], ['month', 2_592_000], ['week', 604_800], ['day', 86_400], ['hour', 3_600], ['minute', 60]]
-/** "just now", "5 minutes ago", "yesterday", "last week". */
-export function ago(at: string): string {
-  const s = (Date.now() - utc(at)) / 1000
-  const [unit, size] = UNITS.find(([, size]) => s >= size) ?? []
-  return unit ? RELATIVE.format(-Math.floor(s / size!), unit) : 'just now'
-}
-/** The exact local time, for a hover: "Today, 7:12 pm" or "22 Sept 2026, 7:12 pm". */
-export function exact(at: string): string {
-  const d = new Date(utc(at))
-  const time = d.toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit', hour12: true })
-  return `${d.toDateString() === new Date().toDateString() ? 'Today' : d.toLocaleDateString('en-GB', { dateStyle: 'medium' })}, ${time}`
-}
-
-/** Which day it was, for grouping a feed: "Today", "Yesterday", or "22 Sept 2026". */
-export function whichDay(at: string): string {
-  const d = new Date(utc(at))
-  const days = Math.round((new Date().setHours(0, 0, 0, 0) - new Date(d).setHours(0, 0, 0, 0)) / 86_400_000)
-  return days === 0 ? 'Today' : days === 1 ? 'Yesterday' : d.toLocaleDateString('en-GB', { dateStyle: 'medium' })
-}
-
-/** Leave a scene: the reverse of the dive, up to the last Sky page. */
-export const rise = () => dispatchEvent(new CustomEvent('ka-rise', { detail: lastSky.path }))
-
-/** Props that make a link dive instead of jumping (it still has a real href). */
-export const diveLink = (to: string) => ({
-  href: href(to),
-  onClick: (e: { preventDefault: () => void }) => {
-    e.preventDefault()
-    dive(to)
-  },
-})
-
 // ---- story time: 12-hour in the chat and widgets, the 24-hour clock and the count on hover ----
 /** "19:02" (or a whole clock label, "Day 1, 19:02") -> "7:02 pm". */
 export function twelve(clock: string): string {
@@ -214,3 +143,17 @@ export const inline = (date: string) => (/^(Day|Year) /.test(date) ? date : date
 /** The hover on a story time: "19:02 · Day 1 · the evening of the storm". */
 export const fullTime = (clock: string, date: string) =>
   [clock.slice(-5), clock.slice(0, -7), inline(date)].filter((part, i, all) => part && all.indexOf(part) === i).join(' · ')
+
+/** How a person shows: the sample world's own art by name, else their uploaded portrait. */
+const SAMPLE = new Set(['liv', 'mike', 'theo', 'jae', 'nico', 'cas', 'dani'])
+export function face(item: Item | undefined, name = item?.name ?? ''): { who?: string; src?: string; name: string } {
+  const src = item?.data.portrait ? mediaUrl(item.data.portrait) : undefined
+  const who = name.toLowerCase().split(' ')[0]
+  return { who: !src && SAMPLE.has(who) ? who : undefined, src, name }
+}
+/** A place's picture: the sample world's by name, else its upload. */
+const PLACES: Record<string, string> = { 'halcyon coffee': 'halcyon-coffee', 'corvel palace': 'corvel-palace', 'the flat on ardenne': 'flat-on-ardenne' }
+export function scenery(item: Item | undefined): { place?: string; src?: string } {
+  const src = item?.data.image ? mediaUrl(item.data.image) : undefined
+  return { place: !src && item ? PLACES[item.name.toLowerCase()] : undefined, src }
+}

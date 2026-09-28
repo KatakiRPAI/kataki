@@ -1,0 +1,193 @@
+/* Compiled from the Kataki design system tokens.json (night first, then day). */
+:root, [data-theme="night"] {
+  --ground: #0a1028;
+  --panel: #131b3a;
+  --raise: #1a2348;
+  --over: #212b57;
+  --rail: #0d142f;
+  --popover: rgba(26,35,72,.94);
+  --sunken: rgba(8,13,32,.45);
+  --pill: rgba(8,13,32,.5);
+  --ink: #eef2ff;
+  --mid: #c6d0ec;
+  --muted: #aebbdc;
+  --faint: #95a2cb;
+  --accent: #5b86ff;
+  --accent-text: #86a6ff;
+  --primary: #3558d6;
+  --primary-hover: #4065e4;
+  --on-primary: #ffffff;
+  --on-ink: #10182f;
+  --warm: #e7b06a;
+  --ok: #6fd8a4;
+  --bad: #ff8fa3;
+  --border: rgba(168,190,255,.16);
+  --hairline: rgba(168,190,255,.095);
+  --secret-bg: #0a0d1e;
+  --secret-ink: #f0ecdf;
+  --no-portrait-ink: rgba(168,190,255,.42);
+  --dim: rgba(4,7,20,.62);
+  --sky-top: #050a1d;
+  --sky-mid: #0d1638;
+  --sky-low: #0f1839;
+  --star: #e8eeff;
+  --moon: #eef2ff;
+  --scrim: rgba(6,10,26,.94);
+  --scrim-soft: rgba(6,10,26,.78);
+  --scene-panel: rgba(40,24,12,.84);
+  --scene-glass: rgba(58,37,20,.74);
+  --scene-composer: rgba(52,33,18,.94);
+  --scene-card: #2e1d11;
+  --scene-border: rgba(255,206,150,.16);
+  --scene-ink: #fbeedd;
+  --scene-muted: #dcc3a2;
+  --scene-action: #e9cfae;
+  --scene-tint: rgba(255,150,70,.10);
+  --scene-glow: rgba(255,176,90,.18);
+  --scene-primary: #eaa54c;
+  --scene-primary-hover: #f2b867;
+  --scene-on-primary: #2a1606;
+  --speaker-liv: #b9d0ff;
+  --speaker-mike: #f5b36b;
+  --speaker-theo: #e8d27a;
+  --event-memory: #f2c46d;
+  --event-memory-soft: rgba(242,196,109,.12);
+  --event-memory-line: rgba(242,196,109,.34);
+  --event-feeling: #f4a595;
+  --event-feeling-soft: rgba(244,165,149,.12);
+  --event-feeling-line: rgba(244,165,149,.34);
+  --event-warm: #b5ddb8;
+  --event-warm-soft: rgba(181,221,184,.12);
+  --event-warm-line: rgba(181,221,184,.34);
+  --event-belief: #d8c4ff;
+  --event-belief-soft: rgba(216,196,255,.12);
+  --event-belief-line: rgba(216,196,255,.34);
+  --event-mood: #b9d0ff;
+  --event-mood-soft: rgba(185,208,255,.12);
+  --event-mood-line: rgba(185,208,255,.34);
+  --bs-panel: rgba(8,28,54,.88);
+  --bs-line: rgba(140,195,255,.28);
+  --bs-accent: #8cc3ff;
+  --bs-ink: #e4f0ff;
+  --bs-muted: #9db8d8;
+  --bs-hot: #ffd08a;
+  --shadow-float: 0 26px 60px rgba(0,0,0,.55);
+  --focus-ring: 0 0 0 2px #0a1028, 0 0 0 4px #5b86ff;
+}
+[data-theme="day"] {
+  --ground: #edf2ff;
+  --panel: #ffffff;
+  --raise: #f4f7ff;
+  --over: #ffffff;
+  --rail: #f7f9ff;
+  --popover: rgba(255,255,255,.97);
+  --sunken: rgba(30,52,120,.05);
+  --pill: rgba(255,255,255,.8);
+  --ink: #0f1733;
+  --mid: #2c3860;
+  --muted: #46537c;
+  --faint: #5a668d;
+  --accent: #2f5be0;
+  --accent-text: #2a52cf;
+  --primary: #2f5be0;
+  --primary-hover: #274fcc;
+  --on-primary: #ffffff;
+  --on-ink: #ffffff;
+  --warm: #8a4f0a;
+  --ok: #17704a;
+  --bad: #b4233f;
+  --border: rgba(30,52,120,.16);
+  --hairline: rgba(30,52,120,.09);
+  --secret-bg: #fbf4e6;
+  --secret-ink: #3a2a12;
+  --no-portrait-ink: rgba(30,52,120,.40);
+  --dim: rgba(15,23,51,.36);
+  --sky-top: #a3c3ff;
+  --sky-mid: #bfd5ff;
+  --sky-low: #dde8ff;
+  --star: #ffffff;
+  --moon: #fff4d6;
+  --scrim: rgba(6,10,26,.94);
+  --scrim-soft: rgba(6,10,26,.78);
+  --scene-panel: rgba(40,24,12,.84);
+  --scene-glass: rgba(58,37,20,.74);
+  --scene-composer: rgba(52,33,18,.94);
+  --scene-card: #2e1d11;
+  --scene-border: rgba(255,206,150,.16);
+  --scene-ink: #fbeedd;
+  --scene-muted: #dcc3a2;
+  --scene-action: #e9cfae;
+  --scene-tint: rgba(255,150,70,.10);
+  --scene-glow: rgba(255,176,90,.18);
+  --scene-primary: #eaa54c;
+  --scene-primary-hover: #f2b867;
+  --scene-on-primary: #2a1606;
+  --speaker-liv: #b9d0ff;
+  --speaker-mike: #f5b36b;
+  --speaker-theo: #e8d27a;
+  --event-memory: #f2c46d;
+  --event-memory-soft: rgba(242,196,109,.12);
+  --event-memory-line: rgba(242,196,109,.34);
+  --event-feeling: #f4a595;
+  --event-feeling-soft: rgba(244,165,149,.12);
+  --event-feeling-line: rgba(244,165,149,.34);
+  --event-warm: #b5ddb8;
+  --event-warm-soft: rgba(181,221,184,.12);
+  --event-warm-line: rgba(181,221,184,.34);
+  --event-belief: #d8c4ff;
+  --event-belief-soft: rgba(216,196,255,.12);
+  --event-belief-line: rgba(216,196,255,.34);
+  --event-mood: #b9d0ff;
+  --event-mood-soft: rgba(185,208,255,.12);
+  --event-mood-line: rgba(185,208,255,.34);
+  --bs-panel: rgba(8,28,54,.88);
+  --bs-line: rgba(140,195,255,.28);
+  --bs-accent: #8cc3ff;
+  --bs-ink: #e4f0ff;
+  --bs-muted: #9db8d8;
+  --bs-hot: #ffd08a;
+  --shadow-float: 0 18px 44px rgba(30,52,120,.14);
+  --focus-ring: 0 0 0 2px #edf2ff, 0 0 0 4px #2f5be0;
+}
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --gutter: 40px;
+  --gutter-compact: 28px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+  --rail-width: 200px;
+  --rail-compact: 72px;
+  --target-min: 32px;
+  --chat-width: 800px;
+  --font-display: 'Baloo 2', 'Baloo Bhaijaan 2', 'Segoe UI', system-ui, sans-serif;
+  --font-story: Newsreader, 'Noto Naskh Arabic', Georgia, serif;
+  --font-ui: Figtree, 'IBM Plex Sans Arabic', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', Consolas, monospace;
+}
+.page-title { font-family: var(--font-display); font-size: 32px; line-height: 36px; font-weight: 800; letter-spacing: -0.015em; }
+.section { font-family: var(--font-display); font-size: 24px; line-height: 28px; font-weight: 700; letter-spacing: -0.015em; }
+.wordmark { font-family: var(--font-display); font-size: 24px; line-height: 28px; font-weight: 800; letter-spacing: -0.015em; }
+.dialog-title { font-family: var(--font-display); font-size: 21px; line-height: 26px; font-weight: 700; letter-spacing: -0.01em; }
+.story-hero { font-family: var(--font-story); font-size: 53px; line-height: 58px; font-weight: 500; letter-spacing: -0.012em; }
+.story-title { font-family: var(--font-story); font-size: 30px; line-height: 34px; font-weight: 500; letter-spacing: -0.012em; }
+.name-card { font-family: var(--font-story); font-size: 20px; line-height: 24px; font-weight: 600; letter-spacing: -0.012em; }
+.name-row { font-family: var(--font-story); font-size: 19px; line-height: 23px; font-weight: 600; letter-spacing: -0.012em; }
+.prose { font-family: var(--font-story); font-size: 19px; line-height: 29px; font-weight: 400; }
+.quote { font-family: var(--font-story); font-size: 20px; line-height: 29px; font-weight: 400; font-style: italic; }
+.memory { font-family: var(--font-story); font-size: 15px; line-height: 20px; font-weight: 400; }
+.body { font-family: var(--font-ui); font-size: 14.5px; line-height: 22px; font-weight: 400; }
+.label { font-family: var(--font-ui); font-size: 14px; line-height: 20px; font-weight: 700; }
+.button { font-family: var(--font-ui); font-size: 15px; line-height: 20px; font-weight: 700; }
+.chip { font-family: var(--font-ui); font-size: 12.5px; line-height: 16px; font-weight: 600; }
+.meta { font-family: var(--font-ui); font-size: 12.5px; line-height: 17px; font-weight: 400; }
+.eyebrow { font-family: var(--font-ui); font-size: 10.5px; line-height: 14px; font-weight: 700; letter-spacing: 0.15em; }
+.caption { font-family: var(--font-ui); font-size: 11.5px; line-height: 15px; font-weight: 400; }
+.mono { font-family: var(--font-mono); font-size: 12px; line-height: 17px; font-weight: 400; }

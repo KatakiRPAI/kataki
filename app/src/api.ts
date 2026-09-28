@@ -4,8 +4,11 @@
 
 function connection(): { baseUrl: string; token: string } {
   if (window.kataki) return window.kataki
+  // kept for the tab, since the router drops the query on its first navigation
   const query = new URLSearchParams(location.search)
-  return { baseUrl: `http://127.0.0.1:${query.get('port')}`, token: query.get('token') ?? '' }
+  if (query.get('port')) sessionStorage.setItem('kataki', JSON.stringify({ port: query.get('port'), token: query.get('token') ?? '' }))
+  const kept = JSON.parse(sessionStorage.getItem('kataki') ?? '{}')
+  return { baseUrl: `http://127.0.0.1:${kept.port}`, token: kept.token ?? '' }
 }
 
 const { baseUrl, token } = connection()
