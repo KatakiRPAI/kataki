@@ -501,7 +501,12 @@ export default function Scene() {
       {open === 'pass' && <PassTime story={story} onClose={() => setOpen(null)} onPass={pass} />}
       {open === 'place' && (
         <ScenePlace story={story} characters={characters} onClose={() => setOpen(null)}
-          onChange={(body) => { setOpen(null); api(`/stories/${id}/scene`, 'POST', body).then(reload) }} />
+          onChange={(body) => {
+            setOpen(null)
+            // moving is a new scene; staying but letting the hour turn is only time passing
+            const same = !body.library_place_id && characters.every((e) => body.present.includes(e.id) === e.present)
+            ;(same && body.skip ? api(`/stories/${id}/line`, 'POST', { text: null, audience: null, skip: body.skip }) : api(`/stories/${id}/scene`, 'POST', body)).then(reload)
+          }} />
       )}
       {open === 'settings' && <StorySettings story={story} advanced={advanced} onAdvanced={setAdvanced} onClose={() => setOpen(null)} onChange={reload} />}
       {open === 'export' && <Export story={story} onClose={() => setOpen(null)} />}

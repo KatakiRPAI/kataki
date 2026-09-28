@@ -28,7 +28,7 @@ export default function Backstage({ story, messages, cast, tick, focus, onForget
   const [node, setNode] = useState<MindNode>()
   const [mind] = useLoad(() => (reply ? api<Mind>(`/messages/${reply.id}/mind`) : Promise.resolve(undefined)), [reply?.id, tick])
   const [ctx] = useLoad(() => (reply ? api<ContextLog>(`/messages/${reply.id}/context`).catch(() => undefined) : Promise.resolve(undefined)), [reply?.id, tick])
-  const [runs] = useLoad(() => api<Run[]>(`/stories/${story.id}/runs`), [story.id, tick])
+  const [runs, reloadRuns] = useLoad(() => api<Run[]>(`/stories/${story.id}/runs`), [story.id, tick])
   const [known, reloadKnown] = useLoad(() => (typeof who === 'number' ? api<KnownMemory[]>(`/stories/${story.id}/memories?knower=${who}`) : Promise.resolve([])), [story.id, who, tick])
   const name = who === 'narrator' ? t('scene.narrator') : characters.find((e) => e.id === who)?.name ?? ''
   const lastRun = runs?.[0]
@@ -137,6 +137,9 @@ export default function Backstage({ story, messages, cast, tick, focus, onForget
               <div key={r.id} className={`logl${r.error ? ' logl--error' : r.warnings.length ? ' logl--warn' : ''}`}>
                 <span>#{r.id}</span><span className="lv">{r.error ? 'error' : r.warnings.length ? 'warn' : 'info'}</span><span>{r.role ?? r.trigger}</span>
                 <span>{[`${r.status} · lines ${r.from_message_id}–${r.to_message_id}`, r.model, r.filed ? `${r.filed} filed` : '', ...r.warnings, r.error].filter(Boolean).join(' · ')}</span>
+                {r.role === 'utility' && r.status === 'ok' && (
+                  <button type="button" className="bsbtn" title={t('bs.rereadCost')} onClick={() => api(`/runs/${r.id}/reread`, 'POST', { role: 'utility' }).then(reloadRuns)}>{t('bs.reread')}</button>
+                )}
               </div>
             ))}
           </K.BackstagePanel>

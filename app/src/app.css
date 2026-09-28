@@ -312,3 +312,6 @@ button.k-shortrow, button.k-job { width: 100%; background: transparent; border: 
 [dir="rtl"] .k-line__text em, [dir="rtl"] em { font-style: normal; }
 [dir="rtl"] .k-icon.is-directional, [dir="rtl"] .k-btn--scene-send .k-icon, [dir="rtl"] .k-scenechip .k-icon[data-flip] { transform: scaleX(-1); }
 [dir="rtl"] .readcol { transform: translateX(50%); }
+.takeover { position: fixed; inset: 0; z-index: 60; background: var(--ground); color: var(--ink); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 24px; box-sizing: border-box; }
+.takeover > .k-alert { max-width: 720px; }
+.bsx .logl { grid-template-columns: 96px 54px 120px minmax(0, 1fr) auto; }

@@ -49,9 +49,17 @@ export default function World() {
   const count = (w: Where) => [...places, ...plots].filter((i) => (w === 'all' ? true : w === 'none' ? !bookOf(i) : w.startsWith('book:') ? bookOf(i) === Number(w.slice(5)) : storiesOf(i).includes(Number(w.slice(6))))).length
   const crumbs = [t('w.title'), ...(where.startsWith('book:') ? [books?.find((b) => b.id === Number(where.slice(5)))?.title ?? ''] : where.startsWith('story:') ? [stories?.find((s) => s.id === Number(where.slice(6)))?.title ?? ''] : where === 'none' ? [t('w.noBook')] : [])]
   const done = () => { reload(); reloadBooks(); reloadStories() }
+  // I4 › Drop into a story…: the narrator speaks the plot's opening in that story
+  const dropInto = (p: Item, el: Element) => openMenu(el, (stories ?? []).map((s) => ({
+    label: s.title, detail: s.date, icon: 'chat' as const,
+    onSelect: () => api(`/stories/${s.id}/line`, 'POST', { text: (p.data.first_message || p.description).replace(/\*/g, ''), audience: null, narrate: true }).then(() => navigate(`/story/${s.id}`)),
+  })), t('pt.drop'))
   const placeMenu = (p: Item): MenuItem[] => [
-    { label: t('pl.newStory'), icon: 'plus', onSelect: () => navigate(`/stories/new?place=${p.id}`) },
-    { label: t('pl.edit'), icon: 'edit', onSelect: () => setOpen({ kind: 'newPlace', item: p }) },
+    p.kind === 'scenario'
+      ? { label: t('pt.newStory'), icon: 'plus', onSelect: () => navigate(`/stories/new?plot=${p.id}`) }
+      : { label: t('pl.newStory'), icon: 'plus', onSelect: () => navigate(`/stories/new?place=${p.id}`) },
+    ...(p.kind === 'scenario' ? [{ label: t('pt.drop'), icon: 'quote' as const, onSelect: () => dropInto(p, document.activeElement ?? document.body) }] : []),
+    { label: t('pl.edit'), icon: 'edit', onSelect: () => setOpen({ kind: p.kind === 'scenario' ? 'newPlot' : 'newPlace', item: p }) },
     { label: t('w.fileIt'), icon: 'book', onSelect: () => setOpen({ kind: 'file', item: p }) },
     { label: t('pl.duplicate'), icon: 'layers', onSelect: () => api('/library', 'POST', { kind: p.kind, name: `${p.name} (2)`, description: p.description, private: p.private, data: p.data, tags: p.tags }).then(reload) },
     { divider: true },

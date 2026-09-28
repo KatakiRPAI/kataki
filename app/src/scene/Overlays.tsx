@@ -12,6 +12,12 @@ const PRESETS: [string, Key][] = [['5 minutes later', 'pass.moment'], ['1 hour l
 
 export type Pass = { skip: string; place?: number }
 
+type Time = 'dawn' | 'day' | 'dusk' | 'night'
+const TIMES: Time[] = ['dawn', 'day', 'dusk', 'night']
+const AT: Record<Time, number> = { dawn: 390, day: 720, dusk: 1110, night: 1320 } // minutes into a day
+/** The time that passes until the next dawn, day, dusk or night, in words the clock reads. */
+export const untilTime = (minuteOfDay: number, to: Time) => words(((AT[to] - minuteOfDay + 1440) % 1440) || 1440, 'minutes')
+
 export function PassTime({ story, onClose, onPass }: { story: Story; onClose: () => void; onPass: (p: Pass) => void }) {
   const { items } = useLibrary()
   const [pick, setPick] = useState<string>(PRESETS[0][0])
@@ -59,12 +65,13 @@ export function PassTime({ story, onClose, onPass }: { story: Story; onClose: ()
 
 /** P17: move the scene, and say who is here. */
 export function ScenePlace({ story, characters, onClose, onChange }: {
-  story: Story; characters: CastEntity[]; onClose: () => void; onChange: (body: { present: number[]; library_place_id?: number }) => void
+  story: Story; characters: CastEntity[]; onClose: () => void; onChange: (body: { present: number[]; library_place_id?: number; skip?: string }) => void
 }) {
   const { items, byId } = useLibrary()
   const places = items.filter((i) => i.kind === 'place' && !i.data.unlisted)
   const [to, setTo] = useState<number | 'stay'>('stay')
   const [here, setHere] = useState(() => Object.fromEntries(characters.map((e) => [e.id, e.present])))
+  const [time, setTime] = useState<Time | 'now'>('now')
   const now = byId.get(story.place?.lib_item_id ?? -1)
   const s = scenery(now)
   return (
@@ -85,6 +92,8 @@ export function ScenePlace({ story, characters, onClose, onChange }: {
           </div>
           <span className="scene-t">{t('place.moveNote')}</span>
         </div>
+        <K.Segmented tone="scene" size="sm" label={t('place.time')} options={(['now', ...TIMES] as const).map((x) => t(`place.t.${x}` as Key))} value={t(`place.t.${time}` as Key)}
+          onChange={(v) => setTime((['now', ...TIMES] as const).find((x) => t(`place.t.${x}` as Key) === v) ?? 'now')} />
         <div className="col" style={{ gap: 6 }}>
           <b style={{ fontSize: 13.5 }}>{t('place.who')}</b>
           {characters.map((e) => (
@@ -98,7 +107,7 @@ export function ScenePlace({ story, characters, onClose, onChange }: {
         <div className="row" style={{ gap: 8, justifyContent: 'flex-end' }}>
           <button type="button" className="k-btn k-btn--scene-ghost" onClick={onClose}>{t('place.cancel')}</button>
           <button type="button" className="k-btn k-btn--scene-send"
-            onClick={() => onChange({ present: characters.filter((e) => here[e.id]).map((e) => e.id), ...(to === 'stay' ? {} : { library_place_id: to }) })}>
+            onClick={() => onChange({ present: characters.filter((e) => here[e.id]).map((e) => e.id), ...(to === 'stay' ? {} : { library_place_id: to }), ...(time === 'now' ? {} : { skip: untilTime(story.minute_of_day, time) }) })}>
             {t('place.go')}
           </button>
         </div>

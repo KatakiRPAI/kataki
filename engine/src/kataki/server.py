@@ -19,7 +19,7 @@ from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -319,6 +319,16 @@ def create_app(
     app = FastAPI(
         title="Kataki RPAI engine", version=__version__, dependencies=[Depends(require_token)]
     )
+    @app.exception_handler(sqlite3.OperationalError)
+    async def no_room(request: Request, e: sqlite3.OperationalError):
+        """A write that failed for space or permission (N2): said as such, so the app can hold
+        the window until it can write again. Anything else is still a plain failure."""
+        said = str(e).lower()
+        code = "DISK_FULL" if "full" in said else "DISK_READONLY" if "readonly" in said or "read-only" in said else None
+        if code is None:
+            raise e
+        return JSONResponse({"detail": {"code": code, "message": str(e)}}, status_code=507)
+
     # Any origin is fine: auth is a bearer token, not a cookie, so a foreign page has
     # nothing to ride on.
     app.add_middleware(

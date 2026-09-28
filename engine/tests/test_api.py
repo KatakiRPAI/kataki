@@ -1332,3 +1332,17 @@ def test_search_finds_names_lines_and_memories(api, story, conn):
     assert [i["name"] for i in names["items"]] == ["Mira"]
     assert api.get("/search", params={"q": "tide"}).json()["stories"][0]["title"] == "Low Tide"
     assert api.get("/search", params={"q": "%"}).json()["lines"] == []  # a wildcard is just a character
+
+
+def test_a_full_disk_is_said_plainly(api, monkeypatch):
+    import sqlite3
+
+    from kataki import library
+
+    def full(*a, **k):
+        raise sqlite3.OperationalError("database or disk is full")
+
+    monkeypatch.setattr(library, "create_item", full)
+    r = api.post("/library", json={"kind": "character", "name": "Mira"})
+    assert r.status_code == 507
+    assert r.json()["detail"]["code"] == "DISK_FULL"

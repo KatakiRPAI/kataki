@@ -22,6 +22,7 @@ import Search from './sky/Search'
 import FirstRun, { ModelGone, Opening } from './sky/FirstRun'
 import { Palette } from './sky/Palette'
 import { Feedback, openFeedback } from './sky/Feedback'
+import DiskFull from './sky/DiskFull'
 import Scene from './scene/Scene'
 
 const RAIL: Record<string, string> = {
@@ -45,7 +46,7 @@ function Links({ children }: { children: ReactNode }) {
     addEventListener('click', on)
     return () => removeEventListener('click', on)
   }, [navigate])
-  return <LibraryProvider>{children}<Palette /><Feedback /><Toasts /><Menus /></LibraryProvider>
+  return <LibraryProvider>{children}<Palette /><Feedback /><Toasts /><Menus /><DiskFull /></LibraryProvider>
 }
 
 /** The Sky: every page outside a story. Rail, the Sky behind, the Night/Day theme. */

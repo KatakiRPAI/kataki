@@ -1308,5 +1308,17 @@
   "set.modelDefault": "Like Settings",
   "toast.personaSwitched": "You are {name} from the next line",
   "la.partly": "{n}% translated",
-  "la.rtlStatus": "Right to left · {status}"
+  "la.rtlStatus": "Right to left · {status}",
+  "disk.drive": "this drive",
+  "disk.lastSaved": "the last line you saw saved",
+  "disk.folder": "The library folder",
+  "disk.live": "Checking for room every 30 s · next in {s} s · this goes away by itself",
+  "place.time": "Time of day",
+  "place.t.now": "As it is",
+  "place.t.dawn": "Dawn",
+  "place.t.day": "Day",
+  "place.t.dusk": "Dusk",
+  "place.t.night": "Night",
+  "bs.reread": "read again",
+  "bs.rereadCost": "A real model call: the memory reader reads these lines again"
 }

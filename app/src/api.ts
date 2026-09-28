@@ -480,6 +480,8 @@ export type PictureFailure = { message: string; refused?: boolean; alt?: string 
 async function failure(r: Response): Promise<Error & { detail?: unknown }> {
   const body = await r.json().catch(() => null)
   const detail = body?.detail
+  // N2: the library can't be written (disk full or read-only); the whole window says so
+  if (r.status === 507) dispatchEvent(new CustomEvent('kataki:disk', { detail: detail?.code ?? 'DISK_FULL' }))
   const said = typeof detail === 'string' ? detail : detail?.message ?? (detail ? JSON.stringify(detail) : `HTTP ${r.status}`)
   return Object.assign(new Error(said), { detail })
 }
