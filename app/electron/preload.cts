@@ -10,4 +10,5 @@ function arg(name: string): string {
 contextBridge.exposeInMainWorld('kataki', {
   baseUrl: `http://127.0.0.1:${arg('port')}`,
   token: arg('token'),
+  crashed: process.argv.includes('--kataki-crashed'), // the last run ended without a clean quit (A3)
 })

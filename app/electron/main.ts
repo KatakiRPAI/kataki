@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { once } from 'node:events'
+import { existsSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { createInterface } from 'node:readline'
 import { setTimeout as sleep } from 'node:timers/promises'
@@ -39,7 +40,7 @@ async function startEngine(token: string): Promise<number> {
   return JSON.parse(hello).port
 }
 
-async function createWindow(port: number, token: string): Promise<BrowserWindow> {
+async function createWindow(port: number, token: string, crashed = false): Promise<BrowserWindow> {
   const work = screen.getPrimaryDisplay().workAreaSize // the design's 1440x900, capped to the screen
   const win = new BrowserWindow({
     width: Math.min(1440, work.width),
@@ -48,7 +49,7 @@ async function createWindow(port: number, token: string): Promise<BrowserWindow>
     show: !smoke,
     webPreferences: {
       preload: join(here, 'preload.cjs'),
-      additionalArguments: [`--kataki-port=${port}`, `--kataki-token=${token}`],
+      additionalArguments: [`--kataki-port=${port}`, `--kataki-token=${token}`, ...(crashed ? ['--kataki-crashed'] : [])],
     },
   })
   // Model output is untrusted text that can contain links: never open windows or leave the app.
@@ -87,13 +88,29 @@ app.on('before-quit', () => {
 })
 app.on('window-all-closed', () => app.quit())
 
+// One Kataki at a time (ROUTES.md › Where the app starts): a second launch hands over to the
+// first, which comes to the front, and quits.
+if (!smoke && !app.requestSingleInstanceLock()) app.exit(0)
+app.on('second-instance', () => {
+  const win = BrowserWindow.getAllWindows()[0]
+  if (win?.isMinimized()) win.restore()
+  win?.focus()
+})
+
+// A3: a `running` mark lives in userData while Kataki is open and goes on a clean quit, so a
+// mark found at launch means the last run ended without one.
+const runningMark = () => join(app.getPath('userData'), 'running')
+app.on('will-quit', () => rmSync(runningMark(), { force: true }))
+
 // No top-level await here: Electron holds `ready` until this module finishes evaluating,
 // so `await app.whenReady()` at module scope deadlocks.
 app
   .whenReady()
   .then(async () => {
+    const crashed = !smoke && existsSync(runningMark())
+    writeFileSync(runningMark(), new Date().toISOString())
     const token = randomBytes(32).toString('base64url')
-    const win = await createWindow(await startEngine(token), token)
+    const win = await createWindow(await startEngine(token), token, crashed)
     if (smoke) await runSmoke(win)
   })
   .catch((err: Error) => fail(err.message))

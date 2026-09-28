@@ -30,7 +30,8 @@ export function Opening() {
       setSteps((s) => ({ ...s, model: rp?.effective_model ? t('op.modelDone', { server: String(rp.effective_provider_id), model: rp.effective_model }) : t('op.modelNone') }))
       await new Promise((r) => setTimeout(r, Math.max(0, 400 - (Date.now() - started)))) // never less than 400 ms
       if (!items.length && !stories.length) return navigate('/welcome', { replace: true })
-      const last = pref<string>('general.openTo', 'home') === 'last' ? [...stories].sort((a, b) => b.last_at.localeCompare(a.last_at))[0] : undefined
+      // after a crash Kataki goes to Home first either way (A3)
+      const last = pref<string>('general.openTo', 'home') === 'last' && !window.kataki?.crashed ?[...stories].sort((a, b) => b.last_at.localeCompare(a.last_at))[0] : undefined
       navigate(last ? `/story/${last.id}` : '/home', { replace: true })
     } catch {
       setSteps({ failed: true })

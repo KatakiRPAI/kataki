@@ -7,6 +7,9 @@ import { face, scenery, twelve, useLibrary, useLoad, utc } from '../hooks'
 import { relative, t } from '../strings'
 import { isDraft } from '../characters'
 import Top from './Top'
+import { openFeedback } from './Feedback'
+import { Overlay } from '../overlay'
+import { setPref, usePrefs } from '../prefs'
 
 type Filter = 'all' | 'story' | 'drafts'
 const TONE = { memory: 'ok', belief: 'warm', feeling: 'warm', time: 'muted' } as const
@@ -39,9 +42,15 @@ export default function Home() {
   const lead = hero?.cast.find((c) => c.present) ?? hero?.cast[0]
   const ordered = [...shown].sort((a, b) => (a.id === lead?.lib_item_id ? -1 : b.id === lead?.lib_item_id ? 1 : utc(lastPlayed(b)?.last_at ?? '1970-01-01 00:00:00') - utc(lastPlayed(a)?.last_at ?? '1970-01-01 00:00:00')))
 
+  const [crash, setCrash] = useState(() => !!window.kataki?.crashed && !crashSeen.done)
   if (!stories) return <main className="app__main" aria-label={t('home.label')}><K.Skeleton /></main>
 
-  const top = <Top />
+  const top = (
+    <>
+      <Top />
+      {crash && hero && <Crashed story={hero} onClose={() => { crashSeen.done = true; setCrash(false) }} onContinue={() => { crashSeen.done = true; navigate(`/story/${hero.id}`) }} />}
+    </>
+  )
   const start = async (c: Item) => {
     const story = await api<Story>('/stories', 'POST', { title: c.name, character_ids: [c.id], persona_id: persona?.id ?? null })
     navigate(`/story/${story.id}`)
@@ -167,6 +176,27 @@ export default function Home() {
       )}
       <Privacy />
     </main>
+  )
+}
+
+const crashSeen = { done: false } // A3 shows once per launch
+
+/** A3: the last run ended without closing properly. */
+function Crashed({ story, onClose, onContinue }: { story: StorySummary; onClose: () => void; onContinue: () => void }) {
+  const [prefs] = usePrefs()
+  return (
+    <Overlay onClose={onClose}>
+      <K.Dialog icon="alert" tone="warm" title={t('crash.title')} description={t('crash.body')} onClose={onClose} note={t('crash.note')}
+        actions={[
+          <K.Button key="r" variant="ghost" onClick={() => { onClose(); openFeedback('bug') }}>{t('crash.report')}</K.Button>,
+          <K.Button key="s" variant="ghost" onClick={onClose}>{t('crash.stay')}</K.Button>,
+          <K.Button key="c" variant="primary" onClick={onContinue}>{t('crash.continue')}</K.Button>,
+        ]}>
+        <K.KeyValue label={t('crash.last')}>{story.title}</K.KeyValue>
+        <K.KeyValue label={t('crash.checked')}>{t('crash.checkedValue')}</K.KeyValue>
+        <K.Checkbox label={t('crash.ask')} checked={!!prefs['general.askAfterCrash']} onChange={(v) => setPref('general.askAfterCrash', v)} />
+      </K.Dialog>
+    </Overlay>
   )
 }
 
