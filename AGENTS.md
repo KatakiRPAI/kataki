@@ -1,8 +1,10 @@
 # Kataki RPAI
 
-Open-source AI roleplay app: a Python engine (`engine/`, package `kataki`) owns the library and
-serves HTTP; a React UI (`app/`) runs in Electron and in a browser. AI agents maintain this
-repo. These rules apply to every agent and every human.
+AI roleplay app: a Python engine (`engine/`, package `kataki`) owns the library and serves
+HTTP; a React UI (`app/`) runs in Electron and in a browser. Two products ship from this public
+repo: the free, open-source desktop app (the user's own models), and Kataki online, a hosted
+website that bills pay-as-you-go for online models. AI agents maintain this repo. These rules
+apply to every agent and every human.
 
 ## Where the truth lives
 
@@ -27,12 +29,15 @@ and never push. After it:
    app (see the README's Development section).
 4. Open a PR with the template filled in: what changed, how you checked it, the risk. Merge
    only when required checks are green; squash merge.
-5. Changes to `.github/`, `AGENTS.md`, `CLAUDE.md`, release or signing config, schema
-   migrations (`engine/src/kataki/db.py`) and dependency majors wait for the user's approval
-   (CODEOWNERS). Everything else may merge when green.
+5. Changes to `.github/`, `AGENTS.md`, `CLAUDE.md`, release, signing or deploy config, schema
+   migrations (`engine/src/kataki/db.py` and the website's database), billing code and
+   dependency majors wait for the user's approval (CODEOWNERS). Everything else may merge when
+   green.
 
-`main` is always releasable: every merge ships to the alpha channel. A bad change is fixed
-forward with a revert PR; history on `main` is never rewritten.
+`main` is always releasable: every merge ships to the desktop alpha channel and deploys to
+website staging. Production (stable desktop releases, website deploys) always waits for the
+user's approval. A bad change is fixed forward with a revert PR; history on `main` is never
+rewritten.
 
 ## Guardrails
 
@@ -42,7 +47,10 @@ forward with a revert PR; history on `main` is never rewritten.
 - Paid APIs (HuggingFace, OpenRouter, Claude in Actions, code signing): state the number of
   calls and the cost, and wait for the user's yes. Default to one smoke-test request.
 - Schema changes are forward-only migrations in `db.py`, each with a test on a library from the
-  previous version.
+  previous version. On the website they go expand → migrate → contract, so the previous
+  release still runs if it has to be rolled back to.
+- Work against staging and the payment processor's test mode. Production data, live payment
+  keys and real customer accounts are the user's to touch.
 - New dependencies need a reason in the PR; prefer what is already installed.
 - Workflows: actions pinned to a commit SHA, `permissions: {}` at the top, grants per job.
 

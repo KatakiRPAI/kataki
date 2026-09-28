@@ -1,10 +1,18 @@
-# Repo infrastructure: GitHub, CI, release channels, security
+# Repo infrastructure: GitHub, CI, release channels, hosting, security
 
-Kataki moves from one local branch (`m0-scaffold`, never pushed) to a public GitHub repo with
-protected `main`, CI on every change, alpha → beta → stable release channels, rollback, and
-security scanning. AI agents maintain this repo, so each rule here is enforced by GitHub and
-not only written down. [`AGENTS.md`](../../AGENTS.md) holds the day-to-day rules; this file
-holds the plan and its Progress.
+Kataki is two products from one public repo:
+
+- **Kataki (desktop)**: open source, local, free. The user brings their own models. It ships as
+  signed installers through alpha → beta → stable release channels.
+- **Kataki online (website)**: the same UI and engine, hosted. Users sign in, the service
+  calls online models with its own keys, and users pay as they go (provider cost plus a
+  margin). It runs as real servers: staging and production.
+
+The repo moves from one local branch (`m0-scaffold`, never pushed) to a GitHub organisation
+with protected `main`, CI on every change, both delivery tracks, rollback and security
+scanning. AI agents maintain the repo, so each rule here is enforced by GitHub and not only
+written down. [`AGENTS.md`](../../AGENTS.md) holds the day-to-day rules; this file holds the
+plan and its Progress.
 
 ## Progress
 
@@ -12,29 +20,31 @@ Update this list as phases land (date · phase · what changed · anything left)
 **[user]** need the user; an agent prepares them and asks.
 
 - 2026-09-29 · plan written; `AGENTS.md` added, `CLAUDE.md` now imports it. Nothing pushed yet.
+- 2026-09-29 · user's answers folded in: new org, history rewritten to the noreply address,
+  public from day one, a hosted pay-as-you-go website, free SignPath signing.
 
-Open decisions (defaults an agent may assume until the user answers):
+Decisions made (2026-09-29):
 
-1. **[user] Owner.** Default: a new GitHub organisation (e.g. `kataki-rpai`) owning `kataki`.
-   An org gives a bot identity and a clean handover later. A personal repo (`QaisZAK/kataki`)
-   also works.
-2. **[user] Commit email.** All 149 commits carry `OLD-EMAIL`, which becomes
-   public on push. Keep it, or rewrite history to the GitHub noreply address with
-   `git filter-repo` before the first push. A rewrite changes every hash, so hashes quoted in
-   `docs/specs/` (e.g. `c30c089`) stop resolving. Default: ask; do not push until answered.
-3. **[user] Public from day one.** Default: yes. Rulesets, secret-scanning push protection,
-   CodeQL and free Actions minutes are free only on public repos (private ones need GitHub
-   Pro/Team).
-4. **[user] Bot identity for agents.** Default: a GitHub App (or machine user) that agents push
-   and open PRs as. Without it every agent PR is authored by the user, and GitHub will not let
-   the user approve their own PR, so "human approval" rules cannot work.
-5. **[user] A hosted website.** The web build exists, but the engine is single-user, binds
-   127.0.0.1, and has no accounts. A public "live" site needs a multi-user design (its own spec).
-   Default: until then, "production" means the installed desktop app, and the only hosted page
-   is a static project site on GitHub Pages.
-6. **[user] Paid pieces.** Windows code signing (SignPath Foundation's free OSS programme, or
-   Azure Artifact Signing, ~$10/month) and Claude running in Actions (API cost per run). Default:
-   unsigned alpha builds until the user picks one.
+- **Owner:** a new GitHub organisation (the user creates it). Repo name `kataki`.
+- **Commit email:** rewrite all history to `70582355+QaisZAK@users.noreply.github.com` before
+  the first push (Phase 0). Hashes quoted in `docs/specs/` get a mapping (below).
+- **Public from day one.**
+- **Signing:** SignPath Foundation's free OSS programme (conditions in Phase 4).
+- **Website:** hosted, pay-as-you-go online models with a margin. Its product and architecture
+  get their own spec (`docs/specs/…-kataki-online.md`, Phase 6).
+
+Still open:
+
+1. **[user] Bot account for agents.** Agents open PRs as a separate account (`kataki-bot`) and
+   the user approves them. Default: a machine user plus a fine-grained token (Phase 1).
+2. **[user] Domain** for the website and project pages. Default: none until the user buys one;
+   staging uses the host's default address.
+3. **[user] Payments and adult content.** `CONTENT_POLICY.md` says Kataki is for adults. Stripe
+   and most mainstream processors ban explicit adult content, and several countries require
+   age checks for it. The website needs one of: a content filter that keeps it within the
+   processor's rules, or a high-risk processor plus age verification. Settle it in the Kataki
+   online spec, before any payment code.
+4. **[user] Claude in Actions** (API cost per run), Phase 5.
 
 ## Research summary (2026-09-29)
 
@@ -69,6 +79,13 @@ repo:
 - **AI-authored PRs:** AI review is evidence, not approval. The pattern that holds up: small
   deterministic required checks, a bot identity for agent PRs, and human approval only where
   it matters (CI/release/security config, schema migrations, dependency majors).
+- **Hosted service in an open-source repo** (open core, as Cal.com, Plausible and Supabase
+  run it): the service code lives in the public repo; what stays private is secrets, customer
+  data and the production config values. Each commit builds one immutable container image;
+  staging deploys it automatically, production deploys the *same* image after an approval
+  (GitHub Environments with required reviewers), and rollback is redeploying the previous
+  image. Database changes go expand → migrate → contract so the previous image still runs
+  against the new schema. Payments run in the processor's test mode everywhere but production.
 
 [ch]: https://www.electron.build/tutorials/release-using-channels.html
 [rs]: https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets
@@ -80,6 +97,10 @@ repo:
 
 ## Target shape
 
+One branch (`main`), one version number, two ways out.
+
+**Desktop: release channels**
+
 | Environment | What it is | How code gets there | Who gets it |
 |---|---|---|---|
 | dev | `pnpm dev` on the `.dev/` library, the fake model (`engine/evals/demo.py`) | a branch | the agent or user working |
@@ -88,13 +109,26 @@ repo:
 | beta | pre-release `vX.Y.Z-beta.N`, channel `beta` | "Promote" workflow on a green alpha | opted-in beta users (Settings › update channel) |
 | stable | release `vX.Y.Z`, channel `latest`, staged rollout 20% → 100% | merging the release-please PR | everyone |
 
-**Rollback** is roll-forward plus a stop button:
+Rollback is roll-forward plus a stop button:
 
 1. Stop the rollout: set `stagingPercentage: 0` in the release's `latest.yml` (or mark the
    release draft), so no one else updates.
 2. Revert the bad commit on `main` (a PR like any other), release the next patch.
 3. User data survives because the engine backs up the library before any schema migration and
    refuses to open a library newer than itself (both owed, Phase 4).
+
+**Website: servers**
+
+| Environment | What it is | How code gets there | Who gets it |
+|---|---|---|---|
+| dev | the stack on one machine (`docker compose`), payments in test mode, the fake model | a branch | the agent or user working |
+| staging | its own database, payments in test mode, cheap models, `robots: noindex` | every merge to `main` deploys that commit's image | the user, testers |
+| production | live payments, real models | the same image, after the user approves the `production` environment | everyone signed up |
+
+Beta users on the website are accounts with a `beta` flag on production (feature flags), not a
+separate server. Rollback: redeploy the previous image (one click in the host, or re-run the
+deploy workflow on the previous tag). Migrations are expand/contract, so the previous image
+still works on the new schema; a database backup runs before every production deploy.
 
 ## Phases
 
@@ -112,14 +146,21 @@ Each phase ends in something checkable. Do them in order.
       or delete it; prune its dead worktree (`git worktree prune`).
 - [ ] Run `gitleaks detect` over full history. (A pattern scan on 2026-09-29 for HF, OpenAI,
       GitHub and AWS keys found nothing; `.env` has always been ignored.)
-- [ ] **[user]** Answer decisions 1 and 2; rewrite authorship if chosen.
 - [ ] Fast-forward `main` to `m0-scaffold` (`main` is its ancestor), then delete `m0-scaffold`.
+- [ ] Rewrite authorship (needs a clean tree and no other session mid-work; tell the user
+      first, since every hash changes):
+      `git filter-repo --mailmap <file>` with the line
+      `QaisZAK <70582355+QaisZAK@users.noreply.github.com> <OLD-EMAIL>`, then
+      `git config user.email 70582355+QaisZAK@users.noreply.github.com` so new commits match.
+      Then rewrite the short hashes quoted in `docs/specs/` and `docs/images/` from
+      `.git/filter-repo/commit-map` (old → new) and commit that.
 
 Done when `git status` is clean, `main` holds everything, and gitleaks reports nothing.
 
 ### Phase 1: the repo and its rules
 
-- [ ] **[user]** Create the repo (decision 1), `git remote add origin`, push `main`.
+- [ ] **[user]** Create the org (2FA required for all members) and a public repo `kataki`;
+      `git remote add origin`, push `main`.
 - [ ] Repo files: `SECURITY.md` (private vulnerability reporting on), `CONTRIBUTING.md`
       (points to `AGENTS.md`; humans and agents follow the same rules), issue templates
       (bug, feature, beta feedback), PR template (what changed, how it was checked, risk),
@@ -129,7 +170,10 @@ Done when `git status` is clean, `main` holds everything, and gitleaks reports n
       ruleset: only the release workflow creates `v*` tags.
 - [ ] Settings: secret scanning + push protection, Dependabot alerts, private vulnerability
       reporting, delete branch on merge, auto-merge allowed.
-- [ ] **[user]** Bot identity (decision 4); agents' `gh` uses it.
+- [ ] **[user]** Bot account `kataki-bot` (open decision 1): a machine user added to the org
+      with write access, 2FA on, and a fine-grained token limited to this repo (contents,
+      pull requests, issues). Agents' `git` and `gh` use that token, so their PRs are authored
+      by the bot and the user can approve them. The token lives in the OS keychain.
 
 Done when a direct `git push origin main` is rejected and a PR shows the required checks.
 
@@ -169,8 +213,15 @@ Done when Scorecard publishes and the Security tab shows CodeQL results.
       tag, publish stable with `stagingPercentage: 20`; `promote.yml` (manual) re-tags a
       chosen alpha as beta, and raises a stable rollout to 100%. Every release file gets
       `actions/attest-build-provenance` and an SBOM.
-- [ ] **[user]** Signing (decision 6), then sign in `release.yml` via GitHub environment
-      `release` (secrets live only there; the environment requires the user's approval).
+- [ ] **[user]** Apply to SignPath Foundation. Their conditions (signpath.org/terms): an
+      OSI-approved licence in the repo, no commercial dual-licensing of the desktop app, a
+      project that is already released (the first alphas ship unsigned), MFA for everyone on
+      SignPath and GitHub, roles for authors (the bot), reviewers and release approvers (the
+      user), builds made only by CI, a manual approval per signed release, and a "Code signing
+      policy" section on the project page. The publisher shown to Windows users is "SignPath
+      Foundation".
+- [ ] Sign in `release.yml` through SignPath's GitHub action, from GitHub environment
+      `release` (its secrets live only there; the environment requires the user's approval).
 - [ ] App: Settings › update channel (stable / beta), electron-updater wired to GitHub Releases;
       fills the handoff's `[UPDATE HOST]`.
 - [ ] `docs/releasing.md`: how to cut, promote, halt and roll back a release.
@@ -188,9 +239,45 @@ reaching new users.
 - [ ] Beta feedback: the in-app Feedback sheet opens a prefilled GitHub issue (fills
       `[FEEDBACK HOST]`); nothing is sent without the user pressing Send.
 
+### Phase 6: Kataki online (the website)
+
+Its own spec comes first (`docs/specs/<date>-kataki-online.md`, spec → plan → build like M2
+and M3), built as show-first slices. What that spec has to settle, with the defaults this plan
+assumes:
+
+- **Accounts:** sign-in by passkey or email link through a hosted auth provider; no passwords
+  stored by Kataki.
+- **Tenancy:** each user gets their own library file, so the engine's single-user SQLite code
+  runs unchanged per user; a thin gateway in front checks the session and routes to that
+  user's library. Accounts, balances and the billing ledger live in one managed Postgres
+  database with point-in-time recovery.
+- **Models and money:** the service holds the provider keys (OpenRouter or HuggingFace); every
+  model call is metered from the provider's reported usage and debited from a prepaid balance
+  at cost × (1 + margin). Users top up through the payment processor's hosted checkout; the
+  ledger is append-only. Spending caps per user and a global daily cap guard against runaway
+  costs.
+- **Content and payments:** open decision 3.
+- **Hosting:** a container host with persistent volumes, separate staging and production apps,
+  and image-based rollback (Fly.io fits; the spec confirms it). Images go to GHCR, tagged by
+  commit.
+
+Infrastructure work once the spec is approved:
+
+- [ ] `Dockerfile` for engine + web build; image built and attested in CI on every merge.
+- [ ] GitHub Environments `staging` (deploys on merge to `main`) and `production` (the user is
+      the required reviewer; deploys only from `v*` tags). Each holds its own secrets; nothing
+      production-grade exists outside `production`.
+- [ ] `deploy.yml`: build once, deploy the same image to staging, then (after approval) to
+      production; a database backup before each production deploy; a health check that rolls
+      back automatically when it fails.
+- [ ] Uptime check and error reporting on production; alerts go to the user.
+- [ ] `docs/operations.md`: deploy, roll back, rotate a key, restore a backup, refund a user.
+
+Done when a merge reaches staging on its own, the same image reaches production after one
+approval, and a deliberately broken deploy rolls itself back.
+
 ## Out of scope until decided
 
-- A multi-user hosted Kataki (decision 5).
 - Publishing `kataki` to PyPI (trusted publishing makes it a small add once the engine is a
   library others use).
 - macOS and Linux installers (add to the release matrix when someone asks; macOS needs an
