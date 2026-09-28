@@ -4,7 +4,7 @@ import { useEffect, type ReactNode } from 'react'
 import { createBrowserRouter, createMemoryRouter, Outlet, useLocation, useNavigate, type RouteObject } from 'react-router'
 import { api } from './api'
 import { K } from './ds'
-import { LibraryProvider } from './hooks'
+import { LibraryProvider, useNarrow } from './hooks'
 import { Menus, Toasts } from './overlay'
 import { loadPrefs, setPref, skyTheme, usePrefs } from './prefs'
 import { t } from './strings'
@@ -53,16 +53,17 @@ function Sky() {
   const { pathname } = useLocation()
   const [prefs] = usePrefs()
   const theme = skyTheme(prefs)
+  const compact = useNarrow(1280) // ROUTES.md › Layout breakpoints: the compact rail below 1280
   const flip = (to: string) => {
     if (to === 'Day' || to === 'Night') setPref('appearance.theme', to === 'Day' ? 'day' : 'night')
     if (to === 'Feedback') openFeedback('feedback')
   }
   const at = pathname.split('/')[1]
   return (
-    <div data-theme={theme} className="app">
+    <div data-theme={theme} className={`app${compact ? ' app--compact' : ''}`}>
       <div className="app__sky"><K.Sky stars={prefs['appearance.stars'] === false ? 0 : undefined} /></div>
       <div className="app__rail">
-        <K.Rail active={(ACTIVE[at] ?? 'none') as 'Home'} theme={theme} hrefs={{ ...RAIL, Settings: `/settings/${lastSettings.panel}` }} onNavigate={flip} />
+        <K.Rail compact={compact} active={(ACTIVE[at] ?? 'none') as 'Home'} theme={theme} hrefs={{ ...RAIL, Settings: `/settings/${lastSettings.panel}` }} onNavigate={flip} />
       </div>
       <Outlet />
     </div>

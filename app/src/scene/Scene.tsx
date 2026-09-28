@@ -1,13 +1,15 @@
 // The Scene (P1–P21, Q1–Q5): docs/handoff/kataki-handoff/SCENE.md.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
-import { api, stream, type Cast, type CastEntity, type ContextLog, type KnownMemory, type Message, type Person, type Signals, type Story, type StoryUi, type TurnDone, type TurnMeta, type Version } from '../api'
+import { api, stream, type Provider, type RoleRow, type Cast, type CastEntity, type ContextLog, type KnownMemory, type Message, type Person, type Signals, type Story, type StoryUi, type TurnDone, type TurnMeta, type Version } from '../api'
 import { K } from '../ds'
-import { face, scenery, useLibrary, useLoad, usePoll } from '../hooks'
+import { face, scenery, twelve, useLibrary, useLoad, usePoll } from '../hooks'
 import { openMenu, toast, type MenuItem } from '../overlay'
 import { pacer, SPEEDS, type Speed } from '../pace'
 import { pref } from '../prefs'
 import { t } from '../strings'
+import { is } from '../shortcuts'
+import { classify, err } from '../errors'
 import { Delete, Export } from '../sky/Stories'
 import Backstage from './Backstage'
 import Lines, { type LineActions } from './Lines'
@@ -30,6 +32,13 @@ export default function Scene() {
   const navigate = useNavigate()
   const { byId, items } = useLibrary()
   const [prefs] = useLoad(() => api<{ reply_speed?: Speed }>('/settings'), [])
+  // the model's name, for the error's own words
+  const [provider] = useLoad(async () => {
+    const rp = (await api<RoleRow[]>('/roles')).find((r) => r.role === 'rp')
+    return (await api<Provider[]>('/providers')).find((p) => p.id === rp?.effective_provider_id)
+  }, [])
+  const providerName = provider?.name ?? ''
+  const providerUrl = (provider?.base_url ?? '').replace(/^https?:\/\//, '')
   const version = useRef('')
   const [data, reload, error] = useLoad(
     () => Promise.all([
@@ -61,6 +70,7 @@ export default function Scene() {
   const [skip, setSkip] = useState<Skip | null>(null)
   const [meter, setMeter] = useState<{ used: number; budget: number }>()
   const [tick, setTick] = useState(0)
+  const [here, setHere] = useState(false) // below 1024 the widgets fold into a Here sheet (R4)
   const controller = useRef<AbortController | null>(null)
   const retryBody = useRef<{ path: string; body: object } | null>(null)
   const chat = useRef<HTMLDivElement>(null)
@@ -70,6 +80,7 @@ export default function Scene() {
 
   useEffect(() => () => controller.current?.abort(), [])
   useEffect(() => { api(`/stories/${id}/seen`, 'POST').catch(() => {}) }, [id])
+  useEffect(() => { if (data && !params.get('line')) document.querySelector<HTMLElement>('.k-chat__composer textarea')?.focus() }, [!!data]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     api<ContextLog>(`/stories/${id}/context`).then((c) => setMeter({ used: c.est_tokens, budget: c.budget }), () => {})
   }, [id])
@@ -180,6 +191,11 @@ export default function Scene() {
     send(next)
   }, [live, queue]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    if (!failed || live || !['REPLY_UNREACHABLE', 'API_UNREACHABLE', 'API_RATE_LIMITED'].includes(classify(failed))) return
+    const again = setTimeout(() => retry(), 10_000)
+    return () => clearTimeout(again)
+  }, [failed, live]) // eslint-disable-line react-hooks/exhaustive-deps
   const retry = () => {
     const was = retryBody.current
     if (!was) return
@@ -265,14 +281,29 @@ export default function Scene() {
         else if (!arranging && editing === undefined) navigate(-1)
         return
       }
+      // F6 cycles the regions: header, the story, the composer, the widgets (KEYBOARD.md › The Scene)
+      if (e.key === 'F6') {
+        e.preventDefault()
+        const regions = ['.scene__tl .k-scenebtn', '.scene__chat .k-line', '.scene__chat textarea', '.scene__right .k-widget button, .scene__left .k-widget button']
+          .map((q) => document.querySelector<HTMLElement>(q)).filter((x): x is HTMLElement => !!x)
+        const at = regions.findIndex((r) => r.closest('.scene__tl, .scene__chat .k-chat__lines, .k-chat__composer, .scene__right, .scene__left')?.contains(document.activeElement))
+        regions[(at + (e.shiftKey ? regions.length - 1 : 1)) % regions.length]?.focus()
+        return
+      }
+      // Alt ← / Alt → flip the takes of the focused line, or the last reply
+      if (e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && data) {
+        const id = Number((document.activeElement?.closest('.k-line') as HTMLElement | null)?.id.replace('line-', ''))
+        const m = data.messages.find((x) => x.id === id) ?? data.messages.findLast((x) => x.role === 'assistant')
+        if (m && m.swipe[1] > 1) { e.preventDefault(); act.swipe(m, e.key === 'ArrowLeft' ? -1 : 1) }
+        return
+      }
       if (!ctrl) return
-      const k = e.key.toLowerCase()
-      if (k === 'b') { e.preventDefault(); setBackstage((b) => !b) }
-      else if (k === 'f') { e.preventDefault(); setFinding(true) }
-      else if (k === 'e' && !e.shiftKey) { e.preventDefault(); setArranging(true) }
-      else if (k === 'r' && e.shiftKey) { e.preventDefault(); setReading((r) => !r) }
-      else if (k === 'j') { e.preventDefault(); send('') }
-      else if (k === 'r' && !e.shiftKey && !live) {
+      if (is(e, 'backstage')) { e.preventDefault(); setBackstage((b) => !b) }
+      else if (is(e, 'find')) { e.preventDefault(); setFinding(true) }
+      else if (is(e, 'widgets')) { e.preventDefault(); setArranging(true) }
+      else if (is(e, 'reading')) { e.preventDefault(); setReading((r) => !r) }
+      else if (is(e, 'continue')) { e.preventDefault(); send('') }
+      else if (is(e, 'regenerate') && !live) {
         const last = data?.messages.findLast((m) => m.role === 'assistant')
         if (last && last.id === data?.messages.at(-1)?.id) { e.preventDefault(); act.retake(last) }
       }
@@ -307,7 +338,8 @@ export default function Scene() {
   const place = story.place ? item(story.place) : undefined
   const art = scenery(place)
   const artSrc = art.src ?? (art.place ? K.ART[art.place]?.src ?? undefined : undefined)
-  const offline = /model|reach|connect|provider|server/i.test(failed)
+  const failedCode = classify(failed, !!providerName && !/^(localhost|127\.|\[::1\])/.test(providerUrl))
+  const offline = ['REPLY_UNREACHABLE', 'API_UNREACHABLE', 'MODEL_GONE', 'REPLY_TIMEOUT'].includes(failedCode)
   const first = !messages.some((m) => m.role === 'user') && !said
   const who = persona ?? 'you'
   const placeholder = live ? t('scene.placeholderAnswering', { name: live.speaker || lead?.name || t('scene.narrator') })
@@ -326,7 +358,7 @@ export default function Scene() {
   const cardEntity = characters.find((e) => e.id === card)
   const feelingOf = (eid: number) => people.find((p) => p.id === eid)?.relationships.find((r) => r.you)?.rel
   const onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(draft).then(() => setOpen('pass')); return true }
+    if (is(e, 'sendPass')) { e.preventDefault(); send(draft).then(() => setOpen('pass')); return true }
     if (e.key === 'ArrowUp' && !draft) {
       const mine = messages.findLast((m) => m.role === 'user' && !m.hidden)
       if (mine) { e.preventDefault(); setEditing(mine.id); return true }
@@ -350,6 +382,7 @@ export default function Scene() {
         <K.BackstageToggle on={backstage} onToggle={setBackstage} />
         {backstage ? <K.SceneButton icon="x" label={t('bs.leave')} onClick={() => setBackstage(false)} /> : (
           <>
+            <span className="scene__here"><K.SceneButton icon="users" label={t('scene.here')} pressed={here} onClick={() => setHere((x) => !x)} /></span>
             <K.SceneButton icon="search" label={t('scene.search')} onClick={() => setFinding(true)} />
             <K.SceneButton icon="dots" label={t('scene.menu')} onClick={(e: { currentTarget: Element }) => openMenu(e.currentTarget, storyMenu())} />
           </>
@@ -359,7 +392,7 @@ export default function Scene() {
   )
 
   return (
-    <div className={`scene${arranging ? ' is-arranging' : ''}`}>
+    <div className={`scene${arranging ? ' is-arranging' : ''}${here ? ' show-here' : ''}`}>
       {artSrc ? <img className="scene__art" src={artSrc} alt={place?.name ?? ''} /> : <div className="scene__art scene__place" />}
       <div className="scene__tint" />
       <div className="scene__vig" />
@@ -412,20 +445,30 @@ export default function Scene() {
                 <K.ChatLine speaker={String(live.speakerId)} color={colour({ role: 'assistant', speaker_id: live.speakerId } as Message)} name={live.speaker || '…'} time=""
                   text={live.text} writing thought={live.thinkMs ? t('scene.thought', { s: Math.max(1, Math.round(live.thinkMs / 1000)) }) : undefined} />
               )}
-              {failed && (
-                <div className="lineerr" role="alert">
-                  <K.Icon name="alert" size={18} color="var(--bad)" />
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <b style={{ fontSize: 14 }}>{t(offline ? 'scene.err.offline' : 'scene.err.title')}</b>
-                    <span className="scene-t">{failed}</span>
-                    <div className="row" style={{ gap: 8 }}>
-                      <button type="button" className="k-btn k-btn--scene-send" onClick={retry}>{t('scene.err.retry')}</button>
-                      {messages.at(-1)?.role === 'user' && <button type="button" className="k-btn k-btn--scene-ghost" onClick={() => { setFailed(''); setEditing(messages.at(-1)!.id) }}>{t('scene.err.editLine')}</button>}
-                      {offline && <a className="k-btn k-btn--scene-ghost" href="/settings/models">{t('scene.err.models')}</a>}
+              {failed && (() => {
+                const e = err(failedCode, { name: lead?.name ?? t('scene.narrator'), server: providerName, time: twelve(story.clock), seconds: 60 })
+                const does = (a: string) =>
+                  /^Try/.test(a) ? retry
+                  : /Edit my line/.test(a) && messages.at(-1)?.role === 'user' ? () => { setFailed(''); setEditing(messages.at(-1)!.id) }
+                  : /New take/.test(a) ? () => { const r = messages.findLast((m) => m.role === 'assistant'); if (r) act.retake(r) }
+                  : /Continue it/.test(a) ? () => send('')
+                  : /Keep it/.test(a) ? () => setFailed('')
+                  : /own model|Open Settings/.test(a) ? () => navigate('/settings/models')
+                  : undefined
+                return (
+                  <div className="lineerr" role="alert" title={failed}>
+                    <K.Icon name="alert" size={18} color="var(--bad)" />
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <b style={{ fontSize: 14 }}>{e.title}</b>
+                      <span className="scene-t">{e.body}</span>
+                      <div className="row row--wrap" style={{ gap: 8 }}>
+                        {e.actions.map((a, i) => { const run = does(a); return run ? <button key={a} type="button" className={`k-btn ${i ? 'k-btn--scene-ghost' : 'k-btn--scene-send'}`} onClick={run}>{a}</button> : null })}
+                      </div>
+                      <span className="errcode">{e.code}</span>
                     </div>
                   </div>
-                </div>
-              )}
+                )
+              })()}
             </K.ChatPanel>
             {below && (
               <button type="button" className="k-scenechip jump" onClick={() => { follow.current = true; const el = lines(); if (el) el.scrollTop = el.scrollHeight }}>

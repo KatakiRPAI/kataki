@@ -21,8 +21,10 @@ body { overflow: hidden; }
 .scene { --speaker-4: #9fe3c4; --speaker-5: #e3a5f0; --speaker-6: #8fd8f0; }
 
 @media (max-width: 1279px) {
-  .scene__chat { inset-inline-start: 24px; inset-inline-end: 320px; }
+  /* R1: the chat fills; clock and music join the widgets column */
+  .scene__chat { inset-inline-start: 24px; inset-inline-end: 320px; top: 76px; }
   .scene__chat .k-chat { width: 100%; }
+  .scene__left { inset-inline-start: auto; inset-inline-end: 24px; }
 }
 .scene__chat .k-chat__lines { scrollbar-width: thin; scrollbar-color: var(--scene-border) transparent; }
 .app__main { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
@@ -279,3 +281,29 @@ button.k-shortrow, button.k-job { width: 100%; background: transparent; border: 
 .fr__pick { padding: 0; border: 2px solid transparent; border-radius: var(--radius-lg); background: transparent; cursor: pointer; }
 .fr__pick[aria-checked="true"] { border-color: var(--accent); }
 .fr__pick:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.errcode { font-family: var(--font-mono); font-size: 11px; color: var(--scene-muted); }
+
+/* Layout breakpoints (ROUTES.md): compact rail below 1280, one column below 1024 */
+.app--compact .app__sky { inset-inline-start: 72px; }
+.scene__here { display: none; }
+@media (max-width: 1279px) {
+  .app__main { padding-inline: 28px; }
+  .ch-grid, .wgrid { gap: 12px; }
+  .pf-grid, .st-grid { grid-template-columns: minmax(0, 1fr) 340px; }
+  .ns-grid, .ed-grid { grid-template-columns: minmax(0, 1fr) 320px; }
+  .scene__left { top: auto; }
+}
+@media (max-width: 1023px) {
+  .st-grid, .ns-grid, .ed-grid, .pf-grid, .w-grid, .set, .sh-grid, .mo-grid, .fr__doors, .ns-plots, .pf-moments { grid-template-columns: minmax(0, 1fr); }
+  .st-preview, .ns-aside, .ed-aside { position: static; }
+  .pf-head { flex-direction: column; align-items: flex-start; }
+  .pf-portrait { width: 220px; height: 264px; }
+  .fr__h1 { font-size: 40px; line-height: 44px; }
+  .scene__chat { inset-inline: 16px; top: 72px; }
+  .scene__right, .scene__left { display: none; }
+  .scene__here { display: inline-flex; }
+  .scene.show-here .scene__right, .scene.show-here .scene__left { display: flex; position: fixed; inset-inline-end: 16px; inset-inline-start: auto; z-index: 30; max-height: calc(100vh - 96px); overflow-y: auto; }
+  .scene.show-here .scene__right { top: 72px; }
+  .scene.show-here .scene__left { top: auto; bottom: 16px; }
+  .bsx { grid-template-columns: minmax(0, 1fr) !important; inset: 72px 16px 16px; }
+}

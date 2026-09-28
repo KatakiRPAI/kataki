@@ -9,8 +9,9 @@
   "scripts": {
     "dev": "tsc -p electron && electron .",
     "smoke": "tsc -p electron && electron . --smoke",
-    "build": "tsc -p electron && vite build",
-    "typecheck": "tsc --noEmit && tsc -p electron --noEmit"
+    "build": "node checks/copy.mjs && tsc -p electron && vite build",
+    "typecheck": "tsc --noEmit && tsc -p electron --noEmit",
+    "check:release": "node checks/copy.mjs --release"
   },
   "dependencies": {
     "intl-messageformat": "^12.1.2",

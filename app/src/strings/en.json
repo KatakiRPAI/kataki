@@ -1176,7 +1176,6 @@
   "op.modelNone": "no model yet",
   "op.modelWait": "trying…",
   "op.failed": "Kataki can’t read your library.",
-  "op.failedBody": "The engine that keeps your library didn’t answer. Nothing has been changed. Try again, or open the folder to look. LIBRARY_UNREADABLE",
   "op.retry": "Try again",
   "op.privacy": "Everything here lives on this computer.",
   "fr.step": "Step {n} of 2",
@@ -1208,9 +1207,6 @@
   "fr.testing": "Testing {address}",
   "fr.connected": "Connected",
   "fr.connectedBody": "{n, plural, one {# model} other {# models}} · {model} picked",
-  "fr.noModel": "Connected, but no model loaded",
-  "fr.nothing": "Nothing answered",
-  "fr.nothingBody": "Is the server running at {address}? SERVER_UNREACHABLE",
   "fr.useServer": "Use this server",
   "fr.back": "Back",
   "fr.onTitle": "Use an online model",
@@ -1232,7 +1228,6 @@
   "fr.justYou": "Or just be “You” for now",
   "fr.save": "Save",
   "mg.title": "Nobody is home to answer.",
-  "mg.body": "The model Kataki uses isn’t answering. Everything you wrote is saved. Start the server again, or pick another in Settings. MODEL_GONE",
   "mg.retry": "Try again",
   "mg.settings": "Open Settings",
   "mg.live": "Trying again every 10 s · next in {s} s · this page closes itself when it answers",
@@ -1259,5 +1254,6 @@
   "fr.private": "Nothing leaves this computer unless you pick the third door.",
   "fr.six": "Six people are already here. Pick one after this.",
   "fr.import": "Coming from somewhere else? Import cards",
-  "fr.sixLabel": "Six characters ship with Kataki"
+  "fr.sixLabel": "Six characters ship with Kataki",
+  "mg.agoNow": "a moment ago"
 }

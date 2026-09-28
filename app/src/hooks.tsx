@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from 'react'
 import { api, mediaUrl, type Item } from './api'
@@ -156,4 +157,10 @@ const PLACES: Record<string, string> = { 'halcyon coffee': 'halcyon-coffee', 'co
 export function scenery(item: Item | undefined): { place?: string; src?: string } {
   const src = item?.data.image ? mediaUrl(item.data.image) : undefined
   return { place: !src && item ? PLACES[item.name.toLowerCase()] : undefined, src }
+}
+
+/** True while the window is narrower than `px` (CSS px, after zoom). */
+export function useNarrow(px: number): boolean {
+  const q = `(max-width: ${px - 1}px)`
+  return useSyncExternalStore((f) => { const m = matchMedia(q); m.addEventListener('change', f); return () => m.removeEventListener('change', f) }, () => matchMedia(q).matches)
 }

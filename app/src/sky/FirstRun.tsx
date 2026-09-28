@@ -9,6 +9,7 @@ import { Overlay, toast } from '../overlay'
 import { loadPrefs, pref, setPref, usePrefs } from '../prefs'
 import { seedSampleWorld } from '../sample/seed'
 import { t } from '../strings'
+import { err } from '../errors'
 
 type Found = { name: string; base_url: string; models: string[] }
 
@@ -47,7 +48,7 @@ export function Opening() {
           { label: t('op.memories'), detail: steps.library ? t('op.memoriesDone') : undefined, state: steps.library ? 'done' : 'wait' },
           { label: t('op.model'), detail: steps.model ?? t('op.modelWait'), state: steps.model ? 'done' : steps.library ? 'doing' : 'wait' },
         ]} />
-        {steps.failed && <K.Alert title={t('op.failed')} code="LIBRARY_UNREADABLE" actions={<K.Button variant="primary" onClick={run}>{t('op.retry')}</K.Button>}>{t('op.failedBody')}</K.Alert>}
+        {steps.failed && <K.Alert title={t('op.failed')} code="LIBRARY_UNREADABLE" actions={<K.Button variant="primary" onClick={run}>{t('op.retry')}</K.Button>}>{err('LIBRARY_UNREADABLE', { file: 'library.db', folder: 'the library folder' }).body}</K.Alert>}
         <div className="privacy"><K.Icon name="lock" size={16} /><span>{t('op.privacy')}</span></div>
       </main>
     </div>
@@ -130,10 +131,10 @@ function Server() {
       p = await api<Provider>('/providers', 'POST', { name: new URL(address).host, base_url: address.trim(), api_key: key.trim() || null })
       const { models } = await api<{ models: string[] }>(`/providers/${p.id}/models`)
       setState(models.length ? { tone: 'ok', title: t('fr.connected'), body: t('fr.connectedBody', { n: models.length, model: models[0] }), provider: p, model: models[0] }
-        : { tone: 'warm', title: t('fr.noModel'), provider: p })
+        : { tone: 'warm', title: err('SERVER_NO_MODEL').title, body: err('SERVER_NO_MODEL', { server: p.name }).body, provider: p })
     } catch {
       if (p) await api(`/providers/${p.id}`, 'DELETE').catch(() => {})
-      setState({ tone: 'bad', title: t('fr.nothing'), body: t('fr.nothingBody', { address }) })
+      setState({ tone: 'bad', title: err('SERVER_UNREACHABLE').title, body: err('SERVER_UNREACHABLE', { address, seconds: 5 }).body })
     }
   }
   const go = async () => {
@@ -320,10 +321,10 @@ export function ModelGone() {
   const causes: [string, string][] = [['mg.c1', 'mg.c1Body'], ['mg.c2', 'mg.c2Body'], ['mg.c3', 'mg.c3Body'], ['mg.c4', 'mg.c4Body']]
   return (
     <main className="app__main" aria-label={t('mg.title')} style={{ gap: 24 }}>
-      <K.Alert title={t('mg.title')} code="MODEL_GONE" actions={<>
+      <K.Alert title={err('MODEL_GONE').title} code="MODEL_GONE" actions={<>
         <K.Button variant="primary" onClick={check}>{t('mg.retry')}</K.Button>
         <K.Button href="/settings/models">{t('mg.settings')}</K.Button>
-      </>}>{t('mg.body')}</K.Alert>
+      </>}>{err('MODEL_GONE', { ago: t('mg.agoNow'), where: '' }).body}</K.Alert>
       <span className="t-meta">{t('mg.live', { s: left })}</span>
       <section className="sec"><h2 className="sec-title">{t('mg.works')}</h2>
         <div className="row" style={{ gap: 14, alignItems: 'stretch' }}>

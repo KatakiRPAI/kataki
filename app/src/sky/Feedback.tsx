@@ -11,7 +11,7 @@ let open: Kind | null = null
 const subs = new Set<() => void>()
 export const openFeedback = (kind: Kind) => { open = kind; subs.forEach((f) => f()) }
 const close = () => { open = null; subs.forEach((f) => f()) }
-// [FEEDBACK HOST] is the product owner's to supply (README › Copy rules 6); until then, copy.
+// The feedback host is the product owner's to supply (README › Copy rules 6); until then, copy.
 const HOST = import.meta.env.VITE_FEEDBACK_HOST as string | undefined
 
 export function Feedback() {
