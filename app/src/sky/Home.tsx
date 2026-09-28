@@ -5,6 +5,7 @@ import { api, type ActivityEvent, type Item, type Person, type Story, type Story
 import { K } from '../ds'
 import { face, scenery, twelve, useLibrary, useLoad, utc } from '../hooks'
 import { relative, t } from '../strings'
+import { isDraft } from '../characters'
 
 type Filter = 'all' | 'story' | 'drafts'
 const TONE = { memory: 'ok', belief: 'warm', feeling: 'warm', time: 'muted' } as const
@@ -26,8 +27,7 @@ export default function Home() {
   const persona = settings?.persona ? byId.get(settings.persona) : undefined
   const characters = items.filter((i) => i.kind === 'character' && !i.data.persona)
   const lastPlayed = (c: Item) => played.find((s) => s.cast.some((x) => x.lib_item_id === c.id))
-  const draft = (c: Item) => !c.description.trim()
-  const shown = characters.filter((c) => (filter === 'story' ? !!lastPlayed(c) : filter === 'drafts' ? draft(c) : true))
+  const shown = characters.filter((c) => (filter === 'story' ? !!lastPlayed(c) : filter === 'drafts' ? isDraft(c) : true))
   const lead = hero?.cast.find((c) => c.present) ?? hero?.cast[0]
   const ordered = [...shown].sort((a, b) => (a.id === lead?.lib_item_id ? -1 : b.id === lead?.lib_item_id ? 1 : utc(lastPlayed(b)?.last_at ?? '1970-01-01 00:00:00') - utc(lastPlayed(a)?.last_at ?? '1970-01-01 00:00:00')))
 
@@ -47,7 +47,7 @@ export default function Home() {
         <section className="sec" aria-label={t('home.empty.start')}>
           <h2 className="sec-title">{t('home.empty.start')}</h2>
           <div className="row row--wrap" style={{ gap: 16, alignItems: 'flex-start' }}>
-            {characters.filter((c) => !draft(c)).map((c) => (
+            {characters.filter((c) => !isDraft(c)).map((c) => (
               <div key={c.id} className="col">
                 <K.CharacterCard {...face(c)} name={c.name} when={t('card.when.never')} />
                 <K.Button variant="primary" size="sm" onClick={() => start(c)}>{t('home.empty.sayHello')}</K.Button>
@@ -67,7 +67,7 @@ export default function Home() {
   const counts = {
     all: characters.length,
     story: characters.filter((c) => lastPlayed(c)).length,
-    drafts: characters.filter(draft).length,
+    drafts: characters.filter(isDraft).length,
   }
 
   return (

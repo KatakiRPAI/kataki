@@ -57,3 +57,71 @@ body { overflow: hidden; }
 .find-list { padding: 4px 14px; background: var(--raise); max-height: 50vh; overflow-y: auto; }
 .find-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--hairline); }
 .find-row:last-child { border-bottom: 0; }
+
+/* a card's quick actions show on hover or focus (D1) */
+.k-char { position: relative; }
+.k-char__quick { opacity: 0; transition: opacity .15s; }
+.k-char:hover .k-char__quick, .k-char:focus-within .k-char__quick { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .k-char__quick { transition: none; } }
+
+/* a menu opened from a ··· button sits under it */
+.menu-anchor { position: relative; display: inline-flex; }
+.menu-pop { position: absolute; z-index: 35; inset-inline-end: 0; top: calc(100% + 6px); }
+.menu-pop--up { top: auto; bottom: calc(100% + 6px); }
+
+/* Characters */
+.ch-grid { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+.ch-card { position: relative; }
+.ch-card__link { position: absolute; inset: 0; z-index: 1; border-radius: var(--radius-lg); }
+.ch-card__link:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.ch-card .k-char__quick { z-index: 2; }
+.ch-row { display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--hairline); padding-inline-end: 6px; }
+.ch-row:last-child { border-bottom: 0; }
+.ch-group { display: flex; align-items: center; gap: 14px; padding: 14px 16px; width: 420px; box-sizing: border-box; }
+button.k-addcard { background: transparent; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.k-addcard--wide { min-height: 0; flex-direction: row; }
+
+/* A character's profile */
+.pf-head { display: flex; gap: 40px; align-items: flex-end; }
+.pf-portrait { width: 300px; height: 360px; object-fit: cover; border-radius: 16px; box-shadow: var(--shadow-float); flex-shrink: 0; }
+.pf-portrait--none { display: flex; align-items: center; justify-content: center; background: var(--raise); color: var(--faint); font-family: var(--font-story); font-size: 120px; }
+.pf-name { margin: 0; font-family: var(--font-story); font-size: 57px; line-height: 60px; font-weight: 500; letter-spacing: -0.012em; }
+.pf-tagline { margin: 0; font-family: var(--font-story); font-style: italic; font-size: 20px; line-height: 29px; color: var(--mid); }
+.pf-grid { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 32px; align-items: start; }
+.pf-h { margin: 0 0 10px; font-size: 10.5px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: var(--faint); }
+.pf-text { margin: 0; font-size: 15px; line-height: 24px; color: var(--mid); white-space: pre-wrap; }
+.pf-moments { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.pf-sheet { position: absolute; inset-inline-end: 0; top: 0; bottom: 0; width: 560px; max-width: 100%; box-sizing: border-box; padding: 20px; display: flex; }
+.pf-sheet .dlg { width: 100%; max-width: none; max-height: none; height: 100%; display: flex; flex-direction: column; }
+.pf-sheet__body { gap: 14px; overflow-y: auto; flex: 1; }
+.pf-memrow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: start; padding-bottom: 12px; border-bottom: 1px solid var(--hairline); }
+.linkbtn { background: none; border: 0; padding: 0; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--accent-text); cursor: pointer; }
+.linkbtn:hover { color: var(--ink); }
+.pf-grid .k-panel .k-listrow { padding-inline: 16px; }
+
+/* Making and editing a character */
+.ed-grid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 36px; align-items: start; }
+.ed-aside { gap: 16px; position: sticky; top: 0; }
+.ed-face { display: flex; align-items: center; gap: 18px; padding: 16px 18px; }
+.ed-face img { width: 88px; height: 110px; object-fit: cover; border-radius: 10px; }
+.ed-rel { display: grid; grid-template-columns: minmax(0, 1fr) 200px auto; gap: 10px; align-items: end; }
+.opt { display: flex; align-items: center; gap: 14px; width: 100%; box-sizing: border-box; padding: 14px 16px; border: 0; border-bottom: 1px solid var(--hairline); background: transparent; color: var(--ink); font: inherit; text-align: start; cursor: pointer; }
+.opt:hover { background: var(--raise); }
+.opt:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.opt__t { display: block; font-size: 14.5px; font-weight: 700; }
+.opt__d { display: block; font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.opt__s { margin-inline-start: auto; font-size: 12.5px; color: var(--faint); white-space: nowrap; }
+.optbody { padding: 4px 16px 18px; border-bottom: 1px solid var(--hairline); display: flex; flex-direction: column; gap: 14px; }
+.card > div:last-child > .opt:last-child, .card > div:last-child > .optbody { border-bottom: 0; }
+.ed-set { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+.ed-set__item { padding: 0; border: 2px solid transparent; border-radius: 14px; overflow: hidden; background: var(--raise); cursor: pointer; aspect-ratio: 4 / 5; }
+.ed-set__item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ed-set__item[aria-checked="true"] { border-color: var(--accent); }
+.ed-set__item:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.ed-focus { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 24px; align-items: start; }
+.ed-focus__img { position: relative; border-radius: 14px; overflow: hidden; cursor: crosshair; touch-action: none; }
+.ed-focus__img img { display: block; width: 100%; max-height: 60vh; object-fit: contain; user-select: none; -webkit-user-drag: none; }
+.ed-focus__ring { position: absolute; width: 96px; height: 96px; margin: -48px 0 0 -48px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 9999px rgba(0,0,0,.35); }
+.ed-focus__ring:focus-visible { outline: none; border-color: var(--accent); }
+.ed-focus__card { width: 168px; height: 200px; border-radius: 14px; overflow: hidden; }
+.ed-focus__card img { width: 100%; height: 100%; object-fit: cover; }

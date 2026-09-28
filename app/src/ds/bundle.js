@@ -200,7 +200,7 @@
   function ChoiceChips(p) {
     return h('div', { className: 'k-choices', role: 'group', 'aria-label': p.label },
       p.label ? h('span', { className: 'k-choices__label' }, p.label) : null,
-      (p.options || []).map(function (o) { return h('button', { key: o, type: 'button', className: 'k-choice' }, o); }));
+      (p.options || []).map(function (o) { return h('button', { key: o, type: 'button', className: 'k-choice', onClick: function () { if (p.onPick) p.onPick(o); } }, o); }));
   }
   function DropZone(p) {
     return h('div', { className: cx('k-drop', p.active && 'is-active') },
@@ -280,7 +280,7 @@
         if (it.divider) return h('div', { key: i, className: 'k-menu__divider', role: 'separator' });
         if (it.section) return h('div', { key: i, className: 'k-menu__section' }, it.section);
         return h('button', { key: i, type: 'button', role: it.checked !== undefined ? 'menuitemradio' : 'menuitem', 'aria-checked': it.checked === undefined ? undefined : String(!!it.checked),
-          className: cx('k-menu__item', it.danger && 'is-danger', it.active && 'is-active'), disabled: it.disabled },
+          className: cx('k-menu__item', it.danger && 'is-danger', it.active && 'is-active'), disabled: it.disabled, onClick: it.onSelect },
           it.who ? h(Avatar, { who: it.who, src: it.src, size: 22 }) : (it.icon ? h(Icon, { name: it.icon, size: 16 }) : h('span', { className: 'k-menu__noicon' })),
           h('span', { className: 'k-menu__label' }, it.label, it.detail ? h('span', { className: 'k-menu__detail' }, it.detail) : null),
           it.meta ? h('span', { className: 'k-menu__meta' }, it.meta) : null,
@@ -313,7 +313,7 @@
   }
   function Sheet(p) {
     return h('aside', { className: cx('k-sheet', p.tone === 'scene' && 'k-sheet--scene'), role: 'dialog', 'aria-label': p.title },
-      h('div', { className: 'k-sheet__head' }, h(StoryName, { size: 'title' }, p.title), h('div', { className: 'k-btngroup' }, p.headerAction, h(IconButton, { icon: 'x', label: 'Close', size: 'sm' }))),
+      h('div', { className: 'k-sheet__head' }, h(StoryName, { size: 'title' }, p.title), h('div', { className: 'k-btngroup' }, p.headerAction, h(IconButton, { icon: 'x', label: 'Close', size: 'sm', onClick: p.onClose }))),
       h('div', { className: 'k-sheet__body' }, p.children));
   }
   function Toast(p) {
@@ -423,7 +423,7 @@
   function ListRow(p) {
     var T = p.href ? 'a' : 'div';
     return h(T, { className: cx('k-listrow', p.href && 'is-link'), href: p.href },
-      p.who ? h(Avatar, { who: p.who, src: p.src, size: p.avatarSize || 36 }) : (p.icon ? h('span', { className: 'k-listrow__icon' }, h(Icon, { name: p.icon, size: 17 })) : null),
+      p.who || p.src || p.name ? h(Avatar, { who: p.who, src: p.src, name: p.name, size: p.avatarSize || 36 }) : (p.icon ? h('span', { className: 'k-listrow__icon' }, h(Icon, { name: p.icon, size: 17 })) : null),
       h('div', { className: 'k-listrow__main' }, p.story ? h(StoryName, { size: 'row' }, p.title) : h('div', { className: 'k-listrow__title' }, p.title), p.subtitle ? h('div', { className: 'k-listrow__sub' }, p.subtitle) : null),
       p.meta ? h('span', { className: 'k-listrow__meta' }, p.meta) : null, p.children);
   }
@@ -466,17 +466,17 @@
     var a = ART[p.who] || {}, src = p.src || a.src;
     return h('article', { className: cx('k-char', p.featured && 'k-char--featured', p.hover && 'is-hover', p.variant === 'list' && 'k-char--list') },
       h('div', { className: 'k-char__art' },
-        src ? h('img', { src: src, alt: p.alt || (p.name + ', portrait'), style: { objectPosition: a.focus } })
+        src ? h('img', { src: src, alt: p.alt || (p.name + ', portrait'), style: { objectPosition: p.focus || a.focus } })
             : h('div', { className: 'k-char__noface' }, h('span', { 'aria-hidden': 'true' }, (p.name || '?')[0]), h('small', null, 'no portrait yet')),
         p.badge ? h('span', { className: cx('k-char__badge', p.badgeTone === 'warm' && 'k-char__badge--warm') }, p.badge) : null,
-        p.hover ? h('div', { className: 'k-char__quick' }, h(Button, { variant: 'primary', size: 'sm' }, 'Continue'), h(IconButton, { icon: 'dots', label: 'More for ' + p.name, size: 'sm', variant: 'glass' })) : null),
+        p.hover || p.continueHref || p.onMore ? h('div', { className: 'k-char__quick' }, p.continueHref || p.hover ? h(Button, { variant: 'primary', size: 'sm', href: p.continueHref }, p.continueLabel || 'Continue') : h('span'), h(IconButton, { icon: 'dots', label: 'More for ' + p.name, size: 'sm', variant: 'glass', onClick: p.onMore })) : null),
       h('div', { className: 'k-char__body' },
         h(StoryName, { size: p.featured ? 'lg' : 'card' }, p.name),
         p.line ? h('div', { className: 'k-char__line' }, p.line) : null,
         h('div', { className: 'k-char__foot' }, h('span', { className: 'k-meta' }, p.when), p.stories != null ? h('span', { className: 'k-meta' }, p.stories + (p.stories === 1 ? ' story' : ' stories')) : null)));
   }
   function AddCard(p) {
-    return h('a', { href: p.href || '#', className: cx('k-addcard', p.wide && 'k-addcard--wide') }, h(Icon, { name: p.icon || 'plus', size: 24, stroke: 1.8 }), h('span', null, p.children || 'Add'), p.sub ? h('small', null, p.sub) : null);
+    return h(p.onClick ? 'button' : 'a', { href: p.onClick ? undefined : p.href || '#', type: p.onClick ? 'button' : undefined, onClick: p.onClick, className: cx('k-addcard', p.wide && 'k-addcard--wide') }, h(Icon, { name: p.icon || 'plus', size: 24, stroke: 1.8 }), h('span', null, p.children || 'Add'), p.sub ? h('small', null, p.sub) : null);
   }
   function PersonaCard(p) {
     return h('article', { className: cx('k-persona-card', p.selected && 'is-selected') },

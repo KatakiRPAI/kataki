@@ -58,7 +58,7 @@ export declare function Slider(props: { label?: string; value?: number; defaultV
 /** A filter chip with an optional count, icon, avatar or remove mark. Pressed fills with ink, never a hue. */
 export declare function Chip(props: { pressed?: boolean; defaultPressed?: boolean; onPress?: (v: boolean) => void; onClick?: () => void; toggle?: boolean; count?: number; icon?: IconName; who?: Who; src?: string; removable?: boolean; size?: "sm"; disabled?: boolean; children: ReactNode }): React.ReactElement;
 /** Suggestions the player can take with one click, drawn dashed so they read as offers, not filters. */
-export declare function ChoiceChips(props: { label?: string; options: string[] }): React.ReactElement;
+export declare function ChoiceChips(props: { label?: string; options: string[]; onPick?: (v: string) => void }): React.ReactElement;
 /** A place to drop or pick an image, with the empty portrait beside the instructions. */
 export declare function DropZone(props: { title?: string; description?: string; icon?: IconName; empty?: string; active?: boolean; children?: ReactNode }): React.ReactElement;
 /** A numbered step label for multi-part forms such as New story. */
@@ -78,7 +78,7 @@ export declare function Breadcrumbs(props: { items: string[] }): React.ReactElem
 /** Reveals the rest of a list in place: "7 older stories". */
 export declare function ShowMore(props: { children: ReactNode }): React.ReactElement;
 /** A floating list of actions or choices: items with icon or avatar, detail line, count, shortcut, check, danger; sections, dividers and a footnote. */
-export declare function Menu(props: { title?: string; label?: string; width?: number; footer?: ReactNode; items: { label?: string; detail?: string; icon?: IconName; who?: Who; src?: string; meta?: string; count?: number; shortcut?: string[]; checked?: boolean; danger?: boolean; disabled?: boolean; active?: boolean; divider?: boolean; section?: string }[] }): React.ReactElement;
+export declare function Menu(props: { title?: string; label?: string; width?: number; footer?: ReactNode; items: { onSelect?: () => void; label?: string; detail?: string; icon?: IconName; who?: Who; src?: string; meta?: string; count?: number; shortcut?: string[]; checked?: boolean; danger?: boolean; disabled?: boolean; active?: boolean; divider?: boolean; section?: string }[] }): React.ReactElement;
 /** A short label or exact value on hover and focus. `open` pins it for docs. */
 export declare function Tooltip(props: { text?: ReactNode; title?: string; placement?: "top" | "bottom" | "start"; open?: boolean; children: ReactNode }): React.ReactElement;
 /** A small floating panel with a title, a few fields and actions, anchored to what opened it. */
@@ -86,7 +86,7 @@ export declare function Popover(props: { title?: string; description?: string; w
 /** A modal for a task that needs full attention: an icon, title, description, body, a note and actions. */
 export declare function Dialog(props: { title: string; description?: string; icon?: IconName; tone?: "bad" | "warm"; size?: "sm" | "lg"; note?: string; actions?: ReactNode; backdrop?: boolean; onClose?: () => void; children?: ReactNode }): React.ReactElement;
 /** A side panel that slides over the page: a character's card from the chat, a place, details that do not deserve a page. */
-export declare function Sheet(props: { title: string; tone?: "scene"; headerAction?: ReactNode; children: ReactNode }): React.ReactElement;
+export declare function Sheet(props: { onClose?: () => void; title: string; tone?: "scene"; headerAction?: ReactNode; children: ReactNode }): React.ReactElement;
 /** A short confirmation at the bottom of the window, with an optional undo. Intentional addition: deletes and forgets need a way back. */
 export declare function Toast(props: { icon?: IconName; tone?: "bad"; action?: string; onAction?: () => void; onDismiss?: () => void; children: ReactNode }): React.ReactElement;
 /** Ctrl K over anything: jump to a story, character or place, find a line, or run a command. */
@@ -122,7 +122,7 @@ export declare function StatRow(props: { stats: [string, string][]; children?: R
 /** A labelled fact in a card: Right now, Here since, Heard it. */
 export declare function KeyValue(props: { icon?: IconName; label: string; children: ReactNode }): React.ReactElement;
 /** A row in a list: avatar or icon, a title (StoryName when `story`), subtitle and meta on the end. `href` makes the whole row a link. */
-export declare function ListRow(props: { title: ReactNode; subtitle?: ReactNode; meta?: ReactNode; who?: Who; src?: string; icon?: IconName; avatarSize?: number; story?: boolean; href?: string; children?: ReactNode }): React.ReactElement;
+export declare function ListRow(props: { name?: string; title: ReactNode; subtitle?: ReactNode; meta?: ReactNode; who?: Who; src?: string; icon?: IconName; avatarSize?: number; story?: boolean; href?: string; children?: ReactNode }): React.ReactElement;
 /** Dawn, day, dusk, night for a place; the current one filled. The label on the filled segment picks its colour by contrast. */
 export declare function TimeStrip(props: { value: "dawn" | "day" | "dusk" | "night" }): React.ReactElement;
 /** A relative or story time with the exact value on hover and focus. */
@@ -140,9 +140,9 @@ export declare function ContinueHero(props: { title: string; book: string; lastL
 /** One row of "Since you last played": who, an event type from a fixed set, the stored memory line, computed metadata. */
 export declare function EventCard(props: { who?: Who; avatarSrc?: string; name: string; event: string; tone?: "warm" | "ok" | "muted"; memory: string; meta: string }): React.ReactElement;
 /** A character in a grid. The one you played last is `featured` (324px); the rest 168px. Hover shows Continue and ···. */
-export declare function CharacterCard(props: { who?: Who; src?: string; name: string; when: string; line?: string; stories?: number; featured?: boolean; badge?: string; badgeTone?: "warm"; hover?: boolean; alt?: string }): React.ReactElement;
+export declare function CharacterCard(props: { who?: Who; src?: string; name: string; when: string; line?: string; stories?: number; featured?: boolean; badge?: string; badgeTone?: "warm"; hover?: boolean; alt?: string; focus?: string; continueHref?: string; continueLabel?: string; onMore?: () => void }): React.ReactElement;
 /** The dashed "add one" tile at the end of a grid. */
-export declare function AddCard(props: { href?: string; icon?: IconName; sub?: string; wide?: boolean; children?: ReactNode }): React.ReactElement;
+export declare function AddCard(props: { onClick?: () => void; href?: string; icon?: IconName; sub?: string; wide?: boolean; children?: ReactNode }): React.ReactElement;
 /** Someone you can play as: portrait, name, one line, Default tag. The Director has an icon instead of a face. */
 export declare function PersonaCard(props: { who?: Who; src?: string; icon?: IconName; name: string; line: string; isDefault?: boolean; selected?: boolean }): React.ReactElement;
 /** A story thread: faces, title, book, the last stored line (two lines, clamped), real time and story time. */

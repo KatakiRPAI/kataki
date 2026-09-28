@@ -53,6 +53,16 @@ export type ItemData = {
   packs?: Record<string, Pack> // the sprites made from each kept portrait
   links?: { book?: number; stories?: number[]; characters?: number[] } // places and plots, filed by hand
   unlisted?: boolean // a place made for one story and not kept in World
+  tagline?: string // the card line (characters)
+  lines?: string[] // how they talk: sample lines, also joined into example_dialogue
+  focus?: string // where the face is in the portrait, "x% y%"
+  alt?: string // the portrait described, for screen readers
+  places?: number[] // places they know
+  relationships?: { id: number; feels: string }[] // an authored starting point
+  fade?: 'inherit' | 'fast' | 'lifelike' | 'slow' | 'never'
+  doubt?: boolean // they can doubt you
+  edits?: number // how many times the profile was saved
+  source?: 'shipped' | 'made' | 'imported'
 }
 
 /** A character profile the model wrote from your own words (`POST /library/draft`). */

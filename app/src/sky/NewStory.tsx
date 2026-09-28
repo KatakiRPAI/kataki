@@ -33,7 +33,7 @@ export default function NewStory() {
   const [presence, setPresence] = useState<Record<number, Presence>>({})
   const [persona, setPersona] = useState<number | null | undefined>() // undefined: the default persona
   const [changing, setChanging] = useState(false)
-  const [place, setPlace] = useState<number | 'new' | null>(null)
+  const [place, setPlace] = useState<number | 'new' | null>(() => Number(params.get('place')) || null)
   const [fresh, setFresh] = useState({ name: '', like: '', time: 'dusk' as Time, keep: true })
   const [plot, setPlot] = useState<number | null>(null)
   const [name, setName] = useState('')
