@@ -202,7 +202,7 @@ function Rename({ story, onClose, onDone }: { story: StorySummary; onClose: () =
   )
 }
 
-function Delete({ story, onClose, onExport, onDelete }: { story: StorySummary; onClose: () => void; onExport: () => void; onDelete: () => void }) {
+export function Delete({ story, onClose, onExport, onDelete }: { story: Pick<StorySummary, 'id' | 'title' | 'cast'>; onClose: () => void; onExport: () => void; onDelete: () => void }) {
   const names = new Intl.ListFormat('en', { type: 'conjunction' }).format(story.cast.map((c) => c.name))
   const [lines] = useLoad(() => api<unknown[]>(`/stories/${story.id}/messages`).then((m) => m.length), [story.id])
   return (
@@ -218,7 +218,7 @@ function Delete({ story, onClose, onExport, onDelete }: { story: StorySummary; o
   )
 }
 
-function Export({ story, onClose }: { story: StorySummary; onClose: () => void }) {
+export function Export({ story, onClose }: { story: Pick<StorySummary, 'id' | 'title'>; onClose: () => void }) {
   const [as, setAs] = useState('markdown')
   const [busy, setBusy] = useState(false)
   const go = async () => {

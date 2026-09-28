@@ -1404,6 +1404,13 @@ def create_app(
             _row(conn, "SELECT * FROM context_log WHERE story_id=? ORDER BY id DESC", (story_id,))
         )
 
+    @app.get("/messages/{message_id}/context")
+    async def message_context(message_id: int):
+        """The prompt a reply was written from, for Backstage at any turn."""
+        return context_out(
+            _row(conn, "SELECT * FROM context_log WHERE message_id=? ORDER BY id DESC", (message_id,))
+        )
+
     def context_out(row: dict) -> dict:
         for key in ("sections", "memories", "prompt"):
             row[key] = json.loads(row[key]) if row[key] else None

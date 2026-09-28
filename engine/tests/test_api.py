@@ -643,6 +643,17 @@ def test_the_last_prompt_is_there_to_inspect(api, story, backend):
     assert ctx["message_id"] is not None and ctx["actual_tokens"] > 0
 
 
+def test_any_turns_prompt_is_there_to_inspect(api, story, backend):
+    backend.say("Hm.")
+    api.post(f"/stories/{story}/turn", json={"text": "Mira?"})
+    first = api.get(f"/stories/{story}/context").json()["message_id"]
+    backend.say("Well.")
+    api.post(f"/stories/{story}/turn", json={"text": "And?"})
+    ctx = api.get(f"/messages/{first}/context").json()
+    assert ctx["message_id"] == first and ctx["prompt"][0]["role"] == "system"
+    assert api.get("/messages/999999/context").status_code == 404
+
+
 def test_closing_the_stream_stops_the_model_and_keeps_what_was_written(tmp_path):
     """Through the real HTTP stack: the user presses Stop, the renderer aborts the request."""
     import asyncio

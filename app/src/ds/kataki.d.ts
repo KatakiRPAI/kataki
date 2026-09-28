@@ -178,7 +178,7 @@ export declare function ShortcutRow(props: { label: string; keys: string[] }): R
 /** The ground of a story: the place art, blurred and dimmed, under the golden-hour tint and glow. Everything in a story sits on it. */
 export declare function SceneStage(props: { place?: Place; src?: string; alt?: string; height?: number; children?: ReactNode }): React.ReactElement;
 /** The round glass button in a story's corners: back to the Sky, the story menu, Continue the story. */
-export declare function SceneButton(props: { icon: IconName; label: string; href?: string; pressed?: boolean; iconSize?: number; onClick?: () => void }): React.ReactElement;
+export declare function SceneButton(props: { [extra: string]: any; icon: IconName; label: string; href?: string; pressed?: boolean; iconSize?: number; onClick?: (e: { currentTarget: Element }) => void }): React.ReactElement;
 /** Top left of a story: back to the Sky, the story title in Newsreader italic, who you are playing and the book. */
 export declare function SceneHeader(props: { title: string; subtitle: string; backHref?: string }): React.ReactElement;
 /** Top right of a story: turns Backstage on and off in place. */
@@ -186,39 +186,39 @@ export declare function BackstageToggle(props: { on?: boolean; defaultOn?: boole
 /** The full-height chat column, 800px wide, lines bottom-aligned above the composer. */
 export declare function ChatPanel(props: { label?: string; height?: number; composer?: ReactNode; children: ReactNode }): React.ReactElement;
 /** One line in a story: speaker in their colour, story time (exact on hover), the prose with *actions* in italics, reactions under it. */
-export declare function ChatLine(props: { speaker: string; color?: string; name: string; time: string; exact?: string; timeDetail?: string; timeOpen?: boolean; text: string; dim?: boolean; hover?: boolean; take?: string; writing?: boolean; recalled?: boolean; thought?: string; children?: ReactNode }): React.ReactElement;
+export declare function ChatLine(props: { [extra: string]: any; speaker: string; color?: string; name: string; time: string; exact?: string; timeDetail?: string; timeOpen?: boolean; text: string; dim?: boolean; hover?: boolean; take?: string; writing?: boolean; recalled?: boolean; thought?: string; children?: ReactNode }): React.ReactElement;
 /** The tools that appear on a hovered line: previous and next take, Edit, Hide. */
-export declare function LineTools(props: { take?: string }): React.ReactElement;
+export declare function LineTools(props: { [extra: string]: any; take?: string }): React.ReactElement;
 /** A place and time heading inside the chat: "Three weeks later · Corvel Palace", with Undo right after a skip. */
-export declare function TitleCard(props: { undo?: boolean; children: ReactNode }): React.ReactElement;
+export declare function TitleCard(props: { [extra: string]: any; undo?: boolean; children: ReactNode }): React.ReactElement;
 /** A quiet line when someone comes or goes: "Theo went out to the back." `away` greys the face. */
-export declare function StoryNote(props: { who?: Who; src?: string; away?: boolean; children: ReactNode }): React.ReactElement;
+export declare function StoryNote(props: { [extra: string]: any; who?: Who; src?: string; away?: boolean; children: ReactNode }): React.ReactElement;
 /** When a character draws on a memory: the stored line, how sharp it is now, how they know it. */
 export declare function RecallBox(props: { title?: string; memory: string; meta?: string }): React.ReactElement;
 /** How a character took a line, in feelings language, from a fixed set: memory, feeling, warm, belief, mood. */
-export declare function Reaction(props: { kind: "memory" | "feeling" | "warm" | "belief" | "mood"; who?: Who; avatarSrc?: string; soft?: boolean; children: ReactNode }): React.ReactElement;
+export declare function Reaction(props: { [extra: string]: any; kind: "memory" | "feeling" | "warm" | "belief" | "mood"; who?: Who; avatarSrc?: string; soft?: boolean; children: ReactNode }): React.ReactElement;
 /** How your line will be read. Auto shows what it detected: "Auto · Do + Say". */
-export declare function ModeChip(props: { value?: string; detected?: string; open?: boolean }): React.ReactElement;
+export declare function ModeChip(props: { [extra: string]: any; value?: string; detected?: string; open?: boolean }): React.ReactElement;
 /** The six ways a line can be read, each with its syntax, and a note that Auto works it out. */
-export declare function ModeMenu(props: { value?: "Auto" | "Say" | "Do" | "Whisper" | "Think" | "Narrate" }): React.ReactElement;
+export declare function ModeMenu(props: { [extra: string]: any; value?: "Auto" | "Say" | "Do" | "Whisper" | "Think" | "Narrate" }): React.ReactElement;
 /** Where the player writes. Simple by default; Advanced adds who will hear it, who answers, Pass time and a token count. Send is golden; while a reply streams it becomes Stop. */
-export declare function Composer(props: { value?: string; defaultValue?: string; onChange?: (v: string) => void; onSend?: (v: string) => void; placeholder?: string; mode?: string; detected?: string; modeOpen?: boolean; advanced?: boolean; defaultAdvanced?: boolean; onAdvanced?: (v: boolean) => void; streaming?: boolean; hearing?: { who?: Who; src?: string }[]; hearingText?: string; away?: string; tokens?: string; meter?: number; onStop?: () => void; onContinue?: () => void; onPassTime?: () => void; answers?: { id: string; label: string; who?: Who; src?: string; icon?: IconName }[]; answer?: string; onAnswer?: (id: string) => void }): React.ReactElement;
+export declare function Composer(props: { [extra: string]: any; value?: string; defaultValue?: string; onChange?: (v: string) => void; onSend?: (v: string) => void; placeholder?: string; mode?: string; detected?: string; modeOpen?: boolean; advanced?: boolean; defaultAdvanced?: boolean; onAdvanced?: (v: boolean) => void; streaming?: boolean; hearing?: { who?: Who; src?: string }[]; hearingText?: string; away?: string; tokens?: string; meter?: number; onStop?: () => void; onContinue?: () => void; onPassTime?: () => void; answers?: { id: string; label: string; who?: Who; src?: string; icon?: IconName }[]; answer?: string; onAnswer?: (id: string) => void }): React.ReactElement;
 /** A line opened for editing, with the warning about what regenerating rewrites, and three ways out. */
-export declare function EditLine(props: { speaker: "liv" | "mike" | "theo"; name: string; time: string; text: string; after?: number }): React.ReactElement;
+export declare function EditLine(props: { [extra: string]: any; speaker: string; name: string; time: string; text: string; after?: number }): React.ReactElement;
 /** The frame every widget sits in. `edit` shows the drag handle, pin and remove; `dragging` tilts it. */
-export declare function Widget(props: { label: string; width?: number; edit?: boolean; pinned?: boolean; dragging?: boolean; children: ReactNode }): React.ReactElement;
+export declare function Widget(props: { [extra: string]: any; label: string; width?: number; edit?: boolean; pinned?: boolean; dragging?: boolean; children: ReactNode }): React.ReactElement;
 /** A character in the scene: portrait, name, mood pill, status line. Flags: thinking, a Joined badge, away. */
-export declare function CharacterWidget(props: { who?: Who; src?: string; name: string; mood?: string; status?: string; thinking?: boolean; badge?: string; away?: boolean; pinned?: boolean; edit?: boolean; dragging?: boolean; width?: number; alt?: string }): React.ReactElement;
+export declare function CharacterWidget(props: { [extra: string]: any; who?: Who; src?: string; name: string; mood?: string; status?: string; thinking?: boolean; badge?: string; away?: boolean; pinned?: boolean; edit?: boolean; dragging?: boolean; width?: number; alt?: string }): React.ReactElement;
 /** The compact form of a character widget for people in the scene but not in focus. */
-export declare function CharacterRowWidget(props: { who?: Who; src?: string; name: string; status: string; away?: boolean; edit?: boolean; width?: number }): React.ReactElement;
+export declare function CharacterRowWidget(props: { [extra: string]: any; who?: Who; src?: string; name: string; status: string; away?: boolean; edit?: boolean; width?: number }): React.ReactElement;
 /** The story clock: story time large, the day arc, what the time means, the place, Pass time. Exact date on hover. */
-export declare function ClockWidget(props: { time: string; rel: string; place: string; exact?: string; detail?: string; open?: boolean; kind?: "dusk" | "night"; edit?: boolean; width?: number }): React.ReactElement;
+export declare function ClockWidget(props: { [extra: string]: any; time: string; rel: string; place: string; exact?: string; detail?: string; open?: boolean; kind?: "dusk" | "night"; edit?: boolean; width?: number }): React.ReactElement;
 /** What is playing, where it came from, play or pause, volume. Opens the music picker. */
-export declare function MusicWidget(props: { track: string; source?: string; playing?: boolean; edit?: boolean; width?: number }): React.ReactElement;
+export declare function MusicWidget(props: { [extra: string]: any; track: string; source?: string; playing?: boolean; edit?: boolean; width?: number }): React.ReactElement;
 /** The card over the rolling clouds when time passes: the jump, from and to, what it did to memory, Undo. */
-export declare function TimeSkipCard(props: { story: string; from: string; to: string; note?: string; confirm?: string; children?: ReactNode }): React.ReactElement;
+export declare function TimeSkipCard(props: { [extra: string]: any; story: string; from: string; to: string; note?: string; confirm?: string; children?: ReactNode }): React.ReactElement;
 /** A Backstage panel: mono title, dashed rule, one action or a status. The one blueprint surface in the app. */
-export declare function BackstagePanel(props: { title: string; action?: string; actionIcon?: IconName; status?: string; width?: number; children: ReactNode }): React.ReactElement;
+export declare function BackstagePanel(props: { onAction?: () => void; title: string; action?: string; actionIcon?: IconName; status?: string; width?: number; children: ReactNode }): React.ReactElement;
 /** One node of the mind graph: stage label, activation, what it held. `hot` for the path that won. */
 export declare function MindNode(props: { kind: string; value: number; hot?: boolean; children: ReactNode }): React.ReactElement;
 /** One job in this turn: state dot, job, model, time and detail, in mono. */

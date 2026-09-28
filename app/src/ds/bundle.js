@@ -625,14 +625,15 @@
   }
   function LineTools(p) {
     return h('div', { className: 'k-linetools', role: 'toolbar', 'aria-label': 'Line tools' },
-      h('button', { type: 'button', 'aria-label': 'Previous take' }, h(Icon, { name: 'left', size: 15 })), h('span', null, p.take || '1/1'),
-      h('button', { type: 'button', 'aria-label': 'New take' }, h(Icon, { name: 'right', size: 15 })), h('span', { className: 'k-linetools__sep' }),
-      h('button', { type: 'button' }, h(Icon, { name: 'edit', size: 14 }), 'Edit'), h('button', { type: 'button' }, h(Icon, { name: 'eyeoff', size: 14 }), 'Hide'));
+      p.take ? [h('button', { key: 'p', type: 'button', 'aria-label': 'Previous take', disabled: p.disabled || !p.onPrev, onClick: p.onPrev }, h(Icon, { name: 'left', size: 15 })), h('span', { key: 't' }, p.take),
+      h('button', { key: 'n', type: 'button', 'aria-label': p.nextLabel || 'New take', disabled: p.disabled || !p.onNext, onClick: p.onNext }, h(Icon, { name: 'right', size: 15 })), h('span', { key: 's', className: 'k-linetools__sep' })] : null,
+      h('button', { type: 'button', disabled: p.disabled, onClick: p.onEdit }, h(Icon, { name: 'edit', size: 14 }), p.editLabel || 'Edit'), h('button', { type: 'button', disabled: p.disabled, onClick: p.onHide }, h(Icon, { name: 'eyeoff', size: 14 }), p.hideLabel || 'Hide'),
+      p.onMore ? h('button', { type: 'button', 'aria-label': 'Line menu', onClick: p.onMore }, h(Icon, { name: 'dots', size: 15 })) : null);
   }
   function ChatLine(p) {
     var time = p.exact ? h(Stamp, { exact: p.exact, detail: p.timeDetail, open: p.timeOpen, tone: 'scene' }, p.time) : h('span', { className: 'k-line__time' }, p.time);
-    return h('article', { className: cx('k-line', p.dim && 'k-line--dim', p.hover && 'is-hover') },
-      p.hover ? h(LineTools, { take: p.take }) : null,
+    return h('article', { id: p.id, tabIndex: p.tools ? 0 : undefined, onContextMenu: p.onContextMenu, onKeyDown: p.onKeyDown, className: cx('k-line', p.dim && 'k-line--dim', p.hover && 'is-hover', p.tools && 'has-tools') },
+      p.tools ? p.tools : p.hover ? h(LineTools, { take: p.take }) : null,
       h('div', { className: 'k-line__head' }, h('span', { className: 'k-line__who', style: { color: p.color || SPEAKER[p.speaker] || 'var(--scene-ink)' } }, p.name), time,
         p.recalled ? h('span', { className: 'k-line__spark', 'aria-label': 'Drew on memory' }, h(Icon, { name: 'spark', size: 14, color: 'var(--event-memory)' })) : null,
         p.writing ? h('span', { className: 'k-line__time' }, 'writing…') : null),
@@ -642,10 +643,10 @@
   }
   function TitleCard(p) {
     return h('div', { className: 'k-titlecard', role: 'separator' }, h('span', { className: 'k-titlecard__rule' }), h('span', { className: 'k-titlecard__text' }, p.children),
-      p.undo ? h('button', { type: 'button', className: 'k-titlecard__undo' }, h(Icon, { name: 'undo', size: 11 }), 'Undo') : null, h('span', { className: 'k-titlecard__rule' }));
+      p.undo ? h('button', { type: 'button', className: 'k-titlecard__undo', onClick: p.onUndo }, h(Icon, { name: 'undo', size: 11 }), 'Undo') : null, h('span', { className: 'k-titlecard__rule' }));
   }
   function StoryNote(p) {
-    return h('div', { className: 'k-note' }, p.who ? h(Avatar, { who: p.who, src: p.src, size: 22, away: p.away }) : null, h('span', null, p.children));
+    return h('div', { className: 'k-note' }, p.who || p.src || p.name ? h(Avatar, { who: p.who, src: p.src, name: p.name, size: 22, away: p.away }) : null, h('span', null, p.children), p.onUndo ? h('button', { type: 'button', className: 'k-titlecard__undo', onClick: p.onUndo }, h(Icon, { name: 'undo', size: 11 }), 'Undo') : null);
   }
   function RecallBox(p) {
     return h('div', { className: 'k-recall' }, h('div', { className: 'k-recall__head' }, h(Icon, { name: 'spark', size: 14 }), p.title || 'Remembered'),
@@ -653,10 +654,10 @@
   }
   var REACT_ICON = { memory: 'spark', feeling: 'heart', warm: 'heart', belief: 'help', mood: 'thought' };
   function Reaction(p) {
-    return h('span', { className: cx('k-react', 'k-react--' + (p.kind || 'feeling'), p.soft && 'is-soft') }, p.who ? h(Avatar, { who: p.who, size: 20, src: p.avatarSrc }) : null, h(Icon, { name: REACT_ICON[p.kind] || 'heart', size: 13, stroke: 2 }), p.children);
+    return h('span', { className: cx('k-react', 'k-react--' + (p.kind || 'feeling'), p.soft && 'is-soft') }, p.who || p.avatarSrc || p.name ? h(Avatar, { who: p.who, size: 20, src: p.avatarSrc, name: p.name }) : null, h(Icon, { name: REACT_ICON[p.kind] || 'heart', size: 13, stroke: 2 }), p.children);
   }
   function ModeChip(p) {
-    return h('button', { type: 'button', className: cx('k-mode', p.open && 'is-open'), 'aria-haspopup': 'menu', 'aria-expanded': p.open ? 'true' : 'false' },
+    return h('button', { type: 'button', className: cx('k-mode', p.open && 'is-open'), 'aria-haspopup': 'menu', 'aria-expanded': p.open ? 'true' : 'false', onClick: p.onClick },
       h(Icon, { name: 'spark', size: 14, color: 'var(--event-memory)' }), p.value || 'Auto', p.detected ? h('span', { className: 'k-mode__detected' }, '· ' + p.detected) : null, h(Icon, { name: 'down', size: 14 }));
   }
   var MODES = [['Auto', 'Works it out from how you write', 'spark'], ['Say', 'Plain text', 'chat'], ['Do', '*between asterisks*', 'hand'], ['Whisper', '(in brackets)', 'ear'], ['Think', '_underscores_', 'thought'], ['Narrate', '> a line starting with >', 'quill']];
@@ -664,7 +665,7 @@
     var v = p.value || 'Auto';
     return h('div', { className: 'k-menu k-menu--scene', role: 'menu', 'aria-label': 'How your line is read' },
       MODES.map(function (m) {
-        return h('button', { key: m[0], type: 'button', role: 'menuitemradio', 'aria-checked': String(m[0] === v), className: cx('k-menu__item', m[0] === v && 'is-active') },
+        return h('button', { key: m[0], type: 'button', role: 'menuitemradio', 'aria-checked': String(m[0] === v), className: cx('k-menu__item', m[0] === v && 'is-active'), onClick: function () { if (p.onPick) p.onPick(m[0]); } },
           h(Icon, { name: m[2], size: 16 }), h('span', { className: 'k-menu__label' }, m[0], h('span', { className: 'k-menu__detail' }, m[1])), m[0] === v ? h(Icon, { name: 'check', size: 15, className: 'k-menu__check' }) : null);
       }),
       h('div', { className: 'k-menu__foot' }, 'Auto works it out from how you write. Pick a mode to override it for this line.'));
@@ -681,47 +682,48 @@
           (p.answers || []).map(function (a) { return h(Chip, { key: a.id, size: 'sm', icon: a.icon, who: a.who, src: a.src, pressed: a.id === p.answer, onPress: function () { if (p.onAnswer) p.onAnswer(a.id); } }, a.label); }))) : null,
       h('label', { className: 'k-composer__field' }, h('span', { className: 'k-sr' }, 'Your line'),
         h('textarea', { rows: 2, value: v[0], placeholder: p.placeholder || 'Speak or act as Liv…', onChange: function (e) { v[1](e.target.value); },
-          onKeyDown: function (e) { if (e.key === 'Escape' && p.streaming && p.onStop) { e.preventDefault(); p.onStop(); } else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } } })),
+          onKeyDown: function (e) { if (p.onKey && p.onKey(e)) return; if (e.key === 'Escape' && p.streaming && p.onStop) { e.preventDefault(); p.onStop(); } else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } } })),
       h('div', { className: 'k-composer__bar' },
         h('div', { className: 'k-composer__left' },
           h(Segmented, { label: 'Composer detail', options: ['Simple', 'Advanced'], value: adv[0] ? 'Advanced' : 'Simple', onChange: function (o) { adv[1](o === 'Advanced'); }, tone: 'scene', size: 'sm' }),
           h(SceneButton, { icon: 'ff', label: 'Continue the story', iconSize: 14, onClick: p.onContinue }),
           adv[0] ? h('button', { type: 'button', className: 'k-scenechip', onClick: p.onPassTime }, h(Icon, { name: 'clock', size: 14 }), 'Pass time') : null,
           adv[0] && p.tokens ? h('span', { className: 'k-composer__tokens' }, p.tokens) : null),
-        h('div', { className: 'k-composer__right' }, h(ModeChip, { value: p.mode, detected: p.detected, open: p.modeOpen }),
+        h('div', { className: 'k-composer__right' }, p.queued ? h('span', { className: 'k-composer__tokens' }, p.queued) : null, h(ModeChip, { value: p.mode, detected: p.detected, open: p.modeOpen, onClick: p.onMode }),
           p.streaming ? h('button', { type: 'button', className: 'k-btn k-btn--scene-stop', onClick: p.onStop }, h(Icon, { name: 'stop', size: 15 }), 'Stop')
                       : h('button', { type: 'button', className: 'k-btn k-btn--scene-send', onClick: send }, 'Send', h(Icon, { name: 'send', size: 15 })))));
   }
   function EditLine(p) {
     return h('article', { className: 'k-editline' },
       h('div', { className: 'k-line__head' }, h('span', { className: 'k-line__who', style: { color: p.color || SPEAKER[p.speaker] || 'var(--scene-ink)' } }, p.name), h('span', { className: 'k-line__time' }, p.time), h('span', { className: 'k-line__time' }, 'Editing')),
-      h('textarea', { className: 'k-editline__field', rows: 3, defaultValue: p.text, 'aria-label': 'Edit line' }),
-      h('div', { className: 'k-editline__warn' }, h(Icon, { name: 'alert', size: 16 }), h('span', null, h('b', null, 'Regenerating from here rewrites the ' + (p.after || 5) + ' messages after this one.'), ' They’ll be kept as the previous take, so you can flip back.')),
-      h('div', { className: 'k-btngroup k-btngroup--end' }, h('button', { type: 'button', className: 'k-btn k-btn--scene-ghost' }, 'Cancel'), h('button', { type: 'button', className: 'k-btn k-btn--scene-stop' }, 'Save edit'), h('button', { type: 'button', className: 'k-btn k-btn--scene-send' }, 'Save and regenerate from here')));
+      h('textarea', { className: 'k-editline__field', rows: 3, value: p.value, defaultValue: p.value === undefined ? p.text : undefined, onChange: p.onChange ? function (e) { p.onChange(e.target.value); } : undefined, 'aria-label': 'Edit line', autoFocus: !!p.onChange,
+        onKeyDown: function (e) { if (e.key === 'Escape' && p.onCancel) { e.preventDefault(); e.stopPropagation(); p.onCancel(); } if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && p.onSave) { e.preventDefault(); p.onSave(); } } }),
+      p.after ? h('div', { className: 'k-editline__warn' }, h(Icon, { name: 'alert', size: 16 }), h('span', null, h('b', null, p.warn || 'Regenerating from here rewrites the ' + p.after + ' messages after this one.'), ' ', p.warnMore || 'They’ll be kept as the previous take, so you can flip back.')) : null,
+      h('div', { className: 'k-btngroup k-btngroup--end' }, h('button', { type: 'button', className: 'k-btn k-btn--scene-ghost', onClick: p.onCancel }, 'Cancel'), h('button', { type: 'button', className: 'k-btn k-btn--scene-stop', onClick: p.onSave }, 'Save edit'), p.onRegenerate ? h('button', { type: 'button', className: 'k-btn k-btn--scene-send', onClick: p.onRegenerate }, 'Save and regenerate from here') : null));
   }
   function Widget(p) {
     return h('section', { className: cx('k-widget', p.edit && 'is-edit', p.dragging && 'is-dragging'), 'aria-label': p.label, style: p.width ? { width: p.width } : undefined },
       p.edit ? h('span', { className: 'k-widget__drag', 'aria-label': 'Drag to move' }, h(Icon, { name: 'drag', size: 15 })) : null,
-      p.edit ? h('span', { className: 'k-widget__ctl' }, h('button', { type: 'button', className: cx('k-widget__pin', p.pinned && 'is-on'), 'aria-label': p.pinned ? 'Unpin' : 'Pin', 'aria-pressed': String(!!p.pinned) }, h(Icon, { name: 'pushpin', size: 14 })),
-        h('button', { type: 'button', className: 'k-widget__remove', 'aria-label': 'Remove widget' }, h(Icon, { name: 'x', size: 14 }))) : null,
+      p.edit ? h('span', { className: 'k-widget__ctl' }, h('button', { type: 'button', className: cx('k-widget__pin', p.pinned && 'is-on'), 'aria-label': p.pinned ? 'Unpin' : 'Pin', 'aria-pressed': String(!!p.pinned), onClick: p.onPin }, h(Icon, { name: 'pushpin', size: 14 })),
+        h('button', { type: 'button', className: 'k-widget__remove', 'aria-label': 'Remove widget', onClick: p.onRemove }, h(Icon, { name: 'x', size: 14 }))) : null,
       p.children);
   }
   function CharacterWidget(p) {
     var a = ART[p.who] || {};
-    return h(Widget, { label: p.name, edit: p.edit, pinned: p.pinned !== false, dragging: p.dragging, width: p.width || 272 },
-      h('div', { className: cx('k-cw__art', p.away && 'is-away') }, p.src || a.src ? h('img', { src: p.src || a.src, alt: p.alt || (p.name + ', portrait'), style: { objectPosition: a.focus } }) : h('div', { className: 'k-char__noface' }, h('span', { 'aria-hidden': 'true' }, (p.name || '?')[0])),
+    return h(Widget, { label: p.name, edit: p.edit, pinned: p.pinned !== false, dragging: p.dragging, width: p.width || 272, onPin: p.onPin, onRemove: p.onRemove },
+      h('div', { className: cx('k-cw__art', p.away && 'is-away'), onClick: p.edit ? undefined : p.onOpen, style: p.onOpen && !p.edit ? { cursor: 'pointer' } : undefined }, p.src || a.src ? h('img', { src: p.src || a.src, alt: p.alt || (p.name + ', portrait'), style: { objectPosition: p.focus || a.focus } }) : h('div', { className: 'k-char__noface' }, h('span', { 'aria-hidden': 'true' }, (p.name || '?')[0])),
         p.thinking ? h('span', { className: 'k-cw__flag k-cw__flag--thinking' }, h(Icon, { name: 'thought', size: 13 }), 'thinking…') : null,
         p.badge ? h('span', { className: 'k-cw__flag k-cw__flag--badge' }, p.badge) : null,
-        !p.edit ? h('button', { type: 'button', className: cx('k-cw__pin', p.pinned !== false && 'is-on'), 'aria-label': (p.pinned !== false ? 'Unpin ' : 'Pin ') + p.name, 'aria-pressed': String(p.pinned !== false) }, h(Icon, { name: 'pushpin', size: 14 })) : null),
-      h('div', { className: 'k-cw__body' }, h('div', { className: 'k-cw__name' }, h(StoryName, { size: 'card' }, p.name), p.mood ? h(StatePill, { tone: 'warm' }, p.mood) : null), p.status ? h('span', { className: 'k-cw__status' }, p.status) : null));
+        !p.edit ? h('button', { type: 'button', className: cx('k-cw__pin', p.pinned !== false && 'is-on'), 'aria-label': (p.pinned !== false ? 'Unpin ' : 'Pin ') + p.name, 'aria-pressed': String(p.pinned !== false), onClick: function (e) { e.stopPropagation(); if (p.onPin) p.onPin(); } }, h(Icon, { name: 'pushpin', size: 14 })) : null),
+      h('div', { className: 'k-cw__body', onClick: p.edit ? undefined : p.onOpen, style: p.onOpen && !p.edit ? { cursor: 'pointer' } : undefined }, h('div', { className: 'k-cw__name' }, h(StoryName, { size: 'card' }, p.name), p.mood ? h(StatePill, { tone: 'warm' }, p.mood) : null), p.status ? h('span', { className: 'k-cw__status' }, p.status) : null));
   }
   function CharacterRowWidget(p) {
-    return h(Widget, { label: p.name, edit: p.edit, width: p.width || 272 },
-      h('div', { className: 'k-cwrow' }, h(Avatar, { who: p.who, src: p.src, size: 40, away: p.away }), h('div', null, h('b', null, p.name), h('span', null, p.status))));
+    return h(Widget, { label: p.name, edit: p.edit, width: p.width || 272, pinned: p.pinned, onPin: p.onPin, onRemove: p.onRemove },
+      h('div', { className: 'k-cwrow', onClick: p.edit ? undefined : p.onOpen, style: p.onOpen && !p.edit ? { cursor: 'pointer' } : undefined }, h(Avatar, { who: p.who, src: p.src, name: p.name, size: 40, away: p.away }), h('div', null, h('b', null, p.name), h('span', null, p.status))));
   }
   function ClockWidget(p) {
     var night = p.kind === 'night';
-    return h(Widget, { label: 'Story clock', edit: p.edit, width: p.width || 272 },
+    return h(Widget, { label: 'Story clock', edit: p.edit, width: p.width || 272, pinned: p.pinned, onPin: p.onPin, onRemove: p.onRemove },
       h('div', { className: 'k-clock' },
         h('div', { className: 'k-clock__top' }, h(Stamp, { exact: p.exact, detail: p.detail, open: p.open, tone: 'scene' }, h('span', { className: 'k-clock__time' }, p.time)),
           h('svg', { width: 96, height: 32, viewBox: '0 0 120 40', 'aria-hidden': 'true', className: 'k-clock__arc' },
@@ -729,7 +731,7 @@
             h('path', { d: 'M0 38h120', stroke: 'var(--scene-border)' }),
             night ? h('circle', { cx: 60, cy: 8, r: 6, fill: 'var(--scene-ink)' }) : h('circle', { cx: 106, cy: 30, r: 6, fill: 'var(--scene-primary)' }))),
         h('span', { className: 'k-clock__rel' }, p.rel),
-        h('div', { className: 'k-clock__foot' }, h('span', null, p.place), h('button', { type: 'button', className: 'k-scenechip' }, h(Icon, { name: 'clock', size: 13 }), 'Pass time'))));
+        h('div', { className: 'k-clock__foot' }, h('span', null, p.place), h('button', { type: 'button', className: 'k-scenechip', onClick: p.onPassTime, disabled: p.disabled }, h(Icon, { name: 'clock', size: 13 }), 'Pass time'))));
   }
   function MusicWidget(p) {
     return h(Widget, { label: 'Music', edit: p.edit, width: p.width || 272 },
@@ -744,13 +746,13 @@
       h('span', { className: 'k-skipcard__big' }, p.children || 'Three weeks later'),
       h('div', { className: 'k-skipcard__move' }, h('span', null, p.from), h(Icon, { name: 'arrow', size: 18 }), h('b', null, p.to)),
       p.note ? h('span', { className: 'k-skipcard__note' }, p.note) : null,
-      h('div', { className: 'k-btngroup' }, h('button', { type: 'button', className: 'k-btn k-btn--scene-stop' }, h(Icon, { name: 'undo', size: 15 }), 'Undo'), p.confirm ? h('button', { type: 'button', className: 'k-btn k-btn--scene-send' }, p.confirm) : null));
+      h('div', { className: 'k-btngroup' }, p.onUndo ? h('button', { type: 'button', className: 'k-btn k-btn--scene-stop', onClick: p.onUndo }, h(Icon, { name: 'undo', size: 15 }), 'Undo') : null, p.confirm ? h('button', { type: 'button', className: 'k-btn k-btn--scene-send', onClick: p.onConfirm }, p.confirm) : null));
   }
 
   /* ---------- backstage ---------- */
   function BackstagePanel(p) {
     return h('section', { className: 'k-bs', 'aria-label': p.title, style: p.width ? { width: p.width } : undefined },
-      h('div', { className: 'k-bs__head' }, h('span', { className: 'k-bs__title' }, p.title), p.action ? h('button', { type: 'button', className: 'k-bs__btn' }, p.actionIcon ? h(Icon, { name: p.actionIcon, size: 12 }) : null, p.action) : (p.status ? h('span', { className: 'k-bs__ok' }, p.status) : null)),
+      h('div', { className: 'k-bs__head' }, h('span', { className: 'k-bs__title' }, p.title), p.action ? h('button', { type: 'button', className: 'k-bs__btn', onClick: p.onAction }, p.actionIcon ? h(Icon, { name: p.actionIcon, size: 12 }) : null, p.action) : (p.status ? h('span', { className: 'k-bs__ok' }, p.status) : null)),
       h('div', { className: 'k-bs__body' }, p.children));
   }
   function MindNode(p) {
