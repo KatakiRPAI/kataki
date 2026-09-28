@@ -6,6 +6,7 @@ import { K } from '../ds'
 import { face, scenery, useLibrary, useLoad, usePoll } from '../hooks'
 import { openMenu, toast, type MenuItem } from '../overlay'
 import { pacer, SPEEDS, type Speed } from '../pace'
+import { pref } from '../prefs'
 import { t } from '../strings'
 import { Delete, Export } from '../sky/Stories'
 import Backstage from './Backstage'
@@ -44,7 +45,8 @@ export default function Scene() {
   const [said, setSaid] = useState<string | null>(null)
   const [failed, setFailed] = useState('')
   const [draft, setDraft] = useState('')
-  const [mode, setMode] = useState<Mode>('Auto')
+  const home = pref<Mode>('story.composerMode', 'Auto') // a mode picked in the menu is for one line, then this again
+  const [mode, setMode] = useState<Mode>(home)
   const [advanced, setAdvancedState] = useState(kept)
   const [answer, setAnswer] = useState<Answer>('any')
   const [queue, setQueue] = useState<string[]>([])
@@ -159,7 +161,7 @@ export default function Scene() {
       return
     }
     const how = force(line, mode)
-    setMode('Auto')
+    setMode(home)
     setDraft('')
     const lead = typeof speaker === 'number' ? speaker : present[0]?.id
     const audience = how.mode === 'Think' ? [] : how.mode === 'Whisper' ? (lead ? [lead] : []) : null

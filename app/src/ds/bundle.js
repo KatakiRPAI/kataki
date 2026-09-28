@@ -67,7 +67,7 @@
   function Sky(p) {
     var stars = [], seed = 11;
     function rnd() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
-    for (var i = 0; i < (p.stars || 140); i++) stars.push(h('circle', { key: i, cx: (rnd() * 100).toFixed(2) + '%', cy: (rnd() * 100).toFixed(2) + '%', r: [0.7, 0.9, 1.1, 1.5][Math.floor(rnd() * 4)], opacity: (0.2 + rnd() * 0.6).toFixed(2) }));
+    for (var i = 0; i < (p.stars == null ? 140 : p.stars); i++) stars.push(h('circle', { key: i, cx: (rnd() * 100).toFixed(2) + '%', cy: (rnd() * 100).toFixed(2) + '%', r: [0.7, 0.9, 1.1, 1.5][Math.floor(rnd() * 4)], opacity: (0.2 + rnd() * 0.6).toFixed(2) }));
     return h('div', { className: 'k-sky', 'aria-hidden': 'true' },
       h('svg', { className: 'k-sky__stars' }, stars),
       h('span', { className: 'k-sky__moon' }),
@@ -560,7 +560,7 @@
       h('span', { className: 'k-themetile__name' }, p.name), p.note ? h('span', { className: 'k-themetile__note' }, p.note) : null);
   }
   function LanguageTile(p) {
-    return h('button', { type: 'button', className: cx('k-langtile', p.selected && 'is-selected'), 'aria-pressed': p.selected ? 'true' : 'false', lang: p.lang, dir: p.rtl ? 'rtl' : undefined },
+    return h('button', { type: 'button', onClick: p.onClick, disabled: p.disabled, className: cx('k-langtile', p.selected && 'is-selected'), 'aria-pressed': p.selected ? 'true' : 'false', lang: p.lang, dir: p.rtl ? 'rtl' : undefined },
       h('span', { className: 'k-langtile__name' }, p.name), h('span', { className: 'k-langtile__status' }, p.status),
       p.rtl ? h('span', { className: 'k-langtile__rtl', dir: 'ltr' }, 'RTL') : null, p.selected ? h(Icon, { name: 'check', size: 15, color: 'var(--accent-text)' }) : null);
   }
@@ -582,18 +582,18 @@
     return h('div', { className: 'k-conn' },
       h('span', { className: 'k-conn__icon' }, h(Icon, { name: p.icon || 'server', size: 18 })),
       h('div', { className: 'k-conn__main' }, h('div', { className: 'k-conn__name' }, p.name, h('span', { className: 'k-conn__status k-tone--' + st[0] }, st[1])), h('div', { className: 'k-conn__detail' }, p.detail)),
-      h('div', { className: 'k-btngroup' }, h(Button, { variant: 'ghost', size: 'sm' }, 'Test'), h(Button, { variant: 'ghost', size: 'sm' }, 'Remove')));
+      h('div', { className: 'k-btngroup' }, p.onTest ? h(Button, { variant: 'ghost', size: 'sm', onClick: p.onTest, loading: p.testing }, p.testLabel || 'Test') : null, p.onRemove ? h(Button, { variant: 'ghost', size: 'sm', onClick: p.onRemove }, p.removeLabel || 'Remove') : null, p.onMore ? h(IconButton, { icon: 'dots', label: p.moreLabel || 'More', size: 'sm', onClick: p.onMore }) : null));
   }
   function JobRow(p) {
-    return h('div', { className: cx('k-job', p.open && 'is-open') },
+    return h(p.onClick ? 'button' : 'div', { type: p.onClick ? 'button' : undefined, onClick: p.onClick, 'aria-expanded': p.onClick ? String(!!p.open) : undefined, className: cx('k-job', p.open && 'is-open') },
       h(Icon, { name: p.icon || 'cpu', size: 16 }), h('span', { className: 'k-job__name' }, p.name), h('span', { className: 'k-job__desc' }, p.description),
       h('code', { className: 'k-job__model' }, p.model), h(Icon, { name: p.open ? 'up' : 'down', size: 14 }));
   }
   function FolderRow(p) {
     return h('div', { className: 'k-folder' }, h(Icon, { name: p.icon || 'book', size: 17 }), h('span', { className: 'k-folder__label' }, p.label),
-      h('code', { className: 'k-folder__path', dir: 'ltr' }, p.path), h('span', { className: 'k-folder__size' }, p.size), h(Button, { variant: 'ghost', size: 'sm' }, 'Open folder'));
+      h('code', { className: 'k-folder__path', dir: 'ltr' }, p.path), h('span', { className: 'k-folder__size' }, p.size), p.onOpen ? h(Button, { variant: 'ghost', size: 'sm', onClick: p.onOpen }, p.openLabel || 'Open folder') : null);
   }
-  function ShortcutRow(p) { return h('div', { className: 'k-shortrow' }, h('span', null, p.label), h(Shortcut, { keys: p.keys })); }
+  function ShortcutRow(p) { return h(p.onClick ? 'button' : 'div', { type: p.onClick ? 'button' : undefined, onClick: p.onClick, className: cx('k-shortrow', p.recording && 'is-recording') }, h('span', null, p.label), p.recording ? h('span', { className: 'k-shortrow__rec' }, p.recording) : p.keys && p.keys.length ? h(Shortcut, { keys: p.keys }) : h('span', { className: 'k-shortrow__rec' }, p.unset || 'Not set')); }
 
   /* ---------- the scene ---------- */
   function renderProse(t) {

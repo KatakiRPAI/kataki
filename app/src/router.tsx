@@ -1,11 +1,12 @@
 // Routes (docs/handoff/kataki-handoff/ROUTES.md). One route table for both hosts: a memory router
 // in the desktop app, the browser's own history on the web. Overlays are state, never routes.
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { createBrowserRouter, createMemoryRouter, Outlet, useLocation, useNavigate, type RouteObject } from 'react-router'
 import { api } from './api'
 import { K } from './ds'
 import { LibraryProvider } from './hooks'
 import { Menus, Toasts } from './overlay'
+import { loadPrefs, pref, setPref, skyTheme, usePrefs } from './prefs'
 import { t } from './strings'
 import Home from './sky/Home'
 import NotBuilt from './sky/NotBuilt'
@@ -14,13 +15,14 @@ import NewStory from './sky/NewStory'
 import Characters from './sky/Characters'
 import Profile from './sky/Profile'
 import Editor from './sky/Editor'
+import Settings, { last as lastSettings } from './sky/Settings'
 import Scene from './scene/Scene'
 
 const RAIL: Record<string, string> = {
   Home: '/home', Stories: '/stories', Characters: '/characters', World: '/world', You: '/you',
   'New character': '/characters/new', Settings: '/settings/general',
 }
-const ACTIVE: Record<string, string> = { home: 'Home', stories: 'Stories', characters: 'Characters', world: 'World', you: 'You', search: '', settings: '', status: 'Home' }
+const ACTIVE: Record<string, string> = { home: 'Home', stories: 'Stories', characters: 'Characters', world: 'World', you: 'You', search: 'none', settings: 'Settings', status: 'Home' }
 
 /** Every in-app link is an <a href="/…"> (the design system's components render real links);
  *  a plain click on one navigates here instead of loading a page. */
@@ -40,27 +42,20 @@ function Links({ children }: { children: ReactNode }) {
   return <LibraryProvider>{children}<Toasts /><Menus /></LibraryProvider>
 }
 
-type Theme = 'night' | 'day'
-
 /** The Sky: every page outside a story. Rail, the Sky behind, the Night/Day theme. */
 function Sky() {
   const { pathname } = useLocation()
-  const [theme, setTheme] = useState<Theme>('night')
-  useEffect(() => {
-    api<{ 'appearance.theme'?: Theme }>('/settings').then((s) => s['appearance.theme'] && setTheme(s['appearance.theme']), () => {})
-  }, [])
+  const [prefs] = usePrefs()
+  const theme = skyTheme(prefs)
   const flip = (to: string) => {
-    if (to !== 'Day' && to !== 'Night') return
-    const next: Theme = to === 'Day' ? 'day' : 'night'
-    setTheme(next)
-    api('/settings', 'PUT', { 'appearance.theme': next }).catch(() => {})
+    if (to === 'Day' || to === 'Night') setPref('appearance.theme', to === 'Day' ? 'day' : 'night')
   }
   const at = pathname.split('/')[1]
   return (
     <div data-theme={theme} className="app">
-      <div className="app__sky"><K.Sky /></div>
+      <div className="app__sky"><K.Sky stars={prefs['appearance.stars'] === false ? 0 : undefined} /></div>
       <div className="app__rail">
-        <K.Rail active={(ACTIVE[at] ?? '') as 'Home'} theme={theme} hrefs={RAIL} onNavigate={flip} />
+        <K.Rail active={(ACTIVE[at] ?? 'none') as 'Home'} theme={theme} hrefs={{ ...RAIL, Settings: `/settings/${lastSettings.panel}` }} onNavigate={flip} />
       </div>
       <Outlet />
     </div>
@@ -87,8 +82,9 @@ const routes: RouteObject[] = [
           sky('/characters/new', <Editor key="new" />),
           sky('/characters/:id', <Profile />),
           sky('/characters/:id/edit', <Editor key="edit" />),
+          sky('/settings/:panel', <Settings />),
           ...['/search',
-            '/world', '/you', '/settings/:panel', '/status/model'].map((p) => sky(p)),
+            '/world', '/you', '/status/model'].map((p) => sky(p)),
           sky('*'),
         ],
       },
@@ -96,15 +92,25 @@ const routes: RouteObject[] = [
   },
 ]
 
-/** Launch goes to Home until Opening (A1) lands. */
+/** Launch: Home, or the last scene when Settings › General says so (ROUTES.md › Where the app starts). */
 function Start() {
   const navigate = useNavigate()
-  useEffect(() => void navigate('/home', { replace: true }), [navigate])
+  useEffect(() => {
+    loadPrefs().then(async () => {
+      const all = pref<string>('general.openTo', 'home') === 'last' ? await api<{ id: number; last_at: string }[]>('/stories').catch(() => []) : []
+      const last = all.sort((a, b) => b.last_at.localeCompare(a.last_at))[0]
+      navigate(last ? `/story/${last.id}` : '/home', { replace: true })
+    })
+  }, [navigate])
   return null
 }
 
 export const router = window.kataki ? createMemoryRouter(routes, { initialEntries: ['/'] }) : createBrowserRouter(routes)
 document.title = t('app.name')
+
+
+
+loadPrefs() // pages opened straight from a link still get the settings
 
 // The desktop smoke test (electron/main.ts › runSmoke) waits for this mark.
 api('/health').then(

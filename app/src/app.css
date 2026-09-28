@@ -221,3 +221,17 @@ button.k-addcard { background: transparent; font: inherit; font-size: 12.5px; fo
 .bsx .mg, .bsx .bsrow, .bsx .mtable, .bsx .logl, .bsx .turn, .bsx .who-tabs, .bsx .k-bs__body > .bs-t, .bsx .k-bs__body > .row, .bsx .k-bs__body > .pre, .bsx .k-bs__body > .k-promptbar { margin-inline: 14px; }
 .bsx .who-tabs { flex-wrap: wrap; }
 .scene .k-char__noface { background: var(--scene-glass); color: var(--scene-muted); }
+
+/* Appearance (K2) */
+[data-motion="reduce"] *, [data-motion="reduce"] *::before, [data-motion="reduce"] *::after { animation-duration: 0s !important; transition-duration: 0s !important; }
+[data-contrast="more"] [data-theme] { --muted: var(--mid); --faint: var(--mid); --border: var(--mid); }
+
+/* Settings */
+.set { grid-template-columns: 218px minmax(0, 1fr); }
+.mo-job { padding: 6px 18px 18px; display: flex; flex-direction: column; gap: 14px; border-bottom: 1px solid var(--hairline); }
+.mo-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.mo-err { padding: 0 16px 14px; }
+.sh-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-items: start; }
+button.k-shortrow, button.k-job { width: 100%; background: transparent; border: 0; font: inherit; color: inherit; text-align: start; cursor: pointer; }
+.k-shortrow.is-recording { background: var(--raise); }
+.k-shortrow__rec { color: var(--accent-text); font-size: 12.5px; }

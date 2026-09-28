@@ -162,19 +162,19 @@ export declare function SearchResult(props: { icon?: IconName; title: string; st
 /** A choice of theme with a swatch: Night, Day, Follow the system. */
 export declare function ThemeTile(props: { name: string; note?: string; variant?: "night" | "day" | "system"; selected?: boolean; onClick?: () => void }): React.ReactElement;
 /** An interface language with its own name, how complete it is, and an RTL mark. */
-export declare function LanguageTile(props: { name: string; status: string; lang?: string; rtl?: boolean; selected?: boolean }): React.ReactElement;
+export declare function LanguageTile(props: { [extra: string]: any; name: string; status: string; lang?: string; rtl?: boolean; selected?: boolean }): React.ReactElement;
 /** A titled group of settings rows on one panel, with a one-line note. */
 export declare function SettingsSection(props: { title: string; note?: string; children: ReactNode }): React.ReactElement;
 /** Title, a one-line description of what happens, and the control on the end. */
 export declare function SettingsRow(props: { title: string; description?: string; children: ReactNode }): React.ReactElement;
 /** A model connection: kind icon, name, status word, the address or where the key lives, Test and Remove. */
-export declare function ConnectionRow(props: { icon?: IconName; name: string; status?: "connected" | "ready" | "fallback" | "offline"; detail: string }): React.ReactElement;
+export declare function ConnectionRow(props: { [extra: string]: any; icon?: IconName; name: string; status?: "connected" | "ready" | "fallback" | "offline"; detail: string }): React.ReactElement;
 /** One job the engine does and which model does it: Characters, Narrator, Memory reader, Reasoning, Recall by meaning. */
-export declare function JobRow(props: { icon?: IconName; name: string; description: string; model: string; open?: boolean }): React.ReactElement;
+export declare function JobRow(props: { [extra: string]: any; icon?: IconName; name: string; description: string; model: string; open?: boolean }): React.ReactElement;
 /** Where a kind of data lives on disk, its size, and Open folder. */
-export declare function FolderRow(props: { icon?: IconName; label: string; path: string; size: string }): React.ReactElement;
+export declare function FolderRow(props: { [extra: string]: any; icon?: IconName; label: string; path: string; size: string }): React.ReactElement;
 /** One shortcut: what it does and its keys. Every shortcut is remappable. */
-export declare function ShortcutRow(props: { label: string; keys: string[] }): React.ReactElement;
+export declare function ShortcutRow(props: { [extra: string]: any; label: string; keys: string[] }): React.ReactElement;
 /** The ground of a story: the place art, blurred and dimmed, under the golden-hour tint and glow. Everything in a story sits on it. */
 export declare function SceneStage(props: { place?: Place; src?: string; alt?: string; height?: number; children?: ReactNode }): React.ReactElement;
 /** The round glass button in a story's corners: back to the Sky, the story menu, Continue the story. */
