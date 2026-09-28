@@ -24,14 +24,14 @@ export default function Data() {
   const every = String(prefs['backups.every'] ?? 'daily')
   const exportAll = async () => {
     setBusy(true)
-    try { toast(t('toast.exportedLib', { name: await download('/export/library') }), {}, 5000) } finally { setBusy(false) }
+    try { toast(t('toast.exportedLib', { name: await download('/export/library') }), { icon: 'download' }, 5000) } finally { setBusy(false) }
   }
   const importLibrary = async (file?: File) => {
     if (!file) return
     try {
       await sendFile('/import/kataki', file)
       reload()
-      toast(t('toast.importedLib'), {}, 4000)
+      toast(t('toast.importedLib'), { icon: 'download' }, 4000)
     } catch (e) {
       toast((e as Error).message, {}, 8000)
     }
@@ -91,12 +91,12 @@ function Backups({ list, onClose, onChange }: { list: Backup[]; onClose: () => v
   )
   const now = async () => {
     setBusy(true)
-    try { await api('/backups', 'POST'); onChange(); toast(t('toast.backedUp'), {}, 3000) }
-    catch { toast(err('BACKUP_FAILED', { time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), folder: t('bk.whereValue'), lastBackupAt: list[0] ? relative(Date.parse(list[0].at)) : t('bk.never') }).title, {}, 8000) }
+    try { await api('/backups', 'POST'); onChange(); toast(t('toast.backedUp', { time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) }), { icon: 'shield' }, 6000) }
+    catch { toast(err('BACKUP_FAILED', { time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), folder: t('bk.whereValue'), lastBackupAt: list[0] ? relative(Date.parse(list[0].at)) : t('bk.never') }).title, { icon: 'alert' }, 8000) }
     finally { setBusy(false) }
   }
   const restore = async (b: Backup) => {
-    try { await api(`/backups/${encodeURIComponent(b.name)}/restore`, 'POST') } catch { const e = err('BACKUP_RESTORE_FAILED'); setRestoring(undefined); return toast(`${e.title}. ${e.body}`, {}, 10000) }
+    try { await api(`/backups/${encodeURIComponent(b.name)}/restore`, 'POST') } catch { const e = err('BACKUP_RESTORE_FAILED'); setRestoring(undefined); return toast(`${e.title}. ${e.body}`, { icon: 'alert' }, 10000) }
     if (window.kataki?.restart) window.kataki.restart()
     else { setRestoring(undefined); toast(t('toast.restartToFinish'), {}, 10000) }
   }

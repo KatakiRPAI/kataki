@@ -82,7 +82,7 @@ export default function World() {
   const remove = (p: Item, sure = false) => {
     if (!sure && usedIn(p).length) return setInUse(p)
     setGone((g) => [...g, p.id])
-    toast(t('toast.placeDeleted', { name: p.name }), { action: t('toast.undo'), onAction: () => setGone((g) => g.filter((x) => x !== p.id)), onDone: () => api(`/library/${p.id}`, 'DELETE').then(reload) })
+    toast(t('toast.placeDeleted', { name: p.name }), { icon: 'trash', action: t('toast.undo'), onAction: () => setGone((g) => g.filter((x) => x !== p.id)), onDone: () => api(`/library/${p.id}`, 'DELETE').then(reload) })
   }
 
   const head = (

@@ -11,7 +11,10 @@ export function storyMenu(s: StorySummary, go: (to: string) => void, done: () =>
   return [
     { label: t('stm.continue'), icon: 'play', onSelect: () => go(`/story/${s.id}`) },
     { label: t('stories.rename'), icon: 'edit', shortcut: ['F2'], onSelect: dialog('rename') },
-    { label: t(s.pinned ? 'sm.unpin' : 'sm.pin'), icon: 'pushpin', onSelect: () => api(`/stories/${s.id}`, 'PATCH', { pinned: !s.pinned }).then(done) },
+    { label: t(s.pinned ? 'sm.unpin' : 'sm.pin'), icon: 'pushpin', onSelect: () => api(`/stories/${s.id}`, 'PATCH', { pinned: !s.pinned }).then(() => {
+      done()
+      toast(t('toast.pinned', { pinned: s.pinned ? 'no' : 'yes' }), { icon: 'pushpin', action: t('toast.undo'), onAction: () => api(`/stories/${s.id}`, 'PATCH', { pinned: s.pinned }).then(done) }, 10000)
+    }) },
     { label: t('stm.move'), icon: 'book', onSelect: () => moveTo(s, done) },
     {
       label: t('stm.branch'), icon: 'swap', disabled: !s.last_line,
@@ -30,7 +33,10 @@ export function storyMenu(s: StorySummary, go: (to: string) => void, done: () =>
 async function moveTo(s: StorySummary, done: () => void) {
   const books = await api<Book[]>('/books')
   const at = document.activeElement ?? document.body
-  const file = (id: number | null) => api(`/stories/${s.id}`, 'PATCH', { book_id: id }).then(done)
+  const file = (id: number | null) => api(`/stories/${s.id}`, 'PATCH', { book_id: id }).then(() => {
+    done()
+    toast(t('toast.moved', { book: books.find((b) => b.id === id)?.title ?? 'none' }), { icon: 'book', action: t('toast.undo'), onAction: () => api(`/stories/${s.id}`, 'PATCH', { book_id: s.book?.id ?? null }).then(done) }, 10000)
+  })
   openMenu(at, [
     ...books.map((b): MenuItem => ({ label: b.title, icon: 'book', checked: s.book?.id === b.id, onSelect: () => file(b.id) })),
     { divider: true },

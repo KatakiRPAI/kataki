@@ -71,7 +71,7 @@ export default function Profile() {
   const fav = () => api(`/library/${c.id}`, 'PATCH', { data: { ...c.data, favourite: !c.data.favourite } }).then(reload)
   const forget = (ids: number[]) => {
     Promise.all(ids.map((m) => api(`/memories/${m}`, 'PATCH', { hidden: true }))).then(reloadHeld)
-    toast(t('toast.forgot', { n: ids.length }), {
+    toast(t('toast.forgot', { name: c.name, n: ids.length }), { icon: 'eyeoff',
       action: t('toast.undo'),
       onAction: () => Promise.all(ids.map((m) => api(`/memories/${m}`, 'PATCH', { hidden: false }))).then(reloadHeld),
     })

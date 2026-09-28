@@ -41,7 +41,7 @@ export function Overlay({ onClose, top, at, children }: { onClose: () => void; t
 }
 
 // ---- toasts: one at a time, bottom centre; an action (Undo, Show) and a dismiss ----
-type Toast = { id: number; text: string; action?: string; onAction?: () => void; onDone?: () => void }
+type Toast = { id: number; text: string; icon?: IconName; action?: string; onAction?: () => void; onDone?: () => void }
 let current: Toast | null = null
 let timer: ReturnType<typeof setTimeout> | undefined
 const subs = new Set<() => void>()
@@ -70,7 +70,7 @@ export function Toasts() {
   if (!t) return null
   return onPage(
     <div className="toasts" onMouseEnter={() => clearTimeout(timer)} onMouseLeave={() => (timer = setTimeout(() => end('done'), 4000))}>
-      <K.Toast action={t.action} onAction={() => end('action')} onDismiss={() => end('done')}>{t.text}</K.Toast>
+      <K.Toast icon={t.icon} action={t.action} onAction={() => end('action')} onDismiss={() => end('done')}>{t.text}</K.Toast>
     </div>,
   )
 }

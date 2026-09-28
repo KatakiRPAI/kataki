@@ -145,7 +145,7 @@ export function StorySettings({ story, advanced, onAdvanced, onClose, onChange }
               onChange={(v) => patch({ book_id: bookOptions.find(([, l]) => l === v)?.[0] ?? null })} />
             <K.Select label={t('set.you')} hint={t('set.youHint')} options={personaOptions.map(([, l]) => l)}
               value={personaOptions.find(([id]) => id === (story.persona?.lib_item_id ?? null))?.[1] ?? personaOptions.at(-1)?.[1]}
-              onChange={(v) => { patch({ persona_id: personaOptions.find(([, l]) => l === v)?.[0] ?? null }); toast(t('toast.personaSwitched', { name: v }), {}, 3000) }} />
+              onChange={(v) => { patch({ persona_id: personaOptions.find(([, l]) => l === v)?.[0] ?? null }); toast(t('toast.personaSwitched', { name: v }), { icon: 'user' }, 3000) }} />
             <K.Select label={t('set.model')} hint={t('set.modelHint')} options={modelOptions.map(([, l]) => l)}
               value={modelOptions.find(([k]) => k === currentModel)?.[1] ?? modelOptions[0][1]}
               onChange={(v) => {

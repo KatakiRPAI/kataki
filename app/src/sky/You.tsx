@@ -108,9 +108,9 @@ function Knows({ persona, known, reload, onDelete }: { persona: Item; known: Kno
   const names = [...new Set((known ?? []).map((k) => k.who))]
   const everyone = t('you.everyone')
   const rows = (known ?? []).filter((k) => !only || k.who === only)
-  const forget = (id: number) => {
+  const forget = (id: number, who: string) => {
     api(`/memories/${id}`, 'PATCH', { hidden: true }).then(reload)
-    toast(t('toast.forgot', { n: 1 }), { action: t('toast.undo'), onAction: () => api(`/memories/${id}`, 'PATCH', { hidden: false }).then(reload) })
+    toast(t('toast.forgot', { name: who, n: 1 }), { icon: 'eyeoff', action: t('toast.undo'), onAction: () => api(`/memories/${id}`, 'PATCH', { hidden: false }).then(reload) })
   }
   const name = persona.name
   return (
@@ -129,7 +129,7 @@ function Knows({ persona, known, reload, onDelete }: { persona: Item; known: Kno
                 <span className="know__text">{k.text}</span>
                 <span className="row" style={{ gap: 8 }}><K.Avatar {...face(who, k.who)} size={22} alt={k.who} /><span className="t-meta">{t('you.where', { name: k.who, story: k.story })}</span></span>
                 <K.StatePill tone={doubted ? 'warm' : k.tier === 'sharp' ? 'ok' : 'muted'}>{t(doubted ? 'mem.word.doubted' : (`mem.word.${k.tier}` as Key))}</K.StatePill>
-                <K.Button size="sm" variant="ghost" onClick={() => forget(k.memory)}>{t('you.forget', { p: pronoun(who) })}</K.Button>
+                <K.Button size="sm" variant="ghost" onClick={() => forget(k.memory, k.who)}>{t('you.forget', { p: pronoun(who) })}</K.Button>
               </div>
             )
           })}

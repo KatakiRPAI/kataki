@@ -186,7 +186,7 @@ export default function Scene() {
       } catch {
         setDraft(line) // it stays in the composer until it can be written
         const e = err('LINE_SAVE_FAILED')
-        toast(e.title, { action: e.actions[0], onAction: () => send(line, extra) }, 10000)
+        toast(e.title, { icon: 'alert', action: e.actions[0], onAction: () => send(line, extra) }, 10000)
       }
       return reload()
     }
@@ -236,6 +236,10 @@ export default function Scene() {
     toast(t('toast.skipUndone'), {}, 3000)
     reload()
   }
+  const pin = (on: boolean) => api(`/stories/${id}`, 'PATCH', { pinned: on }).then(() => {
+    reload()
+    toast(t('toast.pinned', { pinned: on ? 'yes' : 'no' }), { icon: 'pushpin', action: t('toast.undo'), onAction: () => api(`/stories/${id}`, 'PATCH', { pinned: !on }).then(reload) }, 10000)
+  })
   const saveUi = (ui: StoryUi) => data && api(`/stories/${id}`, 'PATCH', { ui: { ...data.story.ui, ...ui } }).then(reload)
   const move = async (e: CastEntity) => {
     await api(`/stories/${id}/presence`, 'POST', { entity_id: e.id, present: !e.present })
@@ -249,7 +253,7 @@ export default function Scene() {
     rewrite: (m, text) => { setSaid(m.role === 'user' ? text : null); generate(`/messages/${m.id}/rewrite`, { text }, { rewriting: m.id }) },
     hide: (m, hidden) => {
       api(`/messages/${m.id}`, 'PATCH', { hidden }).then(reload)
-      if (hidden) toast(t('toast.hidden'), { action: t('toast.undo'), onAction: () => api(`/messages/${m.id}`, 'PATCH', { hidden: false }).then(reload) }, 6000)
+      if (hidden) toast(t('toast.hidden'), { icon: 'eyeoff', action: t('toast.undo'), onAction: () => api(`/messages/${m.id}`, 'PATCH', { hidden: false }).then(reload) }, 6000)
     },
     undoSkip: (m) => undoSkip(m),
     undoPresence: (pid) => api(`/presence/${pid}`, 'DELETE').then(reload),
@@ -278,7 +282,7 @@ export default function Scene() {
     { label: t('sm.settings'), detail: t('sm.settingsDetail'), icon: 'settings', onSelect: () => setOpen('settings') },
     { divider: true },
     { label: t('sm.export'), icon: 'download', onSelect: () => setOpen('export') },
-    { label: t(data?.story.pinned ? 'sm.unpin' : 'sm.pin'), icon: 'pushpin', onSelect: () => api(`/stories/${id}`, 'PATCH', { pinned: !data?.story.pinned }).then(reload) },
+    { label: t(data?.story.pinned ? 'sm.unpin' : 'sm.pin'), icon: 'pushpin', onSelect: () => pin(!data?.story.pinned) },
     { divider: true },
     { label: t('sm.delete'), icon: 'trash', danger: true, onSelect: () => setOpen('delete') },
   ]
@@ -332,11 +336,11 @@ export default function Scene() {
   })
 
   if (!data) {
+    if (/\b404\b|not found/i.test(error)) return <Gone />
     return (
       <div className="scene">
         <div className="scene__tint" />
         <div className="scene__chat">{!error ? <K.Spinner label={t('scene.label')} />
-          : /\b404\b|not found/i.test(error) ? <K.Alert title={t('scene.wontOpen')}>{error}</K.Alert>
           : (() => { const e = err('STORY_UNREADABLE', { story: t('scene.thisStory'), goodLines: '…', badLines: t('scene.some') }); return (
             <K.Alert title={e.title} code={e.code} actions={<><K.Button href="/settings/data">{e.actions[1]}</K.Button><K.Button variant="ghost" onClick={() => openFeedback('bug')}>{e.actions[2]}</K.Button></>}>{e.body}</K.Alert>
           ) })()}</div>
@@ -447,7 +451,7 @@ export default function Scene() {
             <Backstage story={story} messages={messages} cast={cast.entities} tick={tick} focus={Number(params.get('backstage')) || undefined}
               onForget={(m: KnownMemory) => {
                 api(`/memories/${m.memory_id}`, 'PATCH', { hidden: true }).then(() => setTick((x) => x + 1))
-                toast(t('toast.forgot', { n: 1 }), { action: t('toast.undo'), onAction: () => api(`/memories/${m.memory_id}`, 'PATCH', { hidden: false }).then(() => setTick((x) => x + 1)) })
+                toast(t('toast.forgot', { name: 'none', n: 1 }), { icon: 'eyeoff', action: t('toast.undo'), onAction: () => api(`/memories/${m.memory_id}`, 'PATCH', { hidden: false }).then(() => setTick((x) => x + 1)) })
               }} />
           )}
           <div className="scene__chat" ref={chat} inert={arranging || backstage}>
@@ -569,4 +573,11 @@ export default function Scene() {
       )}
     </div>
   )
+}
+
+/** A story that isn't there any more (deleted in another window, an old link): say so and go Home (M3 › toast.notFound). */
+function Gone() {
+  const navigate = useNavigate()
+  useEffect(() => { toast(t('toast.notFound'), { icon: 'alert' }, 6000); navigate('/home', { replace: true }) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  return null
 }

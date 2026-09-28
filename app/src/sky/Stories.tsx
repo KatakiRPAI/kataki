@@ -124,7 +124,7 @@ export default function Stories() {
           })}
         </div>
         {current && <Preview key={current.id} story={current} onRename={() => setOpen('rename')} onExport={() => setOpen('export')} onDelete={() => setOpen('delete')}
-          onPin={() => api(`/stories/${current.id}`, 'PATCH', { pinned: !current.pinned }).then(reload)} />}
+          onPin={() => { const s = current; api(`/stories/${s.id}`, 'PATCH', { pinned: !s.pinned }).then(() => { reload(); toast(t('toast.pinned', { pinned: s.pinned ? 'no' : 'yes' }), { icon: 'pushpin', action: t('toast.undo'), onAction: () => api(`/stories/${s.id}`, 'PATCH', { pinned: s.pinned }).then(reload) }, 10000) }) }} />}
       </div>
 
       {current && open === 'rename' && <Rename story={current} onClose={() => setOpen(null)} onDone={reload} />}
@@ -136,7 +136,7 @@ export default function Stories() {
             setOpen(null)
             setGone((g) => [...g, s.id])
             // soft for the length of its Undo, then real (DATA.md › Rules 2)
-            toast(t('toast.deleted', { story: s.title }), {
+            toast(t('toast.deleted', { story: s.title }), { icon: 'trash',
               action: t('toast.undo'),
               onAction: () => setGone((g) => g.filter((x) => x !== s.id)),
               onDone: () => api(`/stories/${s.id}`, 'DELETE').then(reload),
@@ -192,7 +192,7 @@ function Rename({ story, onClose, onDone }: { story: StorySummary; onClose: () =
   const [name, setName] = useState(story.title)
   const save = () => {
     if (!name.trim()) return
-    api(`/stories/${story.id}`, 'PATCH', { title: name.trim() }).then(() => { onDone(); onClose() })
+    api(`/stories/${story.id}`, 'PATCH', { title: name.trim() }).then(() => { onDone(); onClose(); toast(t('toast.renamed', { name: name.trim() }), {}, 6000) })
   }
   return (
     <Overlay onClose={onClose} at={document.querySelector('[data-rename]')}>
@@ -231,7 +231,7 @@ export function Export({ story, onClose }: { story: Pick<StorySummary, 'id' | 't
     setBusy(true)
     try {
       const name = await download(`/stories/${story.id}/export?as=${as}`)
-      toast(t('toast.exported', { name }), {}, 5000)
+      toast(t('toast.exported', { name }), { icon: 'download' }, 5000)
       onClose()
     } finally {
       setBusy(false)

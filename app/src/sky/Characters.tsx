@@ -152,7 +152,7 @@ export default function Characters() {
               { divider: true },
               {
                 label: t('menu.groupDelete'), detail: t('menu.groupDeleteDetail'), icon: 'trash' as const, danger: true,
-                onSelect: () => { saveGroups(groups.filter((x) => x.id !== g.id)); toast(t('toast.groupDeleted', { name: g.name }), { action: t('toast.undo'), onAction: () => saveGroups(groups) }) },
+                onSelect: () => { saveGroups(groups.filter((x) => x.id !== g.id)); toast(t('toast.groupDeleted', { name: g.name }), { icon: 'trash', action: t('toast.undo'), onAction: () => saveGroups(groups) }) },
               },
             ]
             return (
@@ -252,7 +252,7 @@ function ImportCards({ onClose, onDone, byName }: { names: string[]; onClose: ()
       setRows((all) => all.map((x) => (x === r ? { ...x, done: true } : x)))
     }
     onDone()
-    toast(t('toast.imported', { n: going.length }), {}, 5000)
+    toast(t('toast.imported', { n: going.length, skipped: rows.length - going.length }), { icon: 'download' }, 6000)
     onClose()
   }
   const choices: [Row['choice'], Key][] = [['both', 'imp.both'], ['replace', 'imp.replace'], ['skip', 'imp.skip']]

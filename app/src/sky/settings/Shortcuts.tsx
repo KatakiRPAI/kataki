@@ -27,7 +27,7 @@ export default function Shortcuts() {
     const before = own
     const next = { ...own, [id]: keys, ...(unset ? { [unset]: '' } : {}) }
     setPref('shortcuts', next)
-    toast(t('toast.shortcut', { action: label(id), keys }), { action: t('toast.undo'), onAction: () => setPref('shortcuts', before) }, 6000)
+    toast(t('toast.shortcut', { action: label(id), keys }), { icon: 'key', action: t('toast.undo'), onAction: () => setPref('shortcuts', before) }, 6000)
   }
   useEffect(() => {
     if (!recording) return

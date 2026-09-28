@@ -60,7 +60,7 @@ export function DeleteCharacter({ c, stories, onClose, onGone, onBack }: {
     onClose()
     onGone(true)
     onBack?.()
-    toast(t('toast.deleted', { story: c.name }), {
+    toast(t('toast.characterDeleted', { name: c.name, n: also === 'delete' ? 0 : theirs.length, p: pronoun(c) }), { icon: 'trash',
       action: t('toast.undo'),
       onAction: () => onGone(false),
       onDone: async () => {

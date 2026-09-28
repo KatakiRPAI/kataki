@@ -359,7 +359,7 @@ export function ModelGone() {
     if (!rp?.effective_provider_id) return false
     try {
       await api(`/providers/${rp.effective_provider_id}/models`)
-      toast(t('toast.modelBack'), {}, 4000)
+      toast(t('toast.modelBack'), { icon: 'check' }, 4000)
       navigate(-1)
       return true
     } catch { return false }
