@@ -73,6 +73,11 @@ async function createWindow(port: number, token: string, crashed = false): Promi
   win.on('close', () => { try { writeFileSync(boundsFile(), JSON.stringify(win.getBounds())) } catch { /* next time, the default */ } })
   // Model output is untrusted text that can contain links: never open windows or leave the app.
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  // TextMenu (M1): Electron has no right-click menu in text; the page draws one, with spelling from here
+  win.webContents.on('context-menu', (_e, p) => {
+    if (!p.isEditable && !p.selectionText) return
+    win.webContents.send('kataki:textmenu', { x: p.x, y: p.y, editable: p.isEditable, selection: !!p.selectionText, word: p.misspelledWord, suggestions: p.dictionarySuggestions.slice(0, 4) })
+  })
   win.webContents.on('will-navigate', (event, url) => {
     if (new URL(url).origin !== new URL(win.webContents.getURL()).origin) event.preventDefault()
   })
@@ -121,6 +126,13 @@ app.on('second-instance', () => {
 const runningMark = () => join(app.getPath('userData'), 'running')
 app.on('will-quit', () => rmSync(runningMark(), { force: true }))
 // A restored backup is swapped in as the engine starts, so restoring ends in a restart (K12).
+const EDITS = new Set(['cut', 'copy', 'paste', 'selectAll'])
+ipcMain.on('kataki:edit', (e, what: string, word?: string) => {
+  const wc = e.sender
+  if (EDITS.has(what)) wc[what as 'cut']()
+  else if (what === 'replace' && typeof word === 'string') wc.replaceMisspelling(word)
+  else if (what === 'learn' && typeof word === 'string') wc.session.addWordToSpellCheckerDictionary(word)
+})
 ipcMain.on('kataki:restart', () => { app.relaunch(); app.quit() })
 // Settings › General › Start with Windows: only when the person turns it on or off there.
 ipcMain.on('kataki:startup', (_e, on: boolean) => app.setLoginItemSettings({ openAtLogin: !!on }))

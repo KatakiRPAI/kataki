@@ -5,7 +5,7 @@ import { api, mediaUrl, upload, type Item, type Person, type Profile, type Prono
 import { fullName, isPersona, pronoun, tagline } from '../characters'
 import { K } from '../ds'
 import { face, useLibrary, useLoad } from '../hooks'
-import { Overlay, toast } from '../overlay'
+import { Overlay, toast, withMenu, type MenuItem } from '../overlay'
 import { setPref, usePrefs } from '../prefs'
 import { personaMenu } from './Palette'
 import { t, type Key } from '../strings'
@@ -25,6 +25,14 @@ export default function You() {
   const [deleting, setDeleting] = useState<Item>()
   const [stories] = useLoad(() => api<StorySummary[]>('/stories'), [])
   const [known, reloadKnown] = useLoad(() => (current ? knownAbout(current) : Promise.resolve([])), [current?.id])
+  // PersonaCardMenu (M1)
+  const personaCardMenu = (p: Item): MenuItem[] => [
+    { label: t('pcm.play', { name: p.name }), icon: 'user', disabled: isDef(p), onSelect: () => setPref('persona', p.id) },
+    { label: t('you.edit'), icon: 'edit', onSelect: () => setEditing(p) },
+    { label: t('menu.duplicate'), icon: 'layers', onSelect: () => api<Item>('/library', 'POST', { kind: p.kind, name: `${p.name} (2)`, description: p.description, private: p.private, data: p.data, tags: p.tags }).then(reload) },
+    { divider: true },
+    { label: t('pcm.delete'), icon: 'trash', danger: true, disabled: isDef(p), onSelect: () => setDeleting(p) },
+  ]
   const isDef = (p: Item) => p.id === (def ?? personas[0]?.id) && def !== null
   const played = current ? (stories ?? []).filter((s) => s.persona?.lib_item_id === current.id).length : 0
   const f: { who?: string; src?: string } = current ? face(current) : {}
@@ -57,7 +65,7 @@ export default function You() {
         <h2 className="sec-title">{t('you.personas')}</h2>
         <div className="row row--wrap" style={{ gap: 14, alignItems: 'stretch' }}>
           {personas.map((p) => (
-            <button key={p.id} type="button" className="ns-pick" aria-pressed={current?.id === p.id} onClick={() => setPicked(p.id)}>
+            <button key={p.id} type="button" className="ns-pick" aria-pressed={current?.id === p.id} onClick={() => setPicked(p.id)} {...withMenu(() => personaCardMenu(p))}>
               <K.PersonaCard {...face(p)} name={fullName(p)} line={tagline(p)} isDefault={isDef(p)} selected={current?.id === p.id} />
             </button>
           ))}

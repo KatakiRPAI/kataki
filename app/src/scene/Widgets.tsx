@@ -4,8 +4,8 @@
 import { useRef, useState, type ReactNode } from 'react'
 import type { CastEntity, Item, Story, StoryUi, WidgetSpec } from '../api'
 import { K } from '../ds'
-import { face, fullTime, scenery, twelve } from '../hooks'
-import { openMenu } from '../overlay'
+import { face, fullTime, scenery, twelve, useNarrow } from '../hooks'
+import { openMenu, toast, type MenuItem } from '../overlay'
 import { t, type Key } from '../strings'
 
 type Kind = WidgetSpec['kind']
@@ -16,7 +16,7 @@ export function defaults(present: CastEntity[]): WidgetSpec[] {
   return [...present.map((e) => ({ id: `c${e.id}`, kind: 'character' as const, entity: e.id, pinned: true })), { id: 'clock', kind: 'clock', pinned: true }]
 }
 
-export function Board({ story, people, everyone, itemOf, speaking, active, editing, onDone, onSave, onPassTime, onOpen, busy, detail }: {
+export function Board({ story, people, everyone, itemOf, speaking, active, editing, onDone, onSave, onPassTime, onOpen, busy, detail, onAnswer, onMove, onArrange, onSetTime }: {
   story: Story
   people: CastEntity[] // here now
   everyone: CastEntity[] // every character in the story
@@ -30,6 +30,10 @@ export function Board({ story, people, everyone, itemOf, speaking, active, editi
   onOpen: (entity: number) => void
   busy: boolean
   detail?: (entity: number) => string | undefined // "fond of you", from what the engine stored
+  onAnswer: (entity: number) => void // WidgetMenus (M2)
+  onMove: (entity: number) => void // here ↔ away
+  onArrange: () => void // Edit all widgets
+  onSetTime: () => void
 }) {
   const saved = story.ui.widgets
   const [draft, setDraft] = useState<WidgetSpec[]>()
@@ -37,6 +41,7 @@ export function Board({ story, people, everyone, itemOf, speaking, active, editi
   const [notes, setNotes] = useState(story.ui.notes ?? '')
   const [moving, setMoving] = useState<{ id: string; x: number; y: number } | null>(null)
   const [picked, setPicked] = useState<string>()
+  const compact = useNarrow(1280)
   const start = useRef<{ px: number; py: number; x: number; y: number }>(undefined)
   const edit = (next: WidgetSpec[]) => setDraft(next)
   if (editing && !draft) setDraft(widgets)
@@ -60,9 +65,9 @@ export function Board({ story, people, everyone, itemOf, speaking, active, editi
       const presence = t(here ? 'w.here' : 'w.away')
       const more = detail?.(e.id)
       const status = w.entity === speaking ? t('w.choosing', { p }) : more ? t('w.status', { presence, detail: more }) : presence
-      return here
+      return here && !compact
         ? <K.CharacterWidget {...common} who={f.who} src={f.src} focus={itemOf(e)?.data.focus} name={e.name} thinking={w.entity === speaking} status={status} onOpen={() => onOpen(e.id)} alt={itemOf(e)?.data.alt} />
-        : <K.CharacterRowWidget {...common} who={f.who} src={f.src} name={e.name} away status={t('w.away')} onOpen={() => onOpen(e.id)} />
+        : <K.CharacterRowWidget {...common} who={f.who} src={f.src} name={e.name} away={!here} status={here ? status : t('w.away')} onOpen={() => onOpen(e.id)} />
     }
     if (w.kind === 'clock')
       return <K.ClockWidget {...common} time={twelve(story.clock)} rel={story.date} place={story.place?.name ?? ''} exact={story.clock.slice(-5)}
@@ -98,6 +103,29 @@ export function Board({ story, people, everyone, itemOf, speaking, active, editi
     return null
   }
 
+  // CharacterWidgetMenu, ClockMenu, WidgetMenu (MenusScene, M2): right-click a widget
+  const keep = (next: WidgetSpec[]) => onSave({ widgets: next })
+  const pin = (w: WidgetSpec): MenuItem => ({ label: t(w.pinned ? 'wm.unpin' : 'wm.pin'), detail: w.pinned && w.kind === 'character' ? t('wm.unpinDetail') : undefined, icon: 'pushpin', onSelect: () => keep(widgets.map((x) => (x.id === w.id ? { ...x, pinned: !x.pinned } : x))) })
+  const drop1 = (w: WidgetSpec): MenuItem => ({ label: t('wm.remove'), icon: 'x', onSelect: () => keep(widgets.filter((x) => x.id !== w.id)) })
+  const widgetMenu = (w: WidgetSpec): MenuItem[] => {
+    const e = entity(w.entity)
+    if (w.kind === 'character' && e) {
+      const p = itemOf(e)?.data.pronouns ?? 'they'
+      return [
+        { label: t('wm.open', { name: e.name }), icon: 'user', onSelect: () => onOpen(e.id) },
+        { label: t('cc.answer', { p }), icon: 'chat', disabled: !e.present, onSelect: () => onAnswer(e.id) },
+        { label: t(e.present ? 'cc.away' : 'wm.back', { p }), icon: 'arrow', onSelect: () => onMove(e.id) },
+        pin(w), { divider: true }, drop1(w),
+      ]
+    }
+    if (w.kind === 'clock') return [
+      { label: t('wm.pass'), icon: 'clock', disabled: busy, onSelect: onPassTime },
+      { label: t('wm.realDate'), detail: fullTime(story.clock, story.date), icon: 'eye', onSelect: () => toast(fullTime(story.clock, story.date), {}, 5000) },
+      { label: t('wm.setTime'), icon: 'refresh', onSelect: onSetTime },
+      { divider: true }, drop1(w),
+    ]
+    return [pin(w), { label: t('wm.move'), icon: 'drag', shortcut: ['Space'], onSelect: onArrange }, { divider: true }, drop1(w), { label: t('wm.all'), icon: 'grid', shortcut: ['Ctrl', 'E'], onSelect: onArrange }]
+  }
   const add = (kind: Kind, entityId?: number) => edit([...widgets, { id: `${kind}${entityId ?? ''}-${Date.now()}`, kind, entity: entityId, pinned: true }])
   const addMenu = (el: Element) => openMenu(el, [
     ...everyone.filter((e) => !widgets.some((w) => w.entity === e.id)).map((e) => ({ label: e.name, detail: t('w.k.characterSub'), icon: 'user' as const, onSelect: () => add('character', e.id) })),
@@ -110,6 +138,7 @@ export function Board({ story, people, everyone, itemOf, speaking, active, editi
     const pos = at(w)
     return (
       <div key={w.id} className={`wcell${editing ? ' is-edit' : ''}${picked === w.id ? ' is-picked' : ''}`} tabIndex={editing ? 0 : undefined}
+        onContextMenu={editing ? undefined : (e) => { e.preventDefault(); openMenu(e, widgetMenu(w)) }}
         style={pos ? { position: 'fixed', left: pos.x, top: pos.y, zIndex: moving?.id === w.id ? 30 : 26 } : undefined}
         onPointerDown={editing ? (e) => {
           if ((e.target as Element).closest('button')) return
@@ -133,8 +162,9 @@ export function Board({ story, people, everyone, itemOf, speaking, active, editi
     )
   }
   const shown = widgets.filter(visible)
-  const right = shown.filter((w) => !w.at && w.kind === 'character')
-  const left = shown.filter((w) => !w.at && w.kind !== 'character')
+  // below 1280 (R1) everyone is a row and the clock and music join them in one column
+  const right = shown.filter((w) => !w.at && (compact || w.kind === 'character'))
+  const left = compact ? [] : shown.filter((w) => !w.at && w.kind !== 'character')
   const free = shown.filter((w) => w.at)
   return (
     <>

@@ -10,7 +10,7 @@ import { relative, t, type Key } from '../strings'
 import { characterMenu, DeleteCharacter } from './characterActions'
 
 /** A memory as this character holds it, and where it comes from. */
-export type Held = KnownMemory & { story: string; storyId: number }
+export type Held = KnownMemory & { story: string; storyId: number; knower: number }
 /** 0–100 from the engine's activation: -2 (sharp) reads 73, -4 (hazy) reads 27. */
 const clarity = (m: KnownMemory) => Math.round(100 / (1 + Math.exp(-(m.A + 3))))
 const doubted = (m: KnownMemory) => m.belief < 0.7
@@ -50,12 +50,13 @@ export default function Profile() {
     const all: Held[] = []
     for (const s of profile?.stories.filter((x) => x.role === 'ai' && x.person) ?? []) {
       const known = await api<KnownMemory[]>(`/stories/${s.id}/memories?knower=${s.person!.id}`)
-      all.push(...known.filter((m) => !m.hidden).map((m) => ({ ...m, story: s.title, storyId: s.id })))
+      all.push(...known.filter((m) => !m.hidden).map((m) => ({ ...m, story: s.title, storyId: s.id, knower: s.person!.id })))
     }
     return all.sort((a, b) => b.A - a.A)
   }, [profile])
   const [open, setOpen] = useState<'memories' | 'forget' | 'delete' | null>(null)
   const [forgetting, setForgetting] = useState<number[]>([])
+  const [rewording, setRewording] = useState<Held>()
 
   if (!c) return <main className="app__main"><K.Skeleton /></main>
   const p = pronoun(c)
@@ -76,7 +77,9 @@ export default function Profile() {
     })
   }
   const memoryMenu = (m: Held): MenuItem[] => [
-    { label: t(m.pinned ? 'mem.m.unpin' : 'mem.m.pin'), icon: 'pin', onSelect: () => api(`/memories/${m.memory_id}`, 'PATCH', { pinned: !m.pinned }).then(reloadHeld) },
+    { label: t('mem.m.edit'), icon: 'edit', onSelect: () => setRewording(m) },
+    { label: t('mem.m.sharpen'), icon: 'spark', disabled: m.tier === 'sharp', onSelect: () => api(`/memories/${m.memory_id}/sharpen?knower=${m.knower}`, 'POST').then(reloadHeld) },
+    { label: t(m.pinned ? 'mem.m.unpin' : 'mem.m.pin'), icon: 'eyeoff', onSelect: () => api(`/memories/${m.memory_id}`, 'PATCH', { pinned: !m.pinned }).then(reloadHeld) },
     { divider: true },
     { label: t('mem.m.forget'), icon: 'eyeoff', danger: true, onSelect: () => { setForgetting([m.memory_id]); setOpen('forget') } },
   ]
@@ -220,6 +223,7 @@ export default function Profile() {
       {open === 'memories' && held && (
         <Memories name={c.name} held={held} onClose={() => setOpen(null)} menu={memoryMenu} />
       )}
+      {rewording && <Reword m={rewording} onClose={() => setRewording(undefined)} onDone={reloadHeld} />}
       {open === 'forget' && held && (
         <Forget c={c} held={held} picked={forgetting} onClose={() => setOpen(null)} onForget={(ids) => { setOpen(null); forget(ids) }} />
       )}
@@ -311,3 +315,19 @@ function Forget({ c, held, picked, onClose, onForget }: { c: Item; held: Held[];
   )
 }
 
+
+/** MemoryMenu › Edit the wording: what they remember, sharp and hazy. */
+function Reword({ m, onClose, onDone }: { m: Held; onClose: () => void; onDone: () => void }) {
+  const [detail, setDetail] = useState(m.detail)
+  const [gist, setGist] = useState(m.gist)
+  const save = () => api(`/memories/${m.memory_id}`, 'PATCH', { detail: detail.trim(), gist: gist.trim() || detail.trim() }).then(() => { onDone(); onClose() })
+  return (
+    <Overlay onClose={onClose}>
+      <K.Dialog icon="edit" title={t('mem.reword')} description={t('mem.rewordBody')} onClose={onClose}
+        actions={[<K.Button key="c" variant="ghost" onClick={onClose}>{t('ep.cancel')}</K.Button>, <K.Button key="s" variant="primary" disabled={!detail.trim()} onClick={save}>{t('ep.save')}</K.Button>]}>
+        <K.TextArea label={t('mem.sharpWords')} story rows={2} value={detail} onChange={setDetail} />
+        <K.TextArea label={t('mem.hazyWords')} story rows={2} value={gist} onChange={setGist} hint={t('mem.hazyHint')} />
+      </K.Dialog>
+    </Overlay>
+  )
+}

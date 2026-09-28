@@ -89,6 +89,26 @@ const OVERLAYS = [
   ['Q5', 'BackstageLogs', '/story/1', 900, "await click('Backstage'); await click('logs')"],
 ]
 
+// R1–R4 are collages of several screens: the app is shot alone at the proof's size, to look at
+// next to the board, and the page must never scroll sideways.
+const WIDE = "const m = document.querySelector('.app__main'); if (m && m.scrollWidth > m.clientWidth + 1) throw new Error('scrolls sideways: ' + m.scrollWidth + ' > ' + m.clientWidth)"
+const PROOFS = [
+  ['R1-home', '/home', 1024, 1, 700], ['R1-scene', '/story/1', 1024, 1, 700],
+  ['R2-home', '/home?dir=rtl', 1440, 1, 900], ['R3-scene', '/story/1?dir=rtl', 1440, 1, 900],
+  ...['home', 'stories', 'characters', 'characters/6', 'characters/new', 'stories/new', 'world', 'you', 'settings/general', 'search?q=gala'].map((r) => [`R4-${r.replace(/[/?=]/g, '-')}`, `/${r}`, 1440, 2, 900, WIDE]),
+  ['R4-scene', '/story/1', 1440, 2, 900],
+]
+
+// M1, M2 are catalogues: each menu is shot open in the app, to read against the sheet
+const ctx = (sel) => `const el = document.querySelector(${JSON.stringify(sel)}); const r = el.getBoundingClientRect(); el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + 40, clientY: r.top + 30 })); await wait(500)`
+PROOFS.push(
+  ['M1-story', '/stories', 1440, 1, 900, ctx('.st-list [role=listitem]')], ['M1-home', '/home', 1440, 1, 900, ctx('.home-row a')],
+  ['M1-character', '/characters', 1440, 1, 900, ctx('.ch-card')], ['M1-place', '/world', 1440, 1, 900, ctx('.w-card')],
+  ['M1-book', '/world', 1440, 1, 900, ctx('.tree__book')], ['M1-persona', '/you', 1440, 1, 900, ctx('.ns-pick')],
+  ['M1-connection', '/settings/models', 1440, 1, 900, ctx('.k-conn, [class*=conn]')], ['M1-filter', '/characters', 1100, 1, 900, "document.querySelector('.k-chip').click(); await wait(400)"],
+  ['M2-line', '/story/1', 1440, 1, 900, ctx('.k-line')], ['M2-widget', '/story/1', 1440, 1, 900, ctx('.wcell')], ['M2-clock', '/story/1', 1440, 1, 900, ctx('.scene__left .wcell')],
+)
+
 const [, , which = 'both', filter = ''] = process.argv
 const themes = which === 'both' ? ['night', 'day'] : [which]
 const jobs = []
@@ -96,6 +116,12 @@ for (const theme of themes) {
   for (const [code, board, app, h, js, port] of [...ROUTES, ...OVERLAYS]) {
     if (filter && !new RegExp(`^(${filter})$`).test(code)) continue
     jobs.push({ id: `${code}-${theme}`, board, props: { theme }, app, theme, h, js: js || undefined, port })
+  }
+}
+for (const theme of themes) {
+  for (const [code, app, w, zoom, h, js] of PROOFS) {
+    if (filter && !new RegExp(`^(${filter})$`).test(code.split('-')[0])) continue
+    jobs.push({ id: `${code}-${theme}`, app, w, zoom, h, js, theme, appOnly: true })
   }
 }
 process.stdout.write(JSON.stringify(jobs, null, 1))

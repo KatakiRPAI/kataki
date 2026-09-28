@@ -339,10 +339,15 @@ def update_book(conn: sqlite3.Connection, book_id: int, **fields) -> None:
 
 
 def delete_book(conn: sqlite3.Connection, book_id: int) -> None:
-    """The book goes; its stories stay, unbooked. (`stories.book_id` has no key to cascade: the
-    column is older than the table.)"""
+    """The book goes; its stories, places and plots stay, not filed anywhere. (`stories.book_id`
+    has no key to cascade: the column is older than the table.)"""
     with conn:
         conn.execute("UPDATE stories SET book_id=NULL, book_order=0 WHERE book_id=?", (book_id,))
+        conn.execute(
+            "UPDATE lib_items SET data=json_remove(data, '$.links.book')"
+            " WHERE json_extract(data, '$.links.book')=?",
+            (book_id,),
+        )
         conn.execute("DELETE FROM books WHERE id=?", (book_id,))
 
 

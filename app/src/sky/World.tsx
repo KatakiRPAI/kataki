@@ -24,6 +24,8 @@ export default function World() {
   const [where, setWhere] = useState<Where>('all')
   const [who, setWho] = useState<number>()
   const [params] = useSearchParams() // ?new=place from Home's day one
+  const [renaming, setRenaming] = useState<Book>()
+  const [dropping, setDropping] = useState<Book>()
   const [show, setShow] = useState<Show>('all')
   const [sort, setSort] = useState<Sort>('used')
   const [open, setOpen] = useState<{ kind: 'place' | 'plot' | 'newPlace' | 'newPlot' | 'newBook' | 'file'; item?: Item } | null>(() => (params.get('new') === 'place' ? { kind: 'newPlace' } : null))
@@ -55,12 +57,20 @@ export default function World() {
     label: s.title, detail: s.date, icon: 'chat' as const,
     onSelect: () => api(`/stories/${s.id}/line`, 'POST', { text: (p.data.first_message || p.description).replace(/\*/g, ''), audience: null, narrate: true }).then(() => navigate(`/story/${s.id}`)),
   })), t('pt.drop'))
+  // BookMenu (M1): the cover the reference lists has nowhere to live in the engine yet
+  const bookMenu = (b: Book): MenuItem[] => [
+    { label: t('bm.rename'), icon: 'edit', onSelect: () => setRenaming(b) },
+    { label: t('bm.newStory'), icon: 'plus', onSelect: () => navigate(`/stories/new?book=${b.id}`) },
+    { divider: true },
+    { label: t('bm.delete'), icon: 'trash', danger: true, onSelect: () => setDropping(b) },
+  ]
   const placeMenu = (p: Item): MenuItem[] => [
     p.kind === 'scenario'
       ? { label: t('pt.newStory'), icon: 'plus', onSelect: () => navigate(`/stories/new?plot=${p.id}`) }
       : { label: t('pl.newStory'), icon: 'plus', onSelect: () => navigate(`/stories/new?place=${p.id}`) },
     ...(p.kind === 'scenario' ? [{ label: t('pt.drop'), icon: 'quote' as const, onSelect: () => dropInto(p, document.activeElement ?? document.body) }] : []),
     { label: t('pl.edit'), icon: 'edit', onSelect: () => setOpen({ kind: p.kind === 'scenario' ? 'newPlot' : 'newPlace', item: p }) },
+    ...(p.kind === 'place' ? [{ label: t('pl.picture'), icon: 'image' as const, onSelect: () => setOpen({ kind: 'newPlace', item: p }) }] : []),
     { label: t('w.fileIt'), icon: 'book', onSelect: () => setOpen({ kind: 'file', item: p }) },
     { label: t('pl.duplicate'), icon: 'layers', onSelect: () => api('/library', 'POST', { kind: p.kind, name: `${p.name} (2)`, description: p.description, private: p.private, data: p.data, tags: p.tags }).then(reload) },
     { divider: true },
@@ -88,6 +98,14 @@ export default function World() {
       {open?.kind === 'plot' && open.item && <PlotDetail p={open.item} book={books?.find((b) => b.id === bookOf(open.item!))?.title} stories={usedIn(open.item)} onClose={() => setOpen(null)} menu={() => placeMenu(open.item!)} />}
       {open?.kind === 'newPlace' && <NewPlace item={open.item} books={books ?? []} onClose={() => setOpen(null)} onDone={done} />}
       {open?.kind === 'newPlot' && <NewPlot item={open.item} books={books ?? []} places={places} onClose={() => setOpen(null)} onDone={done} />}
+      {renaming && <RenameBook book={renaming} onClose={() => setRenaming(undefined)} onDone={done} />}
+      {dropping && (
+        <Overlay onClose={() => setDropping(undefined)}>
+          <K.Dialog icon="trash" tone="bad" size="sm" title={t('bm.deleteTitle', { name: dropping.title })} description={t('bm.deleteBody')} onClose={() => setDropping(undefined)}
+            actions={[<K.Button key="k" variant="ghost" onClick={() => setDropping(undefined)}>{t('bm.keep')}</K.Button>,
+              <K.Button key="d" variant="danger" onClick={() => api(`/books/${dropping.id}`, 'DELETE').then(() => { setDropping(undefined); setWhere('all'); done() })}>{t('bm.deleteGo')}</K.Button>]} />
+        </Overlay>
+      )}
       {open?.kind === 'newBook' && <NewBook stories={(stories ?? []).filter((s) => !s.book)} loose={[...places, ...plots].filter((i) => !bookOf(i))} onClose={() => setOpen(null)} onDone={done} />}
       {open?.kind === 'file' && open.item && <FileIt item={open.item} books={books ?? []} stories={stories ?? []} people={items.filter(isCharacter)} onClose={() => setOpen(null)} onDone={done} />}
     </>
@@ -119,7 +137,7 @@ export default function World() {
           <button type="button" aria-current={where === 'all' ? 'page' : undefined} onClick={() => setWhere('all')}><K.Icon name="globe" size={16} />{t('w.everything')}<span className="tree__n">{count('all')}</span></button>
           {(books ?? []).length > 0 && <div className="tree__h">{t('w.books')}</div>}
           {(books ?? []).map((b) => (
-            <div key={b.id}>
+            <div key={b.id} {...withMenu(() => bookMenu(b))}>
               <button type="button" className="tree__book" aria-current={where === `book:${b.id}` ? 'page' : undefined} onClick={() => setWhere(`book:${b.id}`)}>
                 <K.Icon name="book" size={16} />{b.title}<span className="tree__n">{count(`book:${b.id}`)}</span>
               </button>
@@ -382,6 +400,24 @@ function FileIt({ item, books, stories, people, onClose, onDone }: { item: Item;
           </K.Field>
         </div>
       </K.Popover>
+    </Overlay>
+  )
+}
+
+/** BookMenu › Rename book. */
+function RenameBook({ book, onClose, onDone }: { book: Book; onClose: () => void; onDone: () => void }) {
+  const [name, setName] = useState(book.title)
+  const save = () => name.trim() && api(`/books/${book.id}`, 'PATCH', { title: name.trim() }).then(() => { onDone(); onClose() })
+  return (
+    <Overlay onClose={onClose}>
+      <form onSubmit={(e) => { e.preventDefault(); save() }}>
+        <K.Popover title={t('bm.rename')} onClose={onClose} actions={[
+          <K.Button key="c" size="sm" variant="ghost" onClick={onClose}>{t('rename.cancel')}</K.Button>,
+          <K.Button key="s" size="sm" variant="primary" disabled={!name.trim()} onClick={save}>{t('rename.save')}</K.Button>,
+        ]}>
+          <K.TextField label={t('rename.name')} story max={60} value={name} onChange={setName} />
+        </K.Popover>
+      </form>
     </Overlay>
   )
 }

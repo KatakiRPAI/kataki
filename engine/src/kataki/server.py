@@ -929,7 +929,7 @@ def create_app(
                     (story["id"],),
                 )
             ],
-            "last_line": last and {"speaker": speaker and speaker["name"], "text": last["text"]},
+            "last_line": last and {"id": last["id"], "speaker": speaker and speaker["name"], "text": last["text"]},
             "new_events": new_events(story),
             "waiting": len(extract.pending(conn, story["id"])),
             # which book, and where in it: a book is an order, so the order travels with it
@@ -1483,6 +1483,25 @@ def create_app(
         _row(conn, "SELECT id FROM memories WHERE id=?", (memory_id,))
         _patch(conn, "memories", memory_id, p.model_dump(exclude_unset=True))
         return _row(conn, "SELECT * FROM memories WHERE id=?", (memory_id,))
+
+    @app.post("/memories/{memory_id}/sharpen")
+    async def sharpen_memory(memory_id: int, knower: int):
+        """MemoryMenu › Make it sharp again: `knower` goes over it once more, now, with the detail
+        in mind — the same sharp rehearsal a successful recall leaves (activation.py)."""
+        m = _row(conn, "SELECT * FROM memories WHERE id=?", (memory_id,))
+        path = chat.active_path(conn, m["story_id"])
+        scene = chat.scene_of(conn, m["story_id"], path)
+        if scene is None:
+            raise HTTPException(409, "the story has no scene yet")
+        now = path[-1]["story_time"] if path else 0
+        with conn:
+            conn.execute(
+                "INSERT INTO accesses(knower_id, memory_id, scene_id, kind, story_time, sharp, weight)"
+                " VALUES(?, ?, ?, 'retold', ?, 1, 1.0)"
+                " ON CONFLICT DO UPDATE SET sharp=1, weight=1.0, story_time=excluded.story_time",
+                (knower, memory_id, scene, now),
+            )
+        return {"ok": True}
 
     @app.get("/stories/{story_id}/context")
     async def latest_context(story_id: int):

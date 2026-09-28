@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router'
 import { api, sendFile, type Item, type Look, type StorySummary } from '../api'
 import { isDraft, isPersona, storiesWith, tagline, type Group } from '../characters'
 import { K } from '../ds'
-import { face, useLibrary, useLoad, utc } from '../hooks'
+import { face, useLibrary, useLoad, useNarrow, utc } from '../hooks'
 import { openMenu, Overlay, toast, withMenu } from '../overlay'
 import { relative, t, type Key } from '../strings'
 import { characterMenu, DeleteCharacter } from './characterActions'
@@ -28,6 +28,7 @@ export default function Characters() {
   const [hidden, setHidden] = useState<number[]>([])
   const [deleting, setDeleting] = useState<Item>()
   const [params] = useSearchParams()
+  const compact = useNarrow(1280)
   const [importing, setImporting] = useState(() => params.has('import')) // first run's "Import cards"
   const [grouping, setGrouping] = useState<Group | 'new'>()
   const shownAs = view ?? (settings?.['ui.charactersView'] === 'list' ? 'list' : 'grid')
@@ -73,12 +74,20 @@ export default function Characters() {
         </div>
       </div>
       <div className="row" style={{ justifyContent: 'space-between' }}>
-        <div className="row row--wrap" style={{ gap: 8 }}>
-          {FILTERS.map((f) => (
-            <K.Chip key={f} pressed={filter === f} icon={f === 'fav' ? 'star' : undefined} onPress={() => setFilter(f)}
-              count={people.filter(test[f]).length}>{t(`chars.f.${f}` as Key)}</K.Chip>
-          ))}
-        </div>
+        {compact ? (
+          // FilterMenu (M1): below 1280 the chips fold into one
+          <span data-filter><K.Chip icon="filter" toggle={false} count={people.filter(test[filter]).length} onClick={() => openMenu(document.querySelector('[data-filter]') ?? document.body,
+            FILTERS.map((f) => ({ label: t(`chars.f.${f}` as Key), meta: String(people.filter(test[f]).length), checked: filter === f, onSelect: () => setFilter(f) })), t('chars.show'))}>
+            {t(`chars.f.${filter}` as Key)}
+          </K.Chip></span>
+        ) : (
+          <div className="row row--wrap" style={{ gap: 8 }}>
+            {FILTERS.map((f) => (
+              <K.Chip key={f} pressed={filter === f} icon={f === 'fav' ? 'star' : undefined} onPress={() => setFilter(f)}
+                count={people.filter(test[f]).length}>{t(`chars.f.${f}` as Key)}</K.Chip>
+            ))}
+          </div>
+        )}
         <div style={{ width: 220 }}>
           <K.Select label={t('chars.sortBy')} options={SORTS.map(sortLabel)} value={sortLabel(sort)} onChange={(v) => setSort(SORTS.find((s) => sortLabel(s) === v) ?? 'played')} />
         </div>

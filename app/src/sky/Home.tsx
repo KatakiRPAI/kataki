@@ -6,9 +6,10 @@ import { K } from '../ds'
 import { face, scenery, twelve, useLibrary, useLoad, utc } from '../hooks'
 import { relative, t } from '../strings'
 import { byShipped, isDraft, said } from '../characters'
+import { storyMenu } from './storyMenu'
 import Top from './Top'
 import { openFeedback } from './Feedback'
-import { Overlay } from '../overlay'
+import { Overlay, withMenu } from '../overlay'
 import { setPref, usePrefs } from '../prefs'
 
 type Filter = 'all' | 'story' | 'drafts'
@@ -21,7 +22,7 @@ export default function Home() {
   const navigate = useNavigate()
   const { items, byId } = useLibrary()
   const [settings] = useLoad(() => api<{ persona?: number }>('/settings'), [])
-  const [stories] = useLoad(() => api<StorySummary[]>('/stories'), [])
+  const [stories, reloadStories] = useLoad(() => api<StorySummary[]>('/stories'), [])
   const [events] = useLoad(() => api<ActivityEvent[]>('/activity?limit=12'), [])
   const [filter, setFilter] = useState<Filter>('all')
   // C3: is anyone answering? Sky pages never wait on it.
@@ -130,7 +131,7 @@ export default function Home() {
             <K.Eyebrow>{t('home.since')}</K.Eyebrow>
             <span className="t-faint">{t('home.events', { n: since.length, lastPlayed: relative(utc(hero.last_at)) })}</span>
           </div>
-          <div style={{ display: 'flex', gap: 12 }}>
+          <div className="home-row" style={{ display: 'flex', gap: 12 }}>
             {since.map((e) => {
               const who = e.who[0]
               const f = face(byId.get(who?.lib_item_id ?? -1), who?.name)
@@ -156,7 +157,7 @@ export default function Home() {
             ))}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', overflow: 'hidden' }}>
+        <div className="home-row" style={{ display: 'flex', gap: 16, alignItems: 'flex-start', overflow: 'hidden' }}>
           {ordered.slice(0, 5).map((c) => {
             const last = lastPlayed(c)
             const featured = c.id === lead?.lib_item_id
@@ -178,9 +179,9 @@ export default function Home() {
             <h2 className="sec-title">{t('home.threads')}</h2>
             <K.TextLink href="/stories">{t('home.allStories')}</K.TextLink>
           </div>
-          <div style={{ display: 'flex', gap: 14, alignItems: 'stretch' }}>
+          <div className="home-row" style={{ display: 'flex', gap: 14, alignItems: 'stretch' }}>
             {played.slice(1, 4).map((s) => (
-              <a key={s.id} href={`/story/${s.id}`} style={{ flex: 1, minWidth: 0, display: 'flex' }}>
+              <a key={s.id} href={`/story/${s.id}`} style={{ flex: '1 1 260px', display: 'flex' }} {...withMenu(() => storyMenu(s, navigate, reloadStories))}>
                 <K.StoryCard title={s.title} book={s.book?.title ?? t('home.noBook')} pinned={s.pinned}
                   people={s.cast.map((c) => { const f = face(byId.get(c.lib_item_id ?? -1), c.name); return { who: f.who, src: f.src, name: c.name } })}
                   quote={s.last_line ? quoted(s.last_line.text) : t('home.noLine')}

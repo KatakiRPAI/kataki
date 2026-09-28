@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 import { api, stream, type Provider, type RoleRow, type Cast, type CastEntity, type ContextLog, type KnownMemory, type Message, type Person, type Signals, type Story, type StoryUi, type TurnDone, type TurnMeta, type Version } from '../api'
 import { K } from '../ds'
-import { face, scenery, twelve, useLibrary, useLoad, usePoll, useTitle } from '../hooks'
+import { face, scenery, twelve, useLibrary, useLoad, useNarrow, usePoll, useTitle } from '../hooks'
 import { openMenu, Overlay, toast, type MenuItem } from '../overlay'
 import { pacer, SPEEDS, type Speed } from '../pace'
 import { pref } from '../prefs'
@@ -165,6 +165,7 @@ export default function Scene() {
   useEffect(() => () => clearTimeout(skipTimer.current), [])
 
   const speaker = answer === 'any' ? null : answer === 'narrator' ? 'narrator' : Number(answer)
+  const narrow = useNarrow(1024) // R4: the header folds, the widgets go behind "Here"
   const present = data?.cast.entities.filter((e) => e.is_ai && e.kind === 'character' && e.present) ?? []
   /** Your line is written first; only the reply waits for a model (SCENE.md › A turn). */
   const send = async (text: string, extra: { skip?: string } = {}) => {
@@ -383,14 +384,19 @@ export default function Scene() {
       <div className="scene__tl">
         <K.SceneHeader title={story.title} backHref="/home"
           subtitle={backstage ? t('bs.sub', { n: messages.filter((m) => m.role === 'assistant').length, time: story.clock.slice(-5) })
+            : narrow ? t('scene.subtitleNarrow', { persona: persona ?? t('scene.nobody'), time: twelve(story.clock), place: story.place?.name ?? 'none' })
             : persona ? t('scene.subtitle', { persona, book: story.book?.title ?? 'none' }) : t('scene.directing')} />
       </div>
       <div className="scene__tr">
-        <K.BackstageToggle on={backstage} onToggle={setBackstage} />
+        {narrow && !backstage && (
+          <button type="button" className="scene__herepill" aria-pressed={here} onClick={() => setHere((x) => !x)}>
+            <K.AvatarStack people={present.map((e) => face(itemOf(e.id), e.name))} size={26} max={3} />{t('scene.here')}
+          </button>
+        )}
+        {narrow ? <K.SceneButton icon="layers" label={t('sc.backstage')} pressed={backstage} onClick={() => setBackstage((x) => !x)} /> : <K.BackstageToggle on={backstage} onToggle={setBackstage} />}
         {backstage ? <K.SceneButton icon="x" label={t('bs.leave')} onClick={() => setBackstage(false)} /> : (
           <>
-            <span className="scene__here"><K.SceneButton icon="users" label={t('scene.here')} pressed={here} onClick={() => setHere((x) => !x)} /></span>
-            <K.SceneButton icon="search" label={t('scene.search')} onClick={() => setFinding(true)} />
+            {!narrow && <K.SceneButton icon="search" label={t('scene.search')} onClick={() => setFinding(true)} />}
             <K.SceneButton icon="dots" label={t('scene.menu')} onClick={(e: { currentTarget: Element }) => openMenu(e.currentTarget, storyMenu())} />
           </>
         )}
@@ -486,7 +492,10 @@ export default function Scene() {
           {!backstage && (
             <Board story={story} people={present} everyone={characters} itemOf={item} speaking={live && !live.text ? live.speakerId ?? undefined : undefined}
               active={lastSpeakers} editing={arranging} onDone={() => setArranging(false)} onSave={saveUi} onPassTime={() => setOpen('pass')}
-              onOpen={setCard} busy={!!live} detail={feelingOf} />
+              onOpen={setCard} busy={!!live} detail={feelingOf}
+              onAnswer={(eid) => { setAnswer(String(eid) as Answer); setAdvanced(true) }}
+              onMove={(eid) => { const e = characters.find((x) => x.id === eid); if (e) move(e) }}
+              onArrange={() => { setReading(false); setArranging(true) }} onSetTime={() => setOpen('place')} />
           )}
         </>
       )}

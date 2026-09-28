@@ -22,7 +22,8 @@ body { overflow: hidden; }
 
 @media (max-width: 1279px) {
   /* R1: the chat fills; clock and music join the widgets column */
-  .scene__chat { inset-inline-start: 24px; inset-inline-end: 320px; top: 76px; }
+  .scene__chat { inset-inline-start: 24px; inset-inline-end: 340px; top: 76px; }
+  .scene__right { width: 292px; }
   .scene__chat .k-chat { width: 100%; }
   .scene__left { inset-inline-start: auto; inset-inline-end: 24px; }
 }
@@ -302,6 +303,9 @@ button.k-shortrow, button.k-job { width: 100%; background: transparent; border: 
 /* Layout breakpoints (ROUTES.md): compact rail below 1280, one column below 1024 */
 .app--compact .app__sky { inset-inline-start: 72px; }
 .scene__here { display: none; }
+.scene__herepill { display: inline-flex; align-items: center; gap: 10px; height: 44px; padding: 0 16px 0 6px; border-radius: 999px; border: 1px solid var(--scene-border); background: var(--scene-glass); color: var(--scene-ink); font: 600 14px var(--font-ui); cursor: pointer; }
+.scene__herepill[aria-pressed="true"] { border-color: var(--scene-primary); }
+.scene__herepill:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 @media (max-width: 1279px) {
   .app__main { padding-inline: 28px; }
   .ch-grid, .wgrid { gap: 12px; }
@@ -322,9 +326,18 @@ button.k-shortrow, button.k-job { width: 100%; background: transparent; border: 
   .scene.show-here .scene__right { top: 72px; }
   .scene.show-here .scene__left { top: auto; bottom: 16px; }
   .bsx { grid-template-columns: minmax(0, 1fr) !important; inset: 72px 16px 16px; }
+  /* R4: Home's rows wrap instead of running off the page */
+  .home-row { flex-wrap: wrap; overflow: visible !important; }
+  .home-row > * { max-width: 100%; }
+  .pg-head { flex-wrap: wrap; align-items: flex-start; }
+  .pg-head > *, .pg-head .row { max-width: 100%; flex-wrap: wrap; }
 }
 
 /* Right to left (R2, R3) */
+/* What people wrote keeps its own direction: an English line reads left to right in the Arabic
+   interface, and the other way round (Settings › Language: "Your own writing keeps its direction") */
+.k-line__text, .k-hero__quote, .k-story__quote, .k-event__memory, .k-memrow__text, .k-plot__quote, .k-result__excerpt, .k-bubble,
+.k-secret, .pf-text, .pl-text, .know__text, .plotpick__quote, .k-editline__field, .scene textarea, .k-field textarea, .k-textfield input { unicode-bidi: plaintext; }
 [dir="rtl"] .k-line__text em, [dir="rtl"] em { font-style: normal; }
 [dir="rtl"] .k-icon.is-directional, [dir="rtl"] .k-btn--scene-send .k-icon, [dir="rtl"] .k-scenechip .k-icon[data-flip] { transform: scaleX(-1); }
 [dir="rtl"] .readcol { transform: translateX(50%); }

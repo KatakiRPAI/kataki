@@ -3,9 +3,10 @@ import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { api, download, type ActivityEvent, type Person, type StorySummary } from '../api'
 import { said } from '../characters'
+import { storyMenu } from './storyMenu'
 import { K } from '../ds'
 import { face, scenery, useLibrary, useLoad, utc } from '../hooks'
-import { Overlay, toast } from '../overlay'
+import { Overlay, toast, withMenu } from '../overlay'
 import { relative, t, type Key } from '../strings'
 
 type Sort = 'played' | 'written' | 'time' | 'name'
@@ -29,9 +30,9 @@ export default function Stories() {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState('all')
   const [sort, setSort] = useState<Sort>('played')
-  const [picked, setPicked] = useState<number>()
+  const [picked, setPicked] = useState<number | undefined>(() => Number(params.get('story')) || undefined) // ?story=&do= from another page's StoryMenu
   const [gone, setGone] = useState<number[]>([]) // deleted, still inside their Undo
-  const [open, setOpen] = useState<'rename' | 'delete' | 'export' | null>(null)
+  const [open, setOpen] = useState<'rename' | 'delete' | 'export' | null>(() => (['rename', 'delete', 'export'] as const).find((d) => d === params.get('do')) ?? null)
 
   const all = (stories ?? []).filter((s) => !gone.includes(s.id))
   const books = [...new Map(all.flatMap((s) => (s.book ? [[s.book.id, s.book.title] as const] : []))).entries()]
@@ -82,9 +83,10 @@ export default function Stories() {
     )
   }
 
+  const menuOf = (s: StorySummary) => withMenu(() => storyMenu(s, navigate, reload, (what) => { setPicked(s.id); setOpen(what) }))
   const card = (s: StorySummary, compact = false) => (
-    <div key={s.id} role="listitem" onClick={() => setPicked(s.id)} onDoubleClick={() => navigate(`/story/${s.id}`)}
-      onKeyDown={(e) => e.key === 'Enter' && setPicked(s.id)} tabIndex={0} style={{ cursor: 'pointer' }}>
+    <div key={s.id} role="listitem" onContextMenu={menuOf(s).onContextMenu} onClick={() => setPicked(s.id)} onDoubleClick={() => navigate(`/story/${s.id}`)}
+      onKeyDown={(e) => { if (e.key === 'Enter') setPicked(s.id); if (e.key === 'F2') { setPicked(s.id); setOpen('rename') }; menuOf(s).onKeyDown(e) }} tabIndex={0} style={{ cursor: 'pointer' }}>
       <K.StoryCard title={s.title} book={s.book?.title ?? t('home.noBook')} pinned={s.pinned} selected={s.id === current?.id} compact={compact}
         people={s.cast.map((c) => { const f = face(byId.get(c.lib_item_id ?? -1), c.name); return { who: f.who, src: f.src, name: c.name } })}
         quote={s.last_line ? quoted(s.last_line.text) : t('home.noLine')} when={relative(utc(s.last_at))} storyTime={s.date} />

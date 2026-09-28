@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { api, type Provider, type RoleRow } from '../../api'
 import { K } from '../../ds'
 import { useLoad } from '../../hooks'
-import { Overlay, toast } from '../../overlay'
+import { Overlay, toast, openMenu, withMenu, type MenuItem } from '../../overlay'
 import { t, type Key } from '../../strings'
 
 type Test = { ok: boolean; ms?: number; error?: string; models?: string[] }
@@ -45,6 +45,23 @@ export default function Models() {
         </K.StatusLine>
   const reload = () => { reloadProviders(); reloadRoles() }
   const remove = (p: Provider) => api(`/providers/${p.id}`, 'DELETE').then(reload)
+  // ConnectionMenu (M1): the jobs that borrow take it too, since only Characters is set
+  const useFor = async (p: Provider, job: Job) => {
+    const r = tests[p.id] && tests[p.id] !== 'testing' ? tests[p.id] as Test : await test(p)
+    if (!r.ok || !r.models?.length) return toast(t('mo.noModels', { name: p.name }), {}, 5000)
+    await api(`/roles/${job}`, 'PUT', { provider_id: p.id, model: r.models[0], kind: 'auto', params: {} })
+    reloadRoles()
+    toast(t('mo.usedFor', { name: p.name, job: t(`mo.job.${job}` as Key) }), {}, 4000)
+  }
+  const [editingConn, setEditingConn] = useState<Provider>()
+  const connectionMenu = (p: Provider): MenuItem[] => [
+    { label: t('mo.m.everything'), icon: 'check', onSelect: () => useFor(p, 'rp') },
+    { label: t('mo.testAgain'), icon: 'refresh', onSelect: () => run(p) },
+    { label: t('mo.m.edit'), icon: 'edit', onSelect: () => setEditingConn(p) },
+    { label: t('mo.m.oneJob'), icon: 'cpu', onSelect: () => openMenu(document.activeElement ?? document.body, JOBS.filter((j) => j !== 'embed').map((j) => ({ label: t(`mo.job.${j}` as Key), onSelect: () => useFor(p, j) })), t('mo.m.oneJobTitle')) },
+    { divider: true },
+    { label: t('mo.m.remove'), icon: 'trash', danger: true, onSelect: () => remove(p) },
+  ]
 
   return (
     <>
@@ -56,7 +73,7 @@ export default function Models() {
             const state = r === 'testing' || !r ? (p.id === main?.id ? 'connected' : 'ready') : r.ok ? (p.id === main?.id ? 'connected' : 'ready') : 'offline'
             const bad = r && r !== 'testing' && !r.ok ? r : undefined
             return (
-              <div key={p.id}>
+              <div key={p.id} {...withMenu(() => connectionMenu(p))}>
                 <K.ConnectionRow icon={p.has_key ? 'globe' : 'server'} name={p.name} status={state} detail={t('mo.detail', { url: p.base_url, key: p.has_key ? 'yes' : 'no' })}
                   onTest={() => run(p)} testing={r === 'testing'} testLabel={t('mo.test')} onRemove={() => remove(p)} removeLabel={t('mo.remove')} />
                 {bad && (
@@ -94,6 +111,7 @@ export default function Models() {
         </K.Panel>
       </K.SettingsSection>
 
+      {editingConn && <EditConnection p={editingConn} onClose={() => setEditingConn(undefined)} onDone={reload} />}
       {adding === 'api' && <AddApi onClose={() => setAdding(null)} onAdded={reload} />}
       {adding === 'find' && <FindServers providers={providers ?? []} onClose={() => setAdding(null)} onAdded={reload} />}
     </>
@@ -253,3 +271,21 @@ function FindServers({ providers, onClose, onAdded }: { providers: Provider[]; o
   )
 }
 
+
+/** ConnectionMenu › Edit address or key. An empty key field leaves the key as it is. */
+function EditConnection({ p, onClose, onDone }: { p: Provider; onClose: () => void; onDone: () => void }) {
+  const [name, setName] = useState(p.name)
+  const [address, setAddress] = useState(p.base_url)
+  const [key, setKey] = useState('')
+  const save = () => api(`/providers/${p.id}`, 'PATCH', { name: name.trim(), base_url: address.trim(), ...(key.trim() ? { api_key: key.trim() } : {}) }).then(() => { onDone(); onClose() })
+  return (
+    <Overlay onClose={onClose}>
+      <K.Dialog icon="server" title={t('mo.editTitle', { name: p.name })} onClose={onClose}
+        actions={[<K.Button key="c" variant="ghost" onClick={onClose}>{t('api.cancel')}</K.Button>, <K.Button key="s" variant="primary" disabled={!name.trim() || !address.trim()} onClick={save}>{t('ep.save')}</K.Button>]}>
+        <K.TextField label={t('api.call')} value={name} onChange={setName} />
+        <K.TextField label={t('api.address')} icon="link" value={address} onChange={setAddress} />
+        <K.TextField label={t('api.key')} icon="key" type="password" optional placeholder={p.has_key ? t('mo.keyKept') : ''} value={key} onChange={setKey} />
+      </K.Dialog>
+    </Overlay>
+  )
+}

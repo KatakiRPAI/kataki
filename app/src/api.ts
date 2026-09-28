@@ -131,7 +131,7 @@ export type Standing = {
   cast: (Ref & { present: boolean })[] // the AI characters
   plot_id: number | null // the plot it started from
   places: number[] // the library places it has used
-  last_line: { speaker: string | null; text: string } | null
+  last_line: { id: number; speaker: string | null; text: string } | null
   new_events: number // Activity you have not seen
   waiting: number // lines the memory reader has not read yet
   book: { id: number; title: string; order: number } | null // and where in it this story sits

@@ -40,11 +40,13 @@ function serve() {
 }
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
-async function shot(url, h, js, ready) {
-  const w = new BrowserWindow({ show: false, width: 1440, height: h, useContentSize: true, enableLargerThanScreen: true, webPreferences: { offscreen: true } })
+// width/zoom: the proofs (R1 at 1024 wide, R4 at 200% zoom on a 1440 window)
+async function shot(url, h, js, ready, width = 1440, zoom = 1) {
+  const w = new BrowserWindow({ show: false, width, height: h, useContentSize: true, enableLargerThanScreen: true, webPreferences: { offscreen: true } })
   w.webContents.setFrameRate(10)
-  w.setContentSize(1440, h)
+  w.setContentSize(width, h)
   await w.loadURL(url)
+  w.webContents.setZoomFactor(zoom) // after the load: a navigation resets it
   for (let i = 0; i < 60 && !(await w.webContents.executeJavaScript(ready).catch(() => false)); i++) await wait(250)
   // helpers for a job's js: click('Label') clicks the control with that text; key('k', { ctrlKey: true }) presses a key;
   // type('text') fills the focused field; wait(ms)
@@ -54,7 +56,7 @@ async function shot(url, h, js, ready) {
     const type = async (text) => { const el = document.activeElement; const set = Object.getOwnPropertyDescriptor(el.constructor.prototype, 'value').set; set.call(el, text); el.dispatchEvent(new Event('input', { bubbles: true })); await wait(400) };`
   if (js) { await w.webContents.executeJavaScript(`(async () => { ${HELP} ${js} })()`).catch((e) => log('js failed', e.message)); await wait(700) }
   await wait(900)
-  const img = await w.webContents.capturePage({ x: 0, y: 0, width: 1440, height: h })
+  const img = await w.webContents.capturePage({ x: 0, y: 0, width, height: h })
   w.destroy()
   return img
 }
@@ -102,13 +104,20 @@ app.whenReady().then(async () => {
   for (const j of jobs) {
     const h = j.h || 900
     const q = new URLSearchParams(Object.entries(j.props || {}).map(([k, v]) => [k, JSON.stringify(v)]))
+    const port = j.port || enginePort // a job can use another engine (an empty library, a dead model)
+    if (j.app && j.theme && `${j.theme}@${port}` !== current) { await theme(j.theme, port); current = `${j.theme}@${port}` }
+    const sep = j.app?.includes('?') ? '&' : '?'
+    const ready = `document.documentElement.dataset.engine === 'ok' && !!document.querySelector('main, .scene, [role=dialog]')`
+    if (j.appOnly) { // a proof: the app alone, at the proof's size
+      const img = await shot(`${appOrigin}${j.app}${sep}port=${port}&token=${token}`, h, j.js, ready, j.w, j.zoom)
+      fs.writeFileSync(path.join(outDir, `${j.id}.app.png`), img.toPNG())
+      log(j.id, 'app only')
+      continue
+    }
     const board = await shot(`http://127.0.0.1:${boards}/${j.board}.dc.html?${q}`, h, j.boardJs, `document.documentElement.dataset.board === 'ready'`)
     fs.writeFileSync(path.join(outDir, `${j.id}.board.png`), board.toPNG())
     if (!j.app) { log(j.id, 'board only'); continue }
-    const port = j.port || enginePort // a job can use another engine (an empty library, a dead model)
-    if (j.theme && `${j.theme}@${port}` !== current) { await theme(j.theme, port); current = `${j.theme}@${port}` }
-    const sep = j.app.includes('?') ? '&' : '?'
-    const shown = await shot(`${appOrigin}${j.app}${sep}port=${port}&token=${token}`, h, j.js, `document.documentElement.dataset.engine === 'ok' && !!document.querySelector('main, .scene, [role=dialog]')`)
+    const shown = await shot(`${appOrigin}${j.app}${sep}port=${port}&token=${token}`, h, j.js, ready)
     fs.writeFileSync(path.join(outDir, `${j.id}.app.png`), shown.toPNG())
     log(j.id, await compare(board, shown, h, path.join(outDir, `${j.id}.png`)) + '% differs')
   }

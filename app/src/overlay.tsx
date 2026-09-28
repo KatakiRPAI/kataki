@@ -4,6 +4,7 @@ import { useEffect, useRef, useSyncExternalStore, type KeyboardEvent as KeyEvent
 import type { IconName } from './ds/kataki'
 import { createPortal } from 'react-dom'
 import { K } from './ds'
+import { t } from './strings'
 
 /** Overlays, menus and toasts sit over the whole Sky page, rail included, in its Night/Day theme,
  *  wherever they were opened from; in a story they stay where they are. */
@@ -75,7 +76,7 @@ export function Toasts() {
 }
 
 // ---- menus: a ··· button or a right-click opens one at that spot (OVERLAYS-AND-MENUS.md › Menus) ----
-export type MenuItem = { label?: string; detail?: string; meta?: string; shortcut?: string[]; who?: string; src?: string; icon?: IconName; danger?: boolean; disabled?: boolean; divider?: boolean; checked?: boolean; onSelect?: () => void }
+export type MenuItem = { section?: string; label?: string; detail?: string; meta?: string; shortcut?: string[]; who?: string; src?: string; icon?: IconName; danger?: boolean; disabled?: boolean; divider?: boolean; checked?: boolean; onSelect?: () => void }
 type Open = { x: number; y: number; left?: boolean; title?: string; items: MenuItem[]; footer?: string; width?: number }
 let menu: Open | null = null
 const menuSubs = new Set<() => void>()
@@ -92,6 +93,21 @@ export function openMenu(at: Element | { clientX: number; clientY: number }, ite
   } else menu = { x: at.clientX + 260, y: at.clientY, title, items, ...more }
   menuEmit()
 }
+/** TextMenu (M1): the desktop app's right-click in text, spelling first. The web build keeps the browser's own. */
+window.kataki?.onTextMenu?.((m) => {
+  const k = window.kataki!
+  const items: MenuItem[] = []
+  if (m.word) {
+    items.push({ section: t('tm.spelling') }, ...m.suggestions.map((s): MenuItem => ({ label: s, onSelect: () => k.edit?.('replace', s) })),
+      { label: t('tm.learn'), icon: 'plus', onSelect: () => k.edit?.('learn', m.word) }, { divider: true })
+  }
+  if (m.editable) items.push({ label: t('tm.cut'), disabled: !m.selection, onSelect: () => k.edit?.('cut') })
+  items.push({ label: t('tm.copy'), disabled: !m.selection, onSelect: () => k.edit?.('copy') })
+  if (m.editable) items.push({ label: t('tm.paste'), onSelect: () => k.edit?.('paste') })
+  items.push({ label: t('tm.all'), onSelect: () => k.edit?.('selectAll') })
+  openMenu({ clientX: m.x, clientY: m.y }, items)
+})
+
 /** Props for anything with a menu: right-click and Shift F10 open it. */
 export const withMenu = (items: () => MenuItem[]) => ({
   onContextMenu: (e: MouseEvent) => { e.preventDefault(); openMenu(e, items()) },
