@@ -6,7 +6,7 @@ import { dirname, join, resolve } from 'node:path'
 import { createInterface } from 'node:readline'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
-import { app, BrowserWindow, dialog, ipcMain, screen } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, screen, shell } from 'electron'
 
 const here = dirname(fileURLToPath(import.meta.url)) // app/dist-electron
 const appRoot = join(here, '..')
@@ -23,12 +23,14 @@ function fail(message: string): void {
   app.exit(1)
 }
 
+let libraryDb = ''
 async function startEngine(token: string): Promise<number> {
   // ponytail: dev layout only (the repo venv). M5 packaging swaps in the bundled runtime path.
   const python = join(repoRoot, 'engine', '.venv', process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python')
   const home = join(repoRoot, '.dev') // the dev library and downloaded models stay in the repo
   // KATAKI_DB swaps the library, e.g. .dev/demo.db (a relative path is from the repo root)
   const db = process.env.KATAKI_DB ? resolve(repoRoot, process.env.KATAKI_DB) : join(home, 'library.db')
+  libraryDb = db
   const args = ['-m', 'kataki', 'serve', '--parent-watch', '--db', db]
   // The engine watches its stdin: when this process ends for any reason, the pipe closes and it exits.
   const env = { ...process.env, KATAKI_TOKEN: token, KATAKI_HOME: home }
@@ -122,6 +124,10 @@ app.on('will-quit', () => rmSync(runningMark(), { force: true }))
 ipcMain.on('kataki:restart', () => { app.relaunch(); app.quit() })
 // Settings › General › Start with Windows: only when the person turns it on or off there.
 ipcMain.on('kataki:startup', (_e, on: boolean) => app.setLoginItemSettings({ openAtLogin: !!on }))
+// Settings › Data › Open folder: only the library's own two folders, never a path the page names
+ipcMain.on('kataki:reveal', (_e, what: string) => {
+  if (what === 'library' || what === 'pictures') shell.openPath(what === 'library' ? dirname(libraryDb) : join(dirname(libraryDb), 'blobs'))
+})
 
 // No top-level await here: Electron holds `ready` until this module finishes evaluating,
 // so `await app.whenReady()` at module scope deadlocks.

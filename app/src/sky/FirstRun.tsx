@@ -6,10 +6,12 @@ import { isCharacter, isDraft, isPersona } from '../characters'
 import { K } from '../ds'
 import { face, useLibrary, useLoad } from '../hooks'
 import { Overlay, toast } from '../overlay'
-import { loadPrefs, pref, setPref, usePrefs } from '../prefs'
+import { loadPrefs, pref, setPref, skyTheme, usePrefs } from '../prefs'
 import { seedSampleWorld } from '../sample/seed'
-import { t } from '../strings'
-import { err } from '../errors'
+import { t, type Key } from '../strings'
+import { openFeedback } from './Feedback'
+import Top from './Top'
+import { classify, err } from '../errors'
 
 type Found = { name: string; base_url: string; models: string[] }
 
@@ -39,7 +41,7 @@ export function Opening() {
   }
   useEffect(() => { run() }, []) // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <div data-theme="night" className="fr">
+    <div data-theme={skyTheme(usePrefs()[0])} className="fr">
       <K.Sky />
       <main className="fr__col fr__col--narrow" aria-label={t('app.name')} style={{ paddingTop: 150 }}>
         <span className="fr__mark">{t('app.name')}</span>
@@ -56,11 +58,11 @@ export function Opening() {
   )
 }
 
-function Frame({ step, children }: { step: 1 | 2; children: ReactNode }) {
+function Frame({ step, gap, children }: { step: 1 | 2; gap?: number; children: ReactNode }) {
   return (
-    <div data-theme="night" className="fr">
+    <div data-theme={skyTheme(usePrefs()[0])} className="fr">
       <K.Sky />
-      <main className="fr__col" aria-label={t('fr.step', { n: step })}>
+      <main className="fr__col" style={gap ? { gap } : undefined} aria-label={t('fr.step', { n: step })}>
         <div className="row" style={{ justifyContent: 'space-between' }}><span className="fr__mark">{t('app.name')}</span><span className="t-meta">{t('fr.step', { n: step })}</span></div>
         {children}
       </main>
@@ -88,7 +90,7 @@ function Doors() {
     await api('/roles/rp', 'PUT', { provider_id: p.id, model: server.models[0], kind: 'auto', params: {} })
     navigate('/welcome/who')
   }
-  const six = ['liv', 'mike', 'theo', 'nico', 'jae', 'cas'].map((who) => ({ who }))
+  const six = [...['mike', 'theo', 'nico', 'jae', 'cas'].map((who) => ({ who })), { who: 'dani', name: 'Dani' }]
   return (
     <Frame step={1}>
       <div className="col" style={{ gap: 12, maxWidth: 760 }}>
@@ -109,6 +111,7 @@ function Doors() {
         <div className="row" style={{ gap: 10 }}>
           <K.AvatarStack people={six} size={30} max={6} label={t('fr.sixLabel')} />
           <span style={{ fontSize: 14, color: 'var(--mid)' }}>{t('fr.six')}</span>
+          <K.TextLink href="/characters?import=1" icon="download">{t('fr.import')}</K.TextLink>
         </div>
         <div className="row" style={{ gap: 14 }}>
           <span className="t-faint">{t('fr.later')}</span>
@@ -119,23 +122,50 @@ function Doors() {
   )
 }
 
+/** B3, B4: one card on the left, where the test's answer shows in place (the board's right-hand
+ *  column only lists the answers, so it stays empty here and keeps the card its width). */
+function Form({ icon, title, children }: { icon: 'server' | 'globe'; title: string; children: ReactNode }) {
+  return (
+    <Frame step={1} gap={28}>
+      <K.TextLink href="/welcome" icon="left">{t('fr.doors')}</K.TextLink>
+      <div className="fr__form">
+        <section className="card fr__card" aria-label={title}>
+          <div className="row" style={{ gap: 14 }}>
+            <span className="dlg__icon"><K.Icon name={icon} size={20} /></span>
+            <h1 className="fr__h2">{title}</h1>
+          </div>
+          {children}
+        </section>
+      </div>
+    </Frame>
+  )
+}
+
+type Tested = { tone: 'ok' | 'warm' | 'bad'; title: string; body?: string; provider?: Provider; model?: string; testing?: boolean }
+const KINDS = ['auto', 'llama.cpp', 'Ollama', 'LM Studio', 'KoboldCpp', 'text-generation-webui', 'other'] as const
+
 /** B3: a server by address, tested before it's used. */
 function Server() {
   const navigate = useNavigate()
+  const [found, again] = useLoad(() => api<Found[]>('/providers/detect').catch(() => []), [])
   const [address, setAddress] = useState('http://127.0.0.1:8080/v1')
+  const [kind, setKind] = useState<string>('auto')
   const [key, setKey] = useState('')
-  const [state, setState] = useState<{ tone: 'ok' | 'warm' | 'bad'; title: string; body?: string; provider?: Provider; model?: string } | null>(null)
+  const [state, setState] = useState<Tested | null>(null)
+  const kindLabel = (k: string) => (k === 'auto' ? t('fr.kind.auto') : k === 'other' ? t('fr.kind.other') : k)
   const test = async () => {
-    setState({ tone: 'warm', title: t('fr.testing', { address }) })
+    setState({ tone: 'ok', title: t('fr.testing', { address: address.replace(/^https?:\/\//, '').replace(/\/v1\/?$/, '') }), body: t('fr.testingBody'), testing: true })
     let p: Provider | undefined
     try {
-      p = await api<Provider>('/providers', 'POST', { name: new URL(address).host, base_url: address.trim(), api_key: key.trim() || null })
+      p = await api<Provider>('/providers', 'POST', { name: kind === 'auto' || kind === 'other' ? new URL(address).host : kind, base_url: address.trim(), api_key: key.trim() || null })
       const { models } = await api<{ models: string[] }>(`/providers/${p.id}/models`)
       setState(models.length ? { tone: 'ok', title: t('fr.connected'), body: t('fr.connectedBody', { n: models.length, model: models[0] }), provider: p, model: models[0] }
         : { tone: 'warm', title: err('SERVER_NO_MODEL').title, body: err('SERVER_NO_MODEL', { server: p.name }).body, provider: p })
-    } catch {
+    } catch (e) {
       if (p) await api(`/providers/${p.id}`, 'DELETE').catch(() => {})
-      setState({ tone: 'bad', title: err('SERVER_UNREACHABLE').title, body: err('SERVER_UNREACHABLE', { address, seconds: 5 }).body })
+      const code = classify((e as Error).message)
+      const shown = code === 'SERVER_UNAUTHORIZED' || code === 'SERVER_NOT_COMPATIBLE' ? code : 'SERVER_UNREACHABLE'
+      setState({ tone: 'bad', title: err(shown).title, body: err(shown, { address, seconds: 5 }).body })
     }
   }
   const go = async () => {
@@ -143,24 +173,30 @@ function Server() {
     await api('/roles/rp', 'PUT', { provider_id: state.provider.id, model: state.model, kind: 'auto', params: {} })
     navigate('/welcome/who')
   }
+  const unreachable = state?.tone === 'bad' && state.title === err('SERVER_UNREACHABLE').title
   return (
-    <Frame step={1}>
-      <h1 className="fr__h1">{t('fr.srvTitle')}</h1>
-      <div className="card card--pad col" style={{ gap: 16, maxWidth: 640 }}>
-        <K.TextField label={t('fr.address')} value={address} onChange={setAddress} error={state?.tone === 'bad' ? state.body : undefined} />
-        <K.TextField label={t('fr.key')} optional type="password" hint={t('fr.keyHint')} value={key} onChange={setKey} />
-        {state && <K.StatusLine tone={state.tone} title={state.title}>{state.tone !== 'bad' ? state.body : undefined}</K.StatusLine>}
-        <div className="row" style={{ gap: 8 }}>
-          <K.Button variant="ghost" onClick={() => navigate('/welcome')}>{t('fr.back')}</K.Button>
-          <K.Button onClick={test}>{t('fr.test')}</K.Button>
-          <K.Button variant="primary" disabled={state?.tone !== 'ok'} onClick={go}>{t('fr.useServer')}</K.Button>
-        </div>
+    <Form icon="server" title={t('fr.server')}>
+      {found && (found.length
+        ? <K.StatusLine title={t('fr.serverFound')}>{t('fr.serverFoundBody', { server: found[0].name, model: found[0].models[0] ?? '' })}</K.StatusLine>
+        : <K.StatusLine tone="warm" title={t('fr.srvNone')}>{t('fr.srvNoneBody')}</K.StatusLine>)}
+      <div className="fr__test">
+        <K.TextField label={t('fr.address')} icon="link" value={address} onChange={setAddress} error={unreachable ? state!.body : undefined} />
+        <div style={{ paddingBottom: 26 }}><K.Button onClick={test} loading={state?.testing}>{t('fr.test')}</K.Button></div>
       </div>
-    </Frame>
+      {state && !unreachable && !state.testing && <K.StatusLine tone={state.tone} title={state.title}>{state.body}</K.StatusLine>}
+      {state?.testing && <K.StatusLine title={state.title}><span className="row" style={{ gap: 8 }}><K.Spinner size={14} />{state.body}</span></K.StatusLine>}
+      <K.Select label={t('fr.kind')} options={KINDS.map(kindLabel)} value={kindLabel(kind)} onChange={(v) => setKind(KINDS.find((k) => kindLabel(k) === v) ?? 'auto')} hint={t('fr.kindHint')} />
+      <K.TextField label={t('fr.key')} optional type="password" icon="key" placeholder={t('fr.keyPlaceholder')} hint={t('fr.keyHint')} value={key} onChange={setKey} />
+      <div className="row" style={{ justifyContent: 'space-between' }}>
+        <K.Button variant="ghost" icon="refresh" onClick={() => again()}>{t('fr.look')}</K.Button>
+        <K.Button variant="primary" disabled={state?.tone !== 'ok' || !state.model} onClick={go}>{t('fr.useServer')}</K.Button>
+      </div>
+    </Form>
   )
 }
 
-const SERVICES: [string, string, string][] = [['OpenRouter', 'api.openrouter', 'https://openrouter.ai/api/v1'], ['OpenAI', 'api.openai', 'https://api.openai.com/v1'], ['Anthropic', 'api.anthropic', 'https://api.anthropic.com/v1'], ['Other', 'api.other', '']]
+const SERVICES: [string, string, string][] = [['OpenRouter', 'api.openrouter', 'https://openrouter.ai/api/v1'], ['OpenAI', 'api.openai', 'https://api.openai.com/v1'], ['Anthropic', 'api.anthropic', 'https://api.anthropic.com/v1'], ['Other', 'fr.otherService', '']]
+const KEYCHAIN = /Win/.test(navigator.userAgent) ? 'win' : /Mac/.test(navigator.userAgent) ? 'mac' : 'other'
 
 /** B4: an online model by key. */
 function Online() {
@@ -182,27 +218,29 @@ function Online() {
       navigate('/welcome/who')
     } catch (e) {
       if (p) await api(`/providers/${p.id}`, 'DELETE').catch(() => {})
-      setError((e as Error).message)
+      setError(err(classify((e as Error).message, true), { service: service === 'Other' ? t('fr.otherService') : service }).body)
     } finally {
       setBusy(false)
     }
   }
   return (
-    <Frame step={1}>
-      <h1 className="fr__h1">{t('fr.onTitle')}</h1>
-      <div className="card card--pad col" style={{ gap: 16, maxWidth: 640 }}>
-        <K.RadioGroup value={service} onChange={setService} options={SERVICES.map(([v, l]) => ({ value: v, label: t(l as 'api.openrouter') }))} />
-        {service === 'Other' && <K.TextField label={t('api.address')} value={address} onChange={setAddress} placeholder="https://…/v1" />}
-        <K.TextField label={t('api.key')} type="password" hint={t('api.keyHint')} value={key} onChange={setKey} error={error ? `${t('api.bad')} · ${error}` : undefined} />
-        <K.Callout tone="warm" icon="globe" title={t('api.privacy')}>{t('api.privacyBody')}</K.Callout>
-        <div className="row" style={{ gap: 8 }}>
-          <K.Button variant="ghost" onClick={() => navigate('/welcome')}>{t('fr.back')}</K.Button>
-          <K.Button variant="primary" loading={busy} disabled={!key.trim() || !url} onClick={go}>{t('fr.testContinue')}</K.Button>
-        </div>
+    <Form icon="globe" title={t('fr.online')}>
+      <K.Callout tone="warm" title={t('api.privacy')}>{t('fr.onPrivacy')}</K.Callout>
+      <K.RadioGroup label={t('api.service')} value={service} onChange={setService}
+        options={SERVICES.map(([v, l]) => ({ value: v, label: t(l as 'api.openrouter'), description: v === 'OpenRouter' ? t('fr.openrouterSub') : v === 'Other' ? t('fr.otherSub') : undefined }))} />
+      {service === 'Other' && <K.TextField label={t('api.address')} icon="link" value={address} onChange={setAddress} placeholder="https://…/v1" />}
+      <K.TextField label={t('api.key')} required type="password" icon="key" value={key} onChange={setKey} error={error || undefined} />
+      <K.Select label={t('fr.model')} options={[t('fr.modelWait')]} hint={t('fr.modelHint')} disabled />
+      <div className="row" style={{ justifyContent: 'space-between' }}>
+        <span className="t-faint">{t('fr.keyStored', { os: KEYCHAIN })}</span>
+        <K.Button variant="primary" loading={busy} disabled={!key.trim() || !url} onClick={go}>{t('fr.testContinue')}</K.Button>
       </div>
-    </Frame>
+    </Form>
   )
 }
+
+// the order the sample world is shown in (README › The sample world); anyone else follows by name
+const SHIPPED = ['Mike', 'Theo', 'Nico', 'Jae', 'Cas', 'Dani']
 
 /** B5, B6: who to meet first, and who you are. */
 function Who() {
@@ -217,9 +255,11 @@ function Who() {
     setSeeding(true)
     seedSampleWorld().then(() => { reload(); loadPrefs() }).finally(() => setSeeding(false))
   }, [items.length]) // eslint-disable-line react-hooks/exhaustive-deps
-  const people = items.filter(isCharacter).slice(0, 6)
-  const chosen = people.find((c) => c.id === picked) ?? people.find((c) => c.name === 'Mike') ?? people[0]
   const me = typeof prefs.persona === 'number' ? items.find((i) => i.id === prefs.persona) : items.find(isPersona)
+  const rank = (c: Item) => { const i = SHIPPED.indexOf(c.name); return i < 0 ? SHIPPED.length : i }
+  const people = items.filter((i) => i.kind === 'character' && i.id !== me?.id)
+    .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name)).slice(0, 6)
+  const chosen = people.find((c) => c.id === picked) ?? people.find((c) => c.name === 'Mike') ?? people[0]
   const start = async () => {
     if (!chosen) return
     const place = chosen.data.places?.[0]
@@ -231,8 +271,8 @@ function Who() {
     navigate(`/story/${story.id}`, { replace: true })
   }
   return (
-    <Frame step={2}>
-      <div className="col" style={{ gap: 12 }}><h1 className="fr__h1">{t('fr.who')}</h1><p className="fr__sub">{t('fr.whoSub')}</p></div>
+    <Frame step={2} gap={26}>
+      <div className="col" style={{ gap: 10 }}><h1 className="fr__h1 fr__h1--who">{t('fr.who')}</h1><p className="fr__sub fr__sub--who">{t('fr.whoSub')}</p></div>
       {seeding && !people.length ? <K.Spinner label={t('fr.seeding')} /> : (
         <div className="fr__who" role="radiogroup" aria-label={t('fr.who')}
           onKeyDown={(e) => {
@@ -243,20 +283,25 @@ function Who() {
           }}>
           {people.map((c) => (
             <button key={c.id} type="button" role="radio" aria-checked={c.id === chosen?.id} tabIndex={c.id === chosen?.id ? 0 : -1} className="fr__pick" onClick={() => setPicked(c.id)}>
-              <K.CharacterCard {...face(c)} focus={c.data.focus} name={c.name} line={c.data.tagline} when={isDraft(c) ? t('fr.draftLine') : ''} badge={isDraft(c) ? t('fr.draft') : undefined} />
+              <K.CharacterCard {...face(c)} focus={c.data.focus} name={c.name} line={c.data.tagline}
+                when={isDraft(c) ? t('fr.draftLine') : c.data.source === 'shipped' ? t('fr.ships') : ''} badge={isDraft(c) ? t('fr.draft') : undefined} />
             </button>
           ))}
         </div>
       )}
-      <div className="row" style={{ justifyContent: 'space-between' }}>
-        <div className="row" style={{ gap: 10 }}>
-          <span className="t-meta">{t('fr.youAre')}</span>
-          {me && <><K.Avatar {...face(me)} size={30} /><b>{me.name}</b></>}
-          <K.Button size="sm" variant="ghost" onClick={() => setPersona(true)}>{t('fr.change')}</K.Button>
+      <div className="card fr__you">
+        <span className="t-faint" style={{ width: 90 }}>{t('fr.youAre')}</span>
+        {me ? <K.Avatar {...face(me)} size={40} /> : <K.Avatar name="?" size={40} />}
+        <div style={{ flex: 1 }}>
+          <div className="fr__youName">{me ? (me.data.aliases?.[0] ?? me.name) : t('fr.justYouName')}</div>
+          <div className="t-meta">{t('fr.orYou')}</div>
         </div>
-        <div className="row" style={{ gap: 12 }}>
-          <K.Button variant="ghost" onClick={() => navigate('/welcome')}>{t('fr.back')}</K.Button>
-          <K.Button variant="ghost" onClick={() => navigate('/home', { replace: true })}>{t('fr.empty')}</K.Button>
+        <K.Button size="sm" onClick={() => setPersona(true)}>{t('fr.change')}</K.Button>
+      </div>
+      <div className="row" style={{ justifyContent: 'space-between' }}>
+        <K.Button variant="ghost" icon="left" onClick={() => navigate('/welcome')}>{t('fr.back')}</K.Button>
+        <div className="row" style={{ gap: 16 }}>
+          <K.Button variant="link" onClick={() => navigate('/home', { replace: true })}>{t('fr.empty')}</K.Button>
           <K.Button variant="primary" size="lg" disabled={!chosen} onClick={start}>{t('fr.startWith', { name: chosen?.name ?? '' })}</K.Button>
         </div>
       </div>
@@ -303,6 +348,11 @@ function Persona({ me, onClose, onDone }: { me?: Item; onClose: () => void; onDo
 export function ModelGone() {
   const navigate = useNavigate()
   const [left, setLeft] = useState(10)
+  const [server] = useLoad(async () => {
+    const [roles, providers] = await Promise.all([api<RoleRow[]>('/roles'), api<Provider[]>('/providers')])
+    const rp = roles.find((r) => r.role === 'rp')
+    return { rp, provider: providers.find((p) => p.id === rp?.effective_provider_id) }
+  }, [])
   useEffect(() => {
     const tick = setInterval(() => setLeft((s) => (s <= 1 ? 10 : s - 1)), 1000)
     return () => clearInterval(tick)
@@ -319,22 +369,39 @@ export function ModelGone() {
     } catch { return false }
   }
   useEffect(() => { if (left === 10) check() }, [left]) // eslint-disable-line react-hooks/exhaustive-deps
-  const causes: [string, string][] = [['mg.c1', 'mg.c1Body'], ['mg.c2', 'mg.c2Body'], ['mg.c3', 'mg.c3Body'], ['mg.c4', 'mg.c4Body']]
+  const p = server?.provider
+  const host = p ? (() => { try { return new URL(p.base_url).host } catch { return p.base_url } })() : ''
+  const local = /^(localhost|127\.0\.0\.1|\[::1\])(:|$)/.test(host)
+  const name = p?.name ?? t('mg.theServer')
+  // the facts in bold, as the board has them
+  const facts = { server: '\u0001server', where: local ? t('mg.here') : '', address: '\u0001address', ago: '\u0001ago' }
+  const shown: Record<string, string> = { server: name, address: host || t('mg.itsAddress'), ago: t('mg.agoNow') }
+  const body = err('MODEL_GONE', facts).body.replace(/\s+/g, ' ').split(/(\u0001\w+)/).map((part, i) => (part.startsWith('\u0001') ? <b key={i}>{shown[part.slice(1)]}</b> : part))
+  const causes: [Key, Key, ReactNode?][] = [
+    ['mg.c1', 'mg.c1Body'], ['mg.c2', 'mg.c2Body'], ['mg.c3', 'mg.c3Body'],
+    ['mg.c4', 'mg.c4Body', <K.Button key="f" size="sm" href="/settings/models">{t('mg.look')}</K.Button>],
+  ]
   return (
-    <main className="app__main" aria-label={t('mg.title')} style={{ gap: 24 }}>
-      <K.Alert title={err('MODEL_GONE').title} code="MODEL_GONE" actions={<>
-        <K.Button variant="primary" onClick={check}>{t('mg.retry')}</K.Button>
+    <main className="app__main" aria-label={t('mg.label')} style={{ gap: 24, maxWidth: 980 }}>
+      <Top />
+      <K.Alert title={err('MODEL_GONE').title} code="MODEL_GONE" icon="server" actions={<>
+        <K.Button variant="primary" icon="refresh" onClick={check}>{t('mg.retry')}</K.Button>
         <K.Button href="/settings/models">{t('mg.settings')}</K.Button>
-      </>}>{err('MODEL_GONE', { ago: t('mg.agoNow'), where: '' }).body}</K.Alert>
-      <span className="t-meta">{t('mg.live', { s: left })}</span>
-      <section className="sec"><h2 className="sec-title">{t('mg.works')}</h2>
-        <div className="row" style={{ gap: 14, alignItems: 'stretch' }}>
-          {([['mg.read', 'mg.readBody'], ['mg.write', 'mg.writeBody'], ['mg.export', 'mg.exportBody']] as const).map(([a, b]) => <K.Callout key={a} tone="ok" title={t(a)}>{t(b)}</K.Callout>)}
+      </>}>{body}</K.Alert>
+      <div className="row" style={{ gap: 10 }} role="status" aria-live="polite"><K.Spinner size={14} /><span className="t-meta">{t('mg.live', { s: left })}</span></div>
+      <section className="sec" aria-labelledby="mg-works">
+        <div className="sec-head"><h2 className="sec-title" id="mg-works">{t('mg.works')}</h2></div>
+        <div className="mg-works">
+          {([['book', 'mg.read', 'mg.readBody'], ['edit', 'mg.write', 'mg.writeBody'], ['download', 'mg.export', 'mg.exportBody']] as const).map(([icon, a, b]) => <K.Callout key={a} tone="ok" icon={icon} title={t(a)}>{t(b)}</K.Callout>)}
         </div>
       </section>
-      <section className="sec"><h2 className="sec-title">{t('mg.causes')}</h2>
-        <div className="col" style={{ gap: 10 }}>{causes.map(([a, b]) => <K.Callout key={a} title={t(a as 'mg.c1')}>{t(b as 'mg.c1Body')}</K.Callout>)}</div>
+      <section className="sec" aria-labelledby="mg-causes">
+        <div className="sec-head"><h2 className="sec-title" id="mg-causes">{t('mg.causes')}</h2></div>
+        <div className="card">
+          {causes.map(([a, b, act]) => <div key={a} className="mg-cause"><b>{t(a)}</b><span className="t-body">{t(b, { server: name, model: server?.rp?.effective_model ?? '' })}</span>{act ?? <span />}</div>)}
+        </div>
       </section>
+      <div className="row" style={{ gap: 10 }}><span className="t-meta">{t('mg.stuck')}</span><span onClick={() => openFeedback('bug')}><K.TextLink icon="help">{t('mg.report')}</K.TextLink></span></div>
     </main>
   )
 }

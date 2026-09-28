@@ -1,8 +1,8 @@
 // Characters (D1–D5): docs/handoff/kataki-handoff/SCREENS.md › /characters.
 import { useState } from 'react'
-import { useNavigate } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
 import { api, sendFile, type Item, type Look, type StorySummary } from '../api'
-import { isCharacter, isDraft, isPersona, storiesWith, tagline, type Group } from '../characters'
+import { isDraft, isPersona, storiesWith, tagline, type Group } from '../characters'
 import { K } from '../ds'
 import { face, useLibrary, useLoad, utc } from '../hooks'
 import { openMenu, Overlay, toast, withMenu } from '../overlay'
@@ -27,13 +27,14 @@ export default function Characters() {
   const [view, setView] = useState<'grid' | 'list'>()
   const [hidden, setHidden] = useState<number[]>([])
   const [deleting, setDeleting] = useState<Item>()
-  const [importing, setImporting] = useState(false)
+  const [params] = useSearchParams()
+  const [importing, setImporting] = useState(() => params.has('import')) // first run's "Import cards"
   const [grouping, setGrouping] = useState<Group | 'new'>()
   const shownAs = view ?? (settings?.['ui.charactersView'] === 'list' ? 'list' : 'grid')
   const groups = settings?.groups ?? []
 
-  const everyone = items.filter((i) => i.kind === 'character' && !hidden.includes(i.id) && (isCharacter(i) || storiesWith(i, stories).some((s) => s.cast.some((c) => c.lib_item_id === i.id))))
-  const people = items.filter((i) => isCharacter(i) && !hidden.includes(i.id))
+  // everyone but the one you're playing as; another persona is a character too ("Also a persona")
+  const people = items.filter((i) => i.kind === 'character' && !hidden.includes(i.id) && i.id !== settings?.persona)
   const lastOf = (c: Item) => storiesWith(c, stories)[0]
   const test: Record<Filter, (c: Item) => boolean> = {
     all: () => true, story: (c) => !!lastOf(c), fav: (c) => !!c.data.favourite, drafts: isDraft, persona: isPersona,
@@ -45,8 +46,7 @@ export default function Characters() {
     name: (a, b) => a.name.localeCompare(b.name),
     most: (a, b) => storiesWith(b, stories).length - storiesWith(a, stories).length,
   }
-  const pool = filter === 'persona' ? everyone : people
-  const shown = pool.filter(test[filter]).sort(order[sort])
+  const shown = people.filter(test[filter]).sort(order[sort])
   const featured = shown.length && sort === 'played' && lastOf(shown[0]) ? shown[0].id : undefined
   const menuFor = (c: Item) => characterMenu(c, stories, navigate, reload, () => setDeleting(c))
   const when = (c: Item) => { const l = lastOf(c); return l ? t('card.when.played', { relative: relative(utc(l.last_at)) }) : t('chars.never') }
@@ -76,7 +76,7 @@ export default function Characters() {
         <div className="row row--wrap" style={{ gap: 8 }}>
           {FILTERS.map((f) => (
             <K.Chip key={f} pressed={filter === f} icon={f === 'fav' ? 'star' : undefined} onPress={() => setFilter(f)}
-              count={(f === 'persona' ? everyone : people).filter(test[f]).length}>{t(`chars.f.${f}` as Key)}</K.Chip>
+              count={people.filter(test[f]).length}>{t(`chars.f.${f}` as Key)}</K.Chip>
           ))}
         </div>
         <div style={{ width: 220 }}>

@@ -37,3 +37,16 @@ def test_old_backups_go_past_the_number_kept(tmp_path):
     backups.prune(tmp_path / "library.db", "2")
     assert [b["name"] for b in backups.listing(tmp_path / "library.db")] == ["library-20260102-000000.db", "library-20260101-000000.db"]
     conn.close()
+
+
+def test_storage_says_where_the_library_lives(tmp_path, backend):
+    path = tmp_path / "library.db"
+    conn = db.connect(path)
+    api = TestClient(create_app(conn, "t", llm=backend.llm, worker_delay=60, db_path=path), headers={"Authorization": "Bearer t"})
+    with api:
+        png = b"\x89PNG\r\n\x1a\n" + b"\0" * 64
+        api.post("/media", content=png, headers={"content-type": "image/png"})
+        places = {s["what"]: s for s in api.get("/storage").json()}
+    assert places["library"]["path"] == str(tmp_path.resolve()) and places["library"]["bytes"] > 0
+    assert places["pictures"]["bytes"] == len(png)
+    conn.close()

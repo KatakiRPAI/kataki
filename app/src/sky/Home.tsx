@@ -5,7 +5,7 @@ import { api, type ActivityEvent, type Item, type Person, type Provider, type Ro
 import { K } from '../ds'
 import { face, scenery, twelve, useLibrary, useLoad, utc } from '../hooks'
 import { relative, t } from '../strings'
-import { isDraft } from '../characters'
+import { isDraft, said } from '../characters'
 import Top from './Top'
 import { openFeedback } from './Feedback'
 import { Overlay } from '../overlay'
@@ -14,8 +14,8 @@ import { setPref, usePrefs } from '../prefs'
 type Filter = 'all' | 'story' | 'drafts'
 const TONE = { memory: 'ok', belief: 'warm', feeling: 'warm', time: 'muted' } as const
 const EVENT = { memory: 'event.memory', belief: 'event.belief', feeling: 'event.feeling', time: 'event.time' } as const
-// a quote reads as words: the *action* markers of the chat are dropped
-const quoted = (text: string) => `“${text.replace(/\*/g, '').trim()}”`
+// a quote is what was said; the *actions* of the chat are left out
+const quoted = (text: string) => `“${said(text)}”`
 
 export default function Home() {
   const navigate = useNavigate()

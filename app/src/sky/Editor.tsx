@@ -221,7 +221,7 @@ export default function Editor() {
                     <button type="button" className="opt" aria-expanded={on} onClick={() => setOpen((o) => (on ? o.filter((x) => x !== s) : [...o, s]))}>
                       <K.Icon name={icon} size={18} />
                       <span><span className="opt__t">{t(title)}</span><span className="opt__d">{t(sub)}</span></span>
-                      <span className="opt__s">{t(filled[s](f) ? 'ed.s.written' : 'ed.s.empty')}</span>
+                      <span className="opt__s">{t(filled[s](f) ? 'ed.s.written' : s === 'model' ? 'ed.s.default' : 'ed.s.empty')}</span>
                     </button>
                     {on && (
                       <div className="optbody">

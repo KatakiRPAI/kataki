@@ -18,7 +18,7 @@ export type Hit = {
 }
 type Found = {
   stories: { id: number; title: string }[]
-  items: { id: number; kind: Item['kind']; name: string }[]
+  items: { id: number; kind: Item['kind']; name: string; description: string }[]
   books: { id: number; title: string }[]
   lines: { id: number; story_id: number; story_title: string; speaker: string | null; text: string }[]
   memories: { id: number; story_id: number; story_title: string; detail: string }[]
@@ -52,7 +52,7 @@ export async function lookup(query: string): Promise<Hit[]> {
     const i = item(f.id)
     if (i?.data.unlisted) continue
     const kind = f.kind === 'character' ? (i?.data.persona ? 'persona' : 'character') : f.kind
-    hits.push({ kind, id: f.id, title: f.name, item: i, href: kind === 'character' ? `/characters/${f.id}` : kind === 'persona' ? '/you' : '/world', at: i ? utc(i.updated_at ?? i.created_at) : 0, score: score(f.name, q) + 4 })
+    hits.push({ kind, id: f.id, title: f.name, text: f.description || undefined, item: i, href: kind === 'character' ? `/characters/${f.id}` : kind === 'persona' ? '/you' : '/world', at: i ? utc(i.updated_at ?? i.created_at) : 0, score: score(f.name, q) + 4 })
   }
   for (const b of found.books) hits.push({ kind: 'book', id: b.id, title: b.title, href: '/world', at: 0, score: score(b.title, q) + 3 })
   for (const l of found.lines) {

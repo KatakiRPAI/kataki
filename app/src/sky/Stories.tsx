@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { api, download, type ActivityEvent, type Person, type StorySummary } from '../api'
+import { said } from '../characters'
 import { K } from '../ds'
 import { face, scenery, useLibrary, useLoad, utc } from '../hooks'
 import { Overlay, toast } from '../overlay'
@@ -16,7 +17,7 @@ const ORDER: Record<Sort, (a: StorySummary, b: StorySummary) => number> = {
   time: (a, b) => b.story_time - a.story_time,
   name: (a, b) => a.title.localeCompare(b.title),
 }
-const quoted = (text: string) => text.replace(/\*/g, '').trim()
+const quoted = said
 
 export default function Stories() {
   const [params, setParams] = useSearchParams()
@@ -35,15 +36,18 @@ export default function Stories() {
   const all = (stories ?? []).filter((s) => !gone.includes(s.id))
   const books = [...new Map(all.flatMap((s) => (s.book ? [[s.book.id, s.book.title] as const] : []))).entries()]
   const personas = [...new Map(all.flatMap((s) => (s.persona?.lib_item_id && s.persona.lib_item_id !== settings?.persona ? [[s.persona.lib_item_id, s.persona.name] as const] : []))).entries()]
+  // unfinished: your line is the last one, still waiting for its answer
+  const unfinished = (s: StorySummary) => !!s.last_line && !!s.persona && s.last_line.speaker === s.persona.name
   const chips: [string, string, number][] = [
     ['all', t('stories.all'), all.length],
     ['pinned', t('stories.pinned'), all.filter((s) => s.pinned).length],
     ...books.map(([id, title]) => [`book:${id}`, title, all.filter((s) => s.book?.id === id).length] as [string, string, number]),
     ...personas.map(([id, name]) => [`as:${id}`, t('stories.as', { name }), all.filter((s) => s.persona?.lib_item_id === id).length] as [string, string, number]),
+    ['unfinished', t('stories.unfinished'), all.filter(unfinished).length],
   ]
   const q = query.trim().toLowerCase()
   const shown = all
-    .filter((s) => filter === 'all' ? true : filter === 'pinned' ? s.pinned
+    .filter((s) => filter === 'all' ? true : filter === 'pinned' ? s.pinned : filter === 'unfinished' ? unfinished(s)
       : filter.startsWith('book:') ? s.book?.id === Number(filter.slice(5)) : s.persona?.lib_item_id === Number(filter.slice(3)))
     .filter((s) => !q || [s.title, s.book?.title, s.last_line?.text, ...s.cast.map((c) => c.name)].some((x) => x?.toLowerCase().includes(q)))
     .sort(ORDER[sort])

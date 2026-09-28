@@ -7,14 +7,23 @@ import { utc } from './hooks'
 export const isCharacter = (i: Item) => i.kind === 'character' && !i.data.persona
 export const isPersona = (i: Item) => i.kind === 'character' && !!i.data.persona
 /** No secret yet: a draft, which can still play (DATA.md › Character). */
-export const isDraft = (i: Item) => !i.private.trim()
+/** The name on the profile: "Mike Dorsey" when an alias spells Mike out in full. */
+export const fullName = (i: Item) => i.data.aliases?.find((a) => a.startsWith(`${i.name} `)) ?? i.name
+export const isDraft = (i: Item) => !i.data.persona && !i.private.trim() // a persona has no secret to keep
 export const tagline = (i: Item) => i.data.tagline ?? i.description.split(/(?<=[.!?])\s/)[0] ?? ''
 
 export function storiesWith(i: Item, stories: StorySummary[] | undefined) {
-  return (stories ?? []).filter((s) => s.cast.some((c) => c.lib_item_id === i.id)).sort((a, b) => utc(b.last_at) - utc(a.last_at))
+  return (stories ?? []).filter((s) => s.cast.some((c) => c.lib_item_id === i.id) || s.persona?.lib_item_id === i.id).sort((a, b) => utc(b.last_at) - utc(a.last_at))
 }
 
 /** An `{he}/{him}/{his}` pick for ICU selects. */
 export const pronoun = (i: Item | undefined) => i?.data.pronouns ?? 'they'
 
 export type Group = { id: number; name: string; members: number[]; place: number | null }
+
+/** What was said, without the *actions* ("*frowns* …I could have sworn." → "…I could have sworn.");
+ *  a line that is all action keeps its words. */
+export function said(text: string) {
+  const words = text.replace(/\*[^*]*\*/g, ' ').replace(/\s+/g, ' ').trim()
+  return words || text.replace(/\*/g, '').trim()
+}

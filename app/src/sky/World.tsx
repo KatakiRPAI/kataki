@@ -135,14 +135,17 @@ export default function World() {
           </div>
         </nav>
         <div className="col" style={{ gap: 22, minWidth: 0 }}>
-          <K.Breadcrumbs items={crumbs} />
+          {where !== 'all' && <K.Breadcrumbs items={crumbs} />}
           <div className="row" style={{ justifyContent: 'space-between' }}>
             <K.Tabs label={t('w.show')} size="sm" tabs={[t('w.all'), t('w.places'), t('w.plots')]} value={t(`w.${show}` as Key)}
               counts={{ [t('w.all')]: places.length + plots.length, [t('w.places')]: places.length, [t('w.plots')]: plots.length }}
               onChange={(v) => setShow(v === t('w.places') ? 'places' : v === t('w.plots') ? 'plots' : 'all')} />
-            <div style={{ width: 190 }}>
+            <div className="row" style={{ gap: 10 }}>
+             <span className="t-meta">{t('w.filterLine', { n: places.length + plots.length, who: (who && byId.get(who)?.name) || 'none' })}</span>
+             <div style={{ width: 190 }}>
               <K.Select label="" options={(['used', 'made', 'name'] as Sort[]).map((s) => t(`w.sort.${s}` as Key))} value={t(`w.sort.${sort}` as Key)}
                 onChange={(v) => setSort((['used', 'made', 'name'] as Sort[]).find((s) => t(`w.sort.${s}` as Key) === v) ?? 'used')} />
+             </div>
             </div>
           </div>
           {!groups.length && <p className="t-meta">{t('w.nothingHere')}</p>}

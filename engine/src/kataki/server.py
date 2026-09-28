@@ -439,9 +439,17 @@ def create_app(
         rows = lambda sql: [dict(r) for r in conn.execute(sql, (like, limit))]  # noqa: E731
         return {
             "stories": rows("SELECT id, title FROM stories WHERE title LIKE ? ESCAPE '\\' LIMIT ?"),
-            "items": rows(
-                "SELECT id, kind, name FROM lib_items WHERE name LIKE ? ESCAPE '\\' ORDER BY name LIMIT ?"
-            ),
+            # a name, or what the item says about itself ("The palace sends out the gala list");
+            # never the private field, which only the character knows
+            "items": [
+                dict(r)
+                for r in conn.execute(
+                    "SELECT id, kind, name, description FROM lib_items"
+                    " WHERE name LIKE ?1 ESCAPE '\\' OR description LIKE ?1 ESCAPE '\\'"
+                    " ORDER BY name LIKE ?1 ESCAPE '\\' DESC, name LIMIT ?2",
+                    (like, limit),
+                )
+            ],
             "books": rows("SELECT id, title FROM books WHERE title LIKE ? ESCAPE '\\' LIMIT ?"),
             "lines": rows(
                 "SELECT m.id, m.story_id, s.title AS story_title, e.name AS speaker, m.text"
@@ -1496,6 +1504,22 @@ def create_app(
         return row
 
     if db_path is not None:
+
+        @app.get("/storage")
+        async def storage():
+            """Where the library lives on this computer, and how big it is (K10)."""
+
+            def size(p: Path) -> int:
+                if p.is_dir():
+                    return sum(f.stat().st_size for f in p.rglob("*") if f.is_file())
+                return p.stat().st_size if p.exists() else 0
+
+            db = db_path.resolve()
+            pictures = media.folder(conn)
+            return [
+                {"what": "library", "path": str(db.parent), "bytes": sum(size(Path(f"{db}{s}")) for s in ("", "-wal"))},
+                {"what": "pictures", "path": str(pictures), "bytes": size(pictures)},
+            ]
 
         @app.get("/backups")
         async def list_backups():

@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 import { api, type Feelings, type Item, type KnownMemory, type Profile as Profiled, type StorySummary } from '../api'
-import { pronoun, storiesWith, tagline } from '../characters'
+import { fullName, pronoun, storiesWith, tagline } from '../characters'
 import { K } from '../ds'
 import { face, scenery, useLibrary, useLoad, utc, useTitle } from '../hooks'
 import { openMenu, Overlay, toast, type MenuItem } from '../overlay'
@@ -16,6 +16,8 @@ const clarity = (m: KnownMemory) => Math.round(100 / (1 + Math.exp(-(m.A + 3))))
 const doubted = (m: KnownMemory) => m.belief < 0.7
 const word = (m: KnownMemory) => t(doubted(m) ? 'mem.word.doubted' : (`mem.word.${m.tier}` as Key))
 const tone = (m: KnownMemory) => (doubted(m) ? 'warm' : m.tier === 'sharp' ? 'ok' : 'muted') as 'warm' | 'ok' | 'muted'
+// the engine's edge names (library.RELATIONSHIP) as the profile says them: "fond of her"
+const REL: Record<string, Key> = { 'friend of': 'rel.friend', 'fond of': 'rel.fond', 'wary of': 'rel.wary', 'rival of': 'rel.rival', 'family of': 'rel.family' }
 const source = (m: KnownMemory) => (m.told_by ? t('mem.told', { name: m.told_by }) : t(m.source === 'witnessed' ? 'mem.seen' : 'mem.heard'))
 /** How they talk: their sample lines, without the "Mira:" a card puts before each. */
 export const lines = (c: Item) =>
@@ -87,7 +89,7 @@ export default function Profile() {
           : <div className="pf-portrait pf-portrait--none" aria-hidden="true">{c.name[0]}</div>}
         <div className="col" style={{ flex: 1, gap: 14, paddingBottom: 6 }}>
           {latest && <K.Stamp exact={new Date(utc(latest.last_at)).toLocaleString('en-GB')} detail={latest.title}>{t('card.when.played', { relative: relative(utc(latest.last_at)) })}</K.Stamp>}
-          <h1 className="pf-name">{c.name}</h1>
+          <h1 className="pf-name">{fullName(c)}</h1>
           {tagline(c) && <p className="pf-tagline">{tagline(c)}</p>}
           {c.tags.length > 0 && <div className="row" style={{ gap: 8 }}>{c.tags.map((tg) => <K.Tag key={tg}>{tg}</K.Tag>)}</div>}
           <div className="row" style={{ gap: 12 }}>
@@ -113,13 +115,13 @@ export default function Profile() {
                   <div className="col" style={{ gap: 10 }}>{lines(c).slice(0, 4).map((l, i) => <K.Bubble key={i} indent={i % 2 === 1}>{l}</K.Bubble>)}</div>
                 </section>
               )}
-              {c.private && <K.SecretCard name={c.name} title={t('pf.secret')}>{c.private}</K.SecretCard>}
+              {c.private && <K.SecretCard name={c.name} title={t('pf.secret', { name: c.name })}>{c.private}</K.SecretCard>}
               {here && here.relationships.length > 0 && (
                 <section><h2 className="pf-h">{t('pf.knows', { p })}</h2>
                   <div className="row row--wrap" style={{ gap: 12 }}>
                     {here.relationships.map((r) => {
                       const other = byId.get(latest?.cast.find((x) => x.id === r.other_id)?.lib_item_id ?? -1)
-                      return <K.RelationshipCard key={`${r.other_id}-${r.rel}`} {...face(other, r.other)} name={r.other} how={r.note ?? r.rel} />
+                      return <K.RelationshipCard key={`${r.other_id}-${r.rel}`} {...face(other, r.other)} name={r.other} how={r.note ?? (REL[r.rel] ? t(REL[r.rel], { p: pronoun(other) }) : r.rel)} />
                     })}
                   </div>
                 </section>
@@ -148,7 +150,7 @@ export default function Profile() {
                   <div className="col" style={{ gap: 10 }}>{lines(c).map((l, i) => <K.Bubble key={i} indent={i % 2 === 1}>{l}</K.Bubble>)}</div>
                 </section>
               )}
-              {c.private && <K.SecretCard name={c.name} title={t('pf.secret')}>{c.private}</K.SecretCard>}
+              {c.private && <K.SecretCard name={c.name} title={t('pf.secret', { name: c.name })}>{c.private}</K.SecretCard>}
               <section><h2 className="pf-h">{t('pf.details')}</h2>
                 <K.Panel flush>
                   <K.SettingsRow title={t('pf.pronouns')} description={t('pf.pronounsSub', { name: c.name, p })}><span className="t-body">{t(`pron.${p}` as Key)}</span></K.SettingsRow>

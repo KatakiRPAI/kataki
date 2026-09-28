@@ -3,7 +3,8 @@ import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { api, type Book, type Cast, type Item, type Story, type StorySummary } from '../api'
 import { K } from '../ds'
-import { face, scenery, useLibrary, useLoad } from '../hooks'
+import { face, scenery, useLibrary, useLoad, utc } from '../hooks'
+import { fullName, isDraft, storiesWith, tagline } from '../characters'
 import { Overlay } from '../overlay'
 import { t, type Key } from '../strings'
 
@@ -43,9 +44,11 @@ export default function NewStory() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
-  const characters = items.filter((i) => i.kind === 'character' && !i.data.persona)
+  // the most recently played first, as the board has them
+  const played = (c: Item) => Math.max(0, ...storiesWith(c, stories).map((s) => utc(s.last_at)))
+  const characters = items.filter((i) => i.kind === 'character' && !i.data.persona).sort((a, b) => played(b) - played(a) || a.name.localeCompare(b.name))
   const personas = items.filter((i) => i.kind === 'character' && i.data.persona)
-  const places = items.filter((i) => i.kind === 'place' && !i.data.unlisted)
+  const places = items.filter((i) => i.kind === 'place' && !i.data.unlisted).sort((a, b) => a.id - b.id) // in the order they were made
   const plots = items.filter((i) => i.kind === 'scenario')
   const me = persona === undefined ? (settings?.persona ? byId.get(settings.persona) : personas[0]) : persona === null ? undefined : byId.get(persona)
   const people = chosen.map((id) => byId.get(id)).filter((i): i is Item => !!i)
@@ -117,7 +120,7 @@ export default function NewStory() {
                 const f = face(c)
                 return (
                   <K.Chip key={c.id} who={f.who} src={f.src} pressed={chosen.includes(c.id)} onPress={() => toggle(c.id)}>
-                    {c.description.trim() ? c.name : t('ns.draft', { name: c.name })}
+                    {isDraft(c) ? t('ns.draft', { name: c.name }) : c.name}
                   </K.Chip>
                 )
               })}
@@ -143,7 +146,7 @@ export default function NewStory() {
               {(changing ? [...personas, null] : [me ?? null]).map((p) => {
                 const pick = () => { setPersona(p ? p.id : null); setChanging(false) }
                 const card = p
-                  ? <K.PersonaCard {...face(p)} name={p.name} line={p.description} isDefault={p.id === settings?.persona} selected={p.id === me?.id} />
+                  ? <K.PersonaCard {...face(p)} name={fullName(p)} line={tagline(p)} isDefault={p.id === settings?.persona} selected={p.id === me?.id} />
                   : <K.PersonaCard icon="user" name={t('ns.noPersona')} line={t('ns.noPersonaLine')} selected={!me} />
                 return changing
                   ? <button key={p?.id ?? 0} type="button" className="ns-pick" onClick={pick} aria-pressed={p ? p.id === me?.id : !me}>{card}</button>

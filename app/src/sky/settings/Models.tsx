@@ -72,8 +72,8 @@ export default function Models() {
           })}
         </K.Panel>
         <div className="row" style={{ gap: 8 }}>
-          <K.Button icon="search" onClick={() => setAdding('find')}>{t('mo.find')}</K.Button>
-          <K.Button icon="globe" variant="ghost" onClick={() => setAdding('api')}>{t('mo.addOnline')}</K.Button>
+          <K.Button size="sm" icon="search" onClick={() => setAdding('find')}>{t('mo.find')}</K.Button>
+          <K.Button size="sm" icon="plus" onClick={() => setAdding('api')}>{t('mo.addOnline')}</K.Button>
         </div>
       </K.SettingsSection>
 
@@ -84,7 +84,7 @@ export default function Models() {
             const model = row?.model ?? (row?.inherited_from ? t('mo.borrows', { job: t(`mo.job.${row.inherited_from}` as Key) }) : row?.effective_model ?? (job === 'embed' ? t('mo.builtIn') : t('mo.unset')))
             return (
               <div key={job}>
-                <K.JobRow icon={job === 'embed' ? 'search' : job === 'utility' ? 'book' : job === 'reasoning' ? 'thought' : job === 'narrator' ? 'quill' : 'users'}
+                <K.JobRow icon={job === 'embed' ? 'search' : job === 'utility' ? 'thought' : job === 'reasoning' ? 'spark' : job === 'narrator' ? 'quill' : 'users'}
                   name={t(`mo.job.${job}` as Key)} description={t(`mo.job.${job}Sub` as Key)} model={model} open={open === job}
                   onClick={() => setOpen(open === job ? undefined : job)} />
                 {open === job && row && <JobPanel key={job} job={job} row={row} providers={providers ?? []} onSaved={reloadRoles} />}

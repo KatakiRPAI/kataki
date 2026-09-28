@@ -1,52 +1,76 @@
 // You (J1–J3): who you play as, and what each character knows about them.
 import { useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router'
 import { api, mediaUrl, upload, type Item, type Person, type Profile, type Pronouns, type StorySummary } from '../api'
-import { isPersona } from '../characters'
+import { fullName, isPersona, pronoun, tagline } from '../characters'
 import { K } from '../ds'
 import { face, useLibrary, useLoad } from '../hooks'
 import { Overlay, toast } from '../overlay'
 import { setPref, usePrefs } from '../prefs'
+import { personaMenu } from './Palette'
 import { t, type Key } from '../strings'
 
 const PRONOUNS: Pronouns[] = ['she', 'he', 'they']
 
 export default function You() {
+  const navigate = useNavigate()
   const { items, reload } = useLibrary()
   const [prefs] = usePrefs()
-  const personas = items.filter(isPersona)
   const def = prefs.persona as number | null | undefined
+  const personas = items.filter(isPersona).sort((a, b) => Number(b.id === def) - Number(a.id === def)) // the default first
   const [picked, setPicked] = useState<number | null>()
   const current = picked === undefined ? (def === null ? null : personas.find((p) => p.id === def) ?? personas[0]) : picked === null ? null : personas.find((p) => p.id === picked)
-  const [editing, setEditing] = useState<Item | 'new' | undefined>(() => (new URLSearchParams(location.search).get('new') ? 'new' : undefined))
+  const [params] = useSearchParams()
+  const [editing, setEditing] = useState<Item | 'new' | undefined>(() => (params.get('new') ? 'new' : undefined))
   const [deleting, setDeleting] = useState<Item>()
   const [stories] = useLoad(() => api<StorySummary[]>('/stories'), [])
+  const [known, reloadKnown] = useLoad(() => (current ? knownAbout(current) : Promise.resolve([])), [current?.id])
+  const isDef = (p: Item) => p.id === (def ?? personas[0]?.id) && def !== null
+  const played = current ? (stories ?? []).filter((s) => s.persona?.lib_item_id === current.id).length : 0
+  const f: { who?: string; src?: string } = current ? face(current) : {}
   return (
-    <main className="app__main" aria-label={t('you.title')} style={{ gap: 26 }}>
-      <div className="pg-head"><div><h1 className="pg-title">{t('you.title')}</h1><p className="pg-sub">{t('you.sub')}</p></div></div>
-      <div className="row row--wrap" style={{ gap: 14, alignItems: 'stretch' }}>
-        {personas.map((p) => {
-          const isDef = p.id === (def ?? personas[0]?.id) && def !== null
-          return (
-            <div key={p.id} className="you-card">
-              <button type="button" className="ns-pick" aria-pressed={current?.id === p.id} onClick={() => setPicked(p.id)}>
-                <K.PersonaCard {...face(p)} name={p.name} line={p.description} isDefault={isDef} selected={current?.id === p.id} />
-              </button>
-              <div className="row" style={{ gap: 6 }}>
-                {isDef ? <K.StatePill tone="accent">{t('you.default')}</K.StatePill> : <K.Button size="sm" variant="ghost" onClick={() => setPref('persona', p.id)}>{t('you.switch')}</K.Button>}
-                <K.Button size="sm" variant="ghost" icon="edit" onClick={() => setEditing(p)}>{t('you.edit')}</K.Button>
-              </div>
-            </div>
-          )
-        })}
-        <div className="you-card">
-          <button type="button" className="ns-pick" aria-pressed={current === null} onClick={() => setPicked(null)}>
-            <K.PersonaCard icon="feather" name={t('you.director')} line={t('you.directorLine')} selected={current === null} isDefault={def === null} />
-          </button>
-          {def !== null && <K.Button size="sm" variant="ghost" onClick={() => setPref('persona', null)}>{t('you.switch')}</K.Button>}
-        </div>
-        <K.AddCard wide icon="user" onClick={() => setEditing('new')}>{t('you.new')}</K.AddCard>
+    <main className="app__main" aria-label={t('you.title')} style={{ gap: 28 }}>
+      <div className="pg-head">
+        <div><h1 className="pg-title">{t('you.title')}</h1><p className="pg-sub">{t('you.sub')}</p></div>
+        <K.Button icon="plus" onClick={() => setEditing('new')}>{t('you.new')}</K.Button>
       </div>
-      {current && <Knows persona={current} stories={stories ?? []} onDelete={() => setDeleting(current)} />}
+
+      {current && (
+        <section className="you-hero">
+          {f.src ?? (f.who && K.ART[f.who]?.src) ? <img className="you-portrait" src={f.src ?? K.ART[f.who!]!.src!} alt={current.name} style={{ objectPosition: current.data.focus ?? K.ART[f.who ?? '']?.focus }} />
+            : <K.Avatar name={current.name} size={120} />}
+          <div className="col" style={{ gap: 12, flex: 1 }}>
+            <K.Eyebrow tone="mid">{t(isDef(current) ? 'you.default' : 'you.persona')}</K.Eyebrow>
+            <h2 className="you-name">{fullName(current)}</h2>
+            {tagline(current) && <p className="you-line">{tagline(current)}</p>}
+            {current.tags.length > 0 && <div className="row" style={{ gap: 8 }}>{current.tags.map((g) => <K.Tag key={g}>{g}</K.Tag>)}</div>}
+            <div className="row" style={{ gap: 10 }}>
+              <K.Button icon="edit" onClick={() => setEditing(current)}>{t('you.edit')}</K.Button>
+              <span onClick={(e) => personaMenu(e.currentTarget, items, def, navigate)}><K.Button variant="ghost" icon="swap">{t('you.switchTo')}</K.Button></span>
+            </div>
+          </div>
+          <K.StatRow stats={[[String(played), t('you.stories', { n: played })], [String(new Set(known?.map((k) => k.who)).size), t('you.knowers', { n: new Set(known?.map((k) => k.who)).size, p: pronoun(current) })]]} />
+        </section>
+      )}
+
+      <section className="sec" aria-label={t('you.personas')}>
+        <h2 className="sec-title">{t('you.personas')}</h2>
+        <div className="row row--wrap" style={{ gap: 14, alignItems: 'stretch' }}>
+          {personas.map((p) => (
+            <button key={p.id} type="button" className="ns-pick" aria-pressed={current?.id === p.id} onClick={() => setPicked(p.id)}>
+              <K.PersonaCard {...face(p)} name={fullName(p)} line={tagline(p)} isDefault={isDef(p)} selected={current?.id === p.id} />
+            </button>
+          ))}
+          <button type="button" className="ns-pick" aria-pressed={current === null} onClick={() => setPicked(null)}>
+            <K.PersonaCard icon="eye" name={t('you.director')} line={t('you.directorLine')} selected={current === null} isDefault={def === null} />
+          </button>
+          <div style={{ width: 220 }}><K.AddCard wide onClick={() => setEditing('new')}>{t('you.new')}</K.AddCard></div>
+        </div>
+        {current && !isDef(current) && <div><K.Button size="sm" variant="ghost" onClick={() => setPref('persona', current.id)}>{t('you.switch')}</K.Button></div>}
+        {current === null && def !== null && <div><K.Button size="sm" variant="ghost" onClick={() => setPref('persona', null)}>{t('you.switch')}</K.Button></div>}
+      </section>
+
+      {current && <Knows persona={current} known={known} reload={reloadKnown} onDelete={() => setDeleting(current)} />}
       {editing && <EditPersona p={editing === 'new' ? undefined : editing} isDefault={editing !== 'new' && editing.id === def} stories={stories ?? []}
         onClose={() => setEditing(undefined)} onDone={reload} />}
       {deleting && <DeletePersona p={deleting} isDefault={deleting.id === (def ?? personas[0]?.id)} onClose={() => setDeleting(undefined)}
@@ -55,44 +79,56 @@ export default function You() {
   )
 }
 
+type Known = { memory: number; text: string; who: string; story: string; tier: string; belief: number }
+
+/** Every memory a character holds about this persona, in every story it was played in. */
+async function knownAbout(persona: Item): Promise<Known[]> {
+  const profile = await api<Profile>(`/library/${persona.id}/profile`)
+  const out: Known[] = []
+  for (const s of profile.stories.filter((x) => x.role === 'persona')) {
+    for (const p of await api<Person[]>(`/stories/${s.id}/people`)) {
+      for (const m of p.about_you?.samples ?? []) out.push({ memory: m.memory_id, text: m.text, who: p.name, story: s.title, tier: m.tier, belief: m.belief })
+    }
+  }
+  return out
+}
+
 /** Who knows this persona: per character, per story, how sure they are. */
-function Knows({ persona, stories, onDelete }: { persona: Item; stories: StorySummary[]; onDelete: () => void }) {
-  const [profile] = useLoad(() => api<Profile>(`/library/${persona.id}/profile`), [persona.id])
-  const played = (profile?.stories ?? []).filter((s) => s.role === 'persona')
-  const [people, reload] = useLoad(async () => {
-    const all: (Person & { story: string; storyId: number })[] = []
-    for (const s of played) for (const p of await api<Person[]>(`/stories/${s.id}/people`)) if (p.about_you?.count) all.push({ ...p, story: s.title, storyId: s.id })
-    return all
-  }, [profile])
+function Knows({ persona, known, reload, onDelete }: { persona: Item; known: Known[] | undefined; reload: () => void; onDelete: () => void }) {
+  const { items } = useLibrary()
+  const [only, setOnly] = useState('')
+  const names = [...new Set((known ?? []).map((k) => k.who))]
+  const everyone = t('you.everyone')
+  const rows = (known ?? []).filter((k) => !only || k.who === only)
   const forget = (id: number) => {
     api(`/memories/${id}`, 'PATCH', { hidden: true }).then(reload)
     toast(t('toast.forgot', { n: 1 }), { action: t('toast.undo'), onAction: () => api(`/memories/${id}`, 'PATCH', { hidden: false }).then(reload) })
   }
+  const name = persona.name
   return (
-    <section className="sec" aria-label={t('you.knows', { name: persona.name })}>
-      <h2 className="sec-title">{t('you.knows', { name: persona.name })}</h2>
-      {!people?.length ? <p className="t-meta">{t('you.knowsNone', { name: persona.name })}</p> : (
-        <K.Panel>
-          <div className="col" style={{ gap: 18 }}>
-            {people.map((who) => (
-              <div key={`${who.storyId}-${who.id}`} className="col" style={{ gap: 10 }}>
-                <div className="row" style={{ gap: 10 }}><K.Avatar name={who.name} size={28} /><b>{who.name}</b><span className="t-meta">{who.story}</span></div>
-                {who.about_you!.samples.map((m) => (
-                  <div key={m.memory_id} className="pf-memrow">
-                    <K.MemoryRow word={t(m.belief < 0.7 ? 'mem.word.doubted' : (`mem.word.${m.tier}` as Key))} value={m.tier === 'sharp' ? 80 : m.tier === 'hazy' ? 40 : 10}
-                      tone={m.belief < 0.7 ? 'warm' : m.tier === 'sharp' ? 'ok' : 'muted'}
-                      meta={t('you.meta', { name: who.name, story: who.story, word: t(`mem.word.${m.tier}` as Key) })}>{m.text}</K.MemoryRow>
-                    <K.Button size="sm" variant="ghost" onClick={() => forget(m.memory_id)}>{t('you.forget', { p: 'other' })}</K.Button>
-                  </div>
-                ))}
+    <section className="sec" aria-label={t('you.knows', { name })}>
+      <div className="sec-head">
+        <div className="row" style={{ gap: 14, alignItems: 'baseline' }}><h2 className="sec-title">{t('you.knows', { name })}</h2><span className="t-meta">{t('you.knowsSub')}</span></div>
+        {names.length > 0 && <div style={{ width: 200 }}><K.Select label="" options={[everyone, ...names]} value={only || everyone} onChange={(v) => setOnly(v === everyone ? '' : v)} /></div>}
+      </div>
+      {!rows.length ? <p className="t-meta">{t('you.knowsNone', { name })}</p> : (
+        <div className="card">
+          {rows.map((k) => {
+            const who = items.find((i) => i.kind === 'character' && i.name === k.who)
+            const doubted = k.belief < 0.7
+            return (
+              <div key={k.memory} className="know">
+                <span className="know__text">{k.text}</span>
+                <span className="row" style={{ gap: 8 }}><K.Avatar {...face(who, k.who)} size={22} alt={k.who} /><span className="t-meta">{t('you.where', { name: k.who, story: k.story })}</span></span>
+                <K.StatePill tone={doubted ? 'warm' : k.tier === 'sharp' ? 'ok' : 'muted'}>{t(doubted ? 'mem.word.doubted' : (`mem.word.${k.tier}` as Key))}</K.StatePill>
+                <K.Button size="sm" variant="ghost" onClick={() => forget(k.memory)}>{t('you.forget', { p: pronoun(who) })}</K.Button>
               </div>
-            ))}
-          </div>
-        </K.Panel>
+            )
+          })}
+        </div>
       )}
-      <div className="row" style={{ gap: 16 }}>
-        <span className="t-meta">{t('ep.note', { n: stories.filter((s) => s.persona?.lib_item_id === persona.id).length })}</span>
-        <button type="button" className="linkbtn" onClick={onDelete}>{t('you.delete')}</button>
+      <div className="row" style={{ gap: 20 }}>
+        <span onClick={onDelete}><K.TextLink icon="trash" quiet>{t('you.delete')}</K.TextLink></span>
       </div>
     </section>
   )

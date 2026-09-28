@@ -17,6 +17,9 @@ export default function Data() {
   const [backing, setBacking] = useState(false)
   const [list, reloadList] = useLoad(() => api<Backup[]>('/backups').catch(() => []), [])
   const keyed = (providers ?? []).filter((p) => p.has_key)
+  const [places] = useLoad(() => api<Place[]>('/storage').catch(() => []), [])
+  const [prefs] = usePrefs()
+  const every = String(prefs['backups.every'] ?? 'daily')
   const exportAll = async () => {
     setBusy(true)
     try { toast(t('toast.exportedLib', { name: await download('/export/library') }), {}, 5000) } finally { setBusy(false) }
@@ -33,33 +36,36 @@ export default function Data() {
   }
   return (
     <>
-      <K.Callout tone="privacy" icon="lock" title={t('da.privacy')}>{t('da.privacyBody')}</K.Callout>
+      <K.Callout tone="privacy" title={t('da.privacy')}>{t('da.privacyBody')}</K.Callout>
+      {!!places?.length && (
+        <K.SettingsSection title={t('da.where')}>
+          {places.map((p) => (
+            <K.FolderRow key={p.what} icon={p.what === 'library' ? 'book' : 'image'} label={t(`da.where.${p.what}` as Key)} path={p.path} size={size(p.bytes)}
+              onOpen={window.kataki?.reveal ? () => window.kataki!.reveal!(p.what) : undefined} openLabel={t('da.open')} />
+          ))}
+        </K.SettingsSection>
+      )}
       <K.SettingsSection title={t('da.take')}>
-        <K.SettingsRow title={t('da.export')} description={t('da.exportSub')}><K.Button icon="download" loading={busy} onClick={exportAll}>{t('da.export')}</K.Button></K.SettingsRow>
-      </K.SettingsSection>
-      <K.SettingsSection title={t('bk.title')}>
-        <K.SettingsRow title={t('bk.row')} description={t('bk.summary', { n: list?.length ?? 0, when: list?.[0] ? relative(Date.parse(list[0].at)) : 'none' })}>
-          <K.Button onClick={() => setBacking(true)}>{t('bk.change')}</K.Button>
+        <K.SettingsRow title={t('da.export')} description={t('da.exportSub')}><K.Button size="sm" icon="download" loading={busy} onClick={exportAll}>{t('da.exportBtn')}</K.Button></K.SettingsRow>
+        <K.SettingsRow title={t('bk.row')} description={every === 'never' ? t('bk.off') : [t(`bk.${every}` as Key), t('bk.summary', { n: list?.length ?? 0, when: list?.[0] ? relative(Date.parse(list[0].at)) : 'none' })].join(' · ')}>
+          <div className="row" style={{ gap: 12 }}>
+            <K.Button size="sm" onClick={() => setBacking(true)}>{t('bk.change')}</K.Button>
+            <K.Toggle label={t('bk.row')} on={every !== 'never'} onToggle={(on) => setPref('backups.every', on ? 'daily' : 'never')} />
+          </div>
         </K.SettingsRow>
-      </K.SettingsSection>
-      <K.SettingsSection title={t('da.import')}>
         <K.SettingsRow title={t('da.import')} description={t('da.importSub')}>
           <div className="row" style={{ gap: 8 }}>
             <K.Button onClick={() => navigate('/characters')}>{t('da.importCards')}</K.Button>
             <label className="k-btn k-btn--ghost">{t('da.importLibrary')}<input type="file" accept=".kataki" hidden onChange={(e) => importLibrary(e.target.files?.[0])} /></label>
           </div>
         </K.SettingsRow>
-      </K.SettingsSection>
-      <K.SettingsSection title={t('da.keys')}>
-        <K.SettingsRow title={t('da.keys')} description={t('da.keysSub', { n: keyed.length, names: new Intl.ListFormat('en').format(keyed.map((p) => p.name)) })}>
-          <K.Button variant="ghost" disabled={!keyed.length}
+        <K.SettingsRow title={t('da.keys')} description={t('da.keysSub', { n: keyed.length, names: new Intl.ListFormat('en').format(keyed.map((p) => p.name)), os: /Win/.test(navigator.userAgent) ? 'win' : /Mac/.test(navigator.userAgent) ? 'mac' : 'other' })}>
+          <K.Button size="sm" variant="ghost" disabled={!keyed.length}
             onClick={() => Promise.all(keyed.map((p) => api(`/providers/${p.id}`, 'PATCH', { api_key: '' }))).then(() => { reloadProviders(); toast(t('toast.keysForgotten'), {}, 3000) })}>
-            {t('da.forgetKeys')}
+            {t('da.forgetKeys', { n: keyed.length })}
           </K.Button>
         </K.SettingsRow>
-      </K.SettingsSection>
-      <K.SettingsSection title={t('da.delete')}>
-        <K.SettingsRow title={t('da.delete')} description={t('da.deleteSub')}><K.Button variant="danger" onClick={() => setDeleting(true)}>{t('da.deleteBtn')}</K.Button></K.SettingsRow>
+        <K.SettingsRow title={t('da.delete')} description={t('da.deleteSub')}><K.Button size="sm" variant="danger" onClick={() => setDeleting(true)}>{t('da.deleteBtn')}</K.Button></K.SettingsRow>
       </K.SettingsSection>
       {deleting && <DeleteSomething onClose={() => setDeleting(false)} onExport={exportAll} />}
       {backing && <Backups list={list ?? []} onClose={() => setBacking(false)} onChange={reloadList} />}
@@ -68,7 +74,8 @@ export default function Data() {
 }
 
 type Backup = { name: string; bytes: number; at: string }
-const size = (n: number) => (n > 1e6 ? `${(n / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1e3))} KB`)
+type Place = { what: 'library' | 'pictures'; path: string; bytes: number }
+const size = (n: number) => (n > 1e9 ? `${(n / 1e9).toFixed(1)} GB` : n > 1e6 ? `${Math.round(n / 1e6)} MB` : `${Math.max(1, Math.round(n / 1e3))} KB`)
 
 /** K12: copies of the library, how often and how many, and restoring one. */
 function Backups({ list, onClose, onChange }: { list: Backup[]; onClose: () => void; onChange: () => void }) {

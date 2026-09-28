@@ -20,7 +20,7 @@ const ART: Record<string, string> = { liv, cas, mike, theo, nico, jae, 'halcyon-
 // from how the boards speak of them ("Make him forget", "Mike has his doubts"); the rest stay "they"
 const PRONOUNS: Record<string, 'she' | 'he' | 'they'> = { liv: 'she', mike: 'he', theo: 'he', jae: 'he' }
 
-type Person = { id: string; name: string; face_focus?: string; tagline?: string; about?: string; tags?: string[]; also_known_as?: string[]; secret?: string; example_dialogue?: string[]; opening_line?: string; default?: boolean }
+type Person = { id: string; name: string; relationships?: { with: string; label: string }[]; face_focus?: string; tagline?: string; about?: string; tags?: string[]; also_known_as?: string[]; secret?: string; example_dialogue?: string[]; opening_line?: string; default?: boolean }
 
 const picture = async (id: string) => (ART[id] ? (await upload(await (await fetch(ART[id])).blob())).name : undefined)
 
@@ -55,8 +55,14 @@ async function seed(): Promise<number | undefined> {
     })
   }
   let first: number | undefined
-  for (const p of world.personas as Person[]) { const made = await person(p, true); if (p.default) first = made.id }
-  for (const c of world.characters as Person[]) await person(c, false)
+  const made = new Map<string, Item>()
+  for (const p of world.personas as Person[]) { const m = await person(p, true); made.set(p.id, m); if (p.default) first = m.id }
+  for (const c of world.characters as Person[]) made.set(c.id, await person(c, false))
+  for (const c of [...world.personas, ...world.characters] as Person[]) {
+    const feels = (c.relationships ?? []).map((r) => ({ id: made.get(r.with)?.id, feels: r.label.split(' ')[0].toLowerCase() })).filter((r) => r.id && ['fond', 'wary'].includes(r.feels))
+    const m = made.get(c.id)!
+    if (feels.length) await api(`/library/${m.id}`, 'PATCH', { data: { ...m.data, relationships: feels } })
+  }
   for (const p of plots as { name: string; premise: string; opening_narration: string; book?: string }[]) {
     await api('/library', 'POST', { kind: 'scenario', name: p.name, description: p.premise, data: { first_message: p.opening_narration, links: { book: p.book ? bookIds.get(p.book) : undefined } } })
   }

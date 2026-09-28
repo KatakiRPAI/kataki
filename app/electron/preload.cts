@@ -13,4 +13,5 @@ contextBridge.exposeInMainWorld('kataki', {
   crashed: process.argv.includes('--kataki-crashed'), // the last run ended without a clean quit (A3)
   restart: () => ipcRenderer.send('kataki:restart'),
   startup: (on: boolean) => ipcRenderer.send('kataki:startup', on),
+  reveal: (what: string) => ipcRenderer.send('kataki:reveal', what),
 })

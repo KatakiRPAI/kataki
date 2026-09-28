@@ -1330,6 +1330,14 @@ def test_search_finds_names_lines_and_memories(api, story, conn):
     assert found["lines"][0]["story_title"] == "Low Tide"
     names = api.get("/search", params={"q": "mir"}).json()
     assert [i["name"] for i in names["items"]] == ["Mira"]
+    conn.execute(
+        "UPDATE lib_items SET description='Keeps the harbour ledger', private='a ledger of debts'"
+        " WHERE name='Mira'"
+    )
+    conn.commit()
+    by_words = api.get("/search", params={"q": "harbour led"}).json()["items"]
+    assert [i["name"] for i in by_words] == ["Mira"]
+    assert api.get("/search", params={"q": "debts"}).json()["items"] == []  # private stays private
     assert api.get("/search", params={"q": "tide"}).json()["stories"][0]["title"] == "Low Tide"
     assert api.get("/search", params={"q": "%"}).json()["lines"] == []  # a wildcard is just a character
 
