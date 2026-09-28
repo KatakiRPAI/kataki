@@ -14,7 +14,7 @@ rehearse   being recalled is an access, at most one per scene
 import re
 import sqlite3
 
-from kataki import activation, chat, db
+from kataki import activation, chat, db, knobs
 from kataki.activation import Access
 from kataki.context import Recalled
 
@@ -305,7 +305,7 @@ def inspect(
             continue  # not known yet, as of `now`
         source, superseded, s = _assess(
             conn, m, knower_id, known, now, ours, live,
-            CLARITY_CUE["relevance"], CLARITY_CUE["graph"], 0.0, activation.DECAY,
+            CLARITY_CUE["relevance"], CLARITY_CUE["graph"], 0.0, knobs.decay(conn, knower_id),
         )  # fmt: skip
         out.append(
             {

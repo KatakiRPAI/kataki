@@ -131,6 +131,10 @@ def _instantiate(conn: sqlite3.Connection, story_id: int, item: dict, is_ai: boo
     return entity_id
 
 
+# The editor's words (F2 › Relationships) as the engine's relationship words; "never met" is none.
+RELATIONSHIP = {"friend": "friend of", "fond": "fond of", "wary": "wary of", "rival": "rival of", "family": "family of"}
+
+
 def create_story(
     conn: sqlite3.Connection,
     title: str,
@@ -158,6 +162,18 @@ def create_story(
             conn.execute(
                 "UPDATE stories SET persona_entity_id=? WHERE id=?", (entity_ids[-1], story_id)
             )
+
+        # What a character's profile says they feel about someone else here starts the story
+        # (the memory reader moves it on from there).
+        by_item = {item["id"]: e for (item, _), e in zip(cast, entity_ids, strict=True)}
+        for (item, _), src in zip(cast, entity_ids, strict=True):
+            for r in item["data"].get("relationships") or []:
+                dst = by_item.get(r.get("id"))
+                if dst and dst != src and (rel := RELATIONSHIP.get(r.get("feels"))):
+                    conn.execute(
+                        "INSERT INTO edges(story_id, src_id, dst_id, rel, story_time) VALUES(?, ?, ?, ?, 0)",
+                        (story_id, src, dst, rel),
+                    )
 
         place_entity = None
         if place_id is not None:

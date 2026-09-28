@@ -15,7 +15,7 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import aclosing
 from typing import Any
 
-from kataki import chat, clock, context, embed, extract, images, retrieve, roles
+from kataki import chat, clock, context, embed, extract, images, knobs, retrieve, roles
 from kataki.llm import LLM, LLMError
 
 Event = tuple[str, Any]
@@ -226,6 +226,7 @@ async def _generate(
     if ep is None:
         yield ("error", {"message": f"No model is set for the '{role}' role yet."})
         return
+    ep = knobs.thinking(conn, ep)  # Settings › Memory and thinking › Thinking
     story = _story(conn, story_id)
     path = chat.path_to(conn, parent_id)
     names = dict(
@@ -250,7 +251,12 @@ async def _generate(
             window_start=built.window_start,
             pressed=_pressed(conn, story_id, speaker_id),
             leaf_id=parent_id,
-            vector_ranks=await embed.ranks_for(conn, llm, story_id, recent, get_key),
+            d=knobs.decay(conn, speaker_id),
+            vector_ranks=(
+                await embed.ranks_for(conn, llm, story_id, recent, get_key)
+                if knobs.setting(conn, "memory.byMeaning", True)  # Settings › Recall by meaning
+                else None
+            ),
         )
         trace["ms"]["recall"] = ms(at)
         if recalled:

@@ -15,7 +15,7 @@ import json
 import re
 import sqlite3
 
-from kataki import chat, db, embed, library, retrieve, roles
+from kataki import chat, db, embed, knobs, library, retrieve, roles
 from kataki.activation import FIDELITY
 from kataki.llm import LLM, Endpoint, LLMError
 from kataki.models import extraction_schema, parse_extraction
@@ -200,6 +200,8 @@ class _Applier:
             for knower in sorted(e for e in audience if e != asserter and self.is_character(e)):
                 if is_claim:
                     doubt = belief.get(knower, BELIEF["accepted"])
+                    if not knobs.can_doubt(self.conn, knower):  # they take it as said
+                        doubt = BELIEF["accepted"]
                     self.know(knower, memory_id, "told", asserter, doubt, when)
                 else:
                     self.know(knower, memory_id, "witnessed", when=when)

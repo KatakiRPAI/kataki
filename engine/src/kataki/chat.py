@@ -8,7 +8,7 @@ switching leaf is free.
 import json
 import sqlite3
 
-from kataki import db
+from kataki import db, knobs
 
 _UP = (
     "WITH RECURSIVE up(id, parent_id) AS ("
@@ -84,6 +84,7 @@ def hearing(conn: sqlite3.Connection, path: list, entity_id: int) -> dict[int, s
     opening = {r["scene_id"]: r["present"] for r in rows if r["message_id"] is None}
     changes = {r["message_id"]: r["present"] for r in rows if r["message_id"] is not None}
     how, scene, here = {}, object(), False
+    everyone = knobs.hear_all(conn)  # Settings › Memory › Hearing: Everyone hears everything
     for m in path:
         if m["scene_id"] != scene:
             scene, here = m["scene_id"], bool(opening.get(m["scene_id"]))
@@ -95,6 +96,8 @@ def hearing(conn: sqlite3.Connection, path: list, entity_id: int) -> dict[int, s
             else "thought" if audience == []
             else "whisper"
         )  # fmt: skip
+        if everyone and how[m["id"]] in ("away", "whisper"):
+            how[m["id"]] = "heard"
         here = bool(changes.get(m["id"], here))
     return how
 
