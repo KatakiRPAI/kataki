@@ -37,7 +37,7 @@
     var people = p.people || [], max = p.max || 4, s = p.size || 30;
     var shown = people.slice(0, max), extra = people.length - shown.length;
     return h('span', { className: 'k-stack', 'aria-label': p.label },
-      shown.map(function (x, i) { return h(Avatar, { key: i, who: x.who, src: x.src, alt: x.alt || x.name || '', size: s, className: 'k-stack__item' }); }),
+      shown.map(function (x, i) { return h(Avatar, { key: i, who: x.who, src: x.src, name: x.name, alt: x.alt || x.name || '', size: s, className: 'k-stack__item' }); }),
       extra > 0 ? h('span', { className: 'k-stack__more', style: { width: s, height: s } }, '+' + extra) : null);
   }
   function Eyebrow(p) { return h('div', { className: cx('k-eyebrow', p.tone && 'k-eyebrow--' + p.tone, p.className) }, p.children); }
@@ -141,7 +141,7 @@
   }
   function SearchField(p) {
     return h('label', { className: cx('k-search', p.size === 'lg' && 'k-search--lg') }, h(Icon, { name: 'search', size: 16, stroke: 1.9 }),
-      h('input', { className: 'k-search__input', placeholder: p.placeholder || 'Search everything', 'aria-label': p.label || 'Search', defaultValue: p.value }),
+      h('input', Object.assign({ className: 'k-search__input', placeholder: p.placeholder || 'Search everything', 'aria-label': p.label || 'Search' }, p.onChange ? { value: p.value || '', onChange: function (e) { p.onChange(e.target.value); } } : { defaultValue: p.value })),
       p.shortcut === false ? null : h('kbd', { className: 'k-kbd' }, p.shortcut || 'Ctrl K'));
   }
   function Checkbox(p) {
@@ -296,7 +296,7 @@
   }
   function Popover(p) {
     return h('div', { className: 'k-popover', role: 'dialog', 'aria-label': p.title, style: p.width ? { width: p.width } : undefined },
-      p.title ? h('div', { className: 'k-popover__head' }, h(StoryName, { size: 'row' }, p.title), p.onClose !== false ? h(IconButton, { icon: 'x', label: 'Close', size: 'sm' }) : null) : null,
+      p.title ? h('div', { className: 'k-popover__head' }, h(StoryName, { size: 'row' }, p.title), p.onClose !== false ? h(IconButton, { icon: 'x', label: 'Close', size: 'sm', onClick: p.onClose || undefined }) : null) : null,
       p.description ? h('div', { className: 'k-popover__desc' }, p.description) : null,
       h('div', { className: 'k-popover__body' }, p.children),
       p.actions ? h('div', { className: 'k-popover__actions' }, p.actions) : null);
@@ -306,7 +306,7 @@
       h('div', { className: 'k-dialog__head' },
         p.icon ? h('span', { className: cx('k-dialog__icon', p.tone && 'k-dialog__icon--' + p.tone) }, h(Icon, { name: p.icon, size: 20 })) : null,
         h('div', { className: 'k-dialog__titles' }, h('h2', { className: 'k-dialog__title' }, p.title), p.description ? h('p', { className: 'k-dialog__desc' }, p.description) : null),
-        h(IconButton, { icon: 'x', label: 'Close', size: 'sm' })),
+        h(IconButton, { icon: 'x', label: 'Close', size: 'sm', onClick: p.onClose })),
       p.children ? h('div', { className: 'k-dialog__body' }, p.children) : null,
       p.actions ? h('div', { className: 'k-dialog__actions' }, p.note ? h('span', { className: 'k-dialog__note' }, p.note) : null, h('div', { className: 'k-btngroup' }, p.actions)) : null);
     return p.backdrop ? h('div', { className: 'k-backdrop' }, card) : card;
@@ -319,8 +319,8 @@
   function Toast(p) {
     return h('div', { className: cx('k-toast', p.tone && 'k-toast--' + p.tone), role: 'status' },
       h(Icon, { name: p.icon || 'check', size: 17 }), h('span', { className: 'k-toast__text' }, p.children),
-      p.action ? h('button', { type: 'button', className: 'k-toast__action' }, p.action) : null,
-      h(IconButton, { icon: 'x', label: 'Dismiss', size: 'sm' }));
+      p.action ? h('button', { type: 'button', className: 'k-toast__action', onClick: p.onAction }, p.action) : null,
+      h(IconButton, { icon: 'x', label: 'Dismiss', size: 'sm', onClick: p.onDismiss }));
   }
   function CommandPalette(p) {
     var groups = p.groups || [];
@@ -506,14 +506,14 @@
   }
   function StoryPreview(p) {
     return h('section', { className: 'k-preview', 'aria-label': p.title },
-      h('div', { className: 'k-preview__art' }, h('img', { src: p.placeSrc || (ART[p.place] || {}).src, alt: p.placeAlt || '' })),
+      h('div', { className: 'k-preview__art' }, p.placeSrc || (ART[p.place] || {}).src ? h('img', { src: p.placeSrc || (ART[p.place] || {}).src, alt: p.placeAlt || '' }) : null),
       h('div', { className: 'k-preview__body' },
         h(StoryName, { size: 'title', as: 'h2' }, p.title),
         h('div', { className: 'k-meta' }, p.meta),
         h('div', { className: 'k-btngroup' }, h(Button, { variant: 'primary', href: p.continueHref }, 'Continue'), h('span', { className: 'k-meta' }, p.lastPlayed)),
         h(Divider, null), h(Eyebrow, null, 'Who is here'),
         (p.cast || []).map(function (c, i) {
-          return h('div', { key: i, className: 'k-preview__cast' }, h(Avatar, { who: c.who, src: c.src, size: 36 }),
+          return h('div', { key: i, className: 'k-preview__cast' }, h(Avatar, { who: c.who, src: c.src, name: c.name, size: 36 }),
             h('div', { className: 'k-preview__who' }, h('b', null, c.name), h('span', null, c.memories)), c.pill ? h(StatePill, { tone: c.tone || 'muted' }, c.pill) : null);
         }),
         p.children));

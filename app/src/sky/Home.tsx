@@ -85,7 +85,7 @@ export default function Home() {
         caption={hero.scene_title ?? undefined}
         placeAlt={hero.place?.name}
         continueHref={`/story/${hero.id}`}
-        newHref="/stories/new"
+        newHref={`/stories/new?with=${hero.cast.flatMap((c) => (c.lib_item_id ? [c.lib_item_id] : [])).join(",")}`}
       />
 
       {since.length > 0 && (
@@ -146,7 +146,7 @@ export default function Home() {
             {played.slice(1, 4).map((s) => (
               <a key={s.id} href={`/story/${s.id}`} style={{ flex: 1, minWidth: 0, display: 'flex' }}>
                 <K.StoryCard title={s.title} book={s.book?.title ?? t('home.noBook')} pinned={s.pinned}
-                  people={s.cast.map((c) => { const f = face(byId.get(c.lib_item_id ?? -1), c.name); return { who: f.who, src: f.src } })}
+                  people={s.cast.map((c) => { const f = face(byId.get(c.lib_item_id ?? -1), c.name); return { who: f.who, src: f.src, name: c.name } })}
                   quote={s.last_line ? quoted(s.last_line.text) : t('home.noLine')}
                   when={t('card.when.played', { relative: relative(utc(s.last_at)) })} storyTime={s.date} />
               </a>

@@ -52,6 +52,7 @@ export type ItemData = {
   history?: string[] // earlier pictures (portrait or image), newest first, to go back to
   packs?: Record<string, Pack> // the sprites made from each kept portrait
   links?: { book?: number; stories?: number[]; characters?: number[] } // places and plots, filed by hand
+  unlisted?: boolean // a place made for one story and not kept in World
 }
 
 /** A character profile the model wrote from your own words (`POST /library/draft`). */

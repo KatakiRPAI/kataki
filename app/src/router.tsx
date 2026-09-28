@@ -5,9 +5,12 @@ import { createBrowserRouter, createMemoryRouter, Outlet, useLocation, useNaviga
 import { api } from './api'
 import { K } from './ds'
 import { LibraryProvider } from './hooks'
+import { Toasts } from './overlay'
 import { t } from './strings'
 import Home from './sky/Home'
 import NotBuilt from './sky/NotBuilt'
+import Stories from './sky/Stories'
+import NewStory from './sky/NewStory'
 import Scene from './scene/Scene'
 
 const RAIL: Record<string, string> = {
@@ -31,7 +34,7 @@ function Links({ children }: { children: ReactNode }) {
     addEventListener('click', on)
     return () => removeEventListener('click', on)
   }, [navigate])
-  return <LibraryProvider>{children}</LibraryProvider>
+  return <LibraryProvider>{children}<Toasts /></LibraryProvider>
 }
 
 type Theme = 'night' | 'day'
@@ -75,7 +78,9 @@ const routes: RouteObject[] = [
         element: <Sky />,
         children: [
           sky('/home', <Home />),
-          ...['/search', '/characters', '/characters/new', '/characters/:id', '/characters/:id/edit', '/stories', '/stories/new',
+          sky('/stories', <Stories />),
+          sky('/stories/new', <NewStory />),
+          ...['/search', '/characters', '/characters/new', '/characters/:id', '/characters/:id/edit',
             '/world', '/you', '/settings/:panel', '/status/model'].map((p) => sky(p)),
           sky('*'),
         ],

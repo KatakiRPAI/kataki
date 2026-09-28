@@ -44,7 +44,7 @@ export declare function TextArea(props: { label?: string; value?: string; defaul
 /** A native select styled as a field, with a chevron. */
 export declare function Select(props: { label?: string; options: string[]; value?: string; defaultValue?: string; onChange?: (v: string) => void; icon?: IconName; hint?: string; error?: string; optional?: boolean; disabled?: boolean; id?: string }): React.ReactElement;
 /** The search field with its Ctrl K hint. `size="lg"` for the search page. */
-export declare function SearchField(props: { placeholder?: string; value?: string; label?: string; shortcut?: string | false; size?: "lg" }): React.ReactElement;
+export declare function SearchField(props: { placeholder?: string; value?: string; onChange?: (v: string) => void; label?: string; shortcut?: string | false; size?: "lg" }): React.ReactElement;
 /** A checkbox with a label and optional description. For independent yes/no choices in a list. */
 export declare function Checkbox(props: { label: string; description?: string; checked?: boolean; defaultChecked?: boolean; onChange?: (v: boolean) => void; disabled?: boolean }): React.ReactElement;
 /** One choice from a short list, each with an optional description. */
@@ -84,11 +84,11 @@ export declare function Tooltip(props: { text?: ReactNode; title?: string; place
 /** A small floating panel with a title, a few fields and actions, anchored to what opened it. */
 export declare function Popover(props: { title?: string; description?: string; width?: number; onClose?: false | (() => void); actions?: ReactNode; children: ReactNode }): React.ReactElement;
 /** A modal for a task that needs full attention: an icon, title, description, body, a note and actions. */
-export declare function Dialog(props: { title: string; description?: string; icon?: IconName; tone?: "bad" | "warm"; size?: "sm" | "lg"; note?: string; actions?: ReactNode; backdrop?: boolean; children?: ReactNode }): React.ReactElement;
+export declare function Dialog(props: { title: string; description?: string; icon?: IconName; tone?: "bad" | "warm"; size?: "sm" | "lg"; note?: string; actions?: ReactNode; backdrop?: boolean; onClose?: () => void; children?: ReactNode }): React.ReactElement;
 /** A side panel that slides over the page: a character's card from the chat, a place, details that do not deserve a page. */
 export declare function Sheet(props: { title: string; tone?: "scene"; headerAction?: ReactNode; children: ReactNode }): React.ReactElement;
 /** A short confirmation at the bottom of the window, with an optional undo. Intentional addition: deletes and forgets need a way back. */
-export declare function Toast(props: { icon?: IconName; tone?: "bad"; action?: string; children: ReactNode }): React.ReactElement;
+export declare function Toast(props: { icon?: IconName; tone?: "bad"; action?: string; onAction?: () => void; onDismiss?: () => void; children: ReactNode }): React.ReactElement;
 /** Ctrl K over anything: jump to a story, character or place, find a line, or run a command. */
 export declare function CommandPalette(props: { query?: string; groups: { title: string; items: { label: string; icon?: IconName; who?: Who; src?: string; meta?: string; shortcut?: string[]; story?: boolean; active?: boolean }[] }[] }): React.ReactElement;
 /** A short note inside a page: info, privacy, warm (worth knowing), ok, bad. Icon plus text; no coloured side stripe. */
@@ -146,15 +146,15 @@ export declare function AddCard(props: { href?: string; icon?: IconName; sub?: s
 /** Someone you can play as: portrait, name, one line, Default tag. The Director has an icon instead of a face. */
 export declare function PersonaCard(props: { who?: Who; src?: string; icon?: IconName; name: string; line: string; isDefault?: boolean; selected?: boolean }): React.ReactElement;
 /** A story thread: faces, title, book, the last stored line (two lines, clamped), real time and story time. */
-export declare function StoryCard(props: { who?: Who; avatarSrc?: string; people?: { who?: Who; src?: string }[]; title: string; book: string; quote: string; when: string; storyTime?: string; selected?: boolean; pinned?: boolean; compact?: boolean }): React.ReactElement;
+export declare function StoryCard(props: { who?: Who; avatarSrc?: string; people?: { who?: Who; src?: string; name?: string }[]; title: string; book: string; quote: string; when: string; storyTime?: string; selected?: boolean; pinned?: boolean; compact?: boolean }): React.ReactElement;
 /** The right-hand pane on Stories: the place, title, story time, Continue, who is here with their memory counts. */
 export declare function StoryPreview(props: { title: string; meta: string; lastPlayed: string; place?: Place; placeSrc?: string; placeAlt?: string; continueHref?: string; cast?: { who?: Who; src?: string; name: string; memories: string; pill?: string; tone?: string }[]; children?: ReactNode }): React.ReactElement;
 /** Who a character knows and how, from the relationship enum: wary of him, fond of her, never met. */
 export declare function RelationshipCard(props: { who?: Who; src?: string; name: string; how: string }): React.ReactElement;
 /** A place in the World: art with its name, the authored description, the time strip, who knows it and where it is filed. */
-export declare function PlaceCard(props: { place?: Place; src?: string; name: string; blurb?: string; time?: "dawn" | "day" | "dusk" | "night"; people?: { who?: Who; src?: string }[]; links?: string; selected?: boolean; alt?: string }): React.ReactElement;
+export declare function PlaceCard(props: { place?: Place; src?: string; name: string; blurb?: string; time?: "dawn" | "day" | "dusk" | "night"; people?: { who?: Who; src?: string; name?: string }[]; links?: string; selected?: boolean; alt?: string }): React.ReactElement;
 /** A plot: the opening line in Newsreader italic, how it starts, who is in it, the book. */
-export declare function PlotCard(props: { quote: string; opening: string; people?: { who?: Who; src?: string }[]; book: string }): React.ReactElement;
+export declare function PlotCard(props: { quote: string; opening: string; people?: { who?: Who; src?: string; name?: string }[]; book: string }): React.ReactElement;
 /** One of the three ways to start on first run. `recommended` is the one that needs no setup. */
 export declare function DoorCard(props: { icon?: IconName; eyebrow: string; title: string; recommended?: boolean; actions?: ReactNode; children: ReactNode }): React.ReactElement;
 /** One hit on the search page: kind icon, title, where it lives, the matching excerpt, the character, and Open. */

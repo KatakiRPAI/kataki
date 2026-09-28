@@ -26,3 +26,34 @@ body { overflow: hidden; }
 }
 .scene__chat .k-chat__lines { scrollbar-width: thin; scrollbar-color: var(--scene-border) transparent; }
 .app__main { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+
+/* overlays cover the window, not a 900px board */
+.ov { position: fixed; }
+.ov__win { height: 100%; }
+.ov .dlg { max-height: calc(100vh - 48px); overflow-y: auto; }
+.toasts { position: fixed; inset-inline: 0; bottom: 24px; z-index: 40; display: flex; justify-content: center; pointer-events: none; }
+.toasts > * { pointer-events: auto; }
+
+/* Stories: the list scrolls with the page; the preview stays in view */
+.st-grid { display: grid; grid-template-columns: minmax(0, 520px) minmax(0, 1fr); gap: 28px; align-items: start; }
+.st-list { display: flex; flex-direction: column; gap: 10px; }
+.st-who { display: flex; align-items: center; gap: 10px; padding: 6px 2px 2px; }
+.st-preview { position: sticky; top: 0; }
+.st-list [role="listitem"]:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-lg); }
+
+/* New story */
+.ns-grid { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 36px; align-items: start; }
+.ns-aside { overflow: hidden; display: flex; flex-direction: column; position: sticky; top: 0; }
+.ns-step { display: flex; flex-direction: column; gap: 12px; padding-bottom: 22px; border-bottom: 1px solid var(--hairline); }
+.ns-step:last-child { border-bottom: 0; }
+.ns-plots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.ns-presence { display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 10px; align-items: center; font-size: 14px; color: var(--mid); }
+.ns-pick { all: unset; cursor: pointer; border-radius: var(--radius-lg); }
+.ns-pick:focus-visible { box-shadow: var(--focus-ring); }
+.plotpick { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--border); background: var(--panel); text-align: start; font: inherit; color: inherit; cursor: pointer; width: 100%; box-sizing: border-box; }
+.plotpick[aria-pressed="true"] { border-color: var(--accent); background: var(--raise); }
+.plotpick:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.plotpick__quote { font-family: var(--font-story); font-style: italic; font-size: 17px; line-height: 24px; }
+.find-list { padding: 4px 14px; background: var(--raise); max-height: 50vh; overflow-y: auto; }
+.find-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--hairline); }
+.find-row:last-child { border-bottom: 0; }
