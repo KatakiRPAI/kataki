@@ -307,3 +307,8 @@ button.k-shortrow, button.k-job { width: 100%; background: transparent; border: 
   .scene.show-here .scene__left { top: auto; bottom: 16px; }
   .bsx { grid-template-columns: minmax(0, 1fr) !important; inset: 72px 16px 16px; }
 }
+
+/* Right to left (R2, R3) */
+[dir="rtl"] .k-line__text em, [dir="rtl"] em { font-style: normal; }
+[dir="rtl"] .k-icon.is-directional, [dir="rtl"] .k-btn--scene-send .k-icon, [dir="rtl"] .k-scenechip .k-icon[data-flip] { transform: scaleX(-1); }
+[dir="rtl"] .readcol { transform: translateX(50%); }

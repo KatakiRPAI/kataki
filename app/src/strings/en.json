@@ -756,10 +756,7 @@
   "ap.fixed": "What isn’t adjustable, on purpose",
   "ap.fixedBody": "The Scene keeps its golden-hour palette whatever the Sky theme, so a story looks the same every time you come back.",
   "la.title": "Language",
-  "la.en": "English",
   "la.complete": "Complete",
-  "la.ar": "العربية",
-  "la.rtlProgress": "Right to left · in progress",
   "la.notStarted": "Not started",
   "la.mirror": "Mirror the layout for right-to-left languages",
   "la.auto": "Automatic",
@@ -1309,5 +1306,7 @@
   "set.model": "Model for this story",
   "set.modelHint": "Characters in this story speak through it. Leave it and they use Settings › Models.",
   "set.modelDefault": "Like Settings",
-  "toast.personaSwitched": "You are {name} from the next line"
+  "toast.personaSwitched": "You are {name} from the next line",
+  "la.partly": "{n}% translated",
+  "la.rtlStatus": "Right to left · {status}"
 }

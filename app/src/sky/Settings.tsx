@@ -6,7 +6,7 @@ import { isPersona } from '../characters'
 import { K } from '../ds'
 import { useLibrary, useLoad } from '../hooks'
 import { setPref, usePrefs } from '../prefs'
-import { t, type Key } from '../strings'
+import { complete, lang, LANGUAGES, RTL, switchLanguage, t, type Key } from '../strings'
 import Data from './settings/Data'
 import Models from './settings/Models'
 import Shortcuts from './settings/Shortcuts'
@@ -139,8 +139,16 @@ function Language() {
     <>
       <K.SettingsSection title={t('la.title')}>
         <div className="row row--wrap" style={{ gap: 12 }}>
-          <K.LanguageTile name={t('la.en')} status={t('la.complete')} lang="en" selected />
-          <K.LanguageTile name={t('la.ar')} status={t('la.rtlProgress')} lang="ar" rtl disabled />
+          {[...new Set(['en', 'ar', ...Object.keys(LANGUAGES)])].map((code) => {
+            const done = code === 'en' ? 1 : complete(code)
+            const pct = Math.floor(done * 100)
+            const status = done >= 1 ? t('la.complete') : pct === 0 ? t('la.notStarted') : t('la.partly', { n: pct })
+            return (
+              <K.LanguageTile key={code} name={new Intl.DisplayNames([code], { type: 'language' }).of(code) ?? code} lang={code} rtl={RTL.has(code)}
+                status={RTL.has(code) ? t('la.rtlStatus', { status }) : status} selected={code === lang} disabled={done < 0.95}
+                onClick={() => code !== lang && switchLanguage(code)} />
+            )
+          })}
         </div>
         <K.SettingsRow title={t('la.mirror')}><K.StatePill tone="muted">{t('la.auto')}</K.StatePill></K.SettingsRow>
         <K.SettingsRow title={t('la.clock')}><Choice k="language.clock" fallback="12" options={[['12', 'la.12'], ['24', 'la.24']]} /></K.SettingsRow>
