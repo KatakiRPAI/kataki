@@ -8,7 +8,7 @@ import { openMenu, Overlay, toast, type MenuItem } from '../overlay'
 import { pacer, SPEEDS, type Speed } from '../pace'
 import { pref } from '../prefs'
 import { t } from '../strings'
-import { is } from '../shortcuts'
+import { is, keysOf, parts } from '../shortcuts'
 import { classify, err } from '../errors'
 import { Delete, Export } from '../sky/Stories'
 import Backstage from './Backstage'
@@ -257,12 +257,12 @@ export default function Scene() {
       : [{ label: t('lm.delete'), detail: t('lm.deleteDetail'), icon: 'trash' as const, danger: true, disabled: !!live, onSelect: () => setConfirm({ kind: 'delete', m }) }]),
   ]
   const storyMenu = (): MenuItem[] => [
-    { label: t('sm.edit'), detail: t('sm.editDetail'), icon: 'layers', onSelect: () => { setReading(false); setArranging(true) } },
-    { label: t('sm.reading'), detail: t('sm.readingDetail'), icon: 'book', onSelect: () => setReading(true) },
+    { label: t('sm.edit'), detail: t('sm.editDetail'), icon: 'layers', shortcut: parts(keysOf('widgets')), onSelect: () => { setReading(false); setArranging(true) } },
+    { label: t('sm.reading'), detail: t('sm.readingDetail'), icon: 'book', shortcut: parts(keysOf('reading')), onSelect: () => setReading(true) },
     { label: t('sm.scene'), detail: t('sm.sceneDetail'), icon: 'map-pin', onSelect: () => setOpen('place') },
     { label: t('sm.pass'), detail: t('sm.passDetail'), icon: 'clock', disabled: !!live, onSelect: () => setOpen('pass') },
     { label: t('sm.plot'), detail: t('sm.plotDetail'), icon: 'quote', disabled: !!live || !items.some((i) => i.kind === 'scenario'), onSelect: () => openMenu(document.querySelector('.scene__tr .k-scenebtn:last-child') ?? document.body, plotMenu()) },
-    { label: t('sm.backstage'), detail: t('sm.backstageDetail'), icon: 'cpu', onSelect: () => setBackstage(true) },
+    { label: t('sm.backstage'), detail: t('sm.backstageDetail'), icon: 'cpu', shortcut: parts(keysOf('backstage')), onSelect: () => setBackstage(true) },
     { label: t('sm.settings'), detail: t('sm.settingsDetail'), icon: 'settings', onSelect: () => setOpen('settings') },
     { divider: true },
     { label: t('sm.export'), icon: 'download', onSelect: () => setOpen('export') },

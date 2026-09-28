@@ -2,9 +2,15 @@
 // opens, gives it back when it closes, and Esc or a click on the dim closes it.
 import { useEffect, useRef, useSyncExternalStore, type KeyboardEvent as KeyEvent, type MouseEvent, type ReactNode } from 'react'
 import type { IconName } from './ds/kataki'
+import { createPortal } from 'react-dom'
 import { K } from './ds'
 
-export function Overlay({ onClose, top, children }: { onClose: () => void; top?: boolean; children: ReactNode }) {
+/** Overlays, menus and toasts sit over the whole Sky page, rail included, in its Night/Day theme,
+ *  wherever they were opened from; in a story they stay where they are. */
+const onPage = (node: ReactNode) => { const host = document.querySelector('.app'); return host ? createPortal(node, host) : node }
+
+/** `at`: a popover standing at an element (above it, left edges aligned), with no dim behind it. */
+export function Overlay({ onClose, top, at, children }: { onClose: () => void; top?: boolean; at?: Element | null; children: ReactNode }) {
   const box = useRef<HTMLDivElement>(null)
   const close = useRef(onClose)
   close.current = onClose
@@ -24,11 +30,12 @@ export function Overlay({ onClose, top, children }: { onClose: () => void; top?:
       was?.focus?.()
     }
   }, [])
-  return (
+  return onPage(
     <div className="ov" ref={box}>
-      <div className="ov__dim" onClick={() => close.current()} />
-      <div className={`ov__win${top ? ' ov__win--top' : ''}`} onClick={(e) => e.target === e.currentTarget && close.current()}>{children}</div>
-    </div>
+      <div className="ov__dim" style={at ? { background: 'transparent' } : undefined} onClick={() => close.current()} />
+      {at ? <div className="ov__at" style={{ left: at.getBoundingClientRect().left, bottom: innerHeight - at.getBoundingClientRect().top + 8 }}>{children}</div>
+        : <div className={`ov__win${top ? ' ov__win--top' : ''}`} onClick={(e) => e.target === e.currentTarget && close.current()}>{children}</div>}
+    </div>,
   )
 }
 
@@ -60,27 +67,29 @@ export function toast(text: string, more: Omit<Toast, 'id' | 'text'> = {}, ms = 
 export function Toasts() {
   const t = useSyncExternalStore((f) => (subs.add(f), () => subs.delete(f)), () => current)
   if (!t) return null
-  return (
+  return onPage(
     <div className="toasts" onMouseEnter={() => clearTimeout(timer)} onMouseLeave={() => (timer = setTimeout(() => end('done'), 4000))}>
       <K.Toast action={t.action} onAction={() => end('action')} onDismiss={() => end('done')}>{t.text}</K.Toast>
-    </div>
+    </div>,
   )
 }
 
 // ---- menus: a ··· button or a right-click opens one at that spot (OVERLAYS-AND-MENUS.md › Menus) ----
-export type MenuItem = { label?: string; detail?: string; icon?: IconName; danger?: boolean; disabled?: boolean; divider?: boolean; checked?: boolean; onSelect?: () => void }
-type Open = { x: number; y: number; title?: string; items: MenuItem[] }
+export type MenuItem = { label?: string; detail?: string; meta?: string; shortcut?: string[]; who?: string; src?: string; icon?: IconName; danger?: boolean; disabled?: boolean; divider?: boolean; checked?: boolean; onSelect?: () => void }
+type Open = { x: number; y: number; left?: boolean; title?: string; items: MenuItem[]; footer?: string; width?: number }
 let menu: Open | null = null
 const menuSubs = new Set<() => void>()
 const menuEmit = () => menuSubs.forEach((f) => f())
 const closeMenu = () => { menu = null; menuEmit() }
 
 /** Open a menu under an element (a ··· button) or at the pointer (right-click, Shift F10). */
-export function openMenu(at: Element | { clientX: number; clientY: number }, items: MenuItem[], title?: string) {
+export function openMenu(at: Element | { clientX: number; clientY: number }, items: MenuItem[], title?: string, more: { footer?: string; width?: number } = {}) {
   if (at instanceof Element) {
     const r = at.getBoundingClientRect()
-    menu = { x: r.right, y: r.bottom + 6, title, items }
-  } else menu = { x: at.clientX + 260, y: at.clientY, title, items }
+    // a trigger on the left opens its menu from its own left edge (the persona switch); else from its right
+    const left = r.left + r.width / 2 < innerWidth / 2
+    menu = { x: left ? r.left : r.right, left, y: r.bottom + 6, title, items, ...more }
+  } else menu = { x: at.clientX + 260, y: at.clientY, title, items, ...more }
   menuEmit()
 }
 /** Props for anything with a menu: right-click and Shift F10 open it. */
@@ -111,12 +120,13 @@ export function Menus() {
     return () => { removeEventListener('pointerdown', away, true); removeEventListener('keydown', keys, true); removeEventListener('resize', closeMenu) }
   }, [m])
   if (!m) return null
-  const width = 260
-  const x = Math.max(8, Math.min(m.x - width, innerWidth - width - 8))
+  const inScene = !!document.querySelector('.scene') // a menu over a story wears the Scene's colours
+  const width = m.width ?? (inScene ? 300 : 260)
+  const x = Math.max(8, Math.min(m.left ? m.x : m.x - width, innerWidth - width - 8))
   const y = Math.min(m.y, innerHeight - 40 * m.items.length - 24)
-  return (
+  return onPage(
     <div ref={box} style={{ position: 'fixed', left: x, top: Math.max(8, y), zIndex: 45 }}>
-      <K.Menu title={m.title} width={width} items={m.items.map((it) => ({ ...it, onSelect: it.onSelect && (() => { closeMenu(); it.onSelect!() }) }))} />
-    </div>
+      <K.Menu scene={inScene} title={m.title} width={width} footer={m.footer} items={m.items.map((it) => ({ ...it, onSelect: it.onSelect && (() => { closeMenu(); it.onSelect!() }) }))} />
+    </div>,
   )
 }

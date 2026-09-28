@@ -78,7 +78,7 @@ export declare function Breadcrumbs(props: { items: string[] }): React.ReactElem
 /** Reveals the rest of a list in place: "7 older stories". */
 export declare function ShowMore(props: { children: ReactNode }): React.ReactElement;
 /** A floating list of actions or choices: items with icon or avatar, detail line, count, shortcut, check, danger; sections, dividers and a footnote. */
-export declare function Menu(props: { title?: string; label?: string; width?: number; footer?: ReactNode; items: { onSelect?: () => void; label?: string; detail?: string; icon?: IconName; who?: Who; src?: string; meta?: string; count?: number; shortcut?: string[]; checked?: boolean; danger?: boolean; disabled?: boolean; active?: boolean; divider?: boolean; section?: string }[] }): React.ReactElement;
+export declare function Menu(props: { scene?: boolean; title?: string; label?: string; width?: number; footer?: ReactNode; items: { onSelect?: () => void; label?: string; detail?: string; icon?: IconName; who?: Who; src?: string; meta?: string; count?: number; shortcut?: string[]; checked?: boolean; danger?: boolean; disabled?: boolean; active?: boolean; divider?: boolean; section?: string }[] }): React.ReactElement;
 /** A short label or exact value on hover and focus. `open` pins it for docs. */
 export declare function Tooltip(props: { text?: ReactNode; title?: string; placement?: "top" | "bottom" | "start"; open?: boolean; children: ReactNode }): React.ReactElement;
 /** A small floating panel with a title, a few fields and actions, anchored to what opened it. */

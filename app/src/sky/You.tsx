@@ -151,7 +151,7 @@ function EditPersona({ p, isDefault, stories, onClose, onDone }: { p?: Item; isD
   }
   return (
     <Overlay onClose={onClose}>
-      <K.Dialog icon="user" size="lg" title={p ? t('ep.title', { name: p.name }) : t('ep.newTitle')} description={t('ep.body')} onClose={onClose}
+      <K.Dialog size="lg" title={p ? t('ep.title', { name: fullName(p) }) : t('ep.newTitle')} description={t('ep.body')} onClose={onClose}
         note={p && isDefault ? t('ep.note', { n: stories.filter((s) => s.persona?.lib_item_id === p.id).length }) : undefined}
         actions={[<K.Button key="c" variant="ghost" onClick={onClose}>{t('ep.cancel')}</K.Button>, <K.Button key="s" variant="primary" disabled={!name.trim()} onClick={save}>{t('ep.save')}</K.Button>]}>
         <div className="row" style={{ gap: 14 }}>
@@ -159,10 +159,12 @@ function EditPersona({ p, isDefault, stories, onClose, onDone }: { p?: Item; isD
           <label className="k-btn k-btn--secondary k-btn--sm">{t(portrait ? 'ep.picture' : 'ep.pictureAdd')}<input type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={async (e) => { const f = e.target.files?.[0]; if (f) setPortrait((await upload(f)).name) }} /></label>
           {portrait && <K.Button size="sm" variant="ghost" onClick={() => setPortrait(undefined)}>{t('ep.remove')}</K.Button>}
         </div>
-        <K.TextField label={t('ep.name')} required story value={name} onChange={setName} max={60} />
-        <K.Select label={t('ep.pronouns')} options={PRONOUNS.map((x) => t(`pron.${x}` as Key))} value={t(`pron.${pronouns}` as Key)} onChange={(v) => setPronouns(PRONOUNS.find((x) => t(`pron.${x}` as Key) === v) ?? 'they')} />
-        <K.TextArea label={t('ep.who')} story rows={3} value={who} onChange={setWho} />
-        <K.TextField label={t('ep.tags')} hint={t('ed.tagsHint')} value={tags} onChange={setTags} />
+        <div className="ep-pair">
+          <K.TextField label={t('ep.name')} required story value={name} onChange={setName} max={40} />
+          <K.Select label={t('ep.pronouns')} options={PRONOUNS.map((x) => t(`pron.${x}` as Key))} value={t(`pron.${pronouns}` as Key)} onChange={(v) => setPronouns(PRONOUNS.find((x) => t(`pron.${x}` as Key) === v) ?? 'they')} />
+        </div>
+        <K.TextArea label={t('ep.who')} story rows={3} value={who} onChange={setWho} hint={t('ep.whoHint')} />
+        <K.TextField label={t('ep.tags')} optional value={tags} onChange={setTags} />
         <div className="row" style={{ gap: 12 }}><K.Toggle label={t('ep.default', { name: name || '…' })} on={makeDefault} onToggle={setMakeDefault} /><span className="t-body">{t('ep.default', { name: name || '…' })}</span></div>
       </K.Dialog>
     </Overlay>
@@ -186,7 +188,7 @@ function DeletePersona({ p, isDefault, onClose, onDone }: { p: Item; isDefault: 
   }
   return (
     <Overlay onClose={onClose}>
-      <K.Dialog icon="trash" tone="bad" title={t('dp.title', { name: p.name })} description={t('dp.body', { name: p.name })} onClose={onClose}
+      <K.Dialog icon="trash" tone="bad" title={t('dp.title', { name: fullName(p) })} description={t('dp.body', { name: p.name })} onClose={onClose}
         actions={[<K.Button key="k" variant="ghost" onClick={onClose}>{t('dp.keep', { name: p.name })}</K.Button>, <K.Button key="d" variant="danger" onClick={go}>{t('dp.go')}</K.Button>]} />
     </Overlay>
   )

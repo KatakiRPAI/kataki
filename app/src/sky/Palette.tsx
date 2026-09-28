@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useNavigate } from 'react-router'
 import { api, download, type Item } from '../api'
-import { isPersona } from '../characters'
+import { fullName, isPersona } from '../characters'
 import { K } from '../ds'
 import { face, useLibrary } from '../hooks'
 import { openMenu, Overlay, type MenuItem } from '../overlay'
@@ -20,14 +20,14 @@ const close = () => { open = false; subs.forEach((f) => f()) }
 
 /** C4: who you play as in new stories. */
 export function personaMenu(at: Element, items: Item[], current: number | null | undefined, go: (to: string) => void) {
-  const personas = items.filter(isPersona)
+  const personas = items.filter(isPersona).sort((a, b) => Number(b.id === current) - Number(a.id === current))
   openMenu(at, [
-    ...personas.map((p): MenuItem => ({ label: p.name, detail: p.id === current ? t('pm.default') : undefined, checked: p.id === current, onSelect: () => setPref('persona', p.id) })),
-    { label: t('pm.director'), icon: 'feather', checked: current === null, onSelect: () => setPref('persona', null) },
+    ...personas.map((p): MenuItem => { const f = face(p); return { label: fullName(p), who: f.who, src: f.src, meta: p.id === current ? t('pm.default') : undefined, checked: p.id === current, onSelect: () => setPref('persona', p.id) } }),
+    { label: t('pm.director'), icon: 'eye', checked: current === null, onSelect: () => setPref('persona', null) },
     { divider: true },
     { label: t('pm.new'), icon: 'plus', onSelect: () => go('/you?new=1') },
     { label: t('pm.manage'), icon: 'user', onSelect: () => go('/you') },
-  ], t('pm.title'))
+  ], t('pm.title'), { footer: t('pm.foot'), width: 300 })
 }
 
 type Row = { label: string; icon?: import('../ds/kataki').IconName; who?: string; src?: string; name?: string; meta?: string; shortcut?: string[]; story?: boolean; go: () => void }

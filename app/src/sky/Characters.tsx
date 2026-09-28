@@ -188,7 +188,7 @@ function GroupDialog({ group, people, places, onClose, onSave }: {
   const ok = name.trim() && members.length >= 2
   return (
     <Overlay onClose={onClose}>
-      <K.Dialog icon="users" title={t(group ? 'group.editTitle' : 'group.title')} onClose={onClose}
+      <K.Dialog icon="users" title={t(group ? 'group.editTitle' : 'group.title')} description={t('group.desc')} onClose={onClose}
         note={chosen.length ? t('group.count', { n: chosen.length, names: list(chosen.map((c) => c.name)) }) : undefined}
         actions={[
           <K.Button key="c" variant="ghost" onClick={onClose}>{t('group.cancel')}</K.Button>,
@@ -203,7 +203,7 @@ function GroupDialog({ group, people, places, onClose, onSave }: {
             ))}
           </div>
         </K.Field>
-        <K.Select label={t('group.where')} options={placeOptions.map(([, l]) => l)} value={placeOptions.find(([id]) => id === place)?.[1]}
+        <K.Select label={t('group.where')} optional icon="map-pin" options={placeOptions.map(([, l]) => l)} value={placeOptions.find(([id]) => id === place)?.[1]}
           onChange={(v) => setPlace(placeOptions.find(([, l]) => l === v)?.[0] ?? null)} />
       </K.Dialog>
     </Overlay>
@@ -251,7 +251,8 @@ function ImportCards({ onClose, onDone, byName }: { names: string[]; onClose: ()
     <Overlay onClose={onClose}>
       <section className="dlg dlg--lg" role="dialog" aria-modal="true" aria-labelledby="imp-title">
         <div className="dlg__head">
-          <div className="dlg__titles"><h2 className="dlg__title" id="imp-title">{t('imp.title')}</h2></div>
+          <span className="dlg__icon"><K.Icon name="download" size={20} /></span>
+          <div className="dlg__titles"><h2 className="dlg__title" id="imp-title">{t('imp.title')}</h2><p className="dlg__desc">{t('imp.desc')}</p></div>
           <K.IconButton icon="x" label="Close" size="sm" onClick={onClose} />
         </div>
         <div className="dlg__body">

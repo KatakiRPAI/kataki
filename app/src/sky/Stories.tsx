@@ -175,7 +175,7 @@ function Preview({ story, onRename, onExport, onDelete, onPin }: {
           {places.length > 0 && <K.Eyebrow>{t('stories.where')}</K.Eyebrow>}
           {places.length > 0 && <div className="row row--wrap" style={{ gap: 8 }}>{places.map((p) => <K.Chip key={p.id} icon="map-pin" size="sm">{p.name}</K.Chip>)}</div>}
           <div className="row" style={{ gap: 8, paddingTop: 6 }}>
-            <K.Button size="sm" variant="ghost" icon="edit" onClick={onRename}>{t('stories.rename')}</K.Button>
+            <span data-rename><K.Button size="sm" variant="ghost" icon="edit" onClick={onRename}>{t('stories.rename')}</K.Button></span>
             <K.Button size="sm" variant="ghost" icon="download" onClick={onExport}>{t('stories.export')}</K.Button>
             <K.Button size="sm" variant="ghost" icon="pushpin" onClick={onPin}>{t(story.pinned ? 'stories.unpin' : 'stories.pin')}</K.Button>
             <K.Button size="sm" variant="ghost" icon="trash" onClick={onDelete}>{t('stories.delete')}</K.Button>
@@ -193,7 +193,7 @@ function Rename({ story, onClose, onDone }: { story: StorySummary; onClose: () =
     api(`/stories/${story.id}`, 'PATCH', { title: name.trim() }).then(() => { onDone(); onClose() })
   }
   return (
-    <Overlay onClose={onClose}>
+    <Overlay onClose={onClose} at={document.querySelector('[data-rename]')}>
       <form onSubmit={(e) => { e.preventDefault(); save() }}>
         <K.Popover title={t('rename.title')} onClose={onClose} actions={[
           <K.Button key="c" size="sm" variant="ghost" onClick={onClose}>{t('rename.cancel')}</K.Button>,

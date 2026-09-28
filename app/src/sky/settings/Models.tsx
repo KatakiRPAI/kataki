@@ -196,7 +196,7 @@ function AddApi({ onClose, onAdded }: { onClose: () => void; onAdded: () => void
   }
   return (
     <Overlay onClose={cancel}>
-      <K.Dialog icon="globe" size="lg" title={t('api.title')} onClose={cancel}
+      <K.Dialog icon="globe" size="lg" title={t('api.title')} description={t('api.desc')} note={t('fr.keyStored', { os: /Win/.test(navigator.userAgent) ? 'win' : /Mac/.test(navigator.userAgent) ? 'mac' : 'other' })} onClose={cancel}
         actions={[
           <K.Button key="c" variant="ghost" onClick={cancel}>{t('api.cancel')}</K.Button>,
           made?.models.length ? <K.Button key="a" variant="primary" disabled={!model} onClick={add}>{t('api.add')}</K.Button>
@@ -204,10 +204,9 @@ function AddApi({ onClose, onAdded }: { onClose: () => void; onAdded: () => void
         ]}>
         <K.Segmented label={t('api.service')} options={SERVICES.map(([, l]) => t(l))} value={t(SERVICES.find(([s]) => s === service)![1])}
           onChange={(v) => setService(SERVICES.find(([, l]) => t(l) === v)?.[0] ?? 'openrouter')} />
-        {service === 'other' && <K.TextField label={t('api.address')} value={address} onChange={setAddress} placeholder="https://…/v1" />}
-        <K.TextField label={t('api.key')} type="password" hint={t('api.keyHint')} value={key} onChange={setKey} />
-        <K.TextField label={t('api.call')} hint={t('api.callHint')} value={name} onChange={setName} placeholder={call} />
-        <K.Callout tone="warm" icon="globe" title={t('api.privacy')}>{t('api.privacyBody')}</K.Callout>
+        {service === 'other' && <K.TextField label={t('api.address')} required icon="link" hint={t('api.addressHint')} value={address} onChange={setAddress} placeholder="https://…/v1" />}
+        <K.TextField label={t('api.key')} required icon="key" type="password" value={key} onChange={setKey} />
+        <K.TextField label={t('api.call')} optional hint={t('api.callHint')} value={name} onChange={setName} placeholder={call} />
         {error && <K.Callout tone="bad" title={t('api.bad')}>{error}</K.Callout>}
         {made && made.models.length > 0 && (
           <>

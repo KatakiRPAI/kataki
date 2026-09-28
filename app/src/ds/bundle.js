@@ -274,7 +274,7 @@
   /* ---------- menus and overlays ---------- */
   function Menu(p) {
     var items = p.items || [];
-    return h('div', { className: 'k-menu', role: 'menu', 'aria-label': p.title || p.label, style: p.width ? { width: p.width } : undefined },
+    return h('div', { className: cx('k-menu', p.scene && 'k-menu--scene'), role: 'menu', 'aria-label': p.title || p.label, style: p.width ? { width: p.width } : undefined },
       p.title ? h('div', { className: 'k-menu__title' }, p.title) : null,
       items.map(function (it, i) {
         if (it.divider) return h('div', { key: i, className: 'k-menu__divider', role: 'separator' });

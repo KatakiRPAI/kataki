@@ -46,7 +46,13 @@ async function shot(url, h, js, ready) {
   w.setContentSize(1440, h)
   await w.loadURL(url)
   for (let i = 0; i < 60 && !(await w.webContents.executeJavaScript(ready).catch(() => false)); i++) await wait(250)
-  if (js) { await w.webContents.executeJavaScript(`(async () => { ${js} })()`).catch((e) => log('js failed', e.message)); await wait(700) }
+  // helpers for a job's js: click('Label') clicks the control with that text; key('k', { ctrlKey: true }) presses a key;
+  // type('text') fills the focused field; wait(ms)
+  const HELP = `const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const click = async (text, n = 0) => { const all = [...document.querySelectorAll('button, a, [role=menuitem], [role=tab], [role=radio], label, summary')].filter((e) => (e.getAttribute('aria-label') || e.textContent).trim() === text || e.textContent.trim().startsWith(text)); const el = all[n]; if (!el) throw new Error('no ' + text); el.click(); await wait(400) };
+    const key = async (k, o = {}) => { (document.activeElement || document.body).dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, ...o })); await wait(400) };
+    const type = async (text) => { const el = document.activeElement; const set = Object.getOwnPropertyDescriptor(el.constructor.prototype, 'value').set; set.call(el, text); el.dispatchEvent(new Event('input', { bubbles: true })); await wait(400) };`
+  if (js) { await w.webContents.executeJavaScript(`(async () => { ${HELP} ${js} })()`).catch((e) => log('js failed', e.message)); await wait(700) }
   await wait(900)
   const img = await w.webContents.capturePage({ x: 0, y: 0, width: 1440, height: h })
   w.destroy()

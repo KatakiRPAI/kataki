@@ -83,7 +83,7 @@ export default function World() {
   )
   const dialogs = (
     <>
-      {open?.kind === 'place' && open.item && <PlaceDetail p={open.item} stories={usedIn(open.item)} knownBy={knownBy(open.item)} onClose={() => setOpen(null)} menu={() => placeMenu(open.item!)} />}
+      {open?.kind === 'place' && open.item && <PlaceDetail p={open.item} book={books?.find((b) => b.id === bookOf(open.item!))?.title} stories={usedIn(open.item)} knownBy={knownBy(open.item)} onClose={() => setOpen(null)} onEdit={() => setOpen({ kind: 'newPlace', item: open.item })} menu={() => placeMenu(open.item!)} />}
       {open?.kind === 'plot' && open.item && <PlotDetail p={open.item} book={books?.find((b) => b.id === bookOf(open.item!))?.title} stories={usedIn(open.item)} onClose={() => setOpen(null)} menu={() => placeMenu(open.item!)} />}
       {open?.kind === 'newPlace' && <NewPlace item={open.item} books={books ?? []} onClose={() => setOpen(null)} onDone={done} />}
       {open?.kind === 'newPlot' && <NewPlot item={open.item} books={books ?? []} places={places} onClose={() => setOpen(null)} onDone={done} />}
@@ -183,27 +183,30 @@ function Sheet({ onClose, children }: { onClose: () => void; children: ReactNode
 }
 
 /** I3: a place, and everything that has happened there. */
-function PlaceDetail({ p, stories, knownBy, onClose, menu }: { p: Item; stories: StorySummary[]; knownBy: Item[]; onClose: () => void; menu: () => MenuItem[] }) {
+function PlaceDetail({ p, book, stories, knownBy, onClose, onEdit, menu }: { p: Item; book?: string; stories: StorySummary[]; knownBy: Item[]; onClose: () => void; onEdit: () => void; menu: () => MenuItem[] }) {
   const navigate = useNavigate()
   const s = scenery(p)
   return (
     <Sheet onClose={onClose}>
-      <div className="dlg__head"><div className="dlg__titles"><h2 className="dlg__title">{p.name}</h2></div><K.IconButton icon="x" label="Close" size="sm" onClick={onClose} /></div>
-      <div className="dlg__body pf-sheet__body">
-        {(s.src || s.place) && <K.Still place={s.place} src={s.src} caption={p.name} height={220} alt={p.data.alt ?? p.name} />}
-        {p.data.time && <K.TimeStrip value={p.data.time as Time} />}
-        {p.description && <p className="pf-text">{p.description}</p>}
-        {!!p.data.exits?.length && <dl className="pdl"><dt>{t('pl.exits')}</dt><dd>{p.data.exits.join(' · ')}</dd></dl>}
-        {knownBy.length > 0 && <dl className="pdl"><dt>{t('pl.who')}</dt><dd><K.AvatarStack people={knownBy.map((c) => ({ ...face(c) }))} size={28} /></dd></dl>}
-        {stories.length > 0 && (
-          <dl className="pdl"><dt>{t('pl.stories')}</dt>
-            <dd>{stories.map((st) => <K.ListRow key={st.id} story title={st.title} subtitle={st.date} href={`/story/${st.id}`} />)}</dd>
-          </dl>
-        )}
-        <div className="row" style={{ gap: 8 }}>
-          <K.Button variant="primary" icon="plus" onClick={() => navigate(`/stories/new?place=${p.id}`)}>{t('pl.newStory')}</K.Button>
-          <span onClick={(e) => openMenu(e.currentTarget, menu())}><K.IconButton icon="dots" label={t('chars.more', { name: p.name })} /></span>
+      {(s.src || s.place) && <K.Still place={s.place} src={s.src} caption={p.data.time ? t(`place.t.${p.data.time}` as Key) : undefined} height={260} alt={p.data.alt ?? p.name} />}
+      <div className="dlg__body pf-sheet__body" style={{ padding: '20px 24px', gap: 16 }}>
+        <div className="row" style={{ justifyContent: 'space-between' }}>
+          <K.StoryName size="title">{p.name}</K.StoryName>
+          <div className="row" style={{ gap: 6 }}>
+            <K.IconButton icon="edit" label={t('pl.edit')} size="sm" onClick={onEdit} />
+            <span onClick={(e) => openMenu(e.currentTarget, menu())}><K.IconButton icon="dots" label={t('chars.more', { name: p.name })} size="sm" /></span>
+            <K.IconButton icon="x" label={t('dp.close')} size="sm" onClick={onClose} />
+          </div>
         </div>
+        <K.Breadcrumbs items={[t('w.title'), book ?? t('w.noBook'), p.name]} />
+        {p.description && <p className="pl-text">{p.description}</p>}
+        {p.data.time && <K.TimeStrip value={p.data.time as Time} />}
+        <dl className="pdl" style={{ margin: 0 }}>
+          {!!p.data.exits?.length && <><dt>{t('pl.exits')}</dt><dd>{p.data.exits.join(' · ')}</dd></>}
+          {knownBy.length > 0 && <><dt>{t('pl.who')}</dt><dd>{knownBy.map((c) => c.name).join(' · ')}</dd></>}
+          {stories.length > 0 && <><dt>{t('pl.stories')}</dt><dd>{stories.map((st, i) => <span key={st.id}>{i ? ' · ' : ''}<a href={`/story/${st.id}`}>{st.title}</a></span>)}</dd></>}
+        </dl>
+        <K.ButtonGroup><K.Button variant="primary" onClick={() => navigate(`/stories/new?place=${p.id}`)}>{t('pl.newStory')}</K.Button></K.ButtonGroup>
       </div>
     </Sheet>
   )
@@ -217,11 +220,12 @@ function PlotDetail({ p, book, stories, onClose, menu }: { p: Item; book?: strin
   return (
     <Sheet onClose={onClose}>
       <div className="dlg__head">
-        <div className="dlg__titles"><h2 className="dlg__title">{p.name}</h2><p className="dlg__desc">{t('pt.meta', { book: book ?? t('w.noBook'), n: stories.length })}</p></div>
-        <K.IconButton icon="x" label="Close" size="sm" onClick={onClose} />
+        <span className="dlg__icon"><K.Icon name="quote" size={20} /></span>
+        <div className="dlg__titles"><K.StoryName size="title">{p.name}</K.StoryName><p className="dlg__desc">{t('pt.meta', { book: book ?? t('w.noBook'), n: stories.length })}</p></div>
+        <K.IconButton icon="x" label={t('dp.close')} size="sm" onClick={onClose} />
       </div>
       <div className="dlg__body pf-sheet__body">
-        <p className="plotpick__quote">“{unstar(p.description)}”</p>
+        <p className="plotpick__quote" style={{ fontSize: 20, lineHeight: '28px' }}>“{unstar(p.description)}”</p>
         {p.data.first_message && <dl className="pdl"><dt>{t('pt.opens')}</dt><dd>{unstar(p.data.first_message)}</dd></dl>}
         {where && <dl className="pdl"><dt>{t('pt.where')}</dt><dd>{where.name}</dd></dl>}
         {p.private && <K.SecretCard title={t('pt.narrator')}>{p.private}</K.SecretCard>}
@@ -257,23 +261,22 @@ function NewPlace({ item, books, onClose, onDone }: { item?: Item; books: Book[]
   }
   return (
     <Overlay onClose={onClose}>
-      <K.Dialog icon="map-pin" size="lg" title={item ? t('np.editTitle', { name: item.name }) : t('np.title')} onClose={onClose}
+      <K.Dialog icon="map-pin" size="lg" title={item ? t('np.editTitle', { name: item.name }) : t('np.title')} description={item ? undefined : t('np.desc')} note={t('np.saved')} onClose={onClose}
         actions={[<K.Button key="c" variant="ghost" onClick={onClose}>{t('np.cancel')}</K.Button>, <K.Button key="m" variant="primary" disabled={!name.trim()} onClick={save}>{t(item ? 'np.save' : 'np.make')}</K.Button>]}>
-        <K.TextField label={t('np.name')} required story value={name} onChange={setName} max={60} />
-        <div className="row" style={{ gap: 14, alignItems: 'center' }}>
-          {image ? <img src={mediaUrl(image)} alt="" className="w-thumb" /> : null}
-          <div className="col" style={{ gap: 6, flex: 1 }}>
-            <b style={{ fontSize: 13.5 }}>{t('np.picture')}</b><span className="t-meta">{t('np.pictureSub')}</span>
-            <div className="row" style={{ gap: 8 }}>
+        {image
+          ? <div className="row" style={{ gap: 14 }}><img src={mediaUrl(image)} alt="" className="w-thumb" /><K.Button size="sm" variant="ghost" onClick={() => setImage(undefined)}>{t('np.remove')}</K.Button></div>
+          : (
+            <K.DropZone icon="image" empty={t('np.noPicture')} title={t('np.picture')} description={t('np.pictureSub')}>
               <label className="k-btn k-btn--secondary k-btn--sm">{t('np.choose')}<input type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={async (e) => { const f = e.target.files?.[0]; if (f) setImage((await upload(f)).name) }} /></label>
-              {image && <K.Button size="sm" variant="ghost" onClick={() => setImage(undefined)}>{t('np.remove')}</K.Button>}
-            </div>
-          </div>
+            </K.DropZone>
+          )}
+        <K.TextField label={t('np.name')} required story value={name} onChange={setName} max={60} />
+        <K.TextArea label={t('np.like')} optional hint={t('np.likeHint')} story rows={3} value={like} onChange={setLike} />
+        <div className="np-pair">
+          <K.Segmented label={t('np.time')} size="sm" options={TIMES.map((x) => t(`ns.time.${x}` as Key))} value={t(`ns.time.${time}` as Key)} onChange={(v) => setTime(TIMES.find((x) => t(`ns.time.${x}` as Key) === v) ?? 'dusk')} />
+          <BookSelect books={books} value={book} onChange={setBook} />
         </div>
-        <K.TextArea label={t('np.like')} hint={t('np.likeHint')} story rows={3} value={like} onChange={setLike} />
-        <K.Segmented label={t('np.time')} size="sm" options={TIMES.map((x) => t(`ns.time.${x}` as Key))} value={t(`ns.time.${time}` as Key)} onChange={(v) => setTime(TIMES.find((x) => t(`ns.time.${x}` as Key) === v) ?? 'dusk')} />
-        <K.TextField label={t('np.exits')} hint={t('np.exitsHint')} value={exits} onChange={setExits} />
-        <BookSelect books={books} value={book} onChange={setBook} />
+        <K.TextField label={t('np.exits')} optional hint={t('np.exitsHint')} value={exits} onChange={setExits} />
       </K.Dialog>
     </Overlay>
   )
@@ -298,14 +301,16 @@ function NewPlot({ item, books, places, onClose, onDone }: { item?: Item; books:
   }
   return (
     <Overlay onClose={onClose}>
-      <K.Dialog icon="quote" size="lg" title={item ? t('np.editTitle', { name: item.name }) : t('npl.title')} onClose={onClose} note={t('npl.note')}
+      <K.Dialog icon="quote" size="lg" title={item ? t('np.editTitle', { name: item.name }) : t('npl.title')} description={item ? undefined : t('npl.desc')} onClose={onClose} note={t('npl.note')}
         actions={[<K.Button key="c" variant="ghost" onClick={onClose}>{t('np.cancel')}</K.Button>, <K.Button key="m" variant="primary" disabled={!name.trim() || !hook.trim()} onClick={save}>{t(item ? 'np.save' : 'npl.make')}</K.Button>]}>
         <K.TextField label={t('npl.name')} required story value={name} onChange={setName} max={60} />
         <K.TextField label={t('npl.hook')} required hint={t('npl.hookHint')} story value={hook} onChange={setHook} max={160} />
-        <K.TextArea label={t('npl.opens')} hint={t('npl.opensHint')} story rows={3} value={opens} onChange={setOpens} />
-        <K.TextArea label={t('npl.secret')} hint={t('npl.secretHint')} placeholder={t('npl.secretPlaceholder')} rows={3} value={secret} onChange={setSecret} />
-        <K.Select label={t('npl.where')} options={placeOptions.map(([, l]) => l)} value={placeOptions.find(([id]) => id === place)?.[1]} onChange={(v) => setPlace(placeOptions.find(([, l]) => l === v)?.[0])} />
+        <K.TextArea label={t('npl.opens')} optional hint={t('npl.opensHint')} story rows={3} value={opens} onChange={setOpens} />
+        <K.TextArea label={t('npl.secret')} optional hint={t('npl.secretHint')} placeholder={t('npl.secretPlaceholder')} rows={3} value={secret} onChange={setSecret} />
+        <div className="np-pair">
+        <K.Select label={t('npl.where')} optional icon="map-pin" options={placeOptions.map(([, l]) => l)} value={placeOptions.find(([id]) => id === place)?.[1]} onChange={(v) => setPlace(placeOptions.find(([, l]) => l === v)?.[0])} />
         <BookSelect books={books} value={book} onChange={setBook} />
+        </div>
       </K.Dialog>
     </Overlay>
   )
@@ -329,12 +334,12 @@ function NewBook({ stories, loose, onClose, onDone }: { stories: StorySummary[];
   }
   return (
     <Overlay onClose={onClose}>
-      <K.Dialog icon="book" title={t('nb.title')} onClose={onClose}
+      <K.Dialog icon="book" title={t('nb.title')} description={t('nb.desc')} onClose={onClose}
         actions={[<K.Button key="c" variant="ghost" onClick={onClose}>{t('np.cancel')}</K.Button>, <K.Button key="m" variant="primary" disabled={!name.trim()} onClick={make}>{t('nb.make')}</K.Button>]}>
         <K.TextField label={t('nb.name')} required story value={name} onChange={setName} max={60} />
-        <K.TextArea label={t('nb.about')} placeholder={t('nb.aboutPlaceholder')} rows={2} value={about} onChange={setAbout} />
+        <K.TextArea label={t('nb.about')} optional placeholder={t('nb.aboutPlaceholder')} rows={2} value={about} onChange={setAbout} />
         {(stories.length > 0 || loose.length > 0) && (
-          <K.Field label={t('nb.move')} hint={t('nb.moveHint')}>
+          <K.Field label={t('nb.move')} optional hint={t('nb.moveHint')}>
             <div className="card find-list">
               {stories.map((s) => <div key={`s${s.id}`} className="find-row"><K.Checkbox label={s.title} description={t('nb.story')} checked={picked.includes(`s:${s.id}`)} onChange={() => toggle(`s:${s.id}`)} /></div>)}
               {loose.map((i) => <div key={`i${i.id}`} className="find-row"><K.Checkbox label={i.name} description={t(i.kind === 'place' ? 'nb.place' : 'nb.plot')} checked={picked.includes(`i:${i.id}`)} onChange={() => toggle(`i:${i.id}`)} /></div>)}

@@ -101,28 +101,29 @@ function Backups({ list, onClose, onChange }: { list: Backup[]; onClose: () => v
     <Overlay onClose={onClose}>
       <K.Dialog icon="shield" size="lg" title={t('bk.title')} description={t('bk.body')} onClose={onClose}
         note={t('bk.total', { n: list.length, size: size(list.reduce((n, b) => n + b.bytes, 0)) })}
-        actions={[<K.Button key="n" loading={busy} onClick={now}>{t('bk.now')}</K.Button>, <K.Button key="d" variant="primary" onClick={onClose}>{t('bk.done')}</K.Button>]}>
+        actions={[<K.Button key="d" variant="primary" onClick={onClose}>{t('bk.done')}</K.Button>]}>
         <K.KeyValue label={t('bk.where')}>{t('bk.whereValue')}</K.KeyValue>
-        <div className="mo-grid">
-          <K.Field label={t('bk.every')}>{pick(every, 'backups.every', 'daily')}</K.Field>
+        <div className="np-pair">
+          <K.Segmented label={t('bk.every')} size="sm" options={every.map(([, l]) => t(l))} value={t(every.find(([v]) => v === String(prefs['backups.every'] ?? 'daily'))![1])}
+            onChange={(v) => setPref('backups.every', every.find(([, l]) => t(l) === v)?.[0] ?? 'daily')} />
           <K.Field label={t('bk.keep')}>{pick(keep, 'backups.keep', '7')}</K.Field>
         </div>
-        {restoring ? (
-          <K.Callout tone="warm" title={t('bk.sure')} action={<div className="row" style={{ gap: 8 }}>
-            <K.Button size="sm" variant="ghost" onClick={() => setRestoring(undefined)}>{t('bk.cancel')}</K.Button>
-            <K.Button size="sm" variant="primary" onClick={() => restore(restoring)}>{t('bk.go')}</K.Button>
-          </div>}>{t('bk.sureBody')}</K.Callout>
-        ) : list.length > 0 && (
+        <div className="row" style={{ justifyContent: 'space-between' }}>
+          <b style={{ fontSize: 13.5 }}>{t('bk.here')}</b>
+          <K.Button size="sm" variant="ghost" icon="refresh" loading={busy} onClick={now}>{t('bk.now')}</K.Button>
+        </div>
+        {list.length > 0 && (
           <K.Panel flush>
             {list.map((b) => (
-              <div key={b.name} className="ch-row" style={{ padding: '8px 14px' }}>
+              <div key={b.name} className="ch-row" style={{ padding: '10px 14px' }}>
                 <span style={{ flex: 1 }} className="t-body">{new Date(b.at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}</span>
                 <span className="t-meta">{size(b.bytes)}</span>
-                <K.Button size="sm" variant="ghost" onClick={() => setRestoring(b)}>{t('bk.restore')}</K.Button>
+                <K.Button size="sm" variant={restoring === b ? 'primary' : 'ghost'} onClick={() => (restoring === b ? restore(b) : setRestoring(b))}>{t(restoring === b ? 'bk.go' : 'bk.restore')}</K.Button>
               </div>
             ))}
           </K.Panel>
         )}
+        <K.Callout tone="warm" icon="refresh" title={t('bk.sure')}>{t('bk.sureBody')}</K.Callout>
       </K.Dialog>
     </Overlay>
   )
@@ -154,13 +155,13 @@ function DeleteSomething({ onClose, onExport }: { onClose: () => void; onExport:
   }
   return (
     <Overlay onClose={onClose}>
-      <K.Dialog icon="trash" tone="bad" title={t('ds.title')} onClose={onClose}
+      <K.Dialog icon="trash" tone="bad" title={t('ds.title')} description={t('ds.desc')} note={what === 'everything' ? t('ds.restarts') : undefined} onClose={onClose}
         actions={what === 'everything' ? [
           <K.Button key="k" variant="ghost" onClick={onClose}>{t('ds.keep')}</K.Button>,
           <K.Button key="e" variant="secondary" icon="download" onClick={onExport}>{t('ds.exportFirst')}</K.Button>,
           <K.Button key="d" variant="danger" disabled={!ok} loading={busy} onClick={wipe}>{t('ds.go')}</K.Button>,
         ] : [<K.Button key="k" variant="ghost" onClick={onClose}>{t('ds.keep')}</K.Button>, <K.Button key="n" variant="primary" onClick={next}>{t('ds.next')}</K.Button>]}>
-        <K.RadioGroup value={what} onChange={setWhat} options={[
+        <K.RadioGroup label={t('ds.what')} value={what} onChange={setWhat} options={[
           { value: 'story', label: t('ds.story') }, { value: 'character', label: t('ds.character') }, { value: 'persona', label: t('ds.persona') },
           { value: 'everything', label: t('ds.everything'), description: t('ds.everythingSub') },
         ]} />

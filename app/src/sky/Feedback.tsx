@@ -60,8 +60,8 @@ function Dialog({ first }: { first: Kind }) {
   }
   return (
     <Overlay onClose={close}>
-      <K.Dialog icon="help" size="lg" title={t('fb.title')} onClose={close}
-        actions={[<K.Button key="c" variant="ghost" onClick={copy} disabled={!text.trim()}>{t('fb.copy')}</K.Button>, <K.Button key="s" variant="primary" disabled={!text.trim()} onClick={send}>{t('fb.send')}</K.Button>]}>
+      <K.Dialog icon="help" size="lg" title={t('fb.title')} description={t('fb.desc')} note={t('fb.note')} onClose={close}
+        actions={[<K.Button key="c" variant="ghost" icon="link" onClick={copy} disabled={!text.trim()}>{t('fb.copy')}</K.Button>, <K.Button key="s" variant="primary" iconEnd="send" disabled={!text.trim()} onClick={send}>{t('fb.send')}</K.Button>]}>
         <K.Segmented label={t('fb.kind')} options={kinds.map(([, l]) => t(l))} value={t(kinds.find(([k]) => k === kind)![1])} onChange={(v) => setKind(kinds.find(([, l]) => t(l) === v)?.[0] ?? 'feedback')} />
         {kind === 'feedback' && (
           <>
@@ -81,7 +81,6 @@ function Dialog({ first }: { first: Kind }) {
                 ))}
               </K.Panel>
             </K.Field>
-            <span className="t-faint">{t('fb.note')}</span>
           </>
         )}
         {kind === 'suggestion' && <K.TextArea label={t('fb.wanted')} hint={t('fb.wantedHint')} rows={4} value={text} onChange={setText} />}
