@@ -1,7 +1,8 @@
 // Data and privacy (K10, K11, K13): take it with you, bring it in, keys, delete.
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
-import { api, download, sendFile, type Item, type Provider, type StorySummary } from '../../api'
+import { bytes } from '../DiskFull'
+import { api, download, sendFile, type Storage, type Item, type Provider, type StorySummary } from '../../api'
 import { K } from '../../ds'
 import { useLibrary, useLoad } from '../../hooks'
 import { Overlay, toast } from '../../overlay'
@@ -17,7 +18,7 @@ export default function Data() {
   const [backing, setBacking] = useState(false)
   const [list, reloadList] = useLoad(() => api<Backup[]>('/backups').catch(() => []), [])
   const keyed = (providers ?? []).filter((p) => p.has_key)
-  const [places] = useLoad(() => api<Place[]>('/storage').catch(() => []), [])
+  const [places] = useLoad(() => api<Storage>('/storage').then((s) => s.places.filter((p) => p.what !== 'backups'), () => []), [])
   const [prefs] = usePrefs()
   const every = String(prefs['backups.every'] ?? 'daily')
   const exportAll = async () => {
@@ -74,8 +75,7 @@ export default function Data() {
 }
 
 type Backup = { name: string; bytes: number; at: string }
-type Place = { what: 'library' | 'pictures'; path: string; bytes: number }
-const size = (n: number) => (n > 1e9 ? `${(n / 1e9).toFixed(1)} GB` : n > 1e6 ? `${Math.round(n / 1e6)} MB` : `${Math.max(1, Math.round(n / 1e3))} KB`)
+const size = bytes
 
 /** K12: copies of the library, how often and how many, and restoring one. */
 function Backups({ list, onClose, onChange }: { list: Backup[]; onClose: () => void; onChange: () => void }) {

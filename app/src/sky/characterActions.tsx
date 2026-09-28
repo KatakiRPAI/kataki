@@ -2,7 +2,7 @@
 // delete dialog (E5), shared by Characters and the profile.
 import { useState } from 'react'
 import { api, type Item, type StorySummary } from '../api'
-import { storiesWith } from '../characters'
+import { pronoun, storiesWith } from '../characters'
 import { K } from '../ds'
 import { Overlay, toast, type MenuItem } from '../overlay'
 import { t } from '../strings'
@@ -72,9 +72,10 @@ export function DeleteCharacter({ c, stories, onClose, onGone, onBack }: {
   return (
     <Overlay onClose={onClose}>
       <K.Dialog icon="trash" tone="bad" title={t('del.title', { name: c.name })} onClose={onClose}
-        description={t('del.body', { stories: theirs.length })} note={t('del.note')}
+        description={t('del.body', { stories: theirs.length })} note={t('del.note', { p: pronoun(c) })}
         actions={[
-          <K.Button key="k" variant="ghost" onClick={onClose}>{t('del.keep')}</K.Button>,
+          <K.Button key="k" variant="ghost" onClick={onClose}>{t('del.keep', { p: pronoun(c) })}</K.Button>,
+          <K.Button key="e" icon="download" onClick={() => exportCard(c)}>{t('del.export')}</K.Button>,
           <K.Button key="d" variant="danger" disabled={!ok} onClick={go}>{t('del.confirm', { name: c.name })}</K.Button>,
         ]}>
         {theirs.length > 0 && (

@@ -1516,10 +1516,18 @@ def create_app(
 
             db = db_path.resolve()
             pictures = media.folder(conn)
-            return [
-                {"what": "library", "path": str(db.parent), "bytes": sum(size(Path(f"{db}{s}")) for s in ("", "-wal"))},
-                {"what": "pictures", "path": str(pictures), "bytes": size(pictures)},
-            ]
+            disk = shutil.disk_usage(db.parent)
+            return {
+                "places": [
+                    {"what": "library", "path": str(db.parent), "bytes": sum(size(Path(f"{db}{s}")) for s in ("", "-wal"))},
+                    {"what": "pictures", "path": str(pictures), "bytes": size(pictures)},
+                    {"what": "backups", "path": str(backups.folder(db)), "bytes": size(backups.folder(db))},
+                ],
+                # the drive the library is on (N2: "Free on C: 4 MB of 237 GB")
+                "drive": db.anchor.rstrip("\\/") or "/",
+                "free": disk.free,
+                "total": disk.total,
+            }
 
         @app.get("/backups")
         async def list_backups():

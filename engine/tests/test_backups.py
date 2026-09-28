@@ -46,7 +46,9 @@ def test_storage_says_where_the_library_lives(tmp_path, backend):
     with api:
         png = b"\x89PNG\r\n\x1a\n" + b"\0" * 64
         api.post("/media", content=png, headers={"content-type": "image/png"})
-        places = {s["what"]: s for s in api.get("/storage").json()}
+        got = api.get("/storage").json()
+        places = {s["what"]: s for s in got["places"]}
     assert places["library"]["path"] == str(tmp_path.resolve()) and places["library"]["bytes"] > 0
     assert places["pictures"]["bytes"] == len(png)
+    assert places["backups"]["bytes"] == 0 and 0 < got["free"] <= got["total"] and got["drive"]
     conn.close()

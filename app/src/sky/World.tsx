@@ -1,6 +1,6 @@
 // World (I1–I8): places and plots, filed under books and stories.
 import { useState, type ReactNode } from 'react'
-import { useNavigate } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
 import { api, mediaUrl, upload, type Book, type Item, type StorySummary } from '../api'
 import { isCharacter } from '../characters'
 import { K } from '../ds'
@@ -23,9 +23,10 @@ export default function World() {
   const [books, reloadBooks] = useLoad(() => api<Book[]>('/books'), [])
   const [where, setWhere] = useState<Where>('all')
   const [who, setWho] = useState<number>()
+  const [params] = useSearchParams() // ?new=place from Home's day one
   const [show, setShow] = useState<Show>('all')
   const [sort, setSort] = useState<Sort>('used')
-  const [open, setOpen] = useState<{ kind: 'place' | 'plot' | 'newPlace' | 'newPlot' | 'newBook' | 'file'; item?: Item } | null>(null)
+  const [open, setOpen] = useState<{ kind: 'place' | 'plot' | 'newPlace' | 'newPlot' | 'newBook' | 'file'; item?: Item } | null>(() => (params.get('new') === 'place' ? { kind: 'newPlace' } : null))
 
   const places = items.filter((i) => i.kind === 'place' && !i.data.unlisted)
   const plots = items.filter((i) => i.kind === 'scenario')
@@ -95,6 +96,7 @@ export default function World() {
   if (!places.length && !plots.length) {
     return (
       <main className="app__main" aria-label={t('w.title')} style={{ gap: 24 }}>
+        <Top />
         {head}
         <div style={{ maxWidth: 680, paddingTop: 40 }}>
           <K.EmptyState icon="map" eyebrow={t('w.title')} title={t('w.empty.title')} actions={[

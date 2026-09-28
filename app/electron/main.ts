@@ -124,9 +124,10 @@ app.on('will-quit', () => rmSync(runningMark(), { force: true }))
 ipcMain.on('kataki:restart', () => { app.relaunch(); app.quit() })
 // Settings › General › Start with Windows: only when the person turns it on or off there.
 ipcMain.on('kataki:startup', (_e, on: boolean) => app.setLoginItemSettings({ openAtLogin: !!on }))
-// Settings › Data › Open folder: only the library's own two folders, never a path the page names
+// Settings › Data › Open folder: only the library's own folders, never a path the page names
 ipcMain.on('kataki:reveal', (_e, what: string) => {
-  if (what === 'library' || what === 'pictures') shell.openPath(what === 'library' ? dirname(libraryDb) : join(dirname(libraryDb), 'blobs'))
+  const folders: Record<string, string> = { library: '', pictures: 'blobs', backups: 'backups' }
+  if (Object.hasOwn(folders, what)) shell.openPath(join(dirname(libraryDb), folders[what]))
 })
 
 // No top-level await here: Electron holds `ready` until this module finishes evaluating,

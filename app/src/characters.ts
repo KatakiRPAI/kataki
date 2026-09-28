@@ -27,3 +27,8 @@ export function said(text: string) {
   const words = text.replace(/\*[^*]*\*/g, ' ').replace(/\s+/g, ' ').trim()
   return words || text.replace(/\*/g, '').trim()
 }
+
+// the order the sample world is shown in (README › The sample world); anyone else follows by name
+const SHIPPED = ['Mike', 'Theo', 'Nico', 'Jae', 'Cas', 'Dani']
+const shippedRank = (c: Item) => { const i = SHIPPED.indexOf(c.name); return i < 0 ? SHIPPED.length : i }
+export const byShipped = (a: Item, b: Item) => shippedRank(a) - shippedRank(b) || a.name.localeCompare(b.name)

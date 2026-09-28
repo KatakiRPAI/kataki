@@ -59,8 +59,8 @@ async function shot(url, h, js, ready) {
   return img
 }
 
-async function theme(t) {
-  await fetch(`http://127.0.0.1:${enginePort}/settings`, { method: 'PUT', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ 'appearance.theme': t }) })
+async function theme(t, port) {
+  await fetch(`http://127.0.0.1:${port}/settings`, { method: 'PUT', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ 'appearance.theme': t }) })
 }
 
 // board | app | difference (red where they differ), each at half size, and the share that differs
@@ -95,19 +95,20 @@ async function compare(a, b, h, file) {
 app.on('window-all-closed', () => {}) // each shot closes its window; the script quits when done
 app.whenReady().then(async () => {
   process.on('unhandledRejection', (e) => { fs.mkdirSync(outDir, { recursive: true }); log('failed', e.stack); app.quit() })
-  const port = await serve()
+  const boards = await serve()
   const jobs = JSON.parse(fs.readFileSync(jobsFile, 'utf8'))
   fs.mkdirSync(outDir, { recursive: true })
   let current = null
   for (const j of jobs) {
     const h = j.h || 900
     const q = new URLSearchParams(Object.entries(j.props || {}).map(([k, v]) => [k, JSON.stringify(v)]))
-    const board = await shot(`http://127.0.0.1:${port}/${j.board}.dc.html?${q}`, h, j.boardJs, `document.documentElement.dataset.board === 'ready'`)
+    const board = await shot(`http://127.0.0.1:${boards}/${j.board}.dc.html?${q}`, h, j.boardJs, `document.documentElement.dataset.board === 'ready'`)
     fs.writeFileSync(path.join(outDir, `${j.id}.board.png`), board.toPNG())
     if (!j.app) { log(j.id, 'board only'); continue }
-    if (j.theme && j.theme !== current) { await theme(j.theme); current = j.theme }
+    const port = j.port || enginePort // a job can use another engine (an empty library, a dead model)
+    if (j.theme && `${j.theme}@${port}` !== current) { await theme(j.theme, port); current = `${j.theme}@${port}` }
     const sep = j.app.includes('?') ? '&' : '?'
-    const shown = await shot(`${appOrigin}${j.app}${sep}port=${enginePort}&token=${token}`, h, j.js, `document.documentElement.dataset.engine === 'ok' && !!document.querySelector('main, .scene, [role=dialog]')`)
+    const shown = await shot(`${appOrigin}${j.app}${sep}port=${port}&token=${token}`, h, j.js, `document.documentElement.dataset.engine === 'ok' && !!document.querySelector('main, .scene, [role=dialog]')`)
     fs.writeFileSync(path.join(outDir, `${j.id}.app.png`), shown.toPNG())
     log(j.id, await compare(board, shown, h, path.join(outDir, `${j.id}.png`)) + '% differs')
   }

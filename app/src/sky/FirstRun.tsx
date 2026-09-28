@@ -2,7 +2,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { api, mediaUrl, upload, type Item, type Provider, type RoleRow, type Story, type StorySummary } from '../api'
-import { isCharacter, isDraft, isPersona } from '../characters'
+import { byShipped, isCharacter, isDraft, isPersona } from '../characters'
 import { K } from '../ds'
 import { face, useLibrary, useLoad } from '../hooks'
 import { Overlay, toast } from '../overlay'
@@ -239,9 +239,6 @@ function Online() {
   )
 }
 
-// the order the sample world is shown in (README › The sample world); anyone else follows by name
-const SHIPPED = ['Mike', 'Theo', 'Nico', 'Jae', 'Cas', 'Dani']
-
 /** B5, B6: who to meet first, and who you are. */
 function Who() {
   const navigate = useNavigate()
@@ -256,9 +253,8 @@ function Who() {
     seedSampleWorld().then(() => { reload(); loadPrefs() }).finally(() => setSeeding(false))
   }, [items.length]) // eslint-disable-line react-hooks/exhaustive-deps
   const me = typeof prefs.persona === 'number' ? items.find((i) => i.id === prefs.persona) : items.find(isPersona)
-  const rank = (c: Item) => { const i = SHIPPED.indexOf(c.name); return i < 0 ? SHIPPED.length : i }
   const people = items.filter((i) => i.kind === 'character' && i.id !== me?.id)
-    .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name)).slice(0, 6)
+    .sort(byShipped).slice(0, 6)
   const chosen = people.find((c) => c.id === picked) ?? people.find((c) => c.name === 'Mike') ?? people[0]
   const start = async () => {
     if (!chosen) return

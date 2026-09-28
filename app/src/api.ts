@@ -261,6 +261,9 @@ export type ActivityEvent = {
   new: boolean
 }
 
+/** Where the library lives and how much room is left (GET /storage). */
+export type Storage = { places: { what: 'library' | 'pictures' | 'backups'; path: string; bytes: number }[]; drive: string; free: number; total: number }
+
 export type StorySummary = Standing & {
   id: number
   title: string

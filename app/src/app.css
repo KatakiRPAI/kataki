@@ -328,8 +328,10 @@ button.k-shortrow, button.k-job { width: 100%; background: transparent; border: 
 [dir="rtl"] .k-line__text em, [dir="rtl"] em { font-style: normal; }
 [dir="rtl"] .k-icon.is-directional, [dir="rtl"] .k-btn--scene-send .k-icon, [dir="rtl"] .k-scenechip .k-icon[data-flip] { transform: scaleX(-1); }
 [dir="rtl"] .readcol { transform: translateX(50%); }
-.takeover { position: fixed; inset: 0; z-index: 60; background: var(--ground); color: var(--ink); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 24px; box-sizing: border-box; }
-.takeover > .k-alert { max-width: 720px; }
+.takeover { position: fixed; inset: 0; z-index: 60; background: var(--ground); color: var(--ink); font-family: var(--font-ui); overflow-y: auto; }
+.takeover > .k-sky { position: fixed; }
+.takeover__col { position: relative; width: 820px; max-width: calc(100% - 48px); margin: 0 auto; padding: 110px 0 48px; display: flex; flex-direction: column; gap: 22px; }
+.takeover__mark { font-family: var(--font-display); font-size: 26px; font-weight: 800; letter-spacing: -0.015em; }
 .bsx .logl { grid-template-columns: 96px 54px 120px minmax(0, 1fr) auto; }
 
 /* Settings (K1–K18) */
@@ -344,3 +346,7 @@ button.k-shortrow, button.k-job { width: 100%; background: transparent; border: 
 .mg-cause:last-child { border-bottom: 0; }
 .np-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .ep-pair { display: grid; grid-template-columns: minmax(0, 1fr) 200px; gap: 14px; align-items: start; }
+/* Home on day one (C2) */
+.home-day1 { display: flex; flex-direction: column; gap: 14px; padding: 36px 0 8px; max-width: 760px; }
+.home-day1__h { margin: 0; font-family: var(--font-display); font-size: 48px; line-height: 52px; font-weight: 800; letter-spacing: -0.02em; }
+.home-day1__p { margin: 0; font-size: 16px; line-height: 25px; color: var(--mid); }

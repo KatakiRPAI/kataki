@@ -5,7 +5,7 @@ import { api, type ActivityEvent, type Item, type Person, type Provider, type Ro
 import { K } from '../ds'
 import { face, scenery, twelve, useLibrary, useLoad, utc } from '../hooks'
 import { relative, t } from '../strings'
-import { isDraft, said } from '../characters'
+import { byShipped, isDraft, said } from '../characters'
 import Top from './Top'
 import { openFeedback } from './Feedback'
 import { Overlay } from '../overlay'
@@ -51,8 +51,11 @@ export default function Home() {
       {crash && hero && <Crashed story={hero} onClose={() => { crashSeen.done = true; setCrash(false) }} onContinue={() => { crashSeen.done = true; navigate(`/story/${hero.id}`) }} />}
     </>
   )
+  // day one: everyone who came with Kataki except the one you are (Home › C2)
+  const others = items.filter((i) => i.kind === 'character' && i.id !== persona?.id).sort(byShipped)
   const start = async (c: Item) => {
-    const story = await api<Story>('/stories', 'POST', { title: c.name, character_ids: [c.id], persona_id: persona?.id ?? null })
+    const place = c.data.places?.[0]
+    const story = await api<Story>('/stories', 'POST', { title: `${(place && byId.get(place)?.name) || c.name} · ${new Date().toLocaleDateString('en-GB', { weekday: 'long' })}`, character_ids: [c.id], place_id: place ?? null, persona_id: persona?.id ?? null })
     navigate(`/story/${story.id}`)
   }
 
@@ -60,20 +63,33 @@ export default function Home() {
     return (
       <main className="app__main" aria-label={t('home.label')}>
         {top}
-        <h1 className="pg-title">{t('home.empty.title')}</h1>
-        <section className="sec" aria-label={t('home.empty.start')}>
-          <h2 className="sec-title">{t('home.empty.start')}</h2>
-          <div className="row row--wrap" style={{ gap: 16, alignItems: 'flex-start' }}>
-            {characters.filter((c) => !isDraft(c)).map((c) => (
-              <div key={c.id} className="col">
-                <K.CharacterCard {...face(c)} name={c.name} when={t('card.when.never')} />
-                <K.Button variant="primary" size="sm" onClick={() => start(c)}>{t('home.empty.sayHello')}</K.Button>
-              </div>
-            ))}
-            <K.AddCard href="/characters/new" sub={t('home.newCharacterSub')}>{t('home.newCharacter')}</K.AddCard>
+        <section className="home-day1">
+          <K.Eyebrow tone="mid">{t('home.empty.eyebrow')}</K.Eyebrow>
+          <h1 className="home-day1__h">{t('home.empty.title')}</h1>
+          <p className="home-day1__p">{t('home.empty.sub', { n: others.length })}</p>
+        </section>
+        {others.length > 0 && (
+          <section className="sec" aria-label={t('home.empty.start')}>
+            <h2 className="sec-title">{t('home.empty.start')}</h2>
+            <div className="row row--wrap" style={{ gap: 16, alignItems: 'flex-start' }}>
+              {others.filter((c) => !isDraft(c)).map((c, i) => (
+                <div key={c.id} className="col" style={{ gap: 10 }}>
+                  <K.CharacterCard {...face(c)} name={c.name} line={c.data.tagline} when={t('card.when.never')} />
+                  <K.Button variant={i ? 'secondary' : 'primary'} size="sm" full onClick={() => start(c)}>{t('home.empty.sayHello')}</K.Button>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+        <section className="sec" aria-label={t('home.empty.nothing')}>
+          <h2 className="sec-title">{t('home.empty.nothing')}</h2>
+          <div className="row" style={{ gap: 16, alignItems: 'stretch' }}>
+            <K.DoorCard icon="feather" eyebrow={t('home.door.writeTag')} title={t('home.door.write')} actions={<K.Button size="sm" href="/characters/new">{t('home.newCharacter')}</K.Button>}>{t('home.door.writeBody')}</K.DoorCard>
+            <K.DoorCard icon="download" eyebrow={t('home.door.importTag')} title={t('home.door.import')} actions={<K.Button size="sm" href="/characters?import=1">{t('fr.importBtn')}</K.Button>}>{t('home.door.importBody')}</K.DoorCard>
+            <K.DoorCard icon="map" eyebrow={t('home.door.placeTag')} title={t('home.door.place')} actions={<K.Button size="sm" href="/world?new=place">{t('w.newPlace')}</K.Button>}>{t('home.door.placeBody')}</K.DoorCard>
           </div>
         </section>
-        <Privacy />
+        <div style={{ maxWidth: 760 }}><K.Callout tone="warm" title={t('home.empty.know')}>{t('home.empty.knowBody', { name: others[0]?.name ?? '' })}</K.Callout></div>
       </main>
     )
   }

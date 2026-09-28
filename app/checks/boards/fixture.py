@@ -30,7 +30,17 @@ def story(title, cast, persona, place, book_title, lines, ago, epoch=19 * 60):
     return sid
 
 
-story("Two Sugars, No Title", ["Mike", "Theo"], "Liv", "Halcyon Coffee", "Close to the Crown", [
+def memory(sid, knower, about, detail, belief=1.0, ago_min=0):
+    """What `knower` holds about `about`, as the memory reader would have left it: `ago_min`
+    story minutes old (older fades), `belief` under 0.7 reads as doubted."""
+    ent = {r["name"]: r["id"] for r in conn.execute("SELECT id, name FROM entities WHERE story_id=?", (sid,))}
+    mid = library.add_memory(conn, sid, detail, knower_ids=[ent[knower]], entity_ids=[ent[about]])
+    with conn:
+        conn.execute("UPDATE memories SET story_time=story_time-? WHERE id=?", (ago_min, mid))
+        conn.execute("UPDATE knowledge SET belief=?, source='witnessed', learned_story_time=learned_story_time-? WHERE memory_id=?", (belief, ago_min, mid))
+
+
+two = story("Two Sugars, No Title", ["Mike", "Theo"], "Liv", "Halcyon Coffee", "Close to the Crown", [
     ("Liv", "Still open? I’ll take anything hot, I don’t care what.", 0),
     ("Mike", "*flips the sign back around and goes for a cup* Ten minutes. Drink it fast or I’m putting you to work.", 0),
     ("Theo", "*drops his backpack on the counter* Did someone say free labour?", 0),
@@ -42,7 +52,7 @@ story("Two Sugars, No Title", ["Mike", "Theo"], "Liv", "Halcyon Coffee", "Close 
     ("Liv", "I never said that. I said I didn’t want to be on it.", 0),
     ("Mike", "*frowns* …I could have sworn. Three weeks is a long time to hold one sentence.", 0),
 ], "-2 hours")
-story("The Gala List", ["Jae"], "Liv", "Corvel Palace", "Close to the Crown", [
+gala = story("The Gala List", ["Jae"], "Liv", "Corvel Palace", "Close to the Crown", [
     ("Liv", "Are you going?", 0),
     ("Jae", "Officially? No comment. Unofficially, be there by eight.", 0),
 ], "-7 days")
@@ -54,4 +64,15 @@ story("The Long Way Home", ["Liv"], "Cas", "Halcyon Coffee", None, [
     ("Cas", "The engine's gone again.", 0),
     ("Liv", "Leave it. We’ll push.", 0),
 ], "-21 days")
+memory(two, "Mike", "Liv", "Her mother is the queen’s step-sister.")
+memory(two, "Mike", "Liv", "She did not want to be on the gala list.", ago_min=21 * 1440)
+memory(two, "Mike", "Liv", "She says she never said it.", belief=0.5)
+memory(two, "Theo", "Liv", "She sent him to the back for milk.")
+memory(gala, "Jae", "Liv", "Her name is on the list.")
+# P20 the first scene: Mike and his opening line only; P21 a story begun from a plot
+first = library.create_story(conn, "Halcyon Coffee · Monday", [item["Mike"]], item["Halcyon Coffee"], item["Liv"], epoch_offset_min=19 * 60)
+plot = library.create_story(conn, "The Invitation", [item["Mike"]], item["Halcyon Coffee"], item["Liv"], scenario_id=item["The Invitation"], epoch_offset_min=19 * 60 + 30)
+with conn:  # a month old, so Home still leads with Two Sugars
+    conn.execute("UPDATE messages SET created_at=datetime('now', '-30 days') WHERE story_id IN (?, ?)", (first, plot))
+    conn.execute("UPDATE stories SET created_at=datetime('now', '-30 days') WHERE id IN (?, ?)", (first, plot))
 print("ok")

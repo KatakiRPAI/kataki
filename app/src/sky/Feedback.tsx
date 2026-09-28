@@ -65,13 +65,13 @@ function Dialog({ first }: { first: Kind }) {
         <K.Segmented label={t('fb.kind')} options={kinds.map(([, l]) => t(l))} value={t(kinds.find(([k]) => k === kind)![1])} onChange={(v) => setKind(kinds.find(([, l]) => t(l) === v)?.[0] ?? 'feedback')} />
         {kind === 'feedback' && (
           <>
-            <K.TextArea label={t('fb.mind')} hint={t('fb.mindHint')} rows={4} value={text} onChange={setText} />
+            <K.TextArea label={t('fb.mind')} required hint={t('fb.mindHint')} rows={4} value={text} onChange={setText} />
             <K.TextField label={t('fb.email')} hint={t('fb.emailHint')} optional type="email" value={email} onChange={setEmail} />
           </>
         )}
         {kind === 'bug' && (
           <>
-            <K.TextArea label={t('fb.happened')} rows={3} value={text} onChange={setText} />
+            <K.TextField label={t('fb.happened')} required value={text} onChange={setText} />
             <K.TextArea label={t('fb.more')} rows={3} optional value={more} onChange={setMore} />
             <K.Field label={t('fb.sent')} hint={t('fb.sentBody')}>
               <K.Panel flush>
