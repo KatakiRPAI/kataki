@@ -8,6 +8,7 @@ import { useLibrary, useLoad } from '../../hooks'
 import { Overlay, toast } from '../../overlay'
 import { setPref, usePrefs } from '../../prefs'
 import { relative, t, type Key } from '../../strings'
+import { err } from '../../errors'
 
 export default function Data() {
   const navigate = useNavigate()
@@ -90,10 +91,12 @@ function Backups({ list, onClose, onChange }: { list: Backup[]; onClose: () => v
   )
   const now = async () => {
     setBusy(true)
-    try { await api('/backups', 'POST'); onChange(); toast(t('toast.backedUp'), {}, 3000) } finally { setBusy(false) }
+    try { await api('/backups', 'POST'); onChange(); toast(t('toast.backedUp'), {}, 3000) }
+    catch { toast(err('BACKUP_FAILED', { time: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), folder: t('bk.whereValue'), lastBackupAt: list[0] ? relative(Date.parse(list[0].at)) : t('bk.never') }).title, {}, 8000) }
+    finally { setBusy(false) }
   }
   const restore = async (b: Backup) => {
-    await api(`/backups/${encodeURIComponent(b.name)}/restore`, 'POST')
+    try { await api(`/backups/${encodeURIComponent(b.name)}/restore`, 'POST') } catch { const e = err('BACKUP_RESTORE_FAILED'); setRestoring(undefined); return toast(`${e.title}. ${e.body}`, {}, 10000) }
     if (window.kataki?.restart) window.kataki.restart()
     else { setRestoring(undefined); toast(t('toast.restartToFinish'), {}, 10000) }
   }

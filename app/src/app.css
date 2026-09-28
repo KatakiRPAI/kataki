@@ -298,7 +298,7 @@ button.k-shortrow, button.k-job { width: 100%; background: transparent; border: 
 .fr__card { display: flex; flex-direction: column; gap: 20px; padding: 28px 30px; }
 .fr__h2 { margin: 0; font-family: var(--font-display); font-size: 28px; font-weight: 800; letter-spacing: -0.015em; }
 .fr__test { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: end; }
-.errcode { font-family: var(--font-mono); font-size: 11px; color: var(--scene-muted); }
+.errcode { font-family: var(--font-mono); font-size: 11px; color: var(--scene-muted, var(--faint)); }
 
 /* Layout breakpoints (ROUTES.md): compact rail below 1280, one column below 1024 */
 .app--compact .app__sky { inset-inline-start: 72px; }

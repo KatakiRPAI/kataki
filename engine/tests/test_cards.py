@@ -343,7 +343,7 @@ def test_a_picture_encoded_wrongly_costs_the_picture_and_nothing_else(conn):
 
 
 def test_a_picture_too_big_for_the_library_is_not_smuggled_in_as_a_card(conn):
-    """`POST /media` refuses 10 MB; a card is not a way around that."""
+    """`POST /media` refuses anything over media.MAX_BYTES; a card is not a way around that."""
     fat = png(**{"ccv3": carded("chara_card_v3", "3.0", V3), "bulk": b"\0" * (media.MAX_BYTES + 1)})
     made = cards.add(conn, fat)
     assert made["item"]["data"].get("portrait") is None

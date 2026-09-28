@@ -5,6 +5,7 @@ import { K } from '../../ds'
 import { useLoad } from '../../hooks'
 import { Overlay, toast, openMenu, withMenu, type MenuItem } from '../../overlay'
 import { t, type Key } from '../../strings'
+import { classify, err } from '../../errors'
 
 type Test = { ok: boolean; ms?: number; error?: string; models?: string[] }
 const JOBS = ['rp', 'narrator', 'utility', 'reasoning', 'embed'] as const
@@ -78,10 +79,17 @@ export default function Models() {
                   onTest={() => run(p)} testing={r === 'testing'} testLabel={t('mo.test')} onRemove={() => remove(p)} removeLabel={t('mo.remove')} />
                 {bad && (
                   <div className="mo-err">
-                    <K.Callout tone="bad" title={/401|unauthor/i.test(bad.error ?? '') ? t('mo.keyBad', { name: p.name }) : t('mo.failed', { url: p.base_url })}
-                      action={<K.Button size="sm" onClick={() => run(p)}>{t('mo.testAgain')}</K.Button>}>
-                      {/401|unauthor/i.test(bad.error ?? '') ? t('mo.keyBadBody') : t('mo.failedBody', { error: bad.error ?? '' })}
-                    </K.Callout>
+                    {(() => {
+                      // the catalogue's words for what went wrong (SetModelsFailed, K6)
+                      const online = !/^https?:\/\/(localhost|127\.|\[::1\])/.test(p.base_url)
+                      const code = classify(bad.error ?? '', online, true)
+                      const e = err(code === 'UNKNOWN' || code === 'REPLY_UNREACHABLE' ? 'SERVER_UNREACHABLE' : code, { server: p.name, provider: p.name, address: p.base_url, seconds: 5, model: rp?.effective_model ?? '' })
+                      return (
+                        <K.Callout tone="bad" title={e.title} action={<K.Button size="sm" onClick={() => run(p)}>{t('mo.testAgain')}</K.Button>}>
+                          {e.body} <span className="errcode">{e.code}</span>
+                        </K.Callout>
+                      )
+                    })()}
                   </div>
                 )}
               </div>

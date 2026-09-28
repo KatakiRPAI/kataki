@@ -7,6 +7,7 @@ import { K } from '../ds'
 import { face, scenery, useLibrary, useLoad, utc } from '../hooks'
 import { openMenu, Overlay, toast, withMenu, type MenuItem } from '../overlay'
 import { t, type Key } from '../strings'
+import { err } from '../errors'
 import Top from './Top'
 
 type Time = 'dawn' | 'day' | 'dusk' | 'night'
@@ -77,7 +78,9 @@ export default function World() {
     { label: t(p.kind === 'place' ? 'pl.delete' : 'pt.delete'), detail: t('pl.deleteDetail'), icon: 'trash', danger: true, onSelect: () => remove(p) },
   ]
   const [gone, setGone] = useState<number[]>([])
-  const remove = (p: Item) => {
+  const [inUse, setInUse] = useState<Item>()
+  const remove = (p: Item, sure = false) => {
+    if (!sure && usedIn(p).length) return setInUse(p)
     setGone((g) => [...g, p.id])
     toast(t('toast.placeDeleted', { name: p.name }), { action: t('toast.undo'), onAction: () => setGone((g) => g.filter((x) => x !== p.id)), onDone: () => api(`/library/${p.id}`, 'DELETE').then(reload) })
   }
@@ -98,6 +101,13 @@ export default function World() {
       {open?.kind === 'plot' && open.item && <PlotDetail p={open.item} book={books?.find((b) => b.id === bookOf(open.item!))?.title} stories={usedIn(open.item)} onClose={() => setOpen(null)} menu={() => placeMenu(open.item!)} />}
       {open?.kind === 'newPlace' && <NewPlace item={open.item} books={books ?? []} onClose={() => setOpen(null)} onDone={done} />}
       {open?.kind === 'newPlot' && <NewPlot item={open.item} books={books ?? []} places={places} onClose={() => setOpen(null)} onDone={done} />}
+      {inUse && (() => { const e = err('DELETE_IN_USE', { name: inUse.name, count: usedIn(inUse).length }); return (
+        <Overlay onClose={() => setInUse(undefined)}>
+          <K.Dialog icon="trash" tone="bad" size="sm" title={e.title} description={e.body} onClose={() => setInUse(undefined)}
+            actions={[<K.Button key="c" variant="ghost" onClick={() => setInUse(undefined)}>{e.actions[1]}</K.Button>,
+              <K.Button key="d" variant="danger" onClick={() => { const p = inUse; setInUse(undefined); remove(p, true) }}>{e.actions[0]}</K.Button>]} />
+        </Overlay>
+      ) })()}
       {renaming && <RenameBook book={renaming} onClose={() => setRenaming(undefined)} onDone={done} />}
       {dropping && (
         <Overlay onClose={() => setDropping(undefined)}>

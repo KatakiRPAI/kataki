@@ -7,6 +7,7 @@ import { K } from '../ds'
 import { useLibrary, useLoad, utc, useTitle } from '../hooks'
 import { Overlay } from '../overlay'
 import { t, type Key } from '../strings'
+import { err, type Shown } from '../errors'
 import { lines as linesOf } from './Profile'
 import liv from '../ds/art/liv.png'
 import mike from '../ds/art/mike.png'
@@ -70,7 +71,7 @@ export default function Editor() {
   const [tried, setTried] = useState(false)
   const [saving, setSaving] = useState(false)
   const [picking, setPicking] = useState(false)
-  const [focusing, setFocusing] = useState<{ src: string; name?: string; bad?: boolean }>()
+  const [focusing, setFocusing] = useState<{ src: string; name?: string; bad?: Shown }>()
   const fileRef = useRef<HTMLInputElement>(null)
   useEffect(() => {
     if (base || (id && !item)) return
@@ -144,9 +145,12 @@ export default function Editor() {
   }
   const choose = async (file: File | undefined) => {
     if (!file) return
-    const ok = /^image\/(png|jpeg|webp)$/.test(file.type) && file.size <= 20 * 1024 * 1024
-    if (!ok) return setFocusing({ src: '', bad: true })
-    const made = await upload(file)
+    // PORTRAIT_UNSUPPORTED, PORTRAIT_TOO_LARGE: the engine keeps up to 20 MB (media.MAX_BYTES)
+    if (!/^image\/(png|jpeg|webp)$/.test(file.type)) return setFocusing({ src: '', bad: err('PORTRAIT_UNSUPPORTED') })
+    const tooBig = err('PORTRAIT_TOO_LARGE', { sizeMb: Math.round(file.size / 1e6) })
+    if (file.size > 20 * 1024 * 1024) return setFocusing({ src: '', bad: tooBig })
+    const made = await upload(file).catch(() => null)
+    if (!made) return setFocusing({ src: '', bad: tooBig })
     setFocusing({ src: mediaUrl(made.name), name: made.name })
   }
 
@@ -198,7 +202,7 @@ export default function Editor() {
             <K.Eyebrow tone="accent">{t('ed.required')}</K.Eyebrow>
             <div id="ed-name">
               <K.TextField label={t('ed.name')} required max={40} value={f.name} onChange={(v) => set('name', v)}
-                hint={taken ? t('ed.nameTaken', { name: f.name.trim() }) : t('ed.nameHint')} error={tried && !nameOk ? t('ed.nameErr') : undefined} />
+                hint={taken ? `${err('NAME_TAKEN', { name: f.name.trim() }).title}. ${err('NAME_TAKEN').body}` : t('ed.nameHint')} error={tried && !nameOk ? t('ed.nameErr') : undefined} />
             </div>
             <div id="ed-hi">
               <K.TextArea label={t('ed.hi')} required story rows={3} value={f.greeting} onChange={(v) => set('greeting', v)} placeholder={t('ed.hiPlaceholder')}
@@ -375,7 +379,7 @@ function Picker({ onClose, onPick }: { onClose: () => void; onPick: (src: string
 
 /** F5: where the face is, so every crop centres on it; and what the picture shows. */
 function Focus({ src, bad, focus, alt, name, onClose, onChoose, onUse }: {
-  src: string; bad?: boolean; focus?: string; alt?: string; name: string; onClose: () => void; onChoose: () => void; onUse: (focus: string, alt: string) => void
+  src: string; bad?: Shown; focus?: string; alt?: string; name: string; onClose: () => void; onChoose: () => void; onUse: (focus: string, alt: string) => void
 }) {
   const [x0, y0] = (focus ?? '50% 40%').split(' ').map((v) => parseFloat(v))
   const [at, setAt] = useState({ x: x0, y: y0 })
@@ -395,7 +399,7 @@ function Focus({ src, bad, focus, alt, name, onClose, onChoose, onUse }: {
         </div>
         <div className="dlg__body">
           {bad ? (
-            <K.Callout tone="bad" title={t('focus.bad')} action={<K.Button size="sm" onClick={() => { onClose(); onChoose() }}>{t('ed.chooseFile')}</K.Button>}>{t('focus.badBody')}</K.Callout>
+            <K.Callout tone="bad" title={bad.title} action={<K.Button size="sm" onClick={() => { onClose(); onChoose() }}>{t('ed.chooseFile')}</K.Button>}>{bad.body} <span className="errcode">{bad.code}</span></K.Callout>
           ) : (
             <div className="ed-focus">
               <div ref={box} className="ed-focus__img" onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); place(e) }}

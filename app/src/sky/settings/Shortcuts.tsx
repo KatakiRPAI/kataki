@@ -5,6 +5,7 @@ import { setPref, usePrefs } from '../../prefs'
 import { combo, holder, keysOf, parts, reserved } from '../../shortcuts'
 import { toast } from '../../overlay'
 import { t, type Key } from '../../strings'
+import { err } from '../../errors'
 
 // The board's order. A string is a shortcut you can change; [label, keys] is one that stays as it is.
 type Entry = string | [Key, string[]]
@@ -67,14 +68,14 @@ export default function Shortcuts() {
         <K.Button size="sm" variant="ghost" icon="refresh" disabled={!Object.keys(own).length} onClick={() => setPref('shortcuts', {})}>{t('sh.reset')}</K.Button>
       </div>
       {clash && (clash.reserved ? (
-        <K.Callout tone="bad" title={t('sh.reserved', { keys: clash.keys })} action={<K.Button size="sm" onClick={() => { setRecording(clash.id); setClash(undefined) }}>{t('sh.pickOther')}</K.Button>}>{t('sh.reservedBody')}</K.Callout>
+        <K.Callout tone="bad" title={err('SHORTCUT_RESERVED', { keys: clash.keys }).title} action={<K.Button size="sm" onClick={() => { setRecording(clash.id); setClash(undefined) }}>{t('sh.pickOther')}</K.Button>}>{err('SHORTCUT_RESERVED').body} <span className="errcode">SHORTCUT_RESERVED</span></K.Callout>
       ) : (
-        <K.Callout tone="warm" title={t('sh.taken', { keys: clash.keys, action: label(clash.other!) })}
+        <K.Callout tone="warm" title={err('SHORTCUT_TAKEN', { keys: clash.keys, does: t('sh.does', { action: label(clash.other!) }) }).title}
           action={<div className="row" style={{ gap: 8 }}>
             <K.Button size="sm" onClick={() => { assign(clash.id, clash.keys, clash.other); setClash(undefined) }}>{t('sh.useHere')}</K.Button>
             <K.Button size="sm" variant="ghost" onClick={() => { setRecording(clash.id); setClash(undefined) }}>{t('sh.pickOther')}</K.Button>
           </div>}>
-          {t('sh.takenBody', { mine: label(clash.id) })}
+          {err('SHORTCUT_TAKEN', { action: label(clash.id), other: label(clash.other!) }).body}
         </K.Callout>
       ))}
       <div className="sh-grid">

@@ -12,7 +12,7 @@ import sqlite3
 import tempfile
 from pathlib import Path
 
-MAX_BYTES = 10 * 1024 * 1024
+MAX_BYTES = 20 * 1024 * 1024  # PORTRAIT_TOO_LARGE: "PNG, JPG or WEBP, up to 20 MB"
 TYPES = {"png": "image/png", "jpg": "image/jpeg", "gif": "image/gif", "webp": "image/webp"}
 NAME = re.compile(r"[0-9a-f]{64}\.(png|jpg|gif|webp)")
 

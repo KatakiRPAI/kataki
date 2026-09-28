@@ -755,7 +755,7 @@ def create_app(
     async def add_media(request: Request):
         data = await request.body()
         if len(data) > media.MAX_BYTES:
-            raise HTTPException(413, "Images can be at most 10 MB.")
+            raise HTTPException(413, "Images can be at most 20 MB.")
         if (ext := media.sniff(data)) is None:
             raise HTTPException(415, "Only PNG, JPEG, GIF or WebP images.")
         return {"name": media.save(conn, data, ext), "bytes": len(data)}

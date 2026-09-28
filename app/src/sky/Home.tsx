@@ -5,6 +5,7 @@ import { api, type ActivityEvent, type Item, type Person, type Provider, type Ro
 import { K } from '../ds'
 import { face, scenery, twelve, useLibrary, useLoad, utc } from '../hooks'
 import { relative, t } from '../strings'
+import { err } from '../errors'
 import { byShipped, isDraft, said } from '../characters'
 import { storyMenu } from './storyMenu'
 import Top from './Top'
@@ -30,6 +31,8 @@ export default function Home() {
     const rp = (await api<RoleRow[]>('/roles')).find((r) => r.role === 'rp')
     if (!rp?.effective_provider_id) return null
     const provider = (await api<Provider[]>('/providers')).find((p) => p.id === rp.effective_provider_id)
+    const elsewhere = !!provider && !/^https?:\/\/(localhost|127\.|\[::1\])/.test(provider.base_url)
+    if (elsewhere && !navigator.onLine) return 'OFFLINE'
     return api(`/providers/${rp.effective_provider_id}/models`).then(() => null, () => provider?.name ?? '?')
   }, [])
   const played = [...(stories ?? [])].sort((a, b) => utc(b.last_at) - utc(a.last_at))
@@ -108,7 +111,7 @@ export default function Home() {
     <main className="app__main" aria-label={t('home.label')}>
       <a href={`/story/${hero.id}`} className="sr">{t('home.skip')}</a>
       {top}
-      {offline && (
+      {offline === 'OFFLINE' ? <K.StatusLine tone="warm" title={err('OFFLINE').title}>{err('OFFLINE').body}</K.StatusLine> : offline && (
         <K.StatusLine tone="bad" title={t('home.offline')} action={<K.Button size="sm" href="/status/model">{t('home.what')}</K.Button>}>{t('home.offlineBody', { server: offline })}</K.StatusLine>
       )}
       <K.ContinueHero

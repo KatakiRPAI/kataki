@@ -59,8 +59,8 @@ def test_anything_else_is_refused(api, body):
     assert refused.json()["detail"] == "Only PNG, JPEG, GIF or WebP images."
 
 
-def test_an_image_over_10_mib_is_refused(api, tmp_path):
-    assert api.post("/media", content=PNG + b"\x00" * (10 * 1024 * 1024)).status_code == 413
+def test_an_image_over_20_mib_is_refused(api, tmp_path):
+    assert api.post("/media", content=PNG + b"\x00" * (20 * 1024 * 1024)).status_code == 413
     assert not (tmp_path / "blobs").exists() or not any((tmp_path / "blobs").iterdir())
 
 

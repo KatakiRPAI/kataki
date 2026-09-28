@@ -9,6 +9,7 @@ import { pacer, SPEEDS, type Speed } from '../pace'
 import { pref } from '../prefs'
 import { t } from '../strings'
 import { is, keysOf, parts } from '../shortcuts'
+import { openFeedback } from '../sky/Feedback'
 import { classify, err } from '../errors'
 import { Delete, Export } from '../sky/Stories'
 import Backstage from './Backstage'
@@ -180,7 +181,13 @@ export default function Scene() {
     const lead = typeof speaker === 'number' ? speaker : present[0]?.id
     const audience = how.mode === 'Think' ? [] : how.mode === 'Whisper' ? (lead ? [lead] : []) : null
     if (how.mode === 'Think') {
-      await api(`/stories/${id}/line`, 'POST', { text: how.text, audience: [], skip: extra.skip ?? null })
+      try {
+        await api(`/stories/${id}/line`, 'POST', { text: how.text, audience: [], skip: extra.skip ?? null })
+      } catch {
+        setDraft(line) // it stays in the composer until it can be written
+        const e = err('LINE_SAVE_FAILED')
+        toast(e.title, { action: e.actions[0], onAction: () => send(line, extra) }, 10000)
+      }
       return reload()
     }
     if (how.text) setSaid(how.text)
@@ -205,9 +212,14 @@ export default function Scene() {
     if (was.path.endsWith('/turn')) return generate(was.path, { text: null, speaker: (was.body as { speaker?: unknown }).speaker ?? null })
     return generate(was.path, was.body)
   }
+  const [passFailed, setPassFailed] = useState<Pass>()
   const pass = async (p: Pass) => {
     setOpen(null)
     const before = data?.story.date ?? ''
+    try { await passNow(p, before) } catch { setPassFailed(p) }
+    reload()
+  }
+  const passNow = async (p: Pass, before: string) => {
     if (p.place) {
       await api(`/stories/${id}/scene`, 'POST', { present: present.map((e) => e.id), library_place_id: p.place, skip: p.skip })
     } else {
@@ -215,7 +227,6 @@ export default function Scene() {
       const last = after.at(-1)
       if (last && last.skip_minutes >= 1440) showSkip(last.skip_minutes, before, last.date, last.id)
     }
-    reload()
   }
   const undoSkip = async (m: Message | number) => {
     const line = typeof m === 'number' ? data?.messages.find((x) => x.id === m) ?? (await api<Message[]>(`/stories/${id}/messages`)).find((x) => x.id === m) : m
@@ -324,7 +335,11 @@ export default function Scene() {
     return (
       <div className="scene">
         <div className="scene__tint" />
-        <div className="scene__chat">{error ? <K.Alert title={t('scene.wontOpen')}>{error}</K.Alert> : <K.Spinner label={t('scene.label')} />}</div>
+        <div className="scene__chat">{!error ? <K.Spinner label={t('scene.label')} />
+          : /\b404\b|not found/i.test(error) ? <K.Alert title={t('scene.wontOpen')}>{error}</K.Alert>
+          : (() => { const e = err('STORY_UNREADABLE', { story: t('scene.thisStory'), goodLines: '…', badLines: t('scene.some') }); return (
+            <K.Alert title={e.title} code={e.code} actions={<><K.Button href="/settings/data">{e.actions[1]}</K.Button><K.Button variant="ghost" onClick={() => openFeedback('bug')}>{e.actions[2]}</K.Button></>}>{e.body}</K.Alert>
+          ) })()}</div>
       </div>
     )
   }
@@ -509,6 +524,12 @@ export default function Scene() {
         </div>
       )}
       {open === 'pass' && <PassTime story={story} onClose={() => setOpen(null)} onPass={pass} />}
+      {passFailed && (() => { const e = err('TIMESKIP_FAILED', { fromTime: twelve(story.clock) }); return (
+        <Overlay onClose={() => setPassFailed(undefined)}>
+          <K.Dialog icon="clock" tone="warm" size="sm" title={e.title} description={e.body} onClose={() => setPassFailed(undefined)}
+            actions={[<K.Button key="c" variant="ghost" onClick={() => setPassFailed(undefined)}>{e.actions[1]}</K.Button>, <K.Button key="t" variant="primary" onClick={() => { const p = passFailed; setPassFailed(undefined); pass(p) }}>{e.actions[0]}</K.Button>]} />
+        </Overlay>
+      ) })()}
       {open === 'place' && (
         <ScenePlace story={story} characters={characters} onClose={() => setOpen(null)}
           onChange={(body) => {
