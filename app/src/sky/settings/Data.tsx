@@ -5,7 +5,8 @@ import { api, download, sendFile, type Item, type Provider, type StorySummary } 
 import { K } from '../../ds'
 import { useLibrary, useLoad } from '../../hooks'
 import { Overlay, toast } from '../../overlay'
-import { t } from '../../strings'
+import { setPref, usePrefs } from '../../prefs'
+import { relative, t, type Key } from '../../strings'
 
 export default function Data() {
   const navigate = useNavigate()
@@ -13,6 +14,8 @@ export default function Data() {
   const [providers, reloadProviders] = useLoad(() => api<Provider[]>('/providers'), [])
   const [busy, setBusy] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [backing, setBacking] = useState(false)
+  const [list, reloadList] = useLoad(() => api<Backup[]>('/backups').catch(() => []), [])
   const keyed = (providers ?? []).filter((p) => p.has_key)
   const exportAll = async () => {
     setBusy(true)
@@ -34,6 +37,11 @@ export default function Data() {
       <K.SettingsSection title={t('da.take')}>
         <K.SettingsRow title={t('da.export')} description={t('da.exportSub')}><K.Button icon="download" loading={busy} onClick={exportAll}>{t('da.export')}</K.Button></K.SettingsRow>
       </K.SettingsSection>
+      <K.SettingsSection title={t('bk.title')}>
+        <K.SettingsRow title={t('bk.row')} description={t('bk.summary', { n: list?.length ?? 0, when: list?.[0] ? relative(Date.parse(list[0].at)) : 'none' })}>
+          <K.Button onClick={() => setBacking(true)}>{t('bk.change')}</K.Button>
+        </K.SettingsRow>
+      </K.SettingsSection>
       <K.SettingsSection title={t('da.import')}>
         <K.SettingsRow title={t('da.import')} description={t('da.importSub')}>
           <div className="row" style={{ gap: 8 }}>
@@ -54,7 +62,62 @@ export default function Data() {
         <K.SettingsRow title={t('da.delete')} description={t('da.deleteSub')}><K.Button variant="danger" onClick={() => setDeleting(true)}>{t('da.deleteBtn')}</K.Button></K.SettingsRow>
       </K.SettingsSection>
       {deleting && <DeleteSomething onClose={() => setDeleting(false)} onExport={exportAll} />}
+      {backing && <Backups list={list ?? []} onClose={() => setBacking(false)} onChange={reloadList} />}
     </>
+  )
+}
+
+type Backup = { name: string; bytes: number; at: string }
+const size = (n: number) => (n > 1e6 ? `${(n / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1e3))} KB`)
+
+/** K12: copies of the library, how often and how many, and restoring one. */
+function Backups({ list, onClose, onChange }: { list: Backup[]; onClose: () => void; onChange: () => void }) {
+  const [prefs] = usePrefs()
+  const [busy, setBusy] = useState(false)
+  const [restoring, setRestoring] = useState<Backup>()
+  const every: [string, 'bk.daily' | 'bk.weekly' | 'bk.never'][] = [['daily', 'bk.daily'], ['weekly', 'bk.weekly'], ['never', 'bk.never']]
+  const keep: [string, 'bk.keep7' | 'bk.keep30' | 'bk.keepAll'][] = [['7', 'bk.keep7'], ['30', 'bk.keep30'], ['all', 'bk.keepAll']]
+  const pick = (opts: [string, Key][], key: string, fallback: string) => (
+    <K.Select label="" options={opts.map(([, l]) => t(l))} value={t(opts.find(([v]) => v === String(prefs[key] ?? fallback))![1])}
+      onChange={(v) => setPref(key, opts.find(([, l]) => t(l) === v)?.[0] ?? fallback)} />
+  )
+  const now = async () => {
+    setBusy(true)
+    try { await api('/backups', 'POST'); onChange(); toast(t('toast.backedUp'), {}, 3000) } finally { setBusy(false) }
+  }
+  const restore = async (b: Backup) => {
+    await api(`/backups/${encodeURIComponent(b.name)}/restore`, 'POST')
+    if (window.kataki?.restart) window.kataki.restart()
+    else { setRestoring(undefined); toast(t('toast.restartToFinish'), {}, 10000) }
+  }
+  return (
+    <Overlay onClose={onClose}>
+      <K.Dialog icon="shield" size="lg" title={t('bk.title')} description={t('bk.body')} onClose={onClose}
+        note={t('bk.total', { n: list.length, size: size(list.reduce((n, b) => n + b.bytes, 0)) })}
+        actions={[<K.Button key="n" loading={busy} onClick={now}>{t('bk.now')}</K.Button>, <K.Button key="d" variant="primary" onClick={onClose}>{t('bk.done')}</K.Button>]}>
+        <K.KeyValue label={t('bk.where')}>{t('bk.whereValue')}</K.KeyValue>
+        <div className="mo-grid">
+          <K.Field label={t('bk.every')}>{pick(every, 'backups.every', 'daily')}</K.Field>
+          <K.Field label={t('bk.keep')}>{pick(keep, 'backups.keep', '7')}</K.Field>
+        </div>
+        {restoring ? (
+          <K.Callout tone="warm" title={t('bk.sure')} action={<div className="row" style={{ gap: 8 }}>
+            <K.Button size="sm" variant="ghost" onClick={() => setRestoring(undefined)}>{t('bk.cancel')}</K.Button>
+            <K.Button size="sm" variant="primary" onClick={() => restore(restoring)}>{t('bk.go')}</K.Button>
+          </div>}>{t('bk.sureBody')}</K.Callout>
+        ) : list.length > 0 && (
+          <K.Panel flush>
+            {list.map((b) => (
+              <div key={b.name} className="ch-row" style={{ padding: '8px 14px' }}>
+                <span style={{ flex: 1 }} className="t-body">{new Date(b.at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                <span className="t-meta">{size(b.bytes)}</span>
+                <K.Button size="sm" variant="ghost" onClick={() => setRestoring(b)}>{t('bk.restore')}</K.Button>
+              </div>
+            ))}
+          </K.Panel>
+        )}
+      </K.Dialog>
+    </Overlay>
   )
 }
 

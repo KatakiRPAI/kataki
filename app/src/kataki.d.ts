@@ -2,5 +2,5 @@
 
 // Exposed by electron/preload.cts
 interface Window {
-  kataki?: { baseUrl: string; token: string; crashed?: boolean }
+  kataki?: { baseUrl: string; token: string; crashed?: boolean; restart?: () => void }
 }

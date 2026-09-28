@@ -28,6 +28,7 @@ from starlette.staticfiles import StaticFiles
 from kataki import (
     __version__,
     archive,
+    backups,
     cards,
     chat,
     chats,
@@ -296,6 +297,7 @@ def create_app(
     get_key=roles.get_key,
     image_transport=None,  # tests script the HF router here
     web_dir: Path | None = None,  # the built app, served under /app/ for any browser
+    db_path: Path | None = None,  # the library's file: backups live beside it
 ) -> FastAPI:
     llm = llm or LLM()
     worker = extract.Worker(conn, llm, get_key, delay=worker_delay)
@@ -1453,6 +1455,26 @@ def create_app(
         for key in ("sections", "memories", "prompt"):
             row[key] = json.loads(row[key]) if row[key] else None
         return row
+
+    if db_path is not None:
+
+        @app.get("/backups")
+        async def list_backups():
+            return backups.listing(db_path)
+
+        @app.post("/backups", status_code=201)
+        async def back_up_now():
+            keep = conn.execute("SELECT value FROM settings WHERE key='backups.keep'").fetchone()
+            return backups.make(conn, db_path, json.loads(keep[0]) if keep else "7")
+
+        @app.post("/backups/{name}/restore", status_code=202)
+        async def restore_backup(name: str):
+            """Asked for now, done at the next start (the app restarts to finish)."""
+            try:
+                backups.request_restore(db_path, name)
+            except FileNotFoundError:
+                raise HTTPException(404, "no such backup") from None
+            return {"restart": True}
 
     if web_dir is not None:
         # The app's own files carry no data, so they need no token; every API call still does.

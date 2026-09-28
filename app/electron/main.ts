@@ -6,7 +6,7 @@ import { dirname, join, resolve } from 'node:path'
 import { createInterface } from 'node:readline'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
-import { app, BrowserWindow, dialog, screen } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, screen } from 'electron'
 
 const here = dirname(fileURLToPath(import.meta.url)) // app/dist-electron
 const appRoot = join(here, '..')
@@ -101,6 +101,8 @@ app.on('second-instance', () => {
 // mark found at launch means the last run ended without one.
 const runningMark = () => join(app.getPath('userData'), 'running')
 app.on('will-quit', () => rmSync(runningMark(), { force: true }))
+// A restored backup is swapped in as the engine starts, so restoring ends in a restart (K12).
+ipcMain.on('kataki:restart', () => { app.relaunch(); app.quit() })
 
 // No top-level await here: Electron holds `ready` until this module finishes evaluating,
 // so `await app.whenReady()` at module scope deadlocks.

@@ -1,4 +1,4 @@
-import { contextBridge } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
 
 function arg(name: string): string {
   const prefix = `--kataki-${name}=`
@@ -11,4 +11,5 @@ contextBridge.exposeInMainWorld('kataki', {
   baseUrl: `http://127.0.0.1:${arg('port')}`,
   token: arg('token'),
   crashed: process.argv.includes('--kataki-crashed'), // the last run ended without a clean quit (A3)
+  restart: () => ipcRenderer.send('kataki:restart'),
 })

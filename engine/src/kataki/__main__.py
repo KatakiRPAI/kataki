@@ -12,7 +12,7 @@ from pathlib import Path
 
 import uvicorn
 
-from kataki import data_dir, db, embed
+from kataki import backups, data_dir, db, embed, knobs
 from kataki.server import create_app
 
 
@@ -37,7 +37,10 @@ def serve(db_path: Path, parent_watch: bool, port: int = 0, web: Path | None = N
 
     # load (on first run, download) the built-in embedding model now, not on the first turn
     threading.Thread(target=embed.builtin, daemon=True).start()
-    config = uvicorn.Config(create_app(db.connect(db_path), token, web_dir=web), log_level="warning")
+    backups.apply_pending(db_path)  # a restore asked for last time happens before the library opens
+    conn = db.connect(db_path)
+    config = uvicorn.Config(create_app(conn, token, web_dir=web, db_path=db_path), log_level="warning")
+    threading.Thread(target=_auto_backup, args=(conn, db_path), daemon=True).start()
     server = uvicorn.Server(config)
     if parent_watch:
         # The desktop shell holds our stdin. EOF means it quit or crashed: never outlive it.
@@ -47,6 +50,16 @@ def serve(db_path: Path, parent_watch: bool, port: int = 0, web: Path | None = N
 
         threading.Thread(target=watch, daemon=True).start()
     server.run(sockets=[sock])
+
+
+def _auto_backup(conn, db_path: Path) -> None:
+    """Settings › Data › Backups: daily by default, in the background once the engine is up."""
+    import time
+
+    time.sleep(30)
+    every = knobs.setting(conn, "backups.every", "daily")
+    if backups.due(db_path, every):
+        backups.make(conn, db_path, knobs.setting(conn, "backups.keep", "7"))
 
 
 async def chat(db_path: Path, story_id: int | None) -> None:
