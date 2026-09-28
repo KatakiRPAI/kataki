@@ -4,7 +4,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router'
 import { api, stream, type Provider, type RoleRow, type Cast, type CastEntity, type ContextLog, type KnownMemory, type Message, type Person, type Signals, type Story, type StoryUi, type TurnDone, type TurnMeta, type Version } from '../api'
 import { K } from '../ds'
 import { face, scenery, twelve, useLibrary, useLoad, usePoll } from '../hooks'
-import { openMenu, toast, type MenuItem } from '../overlay'
+import { openMenu, Overlay, toast, type MenuItem } from '../overlay'
 import { pacer, SPEEDS, type Speed } from '../pace'
 import { pref } from '../prefs'
 import { t } from '../strings'
@@ -62,6 +62,7 @@ export default function Scene() {
   const [editing, setEditing] = useState<number>()
   const [open, setOpen] = useState<Open>(null)
   const [card, setCard] = useState<number>()
+  const [confirm, setConfirm] = useState<{ kind: 'rewind' | 'delete'; m: Message } | null>(null)
   const [arranging, setArranging] = useState(false)
   const [reading, setReading] = useState(false)
   const [backstage, setBackstage] = useState(params.has('backstage'))
@@ -241,13 +242,18 @@ export default function Scene() {
     undoPresence: (pid) => api(`/presence/${pid}`, 'DELETE').then(reload),
     menu: (at, m) => openMenu(at, lineMenu(m)),
   }
+  /** How many lines follow this one on the story as it reads now. */
+  const after = (m: Message) => { const all = data?.messages ?? []; const i = all.findIndex((x) => x.id === m.id); return i < 0 ? 0 : all.length - 1 - i }
   const lineMenu = (m: Message): MenuItem[] => [
     { label: t('lm.copy'), icon: 'quote', onSelect: () => navigator.clipboard?.writeText(m.text).then(() => toast(t('toast.copiedLine'), {}, 2000), () => {}) },
     { label: t('lm.edit'), detail: m.role === 'user' ? t('lm.editDetail') : undefined, icon: 'edit', disabled: !!live, onSelect: () => setEditing(m.id) },
     ...(m.role === 'assistant' && m.id === data?.messages.findLast((x) => x.role === 'assistant')?.id
       ? [{ label: t('lm.newTake'), icon: 'refresh' as const, disabled: !!live, onSelect: () => act.retake(m) }] : []),
-    { divider: true },
     { label: t(m.hidden ? 'lm.show' : 'lm.hide'), icon: 'eyeoff', onSelect: () => act.hide(m, !m.hidden) },
+    { label: t('lm.branch'), icon: 'merge', disabled: !!live, onSelect: () => api<{ story_id: number }>(`/messages/${m.id}/branch`, 'POST').then((b) => { toast(t('toast.branched', { story: `${data?.story.title} · branch` }), {}, 4000); navigate(`/story/${b.story_id}`) }) },
+    { divider: true },
+    ...(after(m) > 0 ? [{ label: t('lm.rewind'), detail: t('lm.rewindDetail', { n: after(m) }), icon: 'undo' as const, danger: true, disabled: !!live, onSelect: () => setConfirm({ kind: 'rewind', m }) }]
+      : [{ label: t('lm.delete'), detail: t('lm.deleteDetail'), icon: 'trash' as const, danger: true, disabled: !!live, onSelect: () => setConfirm({ kind: 'delete', m }) }]),
   ]
   const storyMenu = (): MenuItem[] => [
     { label: t('sm.edit'), detail: t('sm.editDetail'), icon: 'layers', onSelect: () => { setReading(false); setArranging(true) } },
@@ -502,6 +508,21 @@ export default function Scene() {
       {open === 'delete' && (
         <Delete story={story} onClose={() => setOpen(null)} onExport={() => setOpen('export')}
           onDelete={() => { setOpen(null); api(`/stories/${id}`, 'DELETE').then(() => navigate('/stories', { replace: true })) }} />
+      )}
+      {confirm && (
+        <Overlay onClose={() => setConfirm(null)}>
+          <K.Dialog icon={confirm.kind === 'rewind' ? 'undo' : 'trash'} tone="bad" size="sm" onClose={() => setConfirm(null)}
+            title={confirm.kind === 'rewind' ? t('rw.title', { time: twelve(confirm.m.clock) }) : t('dl.title')}
+            description={confirm.kind === 'rewind' ? t('rw.body', { n: after(confirm.m) }) : t('dl.body')}
+            actions={[
+              <K.Button key="c" variant="ghost" onClick={() => setConfirm(null)}>{t('rw.cancel')}</K.Button>,
+              <K.Button key="g" variant="danger" onClick={() => {
+                const { kind, m } = confirm
+                setConfirm(null)
+                ;(kind === 'rewind' ? api(`/messages/${m.id}/rewind`, 'POST') : api(`/messages/${m.id}`, 'DELETE')).then(reload)
+              }}>{t(confirm.kind === 'rewind' ? 'rw.go' : 'dl.go')}</K.Button>,
+            ]} />
+        </Overlay>
       )}
       {cardEntity && (
         <CharacterCard story={story} entity={cardEntity} item={item(cardEntity)} onClose={() => setCard(undefined)}

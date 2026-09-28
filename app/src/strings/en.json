@@ -1255,5 +1255,18 @@
   "fr.six": "Six people are already here. Pick one after this.",
   "fr.import": "Coming from somewhere else? Import cards",
   "fr.sixLabel": "Six characters ship with Kataki",
-  "mg.agoNow": "a moment ago"
+  "mg.agoNow": "a moment ago",
+  "lm.branch": "Branch a new story from here",
+  "lm.rewind": "Rewind to here…",
+  "lm.rewindDetail": "{n, plural, one {removes the line after it} other {removes the # lines after it}}",
+  "lm.delete": "Delete this line…",
+  "lm.deleteDetail": "only the newest line",
+  "rw.title": "Rewind to {time}?",
+  "rw.body": "{n, plural, one {The line after it is} other {The # lines after it are}} taken out of this story, and what characters learned from {n, plural, one {it} other {them}} is forgotten. {n, plural, one {It stays} other {They stay}} a take away, so you can flip back.",
+  "rw.cancel": "Cancel",
+  "rw.go": "Rewind",
+  "dl.title": "Delete this line?",
+  "dl.body": "It goes from the story. This can’t be undone.",
+  "dl.go": "Delete the line",
+  "toast.branched": "Branched into “{story}”"
 }

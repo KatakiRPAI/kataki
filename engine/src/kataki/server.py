@@ -1239,6 +1239,28 @@ def create_app(
         chat.set_leaf(conn, story_id, target)
         return messages(story_id)
 
+    @app.post("/messages/{message_id}/rewind")
+    async def rewind(message_id: int):
+        """End the story at this line; what followed stays as another take (LineMenu › Rewind)."""
+        m = _row(conn, "SELECT * FROM messages WHERE id=?", (message_id,))
+        chat.rewind(conn, m["story_id"], message_id)
+        return messages(m["story_id"])
+
+    @app.delete("/messages/{message_id}", status_code=204)
+    async def delete_line(message_id: int):
+        """Delete the newest line. Any other is rewound to instead."""
+        _row(conn, "SELECT id FROM messages WHERE id=?", (message_id,))
+        try:
+            chat.delete_newest(conn, message_id)
+        except ValueError as e:
+            raise HTTPException(409, str(e)) from None
+
+    @app.post("/messages/{message_id}/branch", status_code=201)
+    async def branch(message_id: int):
+        """A new story, this one up to that line (LineMenu › Branch a new story from here)."""
+        _row(conn, "SELECT id FROM messages WHERE id=?", (message_id,))
+        return {"story_id": library.branch_story(conn, message_id)}
+
     @app.patch("/messages/{message_id}")
     async def edit_message(message_id: int, p: MessagePatch):
         m = _row(conn, "SELECT * FROM messages WHERE id=?", (message_id,))

@@ -1266,3 +1266,41 @@ def test_the_app_is_served_for_a_browser_and_the_api_still_wants_its_token(conn,
         assert client.get("/app/assets/app.js").text == "console.log(1)"
         assert client.get("/app/assets/missing.js").status_code == 404  # a missing file isn't the page
         assert client.get("/stories").status_code == 401
+
+
+def _lines(api, story):
+    return [m["text"] for m in api.get(f"/stories/{story}/messages").json()]
+
+
+def test_rewinding_ends_the_story_at_a_line_and_keeps_the_rest_as_another_take(api, story):
+    for text in ("one", "two", "three"):
+        api.post(f"/stories/{story}/line", json={"text": text})
+    first = api.get(f"/stories/{story}/messages").json()[-3]["id"]
+    assert api.post(f"/messages/{first}/rewind").status_code == 200
+    assert _lines(api, story)[-1] == "one"
+    api.post(f"/stories/{story}/line", json={"text": "another two"})
+    assert _lines(api, story)[-2:] == ["one", "another two"]
+    newest = api.get(f"/stories/{story}/messages").json()[-1]
+    assert newest["swipe"] == [2, 2]  # the old "two" is a take away
+
+
+def test_only_the_newest_line_can_be_deleted(api, story):
+    api.post(f"/stories/{story}/line", json={"text": "keep"})
+    api.post(f"/stories/{story}/line", json={"text": "oops"})
+    keep, oops = api.get(f"/stories/{story}/messages").json()[-2:]
+    assert api.delete(f"/messages/{keep['id']}").status_code == 409
+    assert api.delete(f"/messages/{oops['id']}").status_code == 204
+    assert _lines(api, story)[-1] == "keep"
+
+
+def test_a_branch_is_a_new_story_up_to_that_line(api, story):
+    for text in ("one", "two", "three"):
+        api.post(f"/stories/{story}/line", json={"text": text})
+    two = api.get(f"/stories/{story}/messages").json()[-2]["id"]
+    made = api.post(f"/messages/{two}/branch")
+    assert made.status_code == 201
+    new = made.json()["story_id"]
+    assert api.get(f"/stories/{new}").json()["title"] == "Low Tide · branch"
+    assert _lines(api, new)[-2:] == ["one", "two"]
+    assert set(cast(api, new)) == set(cast(api, story))  # the same people
+    assert _lines(api, story)[-1] == "three"  # the original is untouched

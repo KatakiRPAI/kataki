@@ -344,3 +344,24 @@ def new_scene(
             (marker, marker, scene_id),
         )
     return scene_id
+
+
+def rewind(conn: sqlite3.Connection, story_id: int, message_id: int) -> None:
+    """End the story at this line. What came after stays in the tree as another take, and the
+    memories read from it stop counting, because memory follows the active branch."""
+    if get_message(conn, message_id)["story_id"] != story_id:
+        raise ValueError(f"message {message_id} belongs to another story")
+    with conn:
+        _set_active(conn, story_id, message_id)
+
+
+def delete_newest(conn: sqlite3.Connection, message_id: int) -> None:
+    """Delete a line nothing follows. A line with lines after it is rewound to, not deleted."""
+    m = get_message(conn, message_id)
+    if conn.execute("SELECT 1 FROM messages WHERE parent_id=?", (message_id,)).fetchone():
+        raise ValueError("lines follow this one")
+    with conn:
+        story = conn.execute("SELECT active_leaf_id FROM stories WHERE id=?", (m["story_id"],)).fetchone()
+        if story["active_leaf_id"] == message_id:
+            _set_active(conn, m["story_id"], m["parent_id"])
+        conn.execute("DELETE FROM messages WHERE id=?", (message_id,))
