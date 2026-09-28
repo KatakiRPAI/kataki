@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · In a story</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.smenu{position:absolute;z-index:22;width:300px}
+.smenu .k-menu__item{width:100%}
+.hid{display:flex;align-items:center;gap:10px;margin:6px 0 10px;padding:8px 12px;border-radius:12px;border:1px dashed var(--scene-border);color:var(--scene-muted);font-size:12.5px}
+.hid button{margin-inline-start:auto;background:transparent;border:0;color:var(--scene-action);font:inherit;font-weight:700;cursor:pointer}
+.dots{position:absolute;inset:0;z-index:15;background-image:radial-gradient(rgba(255,206,150,.22) 1px,transparent 1.2px);background-size:24px 24px;pointer-events:none}
+.editbar{position:absolute;inset-inline:320px;top:16px;z-index:25;display:flex;align-items:center;gap:14px;padding:10px 12px 10px 18px;border-radius:18px;background:var(--scene-card);border:1px solid var(--scene-border);box-shadow:0 20px 50px rgba(0,0,0,.45)}
+.addw{position:absolute;z-index:25;width:300px;padding:8px;border-radius:18px;background:var(--scene-card);border:1px solid var(--scene-border);box-shadow:0 20px 50px rgba(0,0,0,.45)}
+.addw__item{display:flex;align-items:center;gap:12px;width:100%;padding:10px 12px;border:0;border-radius:12px;background:transparent;color:var(--scene-ink);font:inherit;text-align:start;cursor:pointer}
+.addw__item:hover{background:var(--scene-glass)}
+.slot{border:1.5px dashed var(--scene-border);border-radius:24px;height:92px;margin-bottom:0}
+.spop{position:absolute;z-index:22;padding:18px;display:flex;flex-direction:column;gap:14px}
+.spop h3{margin:0;font-family:var(--font-display);font-size:19px;font-weight:700;color:var(--scene-ink)}
+.opt2{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border-radius:12px;border:1px solid var(--scene-border);background:transparent;color:var(--scene-ink);font:inherit;text-align:start;cursor:pointer}
+.opt2[aria-pressed="true"]{background:var(--scene-glass);border-color:var(--scene-primary)}
+.opt2 small{margin-inline-start:auto;color:var(--scene-muted);font-size:12px}
+.veil{position:absolute;inset:0;z-index:30;background:rgba(30,18,10,.82)}
+.veil img{position:absolute;opacity:.75;filter:sepia(.55) saturate(1.3) brightness(.62) hue-rotate(-8deg)}
+.readcol{position:absolute;inset-inline-start:50%;top:0;bottom:0;width:720px;transform:translateX(-50%);z-index:2;display:flex;flex-direction:column;justify-content:flex-end;padding:100px 0 40px;box-sizing:border-box;gap:2px;-webkit-mask-image:linear-gradient(180deg,transparent 60px,#000 200px);mask-image:linear-gradient(180deg,transparent 60px,#000 200px)}
+.readcol .k-line__text{font-size:21px;line-height:33px}
+.wnotes{padding:14px 16px;font-size:13px;line-height:19px;color:var(--scene-ink);display:flex;flex-direction:column;gap:6px}
+.wplace{height:120px;border-radius:24px 24px 0 0;overflow:hidden}
+.wplace img{width:100%;height:100%;object-fit:cover}
+</style>
+</helmet>
+<div data-theme="{{theme}}" class="scene">
+  <sc-if value="{{atCafe}}" hint-placeholder-val="{{true}}"><img class="scene__art" src="/_blob/1e023859469874b847f3f6c9eb3831a9" alt="Halcyon Coffee in the rain, just before closing"></sc-if>
+  <sc-if value="{{atPalace}}" hint-placeholder-val="{{false}}"><img class="scene__art" src="/_blob/f9ee926a93a1e0c21681768006f8293a" alt="Corvel Palace on the night of the gala"></sc-if>
+  <div class="scene__tint"></div>
+  <div class="scene__vig"></div>
+
+  <sc-if value="{{notReading}}" hint-placeholder-val="{{true}}">
+    <div class="scene__tl"><x-import component-from-global-scope="Kataki.SceneHeader" title="Two Sugars, No Title" subtitle="as Liv · Close to the Crown" back-href="Home.dc.html"></x-import></div>
+    <div class="scene__tr">
+      <x-import component-from-global-scope="Kataki.BackstageToggle" on="{{bsOn}}"></x-import>
+      <x-import component-from-global-scope="Kataki.SceneButton" icon="search" label="Search this story"></x-import>
+      <x-import component-from-global-scope="Kataki.SceneButton" icon="dots" label="Story menu" pressed="{{menuOpen}}" href="SceneMenu.dc.html"></x-import>
+    </div>
+
+    <div class="scene__chat">
+      <x-import component-from-global-scope="Kataki.ChatPanel" label="The story" height="{{h868}}" composer="{{composer}}">
+        <sc-for list="{{lines}}" as="l" hint-placeholder-count="4">
+          <sc-if value="{{l.isCard}}" hint-placeholder-val="{{false}}"><x-import component-from-global-scope="Kataki.TitleCard" undo="{{l.undo}}">{{l.text}}</x-import></sc-if>
+          <sc-if value="{{l.isNote}}" hint-placeholder-val="{{false}}"><x-import component-from-global-scope="Kataki.StoryNote" who="{{l.who}}" away="{{l.away}}">{{l.text}}</x-import></sc-if>
+          <sc-if value="{{l.isHidden}}" hint-placeholder-val="{{false}}"><div class="hid"><x-import component-from-global-scope="Kataki.Icon" name="eyeoff" size="{{s14}}"></x-import><span>{{l.text}}</span><button type="button">Show it</button></div></sc-if>
+          <sc-if value="{{l.isEdit}}" hint-placeholder-val="{{false}}"><x-import component-from-global-scope="Kataki.EditLine" speaker="{{l.speaker}}" name="{{l.name}}" time="{{l.time}}" text="{{l.text}}" after="{{l.after}}"></x-import></sc-if>
+          <sc-if value="{{l.isErr}}" hint-placeholder-val="{{false}}">
+            <div class="lineerr" role="alert">
+              <x-import component-from-global-scope="Kataki.Icon" name="alert" size="{{s18}}" color="var(--bad)"></x-import>
+              <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
+                <b style="font-size: 14px;">{{l.title}}</b>
+                <span class="scene-t">{{l.text}}</span>
+                <div class="row" style="gap: 8px;">
+                  <button type="button" class="k-btn k-btn--scene-send">Try again</button>
+                  <button type="button" class="k-btn k-btn--scene-ghost">Use Kataki’s own model</button>
+                  <button type="button" class="k-btn k-btn--scene-ghost">Edit my line</button>
+                </div>
+                <span style="font-family: var(--font-mono); font-size: 11px; color: var(--scene-muted);">{{l.code}}</span>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{l.isLine}}" hint-placeholder-val="{{true}}">
+            <x-import component-from-global-scope="Kataki.ChatLine" speaker="{{l.speaker}}" name="{{l.name}}" time="{{l.time}}" exact="{{l.exact}}" time-detail="{{l.timeDetail}}" time-open="{{l.timeOpen}}" text="{{l.text}}" dim="{{l.dim}}" hover="{{l.hover}}" take="{{l.take}}" writing="{{l.writing}}" recalled="{{l.recalled}}" thought="{{l.thought}}">
+              <sc-if value="{{l.hasRecall}}" hint-placeholder-val="{{false}}"><x-import component-from-global-scope="Kataki.RecallBox" title="{{l.recallTitle}}" memory="{{l.recallMemory}}" meta="{{l.recallMeta}}"></x-import></sc-if>
+              <sc-if value="{{l.hasHeard}}" hint-placeholder-val="{{false}}"><span class="heard"><x-import component-from-global-scope="Kataki.Avatar" who="mike" size="{{s20}}" alt=""></x-import>Mike heard it</span><span class="heard heard--no"><x-import component-from-global-scope="Kataki.Avatar" who="theo" size="{{s20}}" away="{{yes}}" alt=""></x-import>Theo wasn’t there</span></sc-if>
+              <sc-for list="{{l.reacts}}" as="r" hint-placeholder-count="0"><x-import component-from-global-scope="Kataki.Reaction" kind="{{r.kind}}" who="{{r.who}}" soft="{{r.soft}}">{{r.text}}</x-import></sc-for>
+            </x-import>
+          </sc-if>
+        </sc-for>
+      </x-import>
+    </div>
+
+    <div class="scene__right">
+      <sc-for list="{{people}}" as="p" hint-placeholder-count="2">
+        <sc-if value="{{p.card}}" hint-placeholder-val="{{true}}"><a href="ScenePeek.dc.html" aria-label="Open {{p.name}}’s card" style="display: block;"><x-import component-from-global-scope="Kataki.CharacterWidget" who="{{p.who}}" name="{{p.name}}" mood="{{p.mood}}" status="{{p.status}}" thinking="{{p.thinking}}" badge="{{p.badge}}" pinned="{{p.pinned}}" edit="{{p.edit}}" dragging="{{p.dragging}}" alt="{{p.alt}}"></x-import></a></sc-if>
+        <sc-if value="{{p.row}}" hint-placeholder-val="{{false}}"><x-import component-from-global-scope="Kataki.CharacterRowWidget" who="{{p.who}}" name="{{p.name}}" status="{{p.status}}" away="{{p.away}}" edit="{{p.edit}}"></x-import></sc-if>
+        <sc-if value="{{p.slot}}" hint-placeholder-val="{{false}}"><div class="slot" aria-hidden="true"></div></sc-if>
+      </sc-for>
+    </div>
+
+    <div class="scene__left">
+      <sc-if value="{{showExtra}}" hint-placeholder-val="{{false}}">
+        <x-import component-from-global-scope="Kataki.Widget" label="Notes" edit="{{editing}}"><div class="wnotes"><b>Notes</b><span>Theo was out back for the secret. Jae has the list.</span><span class="scene-t">Only you see these</span></div></x-import>
+        <x-import component-from-global-scope="Kataki.Widget" label="Place" edit="{{editing}}"><div class="wplace"><img src="/_blob/1e023859469874b847f3f6c9eb3831a9" alt="Halcyon Coffee"></div><div class="wnotes"><b>Halcyon Coffee</b><span class="scene-t">dusk · rain · out the back, through the front</span></div></x-import>
+      </sc-if>
+      <x-import component-from-global-scope="Kataki.ClockWidget" time="{{clock}}" rel="{{clockRel}}" place="{{placeName}}" exact="{{clockExact}}" detail="{{clockDetail}}" kind="{{clockKind}}" edit="{{editing}}"></x-import>
+      <x-import component-from-global-scope="Kataki.MusicWidget" track="{{track}}" source="{{trackSource}}" edit="{{editing}}"></x-import>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{isReading}}" hint-placeholder-val="{{false}}">
+    <div class="scene__tl" style="display: flex; align-items: center; gap: 12px;"><x-import component-from-global-scope="Kataki.SceneButton" icon="x" label="Leave reading mode"></x-import><span class="scene-t">Reading mode · Esc to leave · widgets and the composer are hidden</span></div>
+    <div class="scene__tr"><x-import component-from-global-scope="Kataki.SceneButton" icon="search" label="Search this story"></x-import><x-import component-from-global-scope="Kataki.SceneButton" icon="download" label="Export story"></x-import></div>
+    <div class="readcol" aria-label="The story, to read">
+      <sc-for list="{{lines}}" as="l" hint-placeholder-count="4">
+        <sc-if value="{{l.isCard}}" hint-placeholder-val="{{false}}"><x-import component-from-global-scope="Kataki.TitleCard">{{l.text}}</x-import></sc-if>
+        <sc-if value="{{l.isNote}}" hint-placeholder-val="{{false}}"><x-import component-from-global-scope="Kataki.StoryNote" who="{{l.who}}" away="{{l.away}}">{{l.text}}</x-import></sc-if>
+        <sc-if value="{{l.isLine}}" hint-placeholder-val="{{true}}"><x-import component-from-global-scope="Kataki.ChatLine" speaker="{{l.speaker}}" name="{{l.name}}" time="{{l.time}}" text="{{l.text}}"></x-import></sc-if>
+      </sc-for>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{editing}}" hint-placeholder-val="{{false}}">
+    <div class="dots"></div>
+    <div class="editbar" role="region" aria-label="Editing widgets">
+      <x-import component-from-global-scope="Kataki.Icon" name="layers" size="{{s18}}"></x-import>
+      <div style="flex: 1;"><b style="font-size: 14px;">Editing widgets</b><div class="scene-t">Drag anywhere · pinned ones stay, unpinned ones appear when something happens · Space picks one up, arrows move it</div></div>
+      <button type="button" class="k-btn k-btn--scene-ghost">Reset layout</button>
+      <button type="button" class="k-btn k-btn--scene-ghost" style="display: inline-flex; gap: 6px;"><x-import component-from-global-scope="Kataki.Icon" name="plus" size="{{s14}}"></x-import>Add widget</button>
+      <button type="button" class="k-btn k-btn--scene-send">Done</button>
+    </div>
+    <div class="addw" role="menu" aria-label="Add a widget" style="inset-inline-start: 790px; top: 84px;">
+      <div class="scene-t" style="padding: 6px 12px 8px;">Add a widget</div>
+      <button type="button" class="addw__item" role="menuitem"><x-import component-from-global-scope="Kataki.Icon" name="user" size="{{s16}}"></x-import><span><b style="display: block; font-size: 13.5px;">Character</b><span class="scene-t">Pick who. As many as you like.</span></span></button>
+      <div style="display: flex; gap: 6px; padding: 2px 12px 10px 40px; flex-wrap: wrap;"><span class="heard"><x-import component-from-global-scope="Kataki.Avatar" who="mike" size="{{s20}}" alt=""></x-import>Mike</span><span class="heard"><x-import component-from-global-scope="Kataki.Avatar" who="theo" size="{{s20}}" alt=""></x-import>Theo</span><span class="heard"><x-import component-from-global-scope="Kataki.Avatar" who="nico" size="{{s20}}" alt=""></x-import>Nico</span><span class="heard"><x-import component-from-global-scope="Kataki.Avatar" who="jae" size="{{s20}}" alt=""></x-import>Jae</span></div>
+      <button type="button" class="addw__item" role="menuitem"><x-import component-from-global-scope="Kataki.Icon" name="clock" size="{{s16}}"></x-import><span><b style="display: block; font-size: 13.5px;">Story clock</b><span class="scene-t">Time, and how it relates to the story</span></span></button>
+      <button type="button" class="addw__item" role="menuitem"><x-import component-from-global-scope="Kataki.Icon" name="volume" size="{{s16}}"></x-import><span><b style="display: block; font-size: 13.5px;">Music</b><span class="scene-t">What’s playing, and a picker</span></span></button>
+      <button type="button" class="addw__item" role="menuitem"><x-import component-from-global-scope="Kataki.Icon" name="image" size="{{s16}}"></x-import><span><b style="display: block; font-size: 13.5px;">Place</b><span class="scene-t">The scene in full colour</span></span></button>
+      <button type="button" class="addw__item" role="menuitem"><x-import component-from-global-scope="Kataki.Icon" name="users" size="{{s16}}"></x-import><span><b style="display: block; font-size: 13.5px;">Cast</b><span class="scene-t">Everyone here, as faces</span></span></button>
+      <button type="button" class="addw__item" role="menuitem"><x-import component-from-global-scope="Kataki.Icon" name="edit" size="{{s16}}"></x-import><span><b style="display: block; font-size: 13.5px;">Notes</b><span class="scene-t">Your own notes for this story</span></span></button>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ovMenu}}" hint-placeholder-val="{{false}}">
+    <div class="k-menu k-menu--scene smenu" role="menu" aria-label="Story menu" style="inset-inline-end: 24px; top: 72px;">
+      <sc-for list="{{menuItems}}" as="m" hint-placeholder-count="10">
+        <sc-if value="{{m.div}}" hint-placeholder-val="{{false}}"><div class="k-menu__divider" role="separator"></div></sc-if>
+        <sc-if value="{{m.item}}" hint-placeholder-val="{{true}}">
+          <button type="button" role="menuitem" class="k-menu__item {{m.cls}}"><x-import component-from-global-scope="Kataki.Icon" name="{{m.icon}}" size="{{s16}}"></x-import><span class="k-menu__label">{{m.label}}<span class="k-menu__detail">{{m.detail}}</span></span><sc-if value="{{m.keys}}" hint-placeholder-val="{{false}}"><x-import component-from-global-scope="Kataki.Shortcut" keys="{{m.keys}}"></x-import></sc-if></button>
+        </sc-if>
+      </sc-for>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ovModes}}" hint-placeholder-val="{{false}}">
+    <div style="position: absolute; inset-inline-start: 340px; bottom: 112px; z-index: 22;"><x-import component-from-global-scope="Kataki.ModeMenu" value="Auto"></x-import></div>
+  </sc-if>
+
+  <sc-if value="{{ovPass}}" hint-placeholder-val="{{false}}">
+    <div class="scene-card spop" role="dialog" aria-label="Pass time" style="inset-inline-start: 24px; bottom: 214px; width: 340px;">
+      <h3>Pass time</h3>
+      <span class="scene-t">From 7:14 pm, the evening it rained. Whoever is here comes along unless you say.</span>
+      <div class="col" style="gap: 6px;">
+        <button type="button" class="opt2" aria-pressed="false">A moment later<small>+5 min</small></button>
+        <button type="button" class="opt2" aria-pressed="false">An hour later<small>8:14 pm</small></button>
+        <button type="button" class="opt2" aria-pressed="false">The next morning<small>7:00 am</small></button>
+        <button type="button" class="opt2" aria-pressed="false">A week later</button>
+        <button type="button" class="opt2" aria-pressed="true">Three weeks later · the gala<small>from The Invitation</small></button>
+        <button type="button" class="opt2" aria-pressed="false">Choose a time…</button>
+      </div>
+      <x-import component-from-global-scope="Kataki.Segmented" label="Where" options="{{whereOpts}}" value="Somewhere else" size="sm" tone="scene"></x-import>
+      <div class="row" style="justify-content: space-between;"><span class="scene-t">Memories fade by story time</span><button type="button" class="k-btn k-btn--scene-send">Pass time</button></div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ovSkip}}" hint-placeholder-val="{{false}}">
+    <div class="veil" role="dialog" aria-modal="true" aria-label="Time skip">
+      <img src="/_blob/e207af2b3e316bdbc66fc7d1e4f92cc4" alt="" style="left: -220px; top: -330px; width: 1880px; height: 1175px;">
+      <img src="/_blob/e207af2b3e316bdbc66fc7d1e4f92cc4" alt="" style="left: -140px; top: 300px; width: 1720px; height: 1075px; transform: scaleX(-1);">
+      <div style="position: absolute; inset: 0px; display: flex; align-items: center; justify-content: center;">
+        <x-import component-from-global-scope="Kataki.TimeSkipCard" story="Two Sugars, No Title" from="The evening it rained" to="Three weeks later · the gala" note="Mike’s memory of that evening is going hazy.">Three weeks later</x-import>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ovMusic}}" hint-placeholder-val="{{false}}">
+    <div class="scene-card spop" role="dialog" aria-label="Music and ambience" style="inset-inline-start: 24px; bottom: 106px; width: 360px;">
+      <div class="row" style="justify-content: space-between;"><h3>Music and ambience</h3><x-import component-from-global-scope="Kataki.Toggle" default-on="{{yes}}" label="Match the scene"></x-import></div>
+      <span class="scene-t">Match the scene picks from what fits the place and the time. Turn it off to keep one track.</span>
+      <div class="col" style="gap: 6px;">
+        <button type="button" class="opt2" aria-pressed="true"><x-import component-from-global-scope="Kataki.Icon" name="pause" size="{{s14}}"></x-import>A string quartet, two rooms away<small>matched</small></button>
+        <button type="button" class="opt2" aria-pressed="false"><x-import component-from-global-scope="Kataki.Icon" name="play" size="{{s14}}"></x-import>Rain on a café window<small>ambience</small></button>
+        <button type="button" class="opt2" aria-pressed="false"><x-import component-from-global-scope="Kataki.Icon" name="play" size="{{s14}}"></x-import>Espresso machine, low murmur<small>ambience</small></button>
+        <button type="button" class="opt2" aria-pressed="false"><x-import component-from-global-scope="Kataki.Icon" name="play" size="{{s14}}"></x-import>Late night drive<small>music · slow</small></button>
+        <button type="button" class="opt2" aria-pressed="false"><x-import component-from-global-scope="Kataki.Icon" name="play" size="{{s14}}"></x-import>Liv’s stadium playlist<small>your upload</small></button>
+      </div>
+      <button type="button" class="k-btn k-btn--scene-ghost" style="display: inline-flex; gap: 6px; align-self: flex-start;"><x-import component-from-global-scope="Kataki.Icon" name="download" size="{{s14}}"></x-import>Upload a track · mp3, ogg, wav</button>
+      <x-import component-from-global-scope="Kataki.Slider" label="Volume" default-value="{{v62}}" value-text="62%"></x-import>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ovPeek}}" hint-placeholder-val="{{false}}">
+    <div class="scene__dim" style="background: rgba(20,12,6,0.35);"></div>
+    <div style="position: absolute; inset-inline-end: 24px; top: 20px; z-index: 22;">
+      <x-import component-from-global-scope="Kataki.Sheet" title="Mike" tone="scene" header-action="{{peekAction}}">
+        <div class="row" style="gap: 8px;"><x-import component-from-global-scope="Kataki.StatePill" tone="warm">Doubtful</x-import><x-import component-from-global-scope="Kataki.Tag">Barista</x-import></div>
+        <x-import component-from-global-scope="Kataki.Eyebrow">Right now</x-import>
+        <x-import component-from-global-scope="Kataki.KeyValue" icon="map-pin" label="Where">Corvel Palace</x-import>
+        <x-import component-from-global-scope="Kataki.KeyValue" icon="film" label="Scene">the gala · three weeks later</x-import>
+        <x-import component-from-global-scope="Kataki.KeyValue" icon="clock" label="Here since">7:14 pm</x-import>
+        <x-import component-from-global-scope="Kataki.Eyebrow">How he feels about you</x-import>
+        <x-import component-from-global-scope="Kataki.Meter" label="warmth" value="{{v72}}" tone="ok"></x-import>
+        <x-import component-from-global-scope="Kataki.Meter" label="trust" value="{{v54}}"></x-import>
+        <x-import component-from-global-scope="Kataki.Meter" label="doubt" value="{{v46}}" tone="warm"></x-import>
+        <x-import component-from-global-scope="Kataki.Eyebrow">Holding onto · 3 of 41</x-import>
+        <x-import component-from-global-scope="Kataki.MemoryRow" word="doubted" value="{{v55}}" tone="warm">She says she never said it.</x-import>
+        <div class="row" style="gap: 8px;"><x-import component-from-global-scope="Kataki.Chip" size="sm">Fond of Liv</x-import><x-import component-from-global-scope="Kataki.Chip" size="sm">Wary of Theo</x-import></div>
+        <x-import component-from-global-scope="Kataki.SecretCard" name="Mike">He cuts the queen’s hair now. His mother’s hands shake.</x-import>
+        <div class="row" style="gap: 8px;"><button type="button" class="k-btn k-btn--scene-send">Let him answer next</button><button type="button" class="k-btn k-btn--scene-ghost">Send him away</button></div>
+      </x-import>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ovPlace}}" hint-placeholder-val="{{false}}">
+    <div class="scene__dim"></div>
+    <div style="position: absolute; inset: 0px; z-index: 22; display: flex; align-items: center; justify-content: center;">
+      <section class="scene-card" role="dialog" aria-modal="true" aria-label="Scene and place" style="width: 620px; padding: 22px 24px; display: flex; flex-direction: column; gap: 16px;">
+        <div class="row" style="justify-content: space-between;"><h3 style="margin: 0; font-family: var(--font-display); font-size: 21px;">Scene and place</h3><x-import component-from-global-scope="Kataki.SceneButton" icon="x" label="Close"></x-import></div>
+        <div class="row" style="gap: 14px;"><img src="/_blob/1e023859469874b847f3f6c9eb3831a9" alt="Halcyon Coffee" style="width: 150px; height: 96px; object-fit: cover; border-radius: 14px;"><div class="col" style="gap: 4px;"><span style="font-family: var(--font-story); font-size: 20px; font-weight: 600;">Halcyon Coffee</span><span class="scene-t">the evening it rained · dusk</span></div></div>
+        <x-import component-from-global-scope="Kataki.Select" label="Move the scene to" icon="map-pin" options="{{placeOpts}}" hint="The clouds part and the scene goes there. Nobody’s memory changes."></x-import>
+        <x-import component-from-global-scope="Kataki.Segmented" label="Time of day" options="{{timesScene}}" value="Dusk" size="sm" tone="scene"></x-import>
+        <x-import component-from-global-scope="Kataki.Segmented" label="Weather" options="{{weather}}" value="Rain" size="sm" tone="scene"></x-import>
+        <div class="col" style="gap: 8px;"><span style="font-size: 13.5px; font-weight: 700;">Who is here</span>
+          <div style="display: grid; grid-template-columns: minmax(0, 1fr) 200px; gap: 8px; align-items: center;"><span class="row" style="gap: 8px;"><x-import component-from-global-scope="Kataki.Avatar" who="mike" size="{{s26}}" alt=""></x-import>Mike</span><x-import component-from-global-scope="Kataki.Select" label="" options="{{presHere}}"></x-import><span class="row" style="gap: 8px;"><x-import component-from-global-scope="Kataki.Avatar" who="theo" size="{{s26}}" alt=""></x-import>Theo</span><x-import component-from-global-scope="Kataki.Select" label="" options="{{presNear}}"></x-import></div>
+        </div>
+        <div class="row" style="justify-content: flex-end; gap: 8px;"><button type="button" class="k-btn k-btn--scene-ghost">Cancel</button><button type="button" class="k-btn k-btn--scene-send">Change the scene</button></div>
+      </section>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ovSettings}}" hint-placeholder-val="{{false}}">
+    <div class="scene__dim"></div>
+    <div style="position: absolute; inset-inline-end: 24px; top: 20px; bottom: 20px; z-index: 22; width: 460px; overflow: hidden; border-radius: 24px;">
+      <x-import component-from-global-scope="Kataki.Sheet" title="Story settings" tone="scene">
+        <x-import component-from-global-scope="Kataki.TextField" label="Name" story="{{yes}}" default-value="Two Sugars, No Title"></x-import>
+        <x-import component-from-global-scope="Kataki.Select" label="Book" icon="book" options="{{bookOpts}}"></x-import>
+        <x-import component-from-global-scope="Kataki.Select" label="You are" options="{{personaOpts}}" hint="Changing it mid-story: characters meet the new person from the next line."></x-import>
+        <x-import component-from-global-scope="Kataki.Select" label="Composer mode" options="{{modeOpts}}"></x-import>
+        <x-import component-from-global-scope="Kataki.Toggle" label="Show who hears what"></x-import>
+        <x-import component-from-global-scope="Kataki.Toggle" label="Let the narrator add scene lines" default-on="{{yes}}"></x-import>
+        <x-import component-from-global-scope="Kataki.Select" label="How fast memories fade here" options="{{fadeOpts}}"></x-import>
+        <x-import component-from-global-scope="Kataki.Select" label="Model for this story" options="{{modelOpts}}"></x-import>
+        <div class="row" style="justify-content: space-between;"><span class="scene-t">Saved as you change it</span><button type="button" class="k-btn k-btn--scene-ghost">Reset to defaults</button></div>
+      </x-import>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"variant":{"editor":"enum","options":["default","joins","secret","advanced","modes","edit","reply","takes","after","failed","first","narrator","widgets","reading"],"default":"default"},"overlay":{"editor":"enum","options":["none","menu","passtime","skip","music","peek","place","settings"],"default":"none"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var A = window.KApp, self = this;
+    var v = this.props.variant || 'default', ov = this.props.overlay || 'none';
+    var st = this.state || {};
+    var R = function (kind, who, text, soft) { return { kind: kind, who: who, text: text, soft: !!soft }; };
+    var L = function (speaker, time, text, more) {
+      var names = { liv: 'Liv', mike: 'Mike', theo: 'Theo', narrator: 'Narrator' };
+      return Object.assign({ t: 'line', speaker: speaker, name: names[speaker] || speaker, time: time, text: text, reacts: [] }, more || {});
+    };
+    var card = function (text, undo) { return { t: 'card', text: text, undo: !!undo }; };
+    var note = function (who, text, away) { return { t: 'note', who: who, text: text, away: !!away }; };
+
+    var c1 = card('Halcyon Coffee · the evening it rained');
+    var l1 = L('liv', '7:02 pm', 'Still open? I’ll take anything hot, I don’t care what.');
+    var l2 = L('mike', '7:04 pm', '*flips the sign back around and goes for a cup* Ten minutes. Drink it fast or I’m putting you to work.', { reacts: [R('warm', 'mike', 'Mike is glad you came in', true)] });
+    var nj = note('theo', 'Theo joins.');
+    var l3 = L('theo', '7:06 pm', '*drops his backpack on the counter* Did someone say free labour?', { reacts: [R('mood', 'mike', 'Mike is wary of Theo')] });
+    var l4 = L('liv', '7:08 pm', 'Theo, would you grab the milk from the back? All of it.', { reacts: [R('feeling', 'theo', 'Theo didn’t like that')] });
+    var l5 = L('theo', '7:10 pm', '*picks up the crates, grinning* Anything for a paying customer.', { reacts: [R('mood', 'theo', 'Theo is suspicious of you')] });
+    var nl = note('theo', 'Theo went out to the back.', true);
+    var l6 = L('liv', '7:12 pm', 'Quickly, while he’s gone. My mother is the queen’s step-sister. I’m on the gala list and I don’t want to be. Tell no one.', { reacts: [R('memory', 'mike', 'Mike will remember this'), R('warm', 'mike', 'Mike trusts you a little more')] });
+    var l7 = L('mike', '7:14 pm', '*sets the cup down very carefully* Then stop saying it so loud. My mother cuts her hair.', { reacts: [R('feeling', 'mike', 'Mike is worried for you')] });
+    var ca = card('Three weeks later · Corvel Palace', true);
+    var a1 = L('mike', '7:18 pm', 'You? *he looks at the jacket he borrowed, then at you* The list. You said you weren’t coming to this.', { exact: '19:18', timeDetail: 'Three weeks after the café · the night of the gala', timeOpen: v === 'after', recalled: true, hasRecall: true, recallTitle: 'Mike remembered, vaguely', recallMemory: 'She didn’t want to be on the gala list.', recallMeta: 'sharp 3 weeks ago · hazy now · witnessed', reacts: [R('warm', 'mike', 'Mike is glad to see you')] });
+    var a2 = L('liv', '7:20 pm', 'I never said that. I said I didn’t want to be on it.');
+    var a3 = L('mike', '7:22 pm', '*frowns* …I could have sworn. Three weeks is a long time to hold one sentence.', { reacts: [R('belief', 'mike', 'Mike has his doubts')] });
+    var dim = function (l) { return Object.assign({}, l, { dim: true }); };
+    var hover = function (l, take) { return Object.assign({}, l, { hover: true, take: take || '1/1' }); };
+
+    var sent = (st.sent || []).map(function (s) { return L(s.who, s.time, s.text, { writing: !!s.writing }); });
+    var sets = {
+      default: [c1, l1, l2].concat(sent),
+      joins: [c1, l1, l2, nj, l3],
+      secret: [l4, l5, nl, l6, l7],
+      advanced: [l4, l5, nl, Object.assign(hover(l6), { hasHeard: true }), l7],
+      modes: [l4, l5, nl, l6, l7],
+      edit: [nj, l3, { t: 'edit', speaker: 'liv', name: 'Liv', time: '7:08 pm', text: 'Theo, would you grab the milk from the back? All of it. Take your time.', after: 5 }, dim(l5), dim(l6), dim(l7)],
+      reply: [l4, l5, nl, l6, L('mike', '7:14 pm', '*sets the cup down very carefully* Then stop saying', { writing: true, thought: 'Thought for 4 s' })],
+      takes: [l5, nl, l6, { t: 'hidden', text: 'You hid 1 line here' }, hover(l7, '2/3')],
+      after: [l7, ca, a1, a2, a3],
+      failed: [ca, a1, a2, { t: 'err', title: 'Mike’s reply didn’t arrive', text: 'llama.cpp stopped answering at 7:22 pm. Your line is saved; nothing was lost. Kataki will try again by itself when the server is back.', code: 'REPLY_UNREACHABLE · ECONNREFUSED localhost:8080' }],
+      first: [c1, L('mike', '7:00 pm', '*flips the sign back around* Ten minutes. Drink it fast or I’m putting you to work.')],
+      narrator: [card('The Invitation · a plot'), L('narrator', '7:30 pm', '*A courier bike pulls up outside Halcyon. The envelope has a wax seal, and two names on it.*'), L('mike', '7:31 pm', '*reads the names twice* It’s for both of us. That’s not possible.', { reacts: [R('mood', 'mike', 'Mike is uneasy')] }), L('liv', '7:32 pm', 'Open it.')],
+      widgets: [c1, l1, l2],
+      reading: [c1, l1, l2, nj, l3, l4, l5, nl, l6, l7]
+    };
+    var raw = sets[v] || sets.default;
+    var lines = raw.map(function (l) {
+      return Object.assign({ isCard: l.t === 'card', isNote: l.t === 'note', isLine: l.t === 'line', isEdit: l.t === 'edit', isErr: l.t === 'err', isHidden: l.t === 'hidden', reacts: [], dim: false, hover: false, take: '', writing: false, recalled: false, thought: '', exact: '', timeDetail: '', timeOpen: false, hasRecall: false, hasHeard: false, undo: false, away: false }, l);
+    });
+
+    var W = function (who, name, mood, status, more) { return Object.assign({ card: true, row: false, slot: false, who: who, name: name, mood: mood, status: status, thinking: false, badge: '', pinned: true, edit: v === 'widgets', dragging: false, away: false, alt: name + ', portrait' }, more || {}); };
+    var Rw = function (who, name, status, away) { return { card: false, row: true, slot: false, who: who, name: name, status: status, away: !!away, edit: v === 'widgets' }; };
+    var ppl = {
+      default: [W('mike', 'Mike', 'Calm', 'Here · fond of you'), Rw('theo', 'Theo', 'Out back · could join')],
+      joins: [W('mike', 'Mike', 'Wary', 'Here · wary of Theo'), W('theo', 'Theo', 'Amused', 'Joined · 2 min ago', { badge: 'Joined', pinned: false })],
+      secret: [W('mike', 'Mike', 'Uneasy', 'Here · trust +6 this scene'), Rw('theo', 'Theo', 'Out back · away', true)],
+      reply: [W('mike', 'Mike', 'Uneasy', 'Choosing his words', { thinking: true }), Rw('theo', 'Theo', 'Out back · away', true)],
+      after: [W('mike', 'Mike', 'Doubtful', 'Here · doubt +12 this scene'), Rw('theo', 'Theo', 'Not invited · three weeks', true)],
+      first: [W('mike', 'Mike', 'Calm', 'Here · never met you')],
+      narrator: [W('mike', 'Mike', 'Uneasy', 'Here · fond of you')],
+      widgets: [W('mike', 'Mike', 'Calm', 'Here · fond of you'), { card: false, row: false, slot: true }]
+    };
+    ppl.advanced = ppl.secret; ppl.modes = ppl.secret; ppl.edit = ppl.secret; ppl.takes = ppl.secret; ppl.failed = ppl.after; ppl.reading = [];
+    var people = ppl[v] || ppl.default;
+
+    var late = v === 'after' || v === 'failed';
+    var clocks = { default: '7:04 pm', joins: '7:06 pm', first: '7:00 pm', narrator: '7:32 pm', widgets: '7:04 pm' };
+
+    var composerProps = { placeholder: 'Speak or act as Liv…' };
+    if (v === 'advanced') composerProps = { defaultAdvanced: true, hearing: [{ who: 'mike' }], hearingText: 'Only Mike will hear this', away: 'Theo is away', tokens: '~7,300 / 16,384 tokens', meter: 45 };
+    if (v === 'modes') composerProps = { defaultValue: '*leans over the counter* Then don’t tell anyone you saw me here.', detected: 'Do + Say', modeOpen: true };
+    if (v === 'reply') composerProps = { streaming: true, placeholder: 'Mike is answering…' };
+    if (v === 'first') composerProps = { placeholder: 'Say hello to Mike, as Liv. *Actions* go between asterisks.' };
+    if (v === 'failed') composerProps = { placeholder: 'You can keep writing. Lines wait until the model is back.' };
+    if (v === 'default') {
+      composerProps = {
+        value: st.draft || '', placeholder: 'Speak or act as Liv…', streaming: !!st.busy,
+        onChange: function (x) { self.setState({ draft: x }); },
+        onSend: function (x) {
+          var text = (x || '').trim(); if (!text || st.busy) return;
+          var list = (st.sent || []).concat([{ who: 'liv', time: '7:0' + (6 + (st.sent || []).length) + ' pm', text: text }]);
+          self.setState({ sent: list.concat([{ who: 'mike', time: '7:0' + (7 + (st.sent || []).length) + ' pm', text: '*wipes the counter twice*', writing: true }]), draft: '', busy: true });
+          setTimeout(function () {
+            var cur = (self.state.sent || []).slice(0, -1);
+            self.setState({ sent: cur.concat([{ who: 'mike', time: '7:0' + (7 + cur.length - 1) + ' pm', text: '*wipes the counter twice* It’s fine. It’s not fine, but it’s fine.' }]), busy: false });
+          }, 1500);
+        }
+      };
+    }
+
+    var menuItems = [
+      ['layers', 'Edit widgets', 'Move, pin, remove or add', ['Ctrl', 'E']], ['book', 'Reading mode', 'Just the story', ['Ctrl', 'Shift', 'R']], ['map-pin', 'Scene and place', 'Where, when, who is here', null], ['clock', 'Pass time', 'Skip ahead in the story', null], ['quote', 'Drop in a plot…', 'Start something from World', null], ['cpu', 'Backstage', 'How replies are made', ['Ctrl', 'B']], ['settings', 'Story settings', 'Persona, book, models, memory', null], 'div', ['download', 'Export story…', '', null], ['pushpin', 'Pin to Home', '', null], ['help', 'Tell us something', '', ['Ctrl', 'Shift', 'F']], 'div', ['trash', 'Delete story…', '', null]
+    ].map(function (m) { return m === 'div' ? { div: true, item: false } : { div: false, item: true, icon: m[0], label: m[1], detail: m[2], keys: m[3], cls: m[0] === 'trash' ? 'is-danger' : (m[0] === 'layers' ? 'is-active' : '') }; });
+
+    return A.page(this, {
+      s14: 14, s16: 16, s18: 18, s20: 20, s26: 26, h868: 868, v46: 46, v54: 54, v55: 55, v62: 62, v72: 72,
+      atCafe: !late, atPalace: late, isReading: v === 'reading', notReading: v !== 'reading',
+      editing: v === 'widgets', showExtra: v === 'narrator',
+      bsOn: false, menuOpen: ov === 'menu',
+      lines: lines, people: people, composer: A.el('Composer', composerProps),
+      clock: late ? '7:22 pm' : (clocks[v] || '7:14 pm'), clockRel: late ? 'Three weeks later · the gala' : 'The evening it rained',
+      clockExact: late ? '19:22' : '19:04', clockDetail: late ? '14 June · night two of the gala' : '24 May · the café', clockKind: late ? 'night' : 'dusk',
+      placeName: late ? 'Corvel Palace' : 'Halcyon Coffee',
+      track: late ? 'A string quartet, two rooms away' : 'Rain on a café window', trackSource: 'Matched to the scene',
+      ovMenu: ov === 'menu', ovModes: v === 'modes', ovPass: ov === 'passtime', ovSkip: ov === 'skip', ovMusic: ov === 'music', ovPeek: ov === 'peek', ovPlace: ov === 'place', ovSettings: ov === 'settings',
+      menuItems: menuItems,
+      whereOpts: ['Stay here', 'Somewhere else'],
+      peekAction: A.el('Button', { size: 'sm', icon: 'plus', variant: 'ghost' }, 'Add as widget'),
+      placeOpts: ['Stay at Halcyon Coffee', 'Corvel Palace', 'The flat on Ardenne', 'Somewhere new…'], timesScene: ['Dawn', 'Day', 'Dusk', 'Night'], weather: ['Clear', 'Rain', 'Snow', 'Fog'],
+      presHere: ['Here', 'Nearby, could join', 'Gone'], presNear: ['Nearby, could join', 'Here', 'Gone'],
+      bookOpts: ['Close to the Crown', 'Not in a book'], personaOpts: ['Liv Sandoval', 'Cas Brennan', 'Director · play no one'], modeOpts: ['Auto', 'Say', 'Do', 'Whisper', 'Think', 'Narrate'],
+      fadeOpts: ['Like Settings · life-like', 'Fast', 'Life-like', 'Slow', 'Never'], modelOpts: ['Like Settings · qwen3.5-9b', 'kataki-small-3b', 'qwen/qwen3.5-72b · OpenRouter']
+    });
+  }
+}
+</script>
+</body>
+</html>

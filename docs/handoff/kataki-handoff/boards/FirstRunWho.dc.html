@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · First run, who first</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}.pick{display:block;padding:0;border:0;background:transparent;cursor:pointer;border-radius:18px;text-align:start;font:inherit;color:inherit}.pick:focus-visible{outline:none;box-shadow:var(--focus-ring)}.pick--on .k-char{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}</style>
+</helmet>
+<div data-theme="{{theme}}" style="position: relative; width: 1440px; height: 900px; overflow: hidden; background: var(--ground); color: var(--ink); font-family: var(--font-ui);">
+  <x-import component-from-global-scope="Kataki.Sky" style="position: absolute; inset: 0px;"></x-import>
+  <main aria-label="First run, step 2 of 2" style="position: relative; width: 1160px; margin: 0px auto; padding-top: 72px; display: flex; flex-direction: column; gap: 26px;">
+    <div style="display: flex; align-items: center; justify-content: space-between;">
+      <span style="font-family: var(--font-display); font-size: 24px; font-weight: 800; letter-spacing: -0.015em;">Kataki</span>
+      <span class="t-meta">Step 2 of 2</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <h1 style="margin: 0; font-family: var(--font-story); font-size: 52px; line-height: 56px; font-weight: 500; letter-spacing: -0.012em;">Who first?</h1>
+      <p style="margin: 0; font-size: 16px; line-height: 25px; color: var(--mid);">Six people ship with Kataki. Pick one to start; the rest are waiting in Characters.</p>
+    </div>
+    <div role="radiogroup" aria-label="Who first" style="display: flex; gap: 16px; align-items: flex-start;">
+      <sc-for list="{{people}}" as="p" hint-placeholder-count="6">
+        <sc-if value="{{p.on}}" hint-placeholder-val="{{false}}">
+          <button type="button" role="radio" aria-checked="true" class="pick pick--on" onClick="{{p.pick}}"><x-import component-from-global-scope="Kataki.CharacterCard" who="{{p.who}}" name="{{p.name}}" line="{{p.line}}" when="{{p.when}}" badge="{{p.badge}}"></x-import></button>
+        </sc-if>
+        <sc-if value="{{p.off}}" hint-placeholder-val="{{true}}">
+          <button type="button" role="radio" aria-checked="false" class="pick" onClick="{{p.pick}}"><x-import component-from-global-scope="Kataki.CharacterCard" who="{{p.who}}" name="{{p.name}}" line="{{p.line}}" when="{{p.when}}" badge="{{p.badge}}"></x-import></button>
+        </sc-if>
+      </sc-for>
+    </div>
+    <div class="card" style="display: flex; align-items: center; gap: 16px; padding: 16px 20px;">
+      <span class="t-faint" style="width: 90px;">And you are</span>
+      <x-import component-from-global-scope="Kataki.Avatar" who="liv" size="{{s40}}" alt="Liv"></x-import>
+      <div style="flex: 1;">
+        <div style="font-family: var(--font-story); font-size: 19px; font-weight: 600;">Liv Sandoval</div>
+        <div class="t-meta">or just “You”, and decide later</div>
+      </div>
+      <x-import component-from-global-scope="Kataki.Button" size="sm" href="FirstRunPersona.dc.html">Change</x-import>
+    </div>
+    <div class="row" style="justify-content: space-between;">
+      <x-import component-from-global-scope="Kataki.Button" variant="ghost" icon="left" href="FirstRun.dc.html">Back</x-import>
+      <div class="row" style="gap: 16px;">
+        <x-import component-from-global-scope="Kataki.Button" variant="link" href="HomeEmpty.dc.html">Skip and go to an empty library</x-import>
+        <x-import component-from-global-scope="Kataki.Button" variant="primary" size="lg" href="SceneFirst.dc.html">{{startLabel}}</x-import>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var self = this;
+    var sel = (this.state && this.state.sel) || 'mike';
+    var P = [
+      ['mike', 'Mike', 'Barista at Halcyon. Son of the queen’s hairdresser.', ''],
+      ['theo', 'Theo', 'Engineering student. Covers Mike’s shifts, hears everything.', ''],
+      ['nico', 'Nico', 'Art student, your flatmate. Tells you the truth you asked for.', ''],
+      ['jae', 'Jae', 'Palace press aide. Runs six accounts, posts nothing about himself.', ''],
+      ['cas', 'Cas', 'Twelfth in line, and hates it.', ''],
+      ['dani', 'Dani', 'Florist. Delivers to the palace back gate twice a week.', 'Draft']
+    ];
+    var names = {};
+    var people = P.map(function (p) {
+      names[p[0]] = p[1];
+      return { who: p[0], name: p[1], line: p[2], badge: p[3], when: p[3] ? 'Half-written, on purpose' : 'Ships with Kataki', on: sel === p[0], off: sel !== p[0], pick: function () { self.setState({ sel: p[0] }); } };
+    });
+    return window.KApp.page(this, { people: people, s40: 40, startLabel: 'Start with ' + names[sel] });
+  }
+}
+</script>
+</body>
+</html>

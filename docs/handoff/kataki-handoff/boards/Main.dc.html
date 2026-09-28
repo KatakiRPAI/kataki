@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · map of the app</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div data-theme="{{theme}}" class="board" style="position: relative; height: 1240px;">
+  <x-import component-from-global-scope="Kataki.Sky" style="position: absolute; inset: 0px;"></x-import>
+  <header style="position: relative; display: flex; align-items: flex-end; justify-content: space-between; gap: 40px;">
+    <div>
+      <div class="board__kicker">Kataki RPAI · implementation handoff</div>
+      <h1 class="board__title">Every screen, overlay and state</h1>
+      <p class="board__lede">118 boards, built from the Kataki design system and nothing else. Each one is a route, an overlay on a route, or a state of one. Codes match the written spec in docs/design/handoff: find a board here, read its entry there. Play follows the links.</p>
+    </div>
+    <div style="display: flex; gap: 26px; padding-bottom: 6px;">
+      <x-import component-from-global-scope="Kataki.Stat" value="118" label="boards"></x-import>
+      <x-import component-from-global-scope="Kataki.Stat" value="26" label="routes"></x-import>
+      <x-import component-from-global-scope="Kataki.Stat" value="48" label="overlays"></x-import>
+      <x-import component-from-global-scope="Kataki.Stat" value="62" label="error codes"></x-import>
+    </div>
+  </header>
+
+  <section style="position: relative; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; align-items: start;">
+    <sc-for list="{{groups}}" as="g" hint-placeholder-count="12">
+      <div class="card" style="padding: 16px 18px 12px; display: flex; flex-direction: column; gap: 4px; background: var(--panel);">
+        <div style="display: flex; align-items: center; gap: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--hairline); margin-bottom: 4px;">
+          <x-import component-from-global-scope="Kataki.Icon" name="{{g.icon}}" size="{{s18}}" color="var(--accent-text)"></x-import>
+          <span style="font-family: var(--font-display); font-size: 19px; font-weight: 700; color: var(--ink);">{{g.title}}</span>
+          <span class="t-faint" style="margin-inline-start: auto;">{{g.count}}</span>
+        </div>
+        <sc-for list="{{g.items}}" as="b" hint-placeholder-count="6">
+          <a href="{{b.href}}" style="display: flex; align-items: baseline; gap: 10px; padding: 5px 6px; border-radius: 8px; color: var(--mid); font-size: 13.5px; line-height: 18px;">
+            <span class="code" style="width: 34px; flex-shrink: 0;">{{b.code}}</span>
+            <span>{{b.title}}</span>
+          </a>
+        </sc-for>
+      </div>
+    </sc-for>
+  </section>
+
+  <section style="position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px;">
+    <x-import component-from-global-scope="Kataki.Callout" title="Two worlds, one app">The Sky is every page outside a story: navy night over the clouds, a Day theme second. The Scene is inside a story: always golden hour, whatever the Sky theme.</x-import>
+    <x-import component-from-global-scope="Kataki.Callout" tone="warm" title="Nothing needs a model to render">Every string is static, typed by the user, computed, or a row the engine stored at turn time. Every board here renders with the model server stopped.</x-import>
+    <x-import component-from-global-scope="Kataki.Callout" tone="privacy" title="States are not pages">Overlays, menus and Scene states sit on top of a route and never change the URL. The spec says which is which.</x-import>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"$preview":{"width":1440,"height":1240}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var G = [
+      ['Opening and first run', 'spark', [['A1','Opening','Opening'],['A2','OpeningFailed','Library can’t be read'],['A3','CrashRecovered','After a crash'],['B1','FirstRun','First run · three doors'],['B2','FirstRunDownload','Downloading the model'],['B3','FirstRunServer','Add a model server'],['B4','FirstRunOnline','Online model and key'],['B5','FirstRunWho','Who first'],['B6','FirstRunPersona','You are']]],
+      ['Home and finding', 'home', [['C1','Home','Home'],['C2','HomeEmpty','Home · day one'],['C3','HomeOffline','Home · model unreachable'],['C4','PersonaMenu','Playing as menu'],['C5','Palette','Command palette'],['C6','PaletteEmpty','Palette · nothing typed'],['C7','PaletteNone','Palette · no matches'],['C8','Search','Search results'],['C9','SearchNone','Search · nothing found']]],
+      ['Characters', 'users', [['D1','Characters','Characters · grid'],['D2','CharactersList','Characters · list'],['D3','CharactersNone','Empty filter'],['D4','ImportCards','Import cards'],['D5','NewGroup','New group'],['E1','Profile','Profile · Story'],['E2','ProfileTab','Profile · Profile'],['E3','ProfileMemories','Every memory'],['E4','ForgetMemory','Make him forget'],['E5','DeleteCharacter','Delete a character']]],
+      ['Making', 'feather', [['F1','NewCharacter','New character'],['F2','NewCharacterFull','Every section open'],['F3','NewCharacterErrors','What’s missing'],['F4','PortraitPicker','Kataki’s portraits'],['F5','PortraitFocus','Crop and focus'],['F6','EditCharacter','Edit character'],['F7','DiscardChanges','Leave without saving?'],['G1','NewStory','New story'],['G2','NewStoryGroup','A group scene'],['G3','NewStoryFind','Find someone'],['G4','NewStoryPlace','Somewhere new']]],
+      ['Stories', 'chat', [['H1','Stories','By story'],['H2','StoriesByCharacter','By character'],['H3','StoriesEmpty','None yet'],['H4','RenameStory','Rename'],['H5','DeleteStory','Delete'],['H6','ExportStory','Export']]],
+      ['World', 'map', [['I1','World','World'],['I2','WorldEmpty','Empty'],['I3','PlaceDetail','A place'],['I4','PlotDetail','A plot'],['I5','NewPlace','New place'],['I6','NewPlot','New plot'],['I7','NewBook','New book'],['I8','FileDialog','File a place']]],
+      ['You', 'user', [['J1','You','You and personas'],['J2','EditPersona','Edit persona'],['J3','DeletePersona','Delete a persona']]],
+      ['Settings', 'cog', [['K1','SetGeneral','General'],['K2','SetAppearance','Appearance'],['K3','SetLanguage','Language'],['K4','SetModels','Models'],['K5','SetModelsAdvanced','A job · Advanced'],['K6','SetModelsFailed','A connection failing'],['K7','AddApi','Add an online model'],['K8','FindServers','Look for servers'],['K9','SetMemory','Memory and thinking'],['K10','SetData','Data and privacy'],['K11','ExportAll','Export everything'],['K12','Backups','Backups and restore'],['K13','DeleteSomething','Delete something'],['K14','SetShortcuts','Shortcuts'],['K15','RemapShortcut','Change a shortcut'],['K16','SetAbout','About'],['K17','UpdateStates','Updates'],['K18','Licences','Licences']]],
+      ['Feedback, menus, errors', 'bell', [['L1','Feedback','Feedback'],['L2','BugReport','Report a bug'],['L3','Suggestion','Suggest something'],['L4','FeedbackSent','Sent · copied · failed'],['M1','MenusSky','Every Sky menu'],['M2','MenusScene','Every story menu'],['M3','Toasts','Every toast'],['M4','Errors','Every error'],['N1','ModelGone','Model server went away'],['N2','DiskFull','Disk is full'],['N3','AlreadyOpen','Already open']]],
+      ['The Scene', 'film', [['P1','Scene','In a story'],['P2','SceneMenu','Story menu'],['P3','SceneWidgets','Editing widgets'],['P4','SceneJoins','Someone joins'],['P5','SceneSecret','Reactions'],['P6','SceneAdvanced','Composer · Advanced'],['P7','SceneModes','How a line is read'],['P8','SceneEditLine','Editing a line'],['P9','SceneReply','A reply arriving'],['P10','SceneTakes','Takes and hidden lines'],['P11','ScenePassTime','Pass time']]],
+      ['The Scene, continued', 'clock', [['P12','SceneTimeSkip','The time skip'],['P13','SceneAfterSkip','After the skip'],['P14','SceneMusic','Music'],['P15','ScenePeek','A character’s card'],['P16','SceneReading','Reading mode'],['P17','ScenePlace','Scene and place'],['P18','SceneSettings','Story settings'],['P19','SceneFailed','A reply that failed'],['P20','SceneFirst','A new story’s first moment'],['P21','SceneNarrator','Narrator, plot, widgets']]],
+      ['Backstage and proof', 'cpu', [['Q1','Backstage','Backstage · the mind'],['Q2','BackstageNode','One stage opened'],['Q3','BackstagePrompt','The full prompt'],['Q4','BackstageMemory','Every memory'],['Q5','BackstageLogs','Logs'],['R1','ProofCompact','1024 wide'],['R2','ProofArabic','Arabic · Home'],['R3','ProofArabicScene','Arabic · a story'],['R4','ProofText','Text at 200%'],['R5','ProofAccess','Keyboard, focus, motion'],['R6','ProofDay','Day']]]
+    ];
+    var groups = G.map(function (g) {
+      return { title: g[0], icon: g[1], count: String(g[2].length), items: g[2].map(function (b) { return { code: b[0], href: b[1] + '.dc.html', title: b[2] }; }) };
+    });
+    return window.KApp.page(this, { groups: groups, s18: 18 });
+  }
+}
+</script>
+</body>
+</html>

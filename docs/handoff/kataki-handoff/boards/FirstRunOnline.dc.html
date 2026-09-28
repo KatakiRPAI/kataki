@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · First run, online model</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div data-theme="{{theme}}" style="position: relative; width: 1440px; height: 900px; overflow: hidden; background: var(--ground); color: var(--ink); font-family: var(--font-ui);">
+  <x-import component-from-global-scope="Kataki.Sky" style="position: absolute; inset: 0px;"></x-import>
+  <main aria-label="First run, step 1 of 2" style="position: relative; width: 1160px; margin: 0px auto; padding-top: 72px; display: flex; flex-direction: column; gap: 28px;">
+    <div style="display: flex; align-items: center; justify-content: space-between;">
+      <span style="font-family: var(--font-display); font-size: 24px; font-weight: 800; letter-spacing: -0.015em;">Kataki</span>
+      <span class="t-meta">Step 1 of 2</span>
+    </div>
+    <x-import component-from-global-scope="Kataki.TextLink" href="FirstRun.dc.html" icon="left">All three doors</x-import>
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 28px; align-items: start;">
+      <section class="card" aria-label="Use an online model" style="display: flex; flex-direction: column; gap: 18px; padding: 28px 30px;">
+        <div class="row" style="gap: 14px;">
+          <span class="dlg__icon"><x-import component-from-global-scope="Kataki.Icon" name="globe" size="{{s20}}"></x-import></span>
+          <h1 style="margin: 0; font-family: var(--font-display); font-size: 28px; font-weight: 800; letter-spacing: -0.015em;">Use an online model</h1>
+        </div>
+        <x-import component-from-global-scope="Kataki.Callout" tone="warm" title="Your story leaves this computer">Each reply sends that turn’s prompt to the service you pick. Backstage shows exactly what went, before and after. Nothing else is ever sent.</x-import>
+        <x-import component-from-global-scope="Kataki.RadioGroup" label="Service" options="{{services}}" default-value="openrouter"></x-import>
+        <x-import component-from-global-scope="Kataki.TextField" label="Key" required="{{yes}}" type="password" icon="key" default-value="sk-or-v1-0000000000000000" error="OpenRouter said this key isn’t valid. Copy it again from openrouter.ai/keys; it starts with sk-or-."></x-import>
+        <x-import component-from-global-scope="Kataki.Select" label="Model" options="{{models}}" hint="Filled in after the key works. You can pick a different one for each job later." disabled="{{yes}}"></x-import>
+        <div class="row" style="justify-content: space-between;">
+          <span class="t-faint">Key stored in Windows Credential Manager · never written to a file</span>
+          <x-import component-from-global-scope="Kataki.Button" variant="primary">Test and continue</x-import>
+        </div>
+      </section>
+      <aside aria-label="What testing a key can say" style="display: flex; flex-direction: column; gap: 12px;">
+        <span class="spec-cap">What Test can say</span>
+        <x-import component-from-global-scope="Kataki.StatusLine" title="Key works">OpenRouter · 312 models · qwen/qwen3.5-72b picked · $0.0004 a reply at this length</x-import>
+        <x-import component-from-global-scope="Kataki.StatusLine" tone="bad" title="Key not valid">API_KEY_INVALID · 401</x-import>
+        <x-import component-from-global-scope="Kataki.StatusLine" tone="bad" title="No credit left on this key">Top up at the service, then test again. API_NO_CREDIT · 402</x-import>
+        <x-import component-from-global-scope="Kataki.StatusLine" tone="warm" title="Too many requests">The service asked Kataki to slow down. It tries again in 20 s. API_RATE_LIMITED · 429</x-import>
+        <x-import component-from-global-scope="Kataki.StatusLine" tone="bad" title="Couldn’t reach the service">No internet, or the address is wrong. API_UNREACHABLE</x-import>
+      </aside>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return window.KApp.page(this, {
+      s20: 20,
+      services: [
+        { value: 'openrouter', label: 'OpenRouter', description: 'Hundreds of models behind one key.' },
+        { value: 'openai', label: 'OpenAI' },
+        { value: 'anthropic', label: 'Anthropic' },
+        { value: 'other', label: 'Something else that speaks the OpenAI API', description: 'You give it an address.' }
+      ],
+      models: ['Pick after the key works']
+    });
+  }
+}
+</script>
+</body>
+</html>

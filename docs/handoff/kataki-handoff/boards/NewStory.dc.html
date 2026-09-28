@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · New story</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}.ns-step{display:flex;flex-direction:column;gap:12px;padding-bottom:22px;border-bottom:1px solid var(--hairline)}.ns-step:last-child{border-bottom:0}.plotpick{display:flex;flex-direction:column;gap:6px;padding:14px 16px;border-radius:14px;border:1px solid var(--border);background:var(--panel);text-align:start;font:inherit;color:inherit;cursor:pointer;width:100%;box-sizing:border-box}.plotpick[aria-pressed="true"]{border-color:var(--accent);background:var(--raise)}.plotpick:focus-visible{outline:none;box-shadow:var(--focus-ring)}</style>
+</helmet>
+<div data-theme="{{theme}}" class="app" style="height: 1000px;">
+  <div class="app__sky"><x-import component-from-global-scope="Kataki.Sky" clouds="{{no}}" style="position: absolute; inset: 0px;"></x-import></div>
+  <x-import component-from-global-scope="Kataki.Rail" active="Stories" theme="{{theme}}" hrefs="{{hrefs}}" on-navigate="{{nav}}" height="{{h}}"></x-import>
+
+  <main class="app__main" aria-label="New story" style="gap: 24px;">
+    <x-import component-from-global-scope="Kataki.TopBar" back="Stories" back-href="Stories.dc.html"></x-import>
+    <div class="pg-head">
+      <div>
+        <h1 class="pg-title">New story</h1>
+        <p class="pg-sub">Four choices, three of them optional.</p>
+      </div>
+      <x-import component-from-global-scope="Kataki.Button" variant="primary" size="lg" href="SceneFirst.dc.html">Start the scene</x-import>
+    </div>
+
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 36px; align-items: start;">
+      <div style="display: flex; flex-direction: column; gap: 22px; min-width: 0;">
+        <section class="ns-step">
+          <x-import component-from-global-scope="Kataki.StepHeader" n="{{n1}}" title="Who is in it"></x-import>
+          <div class="row row--wrap" style="gap: 8px;">
+            <x-import component-from-global-scope="Kataki.Chip" who="mike" default-pressed="{{yes}}">Mike</x-import>
+            <x-import component-from-global-scope="Kataki.Chip" who="theo" default-pressed="{{isGroup}}">Theo</x-import>
+            <x-import component-from-global-scope="Kataki.Chip" who="nico">Nico</x-import>
+            <x-import component-from-global-scope="Kataki.Chip" who="jae">Jae</x-import>
+            <x-import component-from-global-scope="Kataki.Chip" who="dani">Dani · draft</x-import>
+            <x-import component-from-global-scope="Kataki.Chip" icon="search">Find</x-import>
+          </div>
+          <div class="row" style="gap: 10px;">
+            <span class="t-faint">Or a group</span>
+            <x-import component-from-global-scope="Kataki.Chip" icon="users" size="sm" default-pressed="{{isGroup}}">Closing shift · Mike and Theo</x-import>
+          </div>
+          <sc-if value="{{isGroup}}" hint-placeholder-val="{{false}}">
+            <x-import component-from-global-scope="Kataki.Callout" title="Two people, one scene">Whoever fits answers each line. To pick who speaks, use Advanced in the composer. Theo starts out back; he joins when the story calls him.</x-import>
+            <div style="display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 10px; align-items: end;">
+              <span style="font-size: 14px; color: var(--mid);">Theo</span>
+              <x-import component-from-global-scope="Kataki.Select" label="" options="{{presence}}"></x-import>
+            </div>
+          </sc-if>
+        </section>
+
+        <section class="ns-step">
+          <x-import component-from-global-scope="Kataki.StepHeader" n="{{n2}}" title="You are"></x-import>
+          <div class="row" style="gap: 12px;">
+            <x-import component-from-global-scope="Kataki.PersonaCard" who="liv" name="Liv Sandoval" line="Cheerleader. The queen’s step-sister’s daughter." is-default="{{yes}}" selected="{{yes}}"></x-import>
+            <x-import component-from-global-scope="Kataki.Button" size="sm">Change</x-import>
+          </div>
+        </section>
+
+        <section class="ns-step">
+          <x-import component-from-global-scope="Kataki.StepHeader" n="{{n3}}" title="Where" optional="{{yes}}"></x-import>
+          <div class="row row--wrap" style="gap: 8px;">
+            <x-import component-from-global-scope="Kataki.Chip" icon="map-pin" default-pressed="{{notPlace}}">Halcyon Coffee</x-import>
+            <x-import component-from-global-scope="Kataki.Chip" icon="map-pin">Corvel Palace</x-import>
+            <x-import component-from-global-scope="Kataki.Chip" icon="map-pin">The flat on Ardenne</x-import>
+            <x-import component-from-global-scope="Kataki.Chip" icon="plus" default-pressed="{{isPlace}}">Somewhere new</x-import>
+          </div>
+          <sc-if value="{{isPlace}}" hint-placeholder-val="{{false}}">
+            <div class="card" style="padding: 18px; display: flex; flex-direction: column; gap: 14px; background: var(--raise);">
+              <x-import component-from-global-scope="Kataki.TextField" label="Name" required="{{yes}}" story="{{yes}}" default-value="The back gate"></x-import>
+              <x-import component-from-global-scope="Kataki.TextArea" label="What it’s like" optional="{{yes}}" story="{{yes}}" rows="{{r2}}" default-value="A service gate behind the palace kitchens. Crates, a single lamp, a guard who never looks up."></x-import>
+              <x-import component-from-global-scope="Kataki.Segmented" label="Time of day" options="{{times}}" value="Night" size="sm"></x-import>
+              <x-import component-from-global-scope="Kataki.Checkbox" label="Keep it in World" description="Filed under Close to the Crown, so other stories can go there." default-checked="{{yes}}"></x-import>
+            </div>
+          </sc-if>
+        </section>
+
+        <section class="ns-step">
+          <x-import component-from-global-scope="Kataki.StepHeader" n="{{n4}}" title="What is happening" optional="{{yes}}"></x-import>
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
+            <button type="button" class="plotpick" aria-pressed="true">
+              <span style="font-family: var(--font-story); font-style: italic; font-size: 17px; line-height: 24px;">“The café shuts in ten minutes and neither of you wants to leave.”</span>
+              <span class="t-meta">Closing Shift · a plot · opens with the espresso machine going quiet</span>
+            </button>
+            <button type="button" class="plotpick" aria-pressed="false">
+              <span style="font-size: 14.5px; font-weight: 700;">Nothing in particular</span>
+              <span class="t-meta">Start on an empty scene and let it happen. You can drop a plot in later from the story menu.</span>
+            </button>
+          </div>
+        </section>
+      </div>
+
+      <aside aria-label="The scene" class="card" style="overflow: hidden; display: flex; flex-direction: column;">
+        <x-import component-from-global-scope="Kataki.Still" place="{{prevPlace}}" caption="{{prevCaption}}" height="{{h200}}" alt="{{prevAlt}}"></x-import>
+        <div style="padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 14px;">
+          <div class="col" style="gap: 4px;">
+            <x-import component-from-global-scope="Kataki.Eyebrow">The scene</x-import>
+            <x-import component-from-global-scope="Kataki.StoryName" size="card">{{prevName}}</x-import>
+            <span class="t-meta">{{prevWho}}</span>
+          </div>
+          <div class="col" style="gap: 8px;">
+            <div class="row" style="gap: 10px;"><x-import component-from-global-scope="Kataki.Avatar" who="mike" size="{{s26}}" alt="Mike"></x-import><span style="font-size: 13.5px;"><b>Mike</b> <span class="t-meta">63 memories · 4 stories · knows this place</span></span></div>
+            <sc-if value="{{isGroup}}" hint-placeholder-val="{{false}}"><div class="row" style="gap: 10px;"><x-import component-from-global-scope="Kataki.Avatar" who="theo" size="{{s26}}" alt="Theo"></x-import><span style="font-size: 13.5px;"><b>Theo</b> <span class="t-meta">8 memories · 2 stories · knows this place</span></span></div></sc-if>
+          </div>
+          <x-import component-from-global-scope="Kataki.Select" label="File it under" icon="book" options="{{books}}" hint="A new story in this book. Or leave it unfiled."></x-import>
+          <x-import component-from-global-scope="Kataki.TextField" label="Name it" optional="{{yes}}" story="{{yes}}" default-value="Closing Shift, again" hint="Leave it and it’s named after the place and the day."></x-import>
+          <x-import component-from-global-scope="Kataki.Button" variant="primary" full="{{yes}}" size="lg" href="SceneFirst.dc.html">Start the scene</x-import>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <sc-if value="{{isFind}}" hint-placeholder-val="{{false}}">
+    <div class="ov"><div class="ov__dim"></div><div class="ov__win">
+      <section class="dlg" role="dialog" aria-modal="true" aria-labelledby="find-title">
+        <div class="dlg__head">
+          <div class="dlg__titles"><h2 class="dlg__title" id="find-title">Who is in it</h2><p class="dlg__desc">Everyone you’ve made or imported. Pick as many as you like.</p></div>
+          <x-import component-from-global-scope="Kataki.IconButton" icon="x" label="Close" size="sm"></x-import>
+        </div>
+        <div class="dlg__body" style="gap: 10px;">
+          <x-import component-from-global-scope="Kataki.SearchField" value="a" shortcut="{{no}}" label="Find someone"></x-import>
+          <div class="card" style="padding: 4px 14px; background: var(--raise);">
+            <div style="display: flex; align-items: center; gap: 12px; padding: 10px 0px; border-bottom: 1px solid var(--hairline);"><x-import component-from-global-scope="Kataki.Avatar" who="dani" name="Dani" size="{{s36}}"></x-import><div style="flex: 1;"><x-import component-from-global-scope="Kataki.Checkbox" label="Dani" description="Draft · no secret yet · can still play"></x-import></div></div>
+            <div style="display: flex; align-items: center; gap: 12px; padding: 10px 0px; border-bottom: 1px solid var(--hairline);"><x-import component-from-global-scope="Kataki.Avatar" who="jae" size="{{s36}}" alt="Jae"></x-import><div style="flex: 1;"><x-import component-from-global-scope="Kataki.Checkbox" label="Jae" description="1 story · never met Mike" default-checked="{{yes}}"></x-import></div></div>
+            <div style="display: flex; align-items: center; gap: 12px; padding: 10px 0px; border-bottom: 1px solid var(--hairline);"><x-import component-from-global-scope="Kataki.Avatar" who="cas" size="{{s36}}" alt="Cas"></x-import><div style="flex: 1;"><x-import component-from-global-scope="Kataki.Checkbox" label="Cas" description="Also your persona · can’t be both in one story" disabled="{{yes}}"></x-import></div></div>
+            <div style="display: flex; align-items: center; gap: 12px; padding: 10px 0px;"><span style="width: 36px; height: 36px; border-radius: 50%; background: var(--panel); display: flex; align-items: center; justify-content: center; font-family: var(--font-story); color: var(--faint);">A</span><div style="flex: 1;"><x-import component-from-global-scope="Kataki.Checkbox" label="Ada Wren" description="Imported yesterday · never played"></x-import></div></div>
+          </div>
+        </div>
+        <div class="dlg__foot"><span class="dlg__note">Mike and Jae</span><div class="k-btngroup"><x-import component-from-global-scope="Kataki.Button" variant="ghost">Cancel</x-import><x-import component-from-global-scope="Kataki.Button" variant="primary">Done</x-import></div></div>
+      </section>
+    </div></div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"variant":{"editor":"enum","options":["default","group","find","place"],"default":"default"},"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var v = this.props.variant || 'default';
+    var group = v === 'group', place = v === 'place';
+    return window.KApp.page(this, {
+      h: 1000, h200: 200, s26: 26, s36: 36, r2: 2, n1: 1, n2: 2, n3: 3, n4: 4,
+      isGroup: group, isFind: v === 'find', isPlace: place, notPlace: !place,
+      presence: ['Out back, joins later', 'Here from the start', 'Not here tonight'],
+      times: ['Dawn', 'Day', 'Dusk', 'Night'],
+      books: ['Close to the Crown', 'The Flat on Ardenne', 'Not in a book', 'New book…'],
+      prevPlace: place ? 'corvel-palace' : 'halcyon-coffee',
+      prevCaption: place ? 'the back gate · night' : 'dusk · Closing Shift',
+      prevAlt: place ? 'The palace at night, standing in for the back gate until it has its own picture' : 'Halcyon Coffee at dusk',
+      prevName: place ? 'The back gate' : 'Halcyon Coffee',
+      prevWho: group ? 'Mike and Theo, with you as Liv' : 'Mike, with you as Liv'
+    });
+  }
+}
+</script>
+</body>
+</html>

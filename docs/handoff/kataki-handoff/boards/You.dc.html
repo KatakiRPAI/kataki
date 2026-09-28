@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · You</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}.know{display:grid;grid-template-columns:minmax(0,1fr) 220px 110px auto;gap:16px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--hairline)}.know:last-child{border-bottom:0}</style>
+</helmet>
+<div data-theme="{{theme}}" class="app" style="height: 1100px;">
+  <div class="app__sky"><x-import component-from-global-scope="Kataki.Sky" style="position: absolute; inset: 0px;"></x-import></div>
+  <x-import component-from-global-scope="Kataki.Rail" active="You" theme="{{theme}}" hrefs="{{hrefs}}" on-navigate="{{nav}}" height="{{h}}"></x-import>
+
+  <main class="app__main" aria-label="You" style="gap: 28px;">
+    <div class="pg-head">
+      <div>
+        <h1 class="pg-title">You</h1>
+        <p class="pg-sub">Who you play as, and what each character knows about them.</p>
+      </div>
+      <x-import component-from-global-scope="Kataki.Button" icon="plus" href="EditPersona.dc.html">New persona</x-import>
+    </div>
+
+    <section style="display: flex; gap: 32px; align-items: flex-end;">
+      <img src="/_blob/e49764b15e9de5d49d4bc2bbf8c90f65" alt="Liv, in her cheer jacket" style="width: 200px; height: 240px; object-fit: cover; object-position: 50% 24%; border-radius: 16px; box-shadow: var(--shadow-float);">
+      <div class="col" style="gap: 12px; flex: 1;">
+        <x-import component-from-global-scope="Kataki.Eyebrow" tone="mid">Playing as · default</x-import>
+        <h2 style="margin: 0; font-family: var(--font-story); font-size: 46px; line-height: 50px; font-weight: 500; letter-spacing: -0.012em;">Liv Sandoval</h2>
+        <p style="margin: 0; font-family: var(--font-story); font-style: italic; font-size: 18px; color: var(--mid);">Cheerleader. The queen’s step-sister’s daughter.</p>
+        <div class="row" style="gap: 8px;"><x-import component-from-global-scope="Kataki.Tag">Cheerleader</x-import><x-import component-from-global-scope="Kataki.Tag">Blunt</x-import><x-import component-from-global-scope="Kataki.Tag">Late</x-import></div>
+        <div class="row" style="gap: 10px;">
+          <x-import component-from-global-scope="Kataki.Button" icon="edit" href="EditPersona.dc.html">Edit persona</x-import>
+          <x-import component-from-global-scope="Kataki.Button" variant="ghost" icon="swap" href="PersonaMenu.dc.html">Switch</x-import>
+        </div>
+      </div>
+      <x-import component-from-global-scope="Kataki.StatRow" stats="{{stats}}"></x-import>
+    </section>
+
+    <section class="sec" aria-label="Your personas">
+      <h2 class="sec-title">Your personas</h2>
+      <div class="row" style="gap: 14px; align-items: stretch;">
+        <x-import component-from-global-scope="Kataki.PersonaCard" who="liv" name="Liv Sandoval" line="Cheerleader, on every list" is-default="{{yes}}" selected="{{yes}}"></x-import>
+        <x-import component-from-global-scope="Kataki.PersonaCard" who="cas" name="Cas Brennan" line="Twelfth in line, and hates it"></x-import>
+        <x-import component-from-global-scope="Kataki.PersonaCard" icon="eye" name="Director" line="Play no one. Narrate, and let them talk."></x-import>
+        <div style="width: 220px;"><x-import component-from-global-scope="Kataki.AddCard" wide="{{yes}}" href="EditPersona.dc.html">New persona</x-import></div>
+      </div>
+    </section>
+
+    <section class="sec" aria-label="Who knows Liv">
+      <div class="sec-head"><div class="row" style="gap: 14px; align-items: baseline;"><h2 class="sec-title">Who knows Liv</h2><span class="t-meta">per character, per story, and how sure they are</span></div><div style="width: 200px;"><x-import component-from-global-scope="Kataki.Select" label="" options="{{whoOpts}}"></x-import></div></div>
+      <div class="card">
+        <div class="know"><span style="font-family: var(--font-story); font-size: 16px;">Her mother is the queen’s step-sister.</span><span class="row" style="gap: 8px;"><x-import component-from-global-scope="Kataki.Avatar" who="mike" size="{{s22}}" alt="Mike"></x-import><span class="t-meta">Mike · Two Sugars, No Title</span></span><x-import component-from-global-scope="Kataki.StatePill" tone="muted">going hazy</x-import><x-import component-from-global-scope="Kataki.Button" size="sm" variant="ghost">Make him forget</x-import></div>
+        <div class="know"><span style="font-family: var(--font-story); font-size: 16px;">She did not want to be on the gala list.</span><span class="row" style="gap: 8px;"><x-import component-from-global-scope="Kataki.Avatar" who="mike" size="{{s22}}" alt="Mike"></x-import><span class="t-meta">Mike · Two Sugars, No Title</span></span><x-import component-from-global-scope="Kataki.StatePill" tone="warm">doubted</x-import><x-import component-from-global-scope="Kataki.Button" size="sm" variant="ghost">Make him forget</x-import></div>
+        <div class="know"><span style="font-family: var(--font-story); font-size: 16px;">She sent him to the back for milk.</span><span class="row" style="gap: 8px;"><x-import component-from-global-scope="Kataki.Avatar" who="theo" size="{{s22}}" alt="Theo"></x-import><span class="t-meta">Theo · Two Sugars, No Title</span></span><x-import component-from-global-scope="Kataki.StatePill" tone="ok">held tight</x-import><x-import component-from-global-scope="Kataki.Button" size="sm" variant="ghost">Make him forget</x-import></div>
+        <div class="know"><span style="font-family: var(--font-story); font-size: 16px;">Her name is on the list.</span><span class="row" style="gap: 8px;"><x-import component-from-global-scope="Kataki.Avatar" who="jae" size="{{s22}}" alt="Jae"></x-import><span class="t-meta">Jae · The Gala List</span></span><x-import component-from-global-scope="Kataki.StatePill" tone="ok">held tight</x-import><x-import component-from-global-scope="Kataki.Button" size="sm" variant="ghost">Make him forget</x-import></div>
+      </div>
+      <div class="row" style="gap: 20px;">
+        <x-import component-from-global-scope="Kataki.TextLink" icon="download" quiet="{{yes}}" href="ExportStory.dc.html">Export everything about Liv</x-import>
+        <x-import component-from-global-scope="Kataki.TextLink" icon="eyeoff" quiet="{{yes}}" href="ForgetMemory.dc.html">Make a character forget something</x-import>
+        <x-import component-from-global-scope="Kataki.TextLink" icon="trash" quiet="{{yes}}" href="DeletePersona.dc.html">Delete this persona</x-import>
+      </div>
+    </section>
+  </main>
+
+  <sc-if value="{{ovEdit}}" hint-placeholder-val="{{false}}">
+    <div class="ov"><div class="ov__dim"></div><div class="ov__win">
+      <section class="dlg dlg--lg" role="dialog" aria-modal="true" aria-labelledby="ep-title">
+        <div class="dlg__head"><div class="dlg__titles"><h2 class="dlg__title" id="ep-title">Edit Liv Sandoval</h2><p class="dlg__desc">Characters see this person, not you. Changes apply from your next line.</p></div><x-import component-from-global-scope="Kataki.IconButton" icon="x" label="Close" size="sm"></x-import></div>
+        <div class="dlg__body">
+          <div class="row" style="gap: 16px;">
+            <img src="/_blob/e49764b15e9de5d49d4bc2bbf8c90f65" alt="Liv" style="width: 72px; height: 72px; border-radius: 50%; object-fit: cover; object-position: 50% 24%;">
+            <x-import component-from-global-scope="Kataki.ButtonGroup"><x-import component-from-global-scope="Kataki.Button" size="sm">Change picture</x-import><x-import component-from-global-scope="Kataki.Button" size="sm" variant="ghost">Crop and focus</x-import><x-import component-from-global-scope="Kataki.Button" size="sm" variant="ghost">Remove</x-import></x-import>
+          </div>
+          <div style="display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 16px;">
+            <x-import component-from-global-scope="Kataki.TextField" label="Name" required="{{yes}}" story="{{yes}}" default-value="Liv Sandoval" max="{{m40}}"></x-import>
+            <x-import component-from-global-scope="Kataki.Select" label="Pronouns" options="{{pronouns}}"></x-import>
+          </div>
+          <x-import component-from-global-scope="Kataki.TextArea" label="Who you are" story="{{yes}}" rows="{{r3}}" default-value="Cheerleader. The queen’s step-sister’s daughter. Blunt, late to everything, on every list whether she likes it or not." hint="What anyone meeting you would notice. Characters read this every turn."></x-import>
+          <x-import component-from-global-scope="Kataki.TextField" label="Tags" optional="{{yes}}" default-value="Cheerleader, Blunt, Late"></x-import>
+          <x-import component-from-global-scope="Kataki.Toggle" label="Use Liv when a new story doesn’t pick someone" default-on="{{yes}}"></x-import>
+        </div>
+        <div class="dlg__foot"><span class="dlg__note">The default persona · 4 stories</span><div class="k-btngroup"><x-import component-from-global-scope="Kataki.Button" variant="ghost">Cancel</x-import><x-import component-from-global-scope="Kataki.Button" variant="primary">Save</x-import></div></div>
+      </section>
+    </div></div>
+  </sc-if>
+
+  <sc-if value="{{ovDelete}}" hint-placeholder-val="{{false}}">
+    <div class="ov"><div class="ov__dim"></div><div class="ov__win">
+      <x-import component-from-global-scope="Kataki.Dialog" icon="trash" tone="bad" title="Delete Cas Brennan as a persona?" description="You won’t be able to play as Cas. Cas the character stays, with everyone Cas knows. The Long Way Home keeps your lines, marked as a persona you deleted." note="You can’t delete the default persona. Pick another default first." actions="{{deleteActions}}">
+        <x-import component-from-global-scope="Kataki.Checkbox" label="Also make characters forget what they know about Cas as a persona" description="6 memories, held by Mike and Nico"></x-import>
+      </x-import>
+    </div></div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"overlay":{"editor":"enum","options":["none","edit","delete"],"default":"none"},"$preview":{"width":1440,"height":1100}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var A = window.KApp, ov = this.props.overlay || 'none';
+    return A.page(this, {
+      h: 1100, s22: 22, m40: 40, r3: 3,
+      stats: [['4', 'stories'], ['3', 'characters know her'], ['1', 'secret she has told']],
+      whoOpts: ['Everyone', 'Mike', 'Theo', 'Jae'],
+      pronouns: ['she / her', 'he / him', 'they / them', 'Something else'],
+      ovEdit: ov === 'edit', ovDelete: ov === 'delete',
+      deleteActions: [A.btn('ghost', 'Keep Cas'), A.btn('danger', 'Delete the persona')]
+    });
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>Kataki · Arabic, right to left</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Baloo+Bhaijaan+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=Noto+Naskh+Arabic:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.ar .pg-title,.ar .sec-title{letter-spacing:0}
+.ar .t-body,.ar .t-meta{line-height:1.6}
+.hero{display:flex;gap:48px;align-items:stretch}
+.hero__text{flex:1;display:flex;flex-direction:column;gap:16px;padding-top:12px}
+.hero__quote{margin:0;font-family:var(--font-story);font-size:20px;line-height:34px;color:var(--mid)}
+.persona{display:flex;align-items:center;gap:10px}
+.persona b{display:block;font-size:14px;color:var(--ink)}
+.persona span{font-size:12px;color:var(--mid)}
+.proofnote{position:absolute;inset-inline-start:24px;bottom:24px;z-index:3;width:460px}
+</style>
+</helmet>
+<div data-theme="{{theme}}" dir="rtl" lang="ar" class="app ar" style="height: 1360px;">
+  <div class="app__sky"><x-import component-from-global-scope="Kataki.Sky" style="position: absolute; inset: 0px;"></x-import></div>
+  <nav class="k-rail" aria-label="التنقّل" style="height: 1360px; position: relative; z-index: 2; flex-shrink: 0;">
+    <div class="k-rail__mark">Kataki</div>
+    <div class="k-rail__list">
+      <sc-for list="{{navItems}}" as="n" hint-placeholder-count="5"><a class="k-rail__item" href="{{n.href}}" aria-current="{{n.cur}}"><x-import component-from-global-scope="Kataki.Icon" name="{{n.icon}}" size="{{s19}}"></x-import><span class="k-rail__label">{{n.label}}</span></a></sc-for>
+    </div>
+    <a class="k-rail__new" href="NewCharacter.dc.html"><x-import component-from-global-scope="Kataki.Icon" name="plus" size="{{s17}}"></x-import><span class="k-rail__label">شخصية جديدة</span></a>
+    <div class="k-rail__foot">
+      <a class="k-rail__item k-rail__item--quiet" href="SetLanguage.dc.html"><x-import component-from-global-scope="Kataki.Icon" name="cog" size="{{s16}}"></x-import><span class="k-rail__label">الإعدادات</span></a>
+      <a class="k-rail__item k-rail__item--quiet" href="Feedback.dc.html"><x-import component-from-global-scope="Kataki.Icon" name="help" size="{{s16}}"></x-import><span class="k-rail__label">ملاحظات</span></a>
+      <a class="k-rail__item k-rail__item--quiet" href="#"><x-import component-from-global-scope="Kataki.Icon" name="sun" size="{{s16}}"></x-import><span class="k-rail__label">نهار</span></a>
+    </div>
+  </nav>
+  <main class="app__main" aria-label="الرئيسية">
+    <header class="k-topbar">
+      <button type="button" class="k-persona" aria-haspopup="menu" aria-expanded="false"><x-import component-from-global-scope="Kataki.Avatar" who="liv" size="{{s30}}" alt=""></x-import><span class="k-persona__text"><b>ليف</b><span>تلعب بدور</span></span><x-import component-from-global-scope="Kataki.Icon" name="down" size="{{s14}}"></x-import></button>
+      <x-import component-from-global-scope="Kataki.SearchField" placeholder="ابحث في كل شيء" label="ابحث في كل شيء"></x-import>
+    </header>
+
+    <section class="hero" aria-label="تابِع">
+      <div class="hero__text">
+        <x-import component-from-global-scope="Kataki.Eyebrow" tone="mid">تابِع · قريبًا من التاج</x-import>
+        <x-import component-from-global-scope="Kataki.StoryName" size="hero" as="h1">ملعقتا سكّر، بلا لقب</x-import>
+        <blockquote class="hero__quote">«…كنت لأُقسم على ذلك. ثلاثة أسابيع وقتٌ طويل لتحمل جملة واحدة.»</blockquote>
+        <div class="row" style="gap: 9px;"><x-import component-from-global-scope="Kataki.Avatar" who="mike" size="{{s26}}" alt="مايك"></x-import><x-import component-from-global-scope="Kataki.StatePill" tone="warm">متشكّك</x-import><span class="t-meta">41 ذكرى · تغيّرت 2 منذ غيابك</span></div>
+        <div class="row" style="gap: 14px;"><x-import component-from-global-scope="Kataki.Button" variant="primary" size="lg" href="ProofArabicScene.dc.html">تابِع</x-import><x-import component-from-global-scope="Kataki.Button" size="lg">قصة جديدة</x-import></div>
+        <span class="t-meta">بعد ثلاثة أسابيع · قصر كورفل · 7:22 م</span>
+      </div>
+      <div style="width: 420px; flex-shrink: 0;"><x-import component-from-global-scope="Kataki.Still" place="corvel-palace" caption="الحفل، بعد ثلاثة أسابيع" height="{{h320}}" alt="قصر كورفل ليلة الحفل"></x-import></div>
+    </section>
+
+    <section class="sec" aria-label="منذ آخر مرة لعبت">
+      <x-import component-from-global-scope="Kataki.Eyebrow">منذ آخر مرة لعبت</x-import>
+      <div style="display: flex; gap: 12px;">
+        <x-import component-from-global-scope="Kataki.EventCard" who="mike" name="مايك" event="تلاشت ذكرى" tone="warm" memory="«لم تكن تريد أن تكون على قائمة الحفل.»" meta="واضحة ← ضبابية"></x-import>
+        <x-import component-from-global-scope="Kataki.EventCard" who="mike" name="مايك" event="شكّ في ذكرى" tone="warm" memory="«تقول إنها لم تقل ذلك قط.»" meta="تتعارض مع ذكرى واحدة"></x-import>
+        <x-import component-from-global-scope="Kataki.EventCard" who="theo" name="ثيو" event="ذكرى جديدة" tone="ok" memory="«أرسلته ليف إلى الخلف لإحضار الحليب.»" meta="شاهدها بنفسه"></x-import>
+      </div>
+    </section>
+
+    <section class="sec" aria-label="شخصياتك">
+      <div class="sec-head"><h2 class="sec-title">شخصياتك</h2></div>
+      <div style="display: flex; gap: 16px; align-items: flex-start;">
+        <x-import component-from-global-scope="Kataki.CharacterCard" who="mike" name="مايك" when="آخر لعب قبل ساعتين · حذِر" featured="{{yes}}" badge="في قصة" badge-tone="warm" alt="مايك"></x-import>
+        <x-import component-from-global-scope="Kataki.CharacterCard" who="theo" name="ثيو" when="آخر لعب أمس" alt="ثيو"></x-import>
+        <x-import component-from-global-scope="Kataki.CharacterCard" who="nico" name="نيكو" when="آخر لعب قبل 4 أيام" alt="نيكو"></x-import>
+        <x-import component-from-global-scope="Kataki.CharacterCard" who="jae" name="جاي" when="آخر لعب الأسبوع الماضي" alt="جاي"></x-import>
+      </div>
+    </section>
+
+    <section class="sec" aria-label="قصص أخرى">
+      <div class="sec-head"><h2 class="sec-title">قصص أخرى</h2><x-import component-from-global-scope="Kataki.TextLink" href="#">كل القصص</x-import></div>
+      <div style="display: flex; gap: 14px; align-items: stretch;">
+        <x-import component-from-global-scope="Kataki.StoryCard" who="jae" title="قائمة الحفل" book="قريبًا من التاج" quote="«رسميًا؟ لا تعليق. بشكل غير رسمي، كن هناك قبل الثامنة.»" when="آخر لعب الأسبوع الماضي" story-time="قبل الحفل بيومين"></x-import>
+        <x-import component-from-global-scope="Kataki.StoryCard" who="nico" title="الثالثة فجرًا" book="الشقة في شارع أردين" quote="«لن تعجبك هذه اللوحة.»" when="آخر لعب قبل 4 أيام" story-time="الليلة التي تسبق المباراة"></x-import>
+      </div>
+    </section>
+
+    <div class="privacy"><x-import component-from-global-scope="Kataki.Icon" name="lock" size="{{s16}}"></x-import><span>كل شيء هنا يعيش على هذا الحاسوب.</span><a href="#">أين بياناتي؟</a></div>
+  </main>
+  <div class="proofnote" dir="ltr" lang="en"><x-import component-from-global-scope="Kataki.Callout" tone="warm" title="R2 · what this proves">dir="rtl" on the root mirrors the page by itself: rail on the right, arrows flipped, text aligned to the start. Digits stay Western (7:22, 41) unless the user picks Arabic-Indic in Language. Brand wordmark stays Latin. The rail, persona switch and hero here are the DS parts with their text passed in: see “Strings in components” in the spec.</x-import></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"$preview":{"width":1440,"height":1360}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var A = window.KApp;
+    return A.page(this, {
+      s14: 14, s16: 16, s17: 17, s19: 19, s26: 26, s30: 30, h320: 320,
+      navItems: [{ icon: 'home', label: 'الرئيسية', href: '#', cur: 'page' }, { icon: 'chat', label: 'القصص', href: '#' }, { icon: 'users', label: 'الشخصيات', href: '#' }, { icon: 'map', label: 'العالم', href: '#' }, { icon: 'user', label: 'أنت', href: '#' }]
+    });
+  }
+}
+</script>
+</body>
+</html>

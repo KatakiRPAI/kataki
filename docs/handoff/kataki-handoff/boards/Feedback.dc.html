@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · Tell us something</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div data-theme="{{theme}}" style="position: relative; width: 1440px; height: 1360px; overflow: hidden;">
+  <div class="under" aria-hidden="true"><dc-import name="Home" theme="{{theme}}" hint-size="1440px,1360px"></dc-import></div>
+  <div class="ov">
+    <div class="ov__dim"></div>
+    <div class="ov__win">
+
+      <sc-if value="{{isForm}}" hint-placeholder-val="{{true}}">
+        <section class="dlg dlg--lg" role="dialog" aria-modal="true" aria-labelledby="fb-title">
+          <div class="dlg__head">
+            <span class="dlg__icon"><x-import component-from-global-scope="Kataki.Icon" name="help" size="{{s20}}"></x-import></span>
+            <div class="dlg__titles">
+              <h2 class="dlg__title" id="fb-title">Tell us something</h2>
+              <p class="dlg__desc">All three go to the same place. Nothing is sent until you have seen exactly what it contains.</p>
+            </div>
+            <x-import component-from-global-scope="Kataki.IconButton" icon="x" label="Close" size="sm"></x-import>
+          </div>
+          <div class="dlg__body">
+            <x-import component-from-global-scope="Kataki.Segmented" label="What kind" options="{{kinds}}" value="{{kindLabel}}" on-change="{{pickKind}}"></x-import>
+
+            <sc-if value="{{isFeedback}}" hint-placeholder-val="{{false}}">
+              <x-import component-from-global-scope="Kataki.TextArea" label="What’s on your mind" rows="{{r5}}" default-value="The time skip is the best part. I’d love to choose how long it is from the clock widget instead of the menu." hint="Two sentences is fine. Anything at all."></x-import>
+              <x-import component-from-global-scope="Kataki.TextField" label="Where can we answer you" optional="{{yes}}" placeholder="an email address, or leave it" hint="Only used to reply to this. Never added to anything."></x-import>
+            </sc-if>
+
+            <sc-if value="{{isBug}}" hint-placeholder-val="{{false}}">
+              <x-import component-from-global-scope="Kataki.TextField" label="What happened" required="{{yes}}" default-value="The character widget disappeared after I dragged it"></x-import>
+              <x-import component-from-global-scope="Kataki.TextArea" label="Tell us a bit more" optional="{{yes}}" rows="{{r3}}" default-value="I dragged Theo’s widget over the chat to the left column and it vanished. Reset layout brought it back. Happens every time on the second drag."></x-import>
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                <div style="display: flex; align-items: baseline; justify-content: space-between;">
+                  <span style="font-size: 14px; font-weight: 700;">What will be sent</span>
+                  <span class="t-faint">Nothing here is collected automatically. Remove anything you don’t want to send.</span>
+                </div>
+                <x-import component-from-global-scope="Kataki.Panel" flush="{{yes}}">
+                  <div style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--hairline);"><x-import component-from-global-scope="Kataki.Icon" name="cpu" size="{{s16}}"></x-import><span style="flex: 1; font-size: 13.5px;">Kataki 0.4.2 · Windows 11</span><x-import component-from-global-scope="Kataki.Button" variant="ghost" size="sm">Remove</x-import></div>
+                  <div style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--hairline);"><x-import component-from-global-scope="Kataki.Icon" name="server" size="{{s16}}"></x-import><span style="flex: 1; font-size: 13.5px;">llama.cpp · qwen3.5-9b</span><x-import component-from-global-scope="Kataki.Button" variant="ghost" size="sm">Remove</x-import></div>
+                  <div style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--hairline);"><x-import component-from-global-scope="Kataki.Icon" name="alert" size="{{s16}}"></x-import><span style="flex: 1; font-size: 13.5px;">Last error · <span style="font-family: var(--font-mono); font-size: 12px;">widget-layout.js:142</span></span><x-import component-from-global-scope="Kataki.Button" variant="link" size="sm">Show it</x-import><x-import component-from-global-scope="Kataki.Button" variant="ghost" size="sm">Remove</x-import></div>
+                  <div style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--hairline);"><x-import component-from-global-scope="Kataki.Icon" name="image" size="{{s16}}"></x-import><span style="flex: 1; font-size: 13.5px;">Screenshot of this screen</span><x-import component-from-global-scope="Kataki.Button" variant="link" size="sm">Look at it</x-import><x-import component-from-global-scope="Kataki.Button" variant="ghost" size="sm">Remove</x-import></div>
+                  <div style="display: flex; align-items: center; gap: 12px; padding: 10px 14px;"><x-import component-from-global-scope="Kataki.Icon" name="book" size="{{s16}}"></x-import><span style="flex: 1; font-size: 13.5px; color: var(--muted);">The story this happened in · not attached</span><x-import component-from-global-scope="Kataki.Button" size="sm" icon="plus">Attach</x-import></div>
+                </x-import>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{isSuggestion}}" hint-placeholder-val="{{false}}">
+              <x-import component-from-global-scope="Kataki.TextArea" label="What did you want Kataki to do" required="{{yes}}" rows="{{r4}}" default-value="Let me drag a place from World straight into a story, so the scene moves there." hint="What you tried, and what you expected. Not how to build it."></x-import>
+              <div style="display: flex; gap: 14px; align-items: flex-start;">
+                <div style="width: 216px; height: 204px; overflow: hidden; border-radius: 10px; border: 1px solid var(--border); flex-shrink: 0; position: relative;">
+                  <div style="position: absolute; left: 0px; top: 0px; width: 1440px; height: 1360px; transform: scale(0.15); transform-origin: 0px 0px; pointer-events: none;" aria-hidden="true"><dc-import name="Home" theme="{{theme}}" hint-size="1440px,1360px"></dc-import></div>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 8px; padding-top: 4px;">
+                  <x-import component-from-global-scope="Kataki.Checkbox" label="Attach a screenshot of this screen" description="The one on the left. It shows your character and story names." default-checked="{{yes}}"></x-import>
+                  <x-import component-from-global-scope="Kataki.Button" variant="ghost" size="sm" icon="image">Choose a different picture</x-import>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+          <div class="dlg__foot">
+            <span class="dlg__note">No story text, no character names and no file paths are included unless you attach them.</span>
+            <div class="k-btngroup">
+              <x-import component-from-global-scope="Kataki.Button" variant="ghost" icon="link">Copy instead</x-import>
+              <x-import component-from-global-scope="Kataki.Button" variant="primary" icon-end="send">Send</x-import>
+            </div>
+          </div>
+        </section>
+      </sc-if>
+
+      <sc-if value="{{isResults}}" hint-placeholder-val="{{false}}">
+        <div style="display: flex; gap: 24px; align-items: flex-start;">
+          <section class="dlg dlg--sm" role="dialog" aria-label="Sent">
+            <div class="dlg__head">
+              <span class="dlg__icon" style="color: var(--ok);"><x-import component-from-global-scope="Kataki.Icon" name="check" size="{{s20}}"></x-import></span>
+              <div class="dlg__titles"><h2 class="dlg__title">Sent. Thank you.</h2><p class="dlg__desc">Reference <span style="font-family: var(--font-mono);">KT-4F2A</span>. If you left an address, the answer comes there. Nothing else was kept.</p></div>
+            </div>
+            <div class="dlg__foot"><span></span><x-import component-from-global-scope="Kataki.Button" variant="primary">Done</x-import></div>
+          </section>
+          <section class="dlg dlg--sm" role="dialog" aria-label="Copied">
+            <div class="dlg__head">
+              <span class="dlg__icon"><x-import component-from-global-scope="Kataki.Icon" name="link" size="{{s20}}"></x-import></span>
+              <div class="dlg__titles"><h2 class="dlg__title">Copied</h2><p class="dlg__desc">The whole report is on your clipboard as plain text, attachments listed. Paste it wherever you like.</p></div>
+            </div>
+            <div class="dlg__foot"><span></span><x-import component-from-global-scope="Kataki.Button" variant="primary">Done</x-import></div>
+          </section>
+          <section class="dlg dlg--sm" role="alertdialog" aria-label="Couldn’t send">
+            <div class="dlg__head">
+              <span class="dlg__icon" style="color: var(--bad);"><x-import component-from-global-scope="Kataki.Icon" name="cloud" size="{{s20}}"></x-import></span>
+              <div class="dlg__titles"><h2 class="dlg__title">Couldn’t send it</h2><p class="dlg__desc">This computer isn’t reaching the internet. The report is saved and goes the next time Kataki is online, unless you cancel it.</p></div>
+            </div>
+            <div class="dlg__body"><span class="code">FEEDBACK_OFFLINE · saved to Outbox</span></div>
+            <div class="dlg__foot">
+              <x-import component-from-global-scope="Kataki.Button" variant="ghost" size="sm">Cancel it</x-import>
+              <div class="k-btngroup"><x-import component-from-global-scope="Kataki.Button" size="sm">Copy instead</x-import><x-import component-from-global-scope="Kataki.Button" variant="primary" size="sm">Try again</x-import></div>
+            </div>
+          </section>
+        </div>
+      </sc-if>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"kind":{"editor":"enum","options":["feedback","bug","suggestion","results"],"default":"feedback"},"$preview":{"width":1440,"height":1360}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var self = this;
+    var kind = (this.state && this.state.kind) || this.props.kind || 'feedback';
+    var labels = { feedback: 'Feedback', bug: 'Bug', suggestion: 'Suggestion' };
+    return window.KApp.page(this, {
+      s16: 16, s20: 20, r3: 3, r4: 4, r5: 5,
+      kinds: ['Feedback', 'Bug', 'Suggestion'],
+      kindLabel: labels[kind] || 'Feedback',
+      pickKind: function (v) { self.setState({ kind: v === 'Bug' ? 'bug' : v === 'Suggestion' ? 'suggestion' : 'feedback' }); },
+      isForm: kind !== 'results', isResults: kind === 'results',
+      isFeedback: kind === 'feedback', isBug: kind === 'bug', isSuggestion: kind === 'suggestion'
+    });
+  }
+}
+</script>
+</body>
+</html>

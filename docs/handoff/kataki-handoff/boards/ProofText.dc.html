@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · Text at 200%</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.pt{width:1440px;height:2060px;overflow:hidden;background:#070b1c;font-family:var(--font-ui);color:var(--ink)}
+.pt__head{box-sizing:border-box;height:200px;padding:48px 72px 0;display:flex;flex-direction:column;gap:6px}
+.pt__lbl{box-sizing:border-box;height:60px;padding:22px 72px 0;font-family:var(--font-mono);font-size:12px;color:var(--faint)}
+.zoom{position:relative;width:1440px;height:900px;overflow:hidden}
+.zoom__in{position:absolute;inset-inline-start:0;top:0;width:720px;height:450px;transform:scale(2);transform-origin:top left;overflow:hidden}
+[dir="rtl"] .zoom__in{transform-origin:top right}
+.narrow.app{width:720px;height:450px}
+.narrow .app__sky{inset-inline-start:72px}
+.narrow .app__main{padding:14px 18px 24px;gap:18px}
+.narrow .k-search{width:220px}
+.ns{position:relative;width:720px;height:450px;overflow:hidden;background:#1a1410;color:var(--scene-ink)}
+.ns .scene__art{left:-20px;top:-20px;width:760px;height:490px}
+.ns__top{position:absolute;inset-inline:12px;top:10px;z-index:3;display:flex;align-items:center;gap:8px}
+.ns__title{flex:1;min-width:0;display:flex;flex-direction:column}
+.ns__title b{font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ns__title span{font-size:11.5px;color:var(--scene-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ns__chat{position:absolute;inset-inline:12px;top:60px;bottom:10px;z-index:2}
+.ns__chat .k-chat{width:100%;border-radius:22px}
+.ns__pill{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px 0 4px;border-radius:16px;background:var(--scene-glass);border:1px solid var(--scene-border);font-size:12px;color:var(--scene-ink)}
+</style>
+</helmet>
+<div data-theme="{{theme}}" class="pt">
+  <div class="pt__head">
+    <span class="board__kicker">R4 · Proof · text at 200%</span>
+    <span style="font-family: var(--font-display); font-size: 40px; font-weight: 800; letter-spacing: -0.02em;">200% on a 1440 window is a 720 wide page</span>
+    <span class="t-body" style="max-width: 1000px;">Text size is Electron’s zoom factor: Appearance picks 100, 125 or 150%, and Ctrl + goes on to 200%, so everything scales together and nothing is cut. Layout reads the CSS width: 1280 and up is full, 1024 to 1279 compacts the rail, 640 to 1023 is narrow (below). Zoom is capped so the page is never narrower than 640 CSS px: on a 1024 window, Ctrl + stops at 150%.</span>
+  </div>
+  <div class="pt__lbl">Home · narrow · compact rail · hero, events and cards wrap to one column · drawn at 720 × 450, shown ×2</div>
+  <div class="zoom">
+    <div class="zoom__in">
+      <div class="app narrow">
+        <div class="app__sky"><x-import component-from-global-scope="Kataki.Sky" style="position: absolute; inset: 0px;"></x-import></div>
+        <x-import component-from-global-scope="Kataki.Rail" active="Home" compact="{{yes}}" theme="{{theme}}" hrefs="{{hrefs}}" on-navigate="{{nav}}" height="{{h450}}"></x-import>
+        <main class="app__main" aria-label="Home">
+          <x-import component-from-global-scope="Kataki.TopBar" who="liv" name="Liv"></x-import>
+          <x-import component-from-global-scope="Kataki.ContinueHero" title="Two Sugars, No Title" book="Close to the Crown" last-line="“…I could have sworn. Three weeks is a long time to hold one sentence.”" who="mike" mood="Doubtful" stats="41 memories · 2 changed since you left" where="Three weeks later · Corvel Palace · 7:22 pm" place="corvel-palace" caption="the gala, three weeks later" place-alt="Corvel Palace on the night of the gala" continue-href="Scene.dc.html" new-href="NewStory.dc.html"></x-import>
+        </main>
+      </div>
+    </div>
+  </div>
+  <div class="pt__lbl">In a story · narrow · widgets fold into “Here” (opens the people, clock and music as a sheet from the end edge) · chat takes the width</div>
+  <div class="zoom">
+    <div class="zoom__in">
+      <div class="ns">
+        <img class="scene__art" src="/_blob/1e023859469874b847f3f6c9eb3831a9" alt="">
+        <div class="scene__tint"></div>
+        <div class="ns__top">
+          <x-import component-from-global-scope="Kataki.SceneButton" icon="cloud" label="Back to the Sky" href="Home.dc.html"></x-import>
+          <div class="ns__title"><b>Two Sugars, No Title</b><span>as Liv · 7:14 pm · Halcyon Coffee</span></div>
+          <button type="button" class="ns__pill" aria-haspopup="dialog" aria-label="Who is here, the clock and music"><x-import component-from-global-scope="Kataki.AvatarStack" people="{{here}}" size="{{s24}}"></x-import>Here</button>
+          <x-import component-from-global-scope="Kataki.SceneButton" icon="layers" label="Backstage"></x-import>
+          <x-import component-from-global-scope="Kataki.SceneButton" icon="dots" label="Story menu"></x-import>
+        </div>
+        <div class="ns__chat">
+          <x-import component-from-global-scope="Kataki.ChatPanel" label="The story" height="{{h380}}" composer="{{composer}}">
+            <x-import component-from-global-scope="Kataki.ChatLine" speaker="mike" name="Mike" time="7:14 pm" text="*sets the cup down very carefully* Then stop saying it so loud. My mother cuts her hair."><x-import component-from-global-scope="Kataki.Reaction" kind="feeling" who="mike">Mike is worried for you</x-import></x-import>
+          </x-import>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"$preview":{"width":1440,"height":2060}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var A = window.KApp;
+    return A.page(this, { h450: 450, h380: 380, s24: 24, here: [{ who: 'mike' }, { who: 'theo' }], composer: A.el('Composer', { placeholder: 'Speak or act as Liv…' }) });
+  }
+}
+</script>
+</body>
+</html>

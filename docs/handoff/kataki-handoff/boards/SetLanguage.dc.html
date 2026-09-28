@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · Settings, Language</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;family=IBM+Plex+Sans+Arabic:wght@400;600&amp;family=Noto+Sans+Hebrew:wght@400;600&amp;family=Noto+Sans+JP:wght@400;600&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div data-theme="{{theme}}" class="app" style="height: 1000px;">
+  <div class="app__sky"><x-import component-from-global-scope="Kataki.Sky" clouds="{{no}}" style="position: absolute; inset: 0px;"></x-import></div>
+  <x-import component-from-global-scope="Kataki.Rail" active="Settings" theme="{{theme}}" hrefs="{{hrefs}}" on-navigate="{{nav}}" height="{{h}}"></x-import>
+  <main class="app__main" aria-label="Settings" style="gap: 24px;">
+    <x-import component-from-global-scope="Kataki.TopBar" who="liv" name="Liv"></x-import>
+    <h1 class="pg-title">Settings</h1>
+    <div class="set">
+      <x-import component-from-global-scope="Kataki.SideNav" label="Settings" active="Language" items="{{navItems}}" footer="{{whatsNew}}"></x-import>
+      <div class="set__panel">
+        <x-import component-from-global-scope="Kataki.SettingsSection" title="Language" note="The interface language. What your characters speak is up to them and the model.">
+          <div style="padding: 16px 20px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; border-bottom: 1px solid var(--hairline);">
+            <x-import component-from-global-scope="Kataki.LanguageTile" name="English" status="Complete" lang="en" selected="{{yes}}"></x-import>
+            <x-import component-from-global-scope="Kataki.LanguageTile" name="العربية" status="Right to left · in progress" lang="ar" rtl="{{yes}}"></x-import>
+            <x-import component-from-global-scope="Kataki.LanguageTile" name="Español" status="Not started" lang="es"></x-import>
+            <x-import component-from-global-scope="Kataki.LanguageTile" name="Deutsch" status="Not started" lang="de"></x-import>
+            <x-import component-from-global-scope="Kataki.LanguageTile" name="日本語" status="Not started" lang="ja"></x-import>
+            <x-import component-from-global-scope="Kataki.LanguageTile" name="עברית" status="Right to left · not started" lang="he" rtl="{{yes}}"></x-import>
+          </div>
+          <x-import component-from-global-scope="Kataki.SettingsRow" title="Mirror the layout for right-to-left languages" description="The rail moves to the right and arrows flip. Your own writing keeps its direction."><x-import component-from-global-scope="Kataki.StatePill" tone="ok" icon="check">Automatic</x-import></x-import>
+          <x-import component-from-global-scope="Kataki.SettingsRow" title="The real clock" description="Story times stay relative either way. This is for “Played 2 hours ago” and exact times."><div style="width: 220px;"><x-import component-from-global-scope="Kataki.Select" label="" options="{{clock}}"></x-import></div></x-import>
+          <x-import component-from-global-scope="Kataki.SettingsRow" title="Digits" description="Only changes the Arabic interface."><div style="width: 220px;"><x-import component-from-global-scope="Kataki.Select" label="" options="{{digits}}"></x-import></div></x-import>
+          <x-import component-from-global-scope="Kataki.SettingsRow" title="Help translate Kataki" description="Every string lives in one file. Send it back and it ships."><x-import component-from-global-scope="Kataki.Button" size="sm" icon="book">Open the file</x-import></x-import>
+        </x-import>
+        <x-import component-from-global-scope="Kataki.Callout" title="Switching language restarts the window">Your place is kept. Anything you were typing stays in the composer.</x-import>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var A = window.KApp;
+    return A.page(this, {
+      h: 1000,
+      navItems: [{ icon: 'settings', label: 'General', href: 'SetGeneral.dc.html' }, { icon: 'sun', label: 'Appearance', href: 'SetAppearance.dc.html' }, { icon: 'globe', label: 'Language', href: 'SetLanguage.dc.html' }, { icon: 'cpu', label: 'Models', href: 'SetModels.dc.html' }, { icon: 'thought', label: 'Memory and thinking', href: 'SetMemory.dc.html' }, { icon: 'shield', label: 'Data and privacy', href: 'SetData.dc.html' }, { icon: 'key', label: 'Shortcuts', href: 'SetShortcuts.dc.html' }, { icon: 'help', label: 'About', href: 'SetAbout.dc.html' }],
+      whatsNew: A.el('TextLink', { icon: 'spark', href: 'SetAbout.dc.html' }, 'What’s new'),
+      clock: ['12-hour · 24 on hover', '24-hour'], digits: ['Western · 0123', 'Eastern Arabic · ٠١٢٣']
+    });
+  }
+}
+</script>
+</body>
+</html>

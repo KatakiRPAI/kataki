@@ -1,0 +1,1115 @@
+{
+ "v": 3,
+ "attachments": {},
+ "boards": {
+  "AddApi.dc.html": {
+   "h": 1200,
+   "title": "K7 · Add an online model",
+   "w": 1440,
+   "x": 9120,
+   "y": 14020
+  },
+  "AlreadyOpen.dc.html": {
+   "h": 900,
+   "title": "N3 · Kataki is already open",
+   "w": 1440,
+   "x": 3040,
+   "y": 20480
+  },
+  "Backstage.dc.html": {
+   "h": 900,
+   "title": "Q1 · Backstage · the mind",
+   "w": 1440,
+   "x": 0,
+   "y": 24540
+  },
+  "BackstageLogs.dc.html": {
+   "h": 900,
+   "title": "Q5 · Backstage · logs",
+   "w": 1440,
+   "x": 6080,
+   "y": 24540
+  },
+  "BackstageMemory.dc.html": {
+   "h": 900,
+   "title": "Q4 · Backstage · every memory",
+   "w": 1440,
+   "x": 4560,
+   "y": 24540
+  },
+  "BackstageNode.dc.html": {
+   "h": 900,
+   "title": "Q2 · Backstage · one stage opened",
+   "w": 1440,
+   "x": 1520,
+   "y": 24540
+  },
+  "BackstagePrompt.dc.html": {
+   "h": 900,
+   "title": "Q3 · Backstage · the full prompt",
+   "w": 1440,
+   "x": 3040,
+   "y": 24540
+  },
+  "Backups.dc.html": {
+   "h": 1000,
+   "title": "K12 · Backups and restore",
+   "w": 1440,
+   "x": 3040,
+   "y": 15940
+  },
+  "BugReport.dc.html": {
+   "h": 1360,
+   "title": "L2 · Report a bug",
+   "w": 1440,
+   "x": 1520,
+   "y": 17460
+  },
+  "Characters.dc.html": {
+   "h": 1100,
+   "is_interactive": true,
+   "title": "D1 · Characters · grid",
+   "w": 1440,
+   "x": 0,
+   "y": 5220
+  },
+  "CharactersList.dc.html": {
+   "h": 1100,
+   "title": "D2 · Characters · list",
+   "w": 1440,
+   "x": 1520,
+   "y": 5220
+  },
+  "CharactersNone.dc.html": {
+   "h": 900,
+   "title": "D3 · Characters · filter with nothing in it",
+   "w": 1440,
+   "x": 3040,
+   "y": 5220
+  },
+  "CrashRecovered.dc.html": {
+   "h": 1360,
+   "title": "A3 · After a crash · restore",
+   "w": 1440,
+   "x": 3040,
+   "y": 1660
+  },
+  "DeleteCharacter.dc.html": {
+   "h": 1500,
+   "title": "E5 · Delete a character",
+   "w": 1440,
+   "x": 13680,
+   "y": 5220
+  },
+  "DeletePersona.dc.html": {
+   "h": 1100,
+   "title": "J3 · Delete a persona",
+   "w": 1440,
+   "x": 3040,
+   "y": 12500
+  },
+  "DeleteSomething.dc.html": {
+   "h": 1000,
+   "title": "K13 · Delete something",
+   "w": 1440,
+   "x": 4560,
+   "y": 15940
+  },
+  "DeleteStory.dc.html": {
+   "h": 900,
+   "title": "H5 · Delete a story",
+   "w": 1440,
+   "x": 6080,
+   "y": 9460
+  },
+  "DiscardChanges.dc.html": {
+   "h": 1900,
+   "title": "F7 · Leave without saving?",
+   "w": 1440,
+   "x": 9120,
+   "y": 7140
+  },
+  "DiskFull.dc.html": {
+   "h": 900,
+   "title": "N2 · The disk is full",
+   "w": 1440,
+   "x": 1520,
+   "y": 20480
+  },
+  "EditCharacter.dc.html": {
+   "h": 1900,
+   "title": "F6 · Edit character · unsaved changes",
+   "w": 1440,
+   "x": 7600,
+   "y": 7140
+  },
+  "EditPersona.dc.html": {
+   "h": 1100,
+   "title": "J2 · Edit persona",
+   "w": 1440,
+   "x": 1520,
+   "y": 12500
+  },
+  "Errors.dc.html": {
+   "h": 2600,
+   "title": "M4 · Every error, with its code",
+   "w": 1440,
+   "x": 10640,
+   "y": 17460
+  },
+  "ExportAll.dc.html": {
+   "h": 1000,
+   "title": "K11 · Export everything",
+   "w": 1440,
+   "x": 1520,
+   "y": 15940
+  },
+  "ExportStory.dc.html": {
+   "h": 900,
+   "title": "H6 · Export a story",
+   "w": 1440,
+   "x": 7600,
+   "y": 9460
+  },
+  "Feedback.dc.html": {
+   "h": 1360,
+   "title": "L1 · Feedback",
+   "w": 1440,
+   "x": 0,
+   "y": 17460
+  },
+  "FeedbackSent.dc.html": {
+   "h": 1360,
+   "title": "L4 · Feedback · sent, copied, couldn’t send",
+   "w": 1440,
+   "x": 4560,
+   "y": 17460
+  },
+  "FileDialog.dc.html": {
+   "h": 1300,
+   "title": "I8 · File a place",
+   "w": 1440,
+   "x": 10640,
+   "y": 10780
+  },
+  "FindServers.dc.html": {
+   "h": 1200,
+   "title": "K8 · Look for servers · add one by address",
+   "w": 1440,
+   "x": 10640,
+   "y": 14020
+  },
+  "FirstRun.dc.html": {
+   "h": 900,
+   "is_interactive": true,
+   "title": "B1 · First run · three doors",
+   "w": 1440,
+   "x": 4560,
+   "y": 1660
+  },
+  "FirstRunDownload.dc.html": {
+   "h": 900,
+   "title": "B2 · First run · downloading Kataki’s model",
+   "w": 1440,
+   "x": 6080,
+   "y": 1660
+  },
+  "FirstRunOnline.dc.html": {
+   "h": 900,
+   "title": "B4 · First run · online model and key",
+   "w": 1440,
+   "x": 9120,
+   "y": 1660
+  },
+  "FirstRunPersona.dc.html": {
+   "h": 900,
+   "title": "B6 · First run · you are (persona)",
+   "w": 1440,
+   "x": 12160,
+   "y": 1660
+  },
+  "FirstRunServer.dc.html": {
+   "h": 900,
+   "title": "B3 · First run · no server found, add one",
+   "w": 1440,
+   "x": 7600,
+   "y": 1660
+  },
+  "FirstRunWho.dc.html": {
+   "h": 900,
+   "is_interactive": true,
+   "title": "B5 · First run · who first",
+   "w": 1440,
+   "x": 10640,
+   "y": 1660
+  },
+  "ForgetMemory.dc.html": {
+   "h": 1500,
+   "title": "E4 · Make him forget something",
+   "w": 1440,
+   "x": 12160,
+   "y": 5220
+  },
+  "Home.dc.html": {
+   "h": 1360,
+   "is_interactive": true,
+   "title": "C1 · Home",
+   "w": 1440,
+   "x": 0,
+   "y": 3440
+  },
+  "HomeEmpty.dc.html": {
+   "h": 1100,
+   "title": "C2 · Home · day one",
+   "w": 1440,
+   "x": 1520,
+   "y": 3440
+  },
+  "HomeOffline.dc.html": {
+   "h": 1360,
+   "title": "C3 · Home · model unreachable",
+   "w": 1440,
+   "x": 3040,
+   "y": 3440
+  },
+  "ImportCards.dc.html": {
+   "h": 1100,
+   "title": "D4 · Import cards",
+   "w": 1440,
+   "x": 4560,
+   "y": 5220
+  },
+  "Licences.dc.html": {
+   "h": 1000,
+   "title": "K18 · Licences",
+   "w": 1440,
+   "x": 12160,
+   "y": 15940
+  },
+  "Main.dc.html": {
+   "h": 1240,
+   "is_interactive": true,
+   "title": "00 · Map of the app",
+   "w": 1440,
+   "x": 0,
+   "y": 0
+  },
+  "MenusScene.dc.html": {
+   "h": 1300,
+   "title": "M2 · Every menu in a story",
+   "w": 1440,
+   "x": 7600,
+   "y": 17460
+  },
+  "MenusSky.dc.html": {
+   "h": 1700,
+   "title": "M1 · Every menu in the Sky",
+   "w": 1440,
+   "x": 6080,
+   "y": 17460
+  },
+  "ModelGone.dc.html": {
+   "h": 1000,
+   "title": "N1 · The model server went away",
+   "w": 1440,
+   "x": 0,
+   "y": 20480
+  },
+  "NewBook.dc.html": {
+   "h": 1300,
+   "title": "I7 · New book",
+   "w": 1440,
+   "x": 9120,
+   "y": 10780
+  },
+  "NewCharacter.dc.html": {
+   "h": 1200,
+   "is_interactive": true,
+   "title": "F1 · New character",
+   "w": 1440,
+   "x": 0,
+   "y": 7140
+  },
+  "NewCharacterErrors.dc.html": {
+   "h": 1200,
+   "title": "F3 · New character · what’s missing",
+   "w": 1440,
+   "x": 3040,
+   "y": 7140
+  },
+  "NewCharacterFull.dc.html": {
+   "h": 1900,
+   "title": "F2 · New character · every section open",
+   "w": 1440,
+   "x": 1520,
+   "y": 7140
+  },
+  "NewGroup.dc.html": {
+   "h": 1100,
+   "title": "D5 · New group",
+   "w": 1440,
+   "x": 6080,
+   "y": 5220
+  },
+  "NewPlace.dc.html": {
+   "h": 1300,
+   "title": "I5 · New place",
+   "w": 1440,
+   "x": 6080,
+   "y": 10780
+  },
+  "NewPlot.dc.html": {
+   "h": 1300,
+   "title": "I6 · New plot",
+   "w": 1440,
+   "x": 7600,
+   "y": 10780
+  },
+  "NewStory.dc.html": {
+   "h": 1000,
+   "is_interactive": true,
+   "title": "G1 · New story",
+   "w": 1440,
+   "x": 10640,
+   "y": 7140
+  },
+  "NewStoryFind.dc.html": {
+   "h": 1000,
+   "title": "G3 · New story · find someone",
+   "w": 1440,
+   "x": 13680,
+   "y": 7140
+  },
+  "NewStoryGroup.dc.html": {
+   "h": 1000,
+   "title": "G2 · New story · a group scene",
+   "w": 1440,
+   "x": 12160,
+   "y": 7140
+  },
+  "NewStoryPlace.dc.html": {
+   "h": 1000,
+   "title": "G4 · New story · somewhere new",
+   "w": 1440,
+   "x": 15200,
+   "y": 7140
+  },
+  "Opening.dc.html": {
+   "h": 900,
+   "title": "A1 · Opening · cold start",
+   "w": 1440,
+   "x": 0,
+   "y": 1660
+  },
+  "OpeningFailed.dc.html": {
+   "h": 900,
+   "title": "A2 · Opening · the library can’t be read",
+   "w": 1440,
+   "x": 1520,
+   "y": 1660
+  },
+  "Palette.dc.html": {
+   "h": 1360,
+   "title": "C5 · Command palette · a query",
+   "w": 1440,
+   "x": 6080,
+   "y": 3440
+  },
+  "PaletteEmpty.dc.html": {
+   "h": 1360,
+   "title": "C6 · Command palette · nothing typed",
+   "w": 1440,
+   "x": 7600,
+   "y": 3440
+  },
+  "PaletteNone.dc.html": {
+   "h": 1360,
+   "title": "C7 · Command palette · no matches",
+   "w": 1440,
+   "x": 9120,
+   "y": 3440
+  },
+  "PersonaMenu.dc.html": {
+   "h": 1360,
+   "title": "C4 · Playing as · persona menu",
+   "w": 1440,
+   "x": 4560,
+   "y": 3440
+  },
+  "PlaceDetail.dc.html": {
+   "h": 1300,
+   "title": "I3 · A place",
+   "w": 1440,
+   "x": 3040,
+   "y": 10780
+  },
+  "PlotDetail.dc.html": {
+   "h": 1300,
+   "title": "I4 · A plot",
+   "w": 1440,
+   "x": 4560,
+   "y": 10780
+  },
+  "PortraitFocus.dc.html": {
+   "h": 1200,
+   "title": "F5 · Portrait · crop and focus",
+   "w": 1440,
+   "x": 6080,
+   "y": 7140
+  },
+  "PortraitPicker.dc.html": {
+   "h": 1200,
+   "title": "F4 · Pick a portrait from Kataki’s set",
+   "w": 1440,
+   "x": 4560,
+   "y": 7140
+  },
+  "Profile.dc.html": {
+   "h": 1500,
+   "is_interactive": true,
+   "title": "E1 · Profile · Story tab",
+   "w": 1440,
+   "x": 7600,
+   "y": 5220
+  },
+  "ProfileMemories.dc.html": {
+   "h": 1500,
+   "title": "E3 · Profile · every memory",
+   "w": 1440,
+   "x": 10640,
+   "y": 5220
+  },
+  "ProfileTab.dc.html": {
+   "h": 1500,
+   "title": "E2 · Profile · Profile tab",
+   "w": 1440,
+   "x": 9120,
+   "y": 5220
+  },
+  "ProofAccess.dc.html": {
+   "h": 1100,
+   "title": "R5 · Keyboard, focus, motion, contrast",
+   "w": 1440,
+   "x": 5664,
+   "y": 25860
+  },
+  "ProofArabic.dc.html": {
+   "h": 1360,
+   "title": "R2 · Arabic, right to left · Home",
+   "w": 1440,
+   "x": 1104,
+   "y": 25860
+  },
+  "ProofArabicScene.dc.html": {
+   "h": 900,
+   "title": "R3 · Arabic · in a story",
+   "w": 1440,
+   "x": 2624,
+   "y": 25860
+  },
+  "ProofCompact.dc.html": {
+   "h": 1760,
+   "title": "R1 · 1024 wide",
+   "w": 1024,
+   "x": 0,
+   "y": 25860
+  },
+  "ProofDay.dc.html": {
+   "h": 1360,
+   "title": "R6 · Day · Home",
+   "w": 1440,
+   "x": 7184,
+   "y": 25860
+  },
+  "ProofText.dc.html": {
+   "h": 2060,
+   "title": "R4 · Text at 150% and 200%",
+   "w": 1440,
+   "x": 4144,
+   "y": 25860
+  },
+  "RemapShortcut.dc.html": {
+   "h": 1100,
+   "title": "K15 · Change a shortcut",
+   "w": 1440,
+   "x": 7600,
+   "y": 15940
+  },
+  "RenameStory.dc.html": {
+   "h": 900,
+   "title": "H4 · Rename a story",
+   "w": 1440,
+   "x": 4560,
+   "y": 9460
+  },
+  "Scene.dc.html": {
+   "h": 900,
+   "is_interactive": true,
+   "title": "P1 · In a story",
+   "w": 1440,
+   "x": 0,
+   "y": 21900
+  },
+  "SceneAdvanced.dc.html": {
+   "h": 900,
+   "title": "P6 · Composer · Advanced",
+   "w": 1440,
+   "x": 7600,
+   "y": 21900
+  },
+  "SceneAfterSkip.dc.html": {
+   "h": 900,
+   "title": "P13 · After the skip",
+   "w": 1440,
+   "x": 3040,
+   "y": 23220
+  },
+  "SceneEditLine.dc.html": {
+   "h": 900,
+   "title": "P8 · Editing a line",
+   "w": 1440,
+   "x": 10640,
+   "y": 21900
+  },
+  "SceneFailed.dc.html": {
+   "h": 900,
+   "title": "P19 · A reply that didn’t arrive",
+   "w": 1440,
+   "x": 12160,
+   "y": 23220
+  },
+  "SceneFirst.dc.html": {
+   "h": 900,
+   "title": "P20 · The first moment of a new story",
+   "w": 1440,
+   "x": 13680,
+   "y": 23220
+  },
+  "SceneJoins.dc.html": {
+   "h": 900,
+   "title": "P4 · Someone joins",
+   "w": 1440,
+   "x": 4560,
+   "y": 21900
+  },
+  "SceneMenu.dc.html": {
+   "h": 900,
+   "title": "P2 · The story menu",
+   "w": 1440,
+   "x": 1520,
+   "y": 21900
+  },
+  "SceneModes.dc.html": {
+   "h": 900,
+   "title": "P7 · Composer · how your line is read",
+   "w": 1440,
+   "x": 9120,
+   "y": 21900
+  },
+  "SceneMusic.dc.html": {
+   "h": 900,
+   "title": "P14 · Music and ambience",
+   "w": 1440,
+   "x": 4560,
+   "y": 23220
+  },
+  "SceneNarrator.dc.html": {
+   "h": 900,
+   "title": "P21 · Narrator, a plot, more widgets",
+   "w": 1440,
+   "x": 15200,
+   "y": 23220
+  },
+  "ScenePassTime.dc.html": {
+   "h": 900,
+   "title": "P11 · Pass time",
+   "w": 1440,
+   "x": 0,
+   "y": 23220
+  },
+  "ScenePeek.dc.html": {
+   "h": 900,
+   "title": "P15 · A character’s card",
+   "w": 1440,
+   "x": 6080,
+   "y": 23220
+  },
+  "ScenePlace.dc.html": {
+   "h": 900,
+   "title": "P17 · Scene and place",
+   "w": 1440,
+   "x": 9120,
+   "y": 23220
+  },
+  "SceneReading.dc.html": {
+   "h": 900,
+   "title": "P16 · Reading mode",
+   "w": 1440,
+   "x": 7600,
+   "y": 23220
+  },
+  "SceneReply.dc.html": {
+   "h": 900,
+   "title": "P9 · A reply arriving",
+   "w": 1440,
+   "x": 12160,
+   "y": 21900
+  },
+  "SceneSecret.dc.html": {
+   "h": 900,
+   "title": "P5 · Reactions to a secret",
+   "w": 1440,
+   "x": 6080,
+   "y": 21900
+  },
+  "SceneSettings.dc.html": {
+   "h": 900,
+   "title": "P18 · Story settings",
+   "w": 1440,
+   "x": 10640,
+   "y": 23220
+  },
+  "SceneTakes.dc.html": {
+   "h": 900,
+   "title": "P10 · Takes, hidden lines, regenerate",
+   "w": 1440,
+   "x": 13680,
+   "y": 21900
+  },
+  "SceneTimeSkip.dc.html": {
+   "h": 900,
+   "title": "P12 · The time skip",
+   "w": 1440,
+   "x": 1520,
+   "y": 23220
+  },
+  "SceneWidgets.dc.html": {
+   "h": 900,
+   "title": "P3 · Editing widgets",
+   "w": 1440,
+   "x": 3040,
+   "y": 21900
+  },
+  "Search.dc.html": {
+   "h": 1100,
+   "is_interactive": true,
+   "title": "C8 · Search results",
+   "w": 1440,
+   "x": 10640,
+   "y": 3440
+  },
+  "SearchNone.dc.html": {
+   "h": 900,
+   "title": "C9 · Search · nothing found",
+   "w": 1440,
+   "x": 12160,
+   "y": 3440
+  },
+  "SetAbout.dc.html": {
+   "h": 1000,
+   "title": "K16 · Settings · About",
+   "w": 1440,
+   "x": 9120,
+   "y": 15940
+  },
+  "SetAppearance.dc.html": {
+   "h": 1000,
+   "is_interactive": true,
+   "title": "K2 · Settings · Appearance",
+   "w": 1440,
+   "x": 1520,
+   "y": 14020
+  },
+  "SetData.dc.html": {
+   "h": 1000,
+   "title": "K10 · Settings · Data and privacy",
+   "w": 1440,
+   "x": 0,
+   "y": 15940
+  },
+  "SetGeneral.dc.html": {
+   "h": 1000,
+   "is_interactive": true,
+   "title": "K1 · Settings · General",
+   "w": 1440,
+   "x": 0,
+   "y": 14020
+  },
+  "SetLanguage.dc.html": {
+   "h": 1000,
+   "title": "K3 · Settings · Language",
+   "w": 1440,
+   "x": 3040,
+   "y": 14020
+  },
+  "SetMemory.dc.html": {
+   "h": 1000,
+   "title": "K9 · Settings · Memory and thinking",
+   "w": 1440,
+   "x": 12160,
+   "y": 14020
+  },
+  "SetModels.dc.html": {
+   "h": 1200,
+   "title": "K4 · Settings · Models",
+   "w": 1440,
+   "x": 4560,
+   "y": 14020
+  },
+  "SetModelsAdvanced.dc.html": {
+   "h": 1500,
+   "title": "K5 · Models · a job, Advanced open",
+   "w": 1440,
+   "x": 6080,
+   "y": 14020
+  },
+  "SetModelsFailed.dc.html": {
+   "h": 1300,
+   "title": "K6 · Models · a connection failing",
+   "w": 1440,
+   "x": 7600,
+   "y": 14020
+  },
+  "SetShortcuts.dc.html": {
+   "h": 1100,
+   "title": "K14 · Settings · Shortcuts",
+   "w": 1440,
+   "x": 6080,
+   "y": 15940
+  },
+  "Stories.dc.html": {
+   "h": 900,
+   "is_interactive": true,
+   "title": "H1 · Stories · by story",
+   "w": 1440,
+   "x": 0,
+   "y": 9460
+  },
+  "StoriesByCharacter.dc.html": {
+   "h": 900,
+   "title": "H2 · Stories · by character",
+   "w": 1440,
+   "x": 1520,
+   "y": 9460
+  },
+  "StoriesEmpty.dc.html": {
+   "h": 900,
+   "title": "H3 · Stories · none yet",
+   "w": 1440,
+   "x": 3040,
+   "y": 9460
+  },
+  "Suggestion.dc.html": {
+   "h": 1360,
+   "title": "L3 · Suggest something",
+   "w": 1440,
+   "x": 3040,
+   "y": 17460
+  },
+  "Toasts.dc.html": {
+   "h": 1300,
+   "title": "M3 · Every toast",
+   "w": 1440,
+   "x": 9120,
+   "y": 17460
+  },
+  "UpdateStates.dc.html": {
+   "h": 1000,
+   "title": "K17 · Updates · every state",
+   "w": 1440,
+   "x": 10640,
+   "y": 15940
+  },
+  "World.dc.html": {
+   "h": 1300,
+   "is_interactive": true,
+   "title": "I1 · World",
+   "w": 1440,
+   "x": 0,
+   "y": 10780
+  },
+  "WorldEmpty.dc.html": {
+   "h": 900,
+   "title": "I2 · World · empty",
+   "w": 1440,
+   "x": 1520,
+   "y": 10780
+  },
+  "You.dc.html": {
+   "h": 1100,
+   "is_interactive": true,
+   "title": "J1 · You",
+   "w": 1440,
+   "x": 0,
+   "y": 12500
+  }
+ },
+ "createdOnFiles": {
+  "at": "2026-09-27T20:30:00Z",
+  "v": 1
+ },
+ "designSystems": [
+  {
+   "artifact": "https://claude.ai/artifact/KYVicKdV5BTZJ5WsNJ3C2H",
+   "copiedAt": "2026-09-27T20:30:00Z",
+   "namespace": "kataki",
+   "title": "Kataki",
+   "version": "1790536702-88c1"
+  }
+ ],
+ "launch": {
+  "view": "canvas"
+ },
+ "notes": {
+  "row0": {
+   "kind": "title1",
+   "maxW": 8000,
+   "text": "Kataki · every screen, overlay and state. Start with the map.",
+   "w": 240,
+   "x": 0,
+   "y": -260
+  },
+  "row1": {
+   "kind": "title1",
+   "maxW": 8000,
+   "text": "Opening and first run",
+   "w": 240,
+   "x": 0,
+   "y": 1400
+  },
+  "row10": {
+   "kind": "title1",
+   "maxW": 8000,
+   "text": "Feedback, menus, toasts, errors",
+   "w": 240,
+   "x": 0,
+   "y": 17200
+  },
+  "row11": {
+   "kind": "title1",
+   "maxW": 8000,
+   "text": "System states",
+   "w": 240,
+   "x": 0,
+   "y": 20220
+  },
+  "row12": {
+   "kind": "title1",
+   "maxW": 8000,
+   "text": "The Scene",
+   "w": 240,
+   "x": 0,
+   "y": 21640
+  },
+  "row13": {
+   "kind": "title1",
+   "maxW": 8000,
+   "text": "The Scene, continued",
+   "w": 240,
+   "x": 0,
+   "y": 22960
+  },
+  "row14": {
+   "kind": "title1",
+   "maxW": 8000,
+   "text": "Backstage",
+   "w": 240,
+   "x": 0,
+   "y": 24280
+  },
+  "row15": {
+   "kind": "title1",
+   "maxW": 8000,
+   "text": "Proof boards · size, language, access",
+   "w": 240,
+   "x": 0,
+   "y": 25600
+  },
+  "row2": {
+   "kind": "title1",
+   "maxW": 8000,
+   "text": "Home, search and the command palette",
+   "w": 240,
+   "x": 0,
+   "y": 3180
+  },
+  "row3": {
+   "kind": "title1",
+   "maxW": 8000,
+   "text": "Characters and profiles",
+   "w": 240,
+   "x": 0,
+   "y": 4960
+  },
+  "row4": {
+   "kind": "title1",
+   "maxW": 8000,
+   "text": "Making characters and stories",
+   "w": 240,
+   "x": 0,
+   "y": 6880
+  },
+  "row5": {
+   "kind": "title1",
+   "maxW": 8000,
+   "text": "Stories",
+   "w": 240,
+   "x": 0,
+   "y": 9200
+  },
+  "row6": {
+   "kind": "title1",
+   "maxW": 8000,
+   "text": "World",
+   "w": 240,
+   "x": 0,
+   "y": 10520
+  },
+  "row7": {
+   "kind": "title1",
+   "maxW": 8000,
+   "text": "You and personas",
+   "w": 240,
+   "x": 0,
+   "y": 12240
+  },
+  "row8": {
+   "kind": "title1",
+   "maxW": 8000,
+   "text": "Settings",
+   "w": 240,
+   "x": 0,
+   "y": 13760
+  },
+  "row9": {
+   "kind": "title1",
+   "maxW": 8000,
+   "text": "Settings, continued",
+   "w": 240,
+   "x": 0,
+   "y": 15680
+  }
+ },
+ "order": [
+  "Main.dc.html",
+  "Opening.dc.html",
+  "OpeningFailed.dc.html",
+  "CrashRecovered.dc.html",
+  "FirstRun.dc.html",
+  "FirstRunDownload.dc.html",
+  "FirstRunServer.dc.html",
+  "FirstRunOnline.dc.html",
+  "FirstRunWho.dc.html",
+  "FirstRunPersona.dc.html",
+  "Home.dc.html",
+  "HomeEmpty.dc.html",
+  "HomeOffline.dc.html",
+  "PersonaMenu.dc.html",
+  "Palette.dc.html",
+  "PaletteEmpty.dc.html",
+  "PaletteNone.dc.html",
+  "Search.dc.html",
+  "SearchNone.dc.html",
+  "Characters.dc.html",
+  "CharactersList.dc.html",
+  "CharactersNone.dc.html",
+  "ImportCards.dc.html",
+  "NewGroup.dc.html",
+  "Profile.dc.html",
+  "ProfileTab.dc.html",
+  "ProfileMemories.dc.html",
+  "ForgetMemory.dc.html",
+  "DeleteCharacter.dc.html",
+  "NewCharacter.dc.html",
+  "NewCharacterFull.dc.html",
+  "NewCharacterErrors.dc.html",
+  "PortraitPicker.dc.html",
+  "PortraitFocus.dc.html",
+  "EditCharacter.dc.html",
+  "DiscardChanges.dc.html",
+  "NewStory.dc.html",
+  "NewStoryGroup.dc.html",
+  "NewStoryFind.dc.html",
+  "NewStoryPlace.dc.html",
+  "Stories.dc.html",
+  "StoriesByCharacter.dc.html",
+  "StoriesEmpty.dc.html",
+  "RenameStory.dc.html",
+  "DeleteStory.dc.html",
+  "ExportStory.dc.html",
+  "World.dc.html",
+  "WorldEmpty.dc.html",
+  "PlaceDetail.dc.html",
+  "PlotDetail.dc.html",
+  "NewPlace.dc.html",
+  "NewPlot.dc.html",
+  "NewBook.dc.html",
+  "FileDialog.dc.html",
+  "You.dc.html",
+  "EditPersona.dc.html",
+  "DeletePersona.dc.html",
+  "SetGeneral.dc.html",
+  "SetAppearance.dc.html",
+  "SetLanguage.dc.html",
+  "SetModels.dc.html",
+  "SetModelsAdvanced.dc.html",
+  "SetModelsFailed.dc.html",
+  "AddApi.dc.html",
+  "FindServers.dc.html",
+  "SetMemory.dc.html",
+  "SetData.dc.html",
+  "ExportAll.dc.html",
+  "Backups.dc.html",
+  "DeleteSomething.dc.html",
+  "SetShortcuts.dc.html",
+  "RemapShortcut.dc.html",
+  "SetAbout.dc.html",
+  "UpdateStates.dc.html",
+  "Licences.dc.html",
+  "Feedback.dc.html",
+  "BugReport.dc.html",
+  "Suggestion.dc.html",
+  "FeedbackSent.dc.html",
+  "MenusSky.dc.html",
+  "MenusScene.dc.html",
+  "Toasts.dc.html",
+  "Errors.dc.html",
+  "ModelGone.dc.html",
+  "DiskFull.dc.html",
+  "AlreadyOpen.dc.html",
+  "Scene.dc.html",
+  "SceneMenu.dc.html",
+  "SceneWidgets.dc.html",
+  "SceneJoins.dc.html",
+  "SceneSecret.dc.html",
+  "SceneAdvanced.dc.html",
+  "SceneModes.dc.html",
+  "SceneEditLine.dc.html",
+  "SceneReply.dc.html",
+  "SceneTakes.dc.html",
+  "ScenePassTime.dc.html",
+  "SceneTimeSkip.dc.html",
+  "SceneAfterSkip.dc.html",
+  "SceneMusic.dc.html",
+  "ScenePeek.dc.html",
+  "SceneReading.dc.html",
+  "ScenePlace.dc.html",
+  "SceneSettings.dc.html",
+  "SceneFailed.dc.html",
+  "SceneFirst.dc.html",
+  "SceneNarrator.dc.html",
+  "Backstage.dc.html",
+  "BackstageNode.dc.html",
+  "BackstagePrompt.dc.html",
+  "BackstageMemory.dc.html",
+  "BackstageLogs.dc.html",
+  "ProofCompact.dc.html",
+  "ProofArabic.dc.html",
+  "ProofArabicScene.dc.html",
+  "ProofText.dc.html",
+  "ProofAccess.dc.html",
+  "ProofDay.dc.html"
+ ],
+ "pages": [],
+ "title": "Kataki · App screens"
+}

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · Home, day one</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div data-theme="{{theme}}" class="app" style="height: 1100px;">
+  <div class="app__sky"><x-import component-from-global-scope="Kataki.Sky" style="position: absolute; inset: 0px;"></x-import></div>
+  <x-import component-from-global-scope="Kataki.Rail" active="Home" theme="{{theme}}" hrefs="{{hrefs}}" on-navigate="{{nav}}" height="{{h}}"></x-import>
+
+  <main class="app__main" aria-label="Home">
+    <x-import component-from-global-scope="Kataki.TopBar" who="liv" name="Liv"></x-import>
+
+    <section style="display: flex; flex-direction: column; gap: 14px; padding: 36px 0px 8px; max-width: 760px;">
+      <x-import component-from-global-scope="Kataki.Eyebrow" tone="mid">Day one</x-import>
+      <h1 style="margin: 0; font-family: var(--font-display); font-size: 48px; line-height: 52px; font-weight: 800; letter-spacing: -0.02em;">Nobody knows you yet.</h1>
+      <p style="margin: 0; font-size: 16px; line-height: 25px; color: var(--mid);">Six people came with Kataki. Say something to one of them and this page fills up with what you did together.</p>
+    </section>
+
+    <section class="sec" aria-label="Start with someone">
+      <h2 class="sec-title">Start with someone</h2>
+      <div style="display: flex; gap: 16px; align-items: flex-start;">
+        <div class="col" style="gap: 10px;"><x-import component-from-global-scope="Kataki.CharacterCard" who="mike" name="Mike" line="Barista at Halcyon. Son of the queen’s hairdresser." when="Never played" alt="Mike"></x-import><x-import component-from-global-scope="Kataki.Button" variant="primary" size="sm" full="{{yes}}" href="SceneFirst.dc.html">Say hello</x-import></div>
+        <div class="col" style="gap: 10px;"><x-import component-from-global-scope="Kataki.CharacterCard" who="theo" name="Theo" line="Engineering student. Covers Mike’s shifts, hears everything." when="Never played" alt="Theo"></x-import><x-import component-from-global-scope="Kataki.Button" size="sm" full="{{yes}}" href="SceneFirst.dc.html">Say hello</x-import></div>
+        <div class="col" style="gap: 10px;"><x-import component-from-global-scope="Kataki.CharacterCard" who="nico" name="Nico" line="Art student, your flatmate. Tells you the truth you asked for." when="Never played" alt="Nico"></x-import><x-import component-from-global-scope="Kataki.Button" size="sm" full="{{yes}}" href="SceneFirst.dc.html">Say hello</x-import></div>
+        <div class="col" style="gap: 10px;"><x-import component-from-global-scope="Kataki.CharacterCard" who="jae" name="Jae" line="Palace press aide. Runs six accounts, posts nothing about himself." when="Never played" alt="Jae"></x-import><x-import component-from-global-scope="Kataki.Button" size="sm" full="{{yes}}" href="SceneFirst.dc.html">Say hello</x-import></div>
+        <div class="col" style="gap: 10px;"><x-import component-from-global-scope="Kataki.CharacterCard" who="cas" name="Cas" line="Twelfth in line, and hates it." when="Never played" alt="Cas"></x-import><x-import component-from-global-scope="Kataki.Button" size="sm" full="{{yes}}" href="SceneFirst.dc.html">Say hello</x-import></div>
+      </div>
+    </section>
+
+    <section class="sec" aria-label="Or start from nothing">
+      <h2 class="sec-title">Or start from nothing</h2>
+      <div style="display: flex; gap: 16px; align-items: stretch;">
+        <x-import component-from-global-scope="Kataki.DoorCard" icon="feather" eyebrow="Two minutes" title="Write a character" actions="{{a1}}">A name and a greeting is enough. Everything else can wait.</x-import>
+        <x-import component-from-global-scope="Kataki.DoorCard" icon="download" eyebrow="From elsewhere" title="Import your cards" actions="{{a2}}">From SillyTavern, Chub, Janitor, or a folder of PNGs.</x-import>
+        <x-import component-from-global-scope="Kataki.DoorCard" icon="map" eyebrow="World first" title="Make a place first" actions="{{a3}}">Some people would rather build the world and then fill it.</x-import>
+      </div>
+    </section>
+
+    <div style="max-width: 760px;"><x-import component-from-global-scope="Kataki.Callout" tone="warm" title="One thing worth knowing">Characters remember across stories, not just inside one. What you tell Mike tonight is still there in a story you start next month.</x-import></div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"$preview":{"width":1440,"height":1100}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var A = window.KApp;
+    return A.page(this, {
+      h: 1100,
+      a1: A.btn('secondary', 'New character', { size: 'sm', href: 'NewCharacter.dc.html' }),
+      a2: A.btn('secondary', 'Import cards', { size: 'sm', href: 'ImportCards.dc.html' }),
+      a3: A.btn('secondary', 'New place', { size: 'sm', href: 'NewPlace.dc.html' })
+    });
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · New group</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div data-theme="{{theme}}" style="position: relative; width: 1440px; height: 1100px; overflow: hidden;">
+  <div class="under" aria-hidden="true"><dc-import name="Characters" theme="{{theme}}" hint-size="1440px,1100px"></dc-import></div>
+  <div class="ov">
+    <div class="ov__dim"></div>
+    <div class="ov__win">
+      <section class="dlg" role="dialog" aria-modal="true" aria-labelledby="g-title">
+        <div class="dlg__head">
+          <span class="dlg__icon"><x-import component-from-global-scope="Kataki.Icon" name="users" size="{{s20}}"></x-import></span>
+          <div class="dlg__titles">
+            <h2 class="dlg__title" id="g-title">New group</h2>
+            <p class="dlg__desc">A set of people you often start a scene with. Picking a group in New story fills in who is there.</p>
+          </div>
+          <x-import component-from-global-scope="Kataki.IconButton" icon="x" label="Close" size="sm"></x-import>
+        </div>
+        <div class="dlg__body">
+          <x-import component-from-global-scope="Kataki.TextField" label="Name" required="{{yes}}" story="{{yes}}" default-value="The palace lot" max="{{m40}}"></x-import>
+          <x-import component-from-global-scope="Kataki.Field" label="Who is in it" hint="Two or more. Order is who speaks first when nobody is addressed.">
+            <div class="row row--wrap" style="gap: 8px;">
+              <x-import component-from-global-scope="Kataki.Chip" who="jae" default-pressed="{{yes}}">Jae</x-import>
+              <x-import component-from-global-scope="Kataki.Chip" who="cas" default-pressed="{{yes}}">Cas</x-import>
+              <x-import component-from-global-scope="Kataki.Chip" who="mike">Mike</x-import>
+              <x-import component-from-global-scope="Kataki.Chip" who="theo">Theo</x-import>
+              <x-import component-from-global-scope="Kataki.Chip" who="nico">Nico</x-import>
+              <x-import component-from-global-scope="Kataki.Chip" icon="search">Find</x-import>
+            </div>
+          </x-import>
+          <x-import component-from-global-scope="Kataki.Select" label="Where they usually are" optional="{{yes}}" icon="map-pin" options="{{places}}"></x-import>
+        </div>
+        <div class="dlg__foot">
+          <span class="dlg__note">2 people · Jae, Cas</span>
+          <div class="k-btngroup">
+            <x-import component-from-global-scope="Kataki.Button" variant="ghost" href="Characters.dc.html">Cancel</x-import>
+            <x-import component-from-global-scope="Kataki.Button" variant="primary" href="Characters.dc.html">Make the group</x-import>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"$preview":{"width":1440,"height":1100}}'>
+class Component extends DCLogic {
+  renderVals() { return window.KApp.page(this, { s20: 20, m40: 40, places: ['Corvel Palace', 'Halcyon Coffee', 'The flat on Ardenne', 'Nowhere in particular'] }); }
+}
+</script>
+</body>
+</html>

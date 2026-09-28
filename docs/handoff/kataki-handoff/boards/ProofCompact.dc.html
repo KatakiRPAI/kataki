@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · 1024 wide</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.pc{width:1024px;height:1760px;overflow:hidden;background:#070b1c;font-family:var(--font-ui)}
+.pc__cap{box-sizing:border-box;height:120px;padding:28px 28px 0;display:flex;flex-direction:column;gap:6px}
+.pc__cap b{font-family:var(--font-display);font-size:26px;font-weight:800;color:var(--ink)}
+.pc__lbl{box-sizing:border-box;height:40px;padding:12px 28px 0;font-family:var(--font-mono);font-size:11.5px;color:var(--faint)}
+.fr{position:relative;width:1024px;overflow:hidden}
+.fr .app{width:1024px}
+.fr .app__sky{inset-inline-start:72px}
+.fr .app__main{padding:20px 28px 40px;gap:26px}
+.wrap{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start}
+.cs{position:relative;width:1024px;height:700px;overflow:hidden;background:#1a1410;color:var(--scene-ink)}
+.cs .scene__art{width:1100px;height:760px}
+.cs__chat{position:absolute;inset-inline-start:16px;top:72px;width:684px}
+.cs__right{position:absolute;inset-inline-end:16px;top:72px;width:292px;display:flex;flex-direction:column;gap:10px}
+</style>
+</helmet>
+<div data-theme="{{theme}}" class="pc">
+  <div class="pc__cap"><span class="board__kicker">R1 · Proof · 1024 wide</span><b>The smallest window Kataki allows</b><span class="t-meta">minWidth 1024, minHeight 700. At 1024–1279 the Rail goes compact; rows wrap instead of scrolling sideways. In a story the left column folds into the right one.</span></div>
+  <div class="fr" style="height: 880px;">
+    <div class="app" style="height: 880px;">
+      <div class="app__sky"><x-import component-from-global-scope="Kataki.Sky" style="position: absolute; inset: 0px;"></x-import></div>
+      <x-import component-from-global-scope="Kataki.Rail" active="Home" compact="{{yes}}" theme="{{theme}}" hrefs="{{hrefs}}" on-navigate="{{nav}}" height="{{h880}}"></x-import>
+      <main class="app__main" aria-label="Home">
+        <x-import component-from-global-scope="Kataki.TopBar" who="liv" name="Liv"></x-import>
+        <x-import component-from-global-scope="Kataki.ContinueHero" title="Two Sugars, No Title" book="Close to the Crown" last-line="“…I could have sworn. Three weeks is a long time to hold one sentence.”" who="mike" mood="Doubtful" stats="41 memories · 2 changed since you left" where="Three weeks later · Corvel Palace · 7:22 pm" place="corvel-palace" caption="the gala, three weeks later" place-alt="Corvel Palace on the night of the gala" continue-href="Scene.dc.html" new-href="NewStory.dc.html"></x-import>
+        <section class="sec" aria-label="Since you last played">
+          <x-import component-from-global-scope="Kataki.Eyebrow">Since you last played</x-import>
+          <div class="wrap">
+            <x-import component-from-global-scope="Kataki.EventCard" who="mike" name="Mike" event="Memory faded" tone="warm" memory="“She didn’t want to be on the gala list.”" meta="sharp → hazy"></x-import>
+            <x-import component-from-global-scope="Kataki.EventCard" who="mike" name="Mike" event="Memory doubted" tone="warm" memory="“She says she never said it.”" meta="conflicts with 1 memory"></x-import>
+            <x-import component-from-global-scope="Kataki.EventCard" who="theo" name="Theo" event="New memory" tone="ok" memory="“Liv sent him to the back for milk.”" meta="witnessed"></x-import>
+          </div>
+        </section>
+        <section class="sec" aria-label="Your characters">
+          <h2 class="sec-title">Your characters</h2>
+          <div class="wrap">
+            <x-import component-from-global-scope="Kataki.CharacterCard" who="mike" name="Mike" when="Played 2 hours ago · wary" featured="{{yes}}" badge="In a story" badge-tone="warm" alt="Mike"></x-import>
+            <x-import component-from-global-scope="Kataki.CharacterCard" who="theo" name="Theo" when="Played yesterday" alt="Theo"></x-import>
+            <x-import component-from-global-scope="Kataki.CharacterCard" who="nico" name="Nico" when="Played 4 days ago" alt="Nico"></x-import>
+            <x-import component-from-global-scope="Kataki.CharacterCard" who="jae" name="Jae" when="Played last week" alt="Jae"></x-import>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+  <div class="pc__lbl">In a story at 1024 × 700 · chat 684 wide · widgets, clock and music share one 292 column · composer unchanged</div>
+  <div class="cs" data-theme="{{theme}}">
+    <img class="scene__art" src="/_blob/1e023859469874b847f3f6c9eb3831a9" alt="">
+    <div class="scene__tint"></div>
+    <div class="scene__tl" style="inset-inline-start: 16px; top: 14px;"><x-import component-from-global-scope="Kataki.SceneHeader" title="Two Sugars, No Title" subtitle="as Liv · Close to the Crown" back-href="Home.dc.html"></x-import></div>
+    <div class="scene__tr" style="inset-inline-end: 16px; top: 14px;"><x-import component-from-global-scope="Kataki.BackstageToggle"></x-import><x-import component-from-global-scope="Kataki.SceneButton" icon="search" label="Search this story"></x-import><x-import component-from-global-scope="Kataki.SceneButton" icon="dots" label="Story menu"></x-import></div>
+    <div class="cs__chat">
+      <x-import component-from-global-scope="Kataki.ChatPanel" label="The story" height="{{h612}}" composer="{{composer}}">
+        <x-import component-from-global-scope="Kataki.TitleCard">Halcyon Coffee · the evening it rained</x-import>
+        <x-import component-from-global-scope="Kataki.ChatLine" speaker="liv" name="Liv" time="7:12 pm" text="Quickly, while he’s gone. My mother is the queen’s step-sister. I’m on the gala list and I don’t want to be. Tell no one."><x-import component-from-global-scope="Kataki.Reaction" kind="memory" who="mike">Mike will remember this</x-import></x-import>
+        <x-import component-from-global-scope="Kataki.ChatLine" speaker="mike" name="Mike" time="7:14 pm" text="*sets the cup down very carefully* Then stop saying it so loud. My mother cuts her hair."></x-import>
+      </x-import>
+    </div>
+    <div class="cs__right">
+      <x-import component-from-global-scope="Kataki.CharacterRowWidget" who="mike" name="Mike" status="Here · uneasy" width="{{w292}}"></x-import>
+      <x-import component-from-global-scope="Kataki.CharacterRowWidget" who="theo" name="Theo" status="Out back · away" away="{{yes}}" width="{{w292}}"></x-import>
+      <x-import component-from-global-scope="Kataki.ClockWidget" time="7:14 pm" rel="The evening it rained" place="Halcyon Coffee" kind="dusk" width="{{w292}}"></x-import>
+      <x-import component-from-global-scope="Kataki.MusicWidget" track="Rain on a café window" source="Matched to the scene" width="{{w292}}"></x-import>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"$preview":{"width":1024,"height":1760}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var A = window.KApp;
+    return A.page(this, { h880: 880, h612: 612, w292: 292, composer: A.el('Composer', { placeholder: 'Speak or act as Liv…' }) });
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · Opening</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div data-theme="{{theme}}" style="position: relative; width: 1440px; height: 900px; overflow: hidden; background: var(--ground); color: var(--ink); font-family: var(--font-ui);">
+  <x-import component-from-global-scope="Kataki.Sky" style="position: absolute; inset: 0px;"></x-import>
+  <main aria-busy="true" aria-label="Opening Kataki" style="position: relative; width: 460px; margin: 0px auto; padding-top: 250px; display: flex; flex-direction: column; gap: 22px;">
+    <div style="font-family: var(--font-display); font-size: 26px; font-weight: 800; letter-spacing: -0.015em; color: var(--ink);">Kataki</div>
+    <h1 style="margin: 0; font-family: var(--font-story); font-size: 40px; line-height: 46px; font-weight: 500; letter-spacing: -0.012em;">Waking six people up.</h1>
+    <x-import component-from-global-scope="Kataki.StepList" steps="{{steps}}"></x-import>
+    <div class="privacy"><x-import component-from-global-scope="Kataki.Icon" name="lock" size="{{s16}}"></x-import><span>Everything is on this computer. Nothing is being fetched.</span></div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return window.KApp.page(this, {
+      s16: 16,
+      steps: [
+        { label: 'Library read', detail: '412 lines, 6 characters, 4 stories', state: 'done' },
+        { label: 'Memories rebuilt', detail: '41 of 63', state: 'doing' },
+        { label: 'Model reached', detail: 'llama.cpp · qwen3.5-9b', state: 'wait' }
+      ]
+    });
+  }
+}
+</script>
+</body>
+</html>

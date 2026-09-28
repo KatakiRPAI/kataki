@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · Every error</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.surf{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px 24px;align-items:start}
+.surf__c{display:flex;flex-direction:column;gap:8px;min-width:0}
+.surf__n{font-family:var(--font-mono);font-size:12px;color:var(--accent-text)}
+.cat{columns:3;column-gap:32px}
+.grp{break-inside:avoid;margin:0 0 10px;padding-top:6px;font-family:var(--font-display);font-size:19px;font-weight:700;color:var(--ink)}
+.err{break-inside:avoid;display:flex;flex-direction:column;gap:3px;margin:0 0 14px;padding:12px 14px;border-radius:14px;background:var(--panel);border:1px solid var(--hairline)}
+.err__top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.err__code{font-family:var(--font-mono);font-size:11.5px;color:var(--bad)}
+.err__surf{font-family:var(--font-mono);font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em}
+.err__title{font-size:13.5px;line-height:18px;font-weight:700;color:var(--ink)}
+.err__body{font-size:12.5px;line-height:17px;color:var(--mid)}
+.err__acts{font-size:12px;line-height:16px;color:var(--accent-text);font-weight:600}
+.err__where{font-family:var(--font-mono);font-size:10.5px;color:var(--faint)}
+.fake-line{display:flex;gap:10px;padding:10px 12px;border-radius:12px;background:rgba(255,143,163,.08);border:1px solid rgba(255,143,163,.35);font-size:12.5px;line-height:17px;color:var(--ink)}
+.banner{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:12px;background:var(--raise);border:1px solid var(--border);font-size:13px}
+</style>
+</helmet>
+<div data-theme="{{theme}}" class="board" style="height: 2600px;">
+  <header>
+    <div class="board__kicker">M4 · Errors</div>
+    <h1 class="board__title">Every error, with its code</h1>
+    <p class="board__lede">62 codes. Each has one surface, fixed wording and fixed actions; {braces} are filled from data, never written by a model. The code is shown in small mono at the end of the message so a bug report can quote it. Anything not listed falls to UNKNOWN.</p>
+  </header>
+
+  <section class="surf" aria-label="The eight surfaces">
+    <div class="surf__c"><span class="surf__n">page · takes over the route</span><x-import component-from-global-scope="Kataki.Alert" title="Kataki can’t read your library." code="LIBRARY_UNREADABLE" actions="{{alertActs}}">The file library.db didn’t open. It may be damaged, or another program may be holding it. Nothing has been changed or deleted.</x-import></div>
+    <div class="surf__c"><span class="surf__n">dialog · blocks until answered</span><x-import component-from-global-scope="Kataki.Dialog" title="Something went wrong" icon="alert" tone="bad" size="sm" actions="{{dlgActs}}" note="UNKNOWN · KT-ERR-2291">Kataki doesn’t know what happened here. Your work is saved.</x-import></div>
+    <div class="surf__c"><span class="surf__n">statusline · lives where the setting is</span><x-import component-from-global-scope="Kataki.StatusLine" tone="bad" title="Nothing answered at localhost:8080" action="{{testAct}}">Tested 12 s ago: connection refused. Is llama.cpp still running? SERVER_UNREACHABLE</x-import><x-import component-from-global-scope="Kataki.Callout" tone="bad" title="The download stopped" action="{{resumeAct}}">It picks up from 0.74 GB. DOWNLOAD_NETWORK</x-import></div>
+    <div class="surf__c"><span class="surf__n">inline · under its field, on blur and on Save · no code shown, logged only</span><x-import component-from-global-scope="Kataki.TextField" label="Name" story="{{yes}}" error="Give them a name. It’s the one thing Kataki can’t guess."></x-import><span class="surf__n">line · in the story, where the reply would be</span><div class="fake-line"><x-import component-from-global-scope="Kataki.Icon" name="alert" size="{{s16}}" color="var(--bad)"></x-import><span><b>Mike’s reply didn’t arrive</b><br>Your line is saved. REPLY_UNREACHABLE</span></div><span class="surf__n">toast · and banner</span><x-import component-from-global-scope="Kataki.Toast" icon="alert" tone="bad" action="Choose a folder">Couldn’t save to that folder · EXPORT_WRITE_FAILED</x-import><div class="banner"><x-import component-from-global-scope="Kataki.Icon" name="cloud" size="{{s16}}"></x-import>You’re offline. Local models work as always. · OFFLINE</div></div>
+  </section>
+
+  <section class="cat" aria-label="Catalogue">
+    <sc-for list="{{rows}}" as="r" hint-placeholder-count="20">
+      <sc-if value="{{r.isGroup}}" hint-placeholder-val="{{false}}"><h2 class="grp">{{r.title}}</h2></sc-if>
+      <sc-if value="{{r.isErr}}" hint-placeholder-val="{{true}}">
+        <article class="err">
+          <div class="err__top"><span class="err__code">{{r.code}}</span><span class="err__surf">{{r.surface}}</span></div>
+          <span class="err__title">{{r.title}}</span>
+          <span class="err__body">{{r.body}}</span>
+          <span class="err__acts">{{r.acts}}</span>
+          <span class="err__where">{{r.where}}</span>
+        </article>
+      </sc-if>
+    </sc-for>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"$preview":{"width":1440,"height":2600}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var A = window.KApp;
+    var E = [
+      ['Opening and the library'],
+      ['LIBRARY_UNREADABLE', 'page', 'Kataki can’t read your library.', 'The file {file} in {folder} didn’t open. It may be damaged, or another program may be holding it. Nothing has been changed or deleted.', 'Restore {backupWhen}’s backup · Open the folder · Try again · Start with an empty library', 'OpeningFailed'],
+      ['LIBRARY_LOCKED', 'page', 'Kataki is already open', 'Another Kataki window has your library open. Two at once could overwrite each other, so this one waits.', 'Switch to it · Quit this one', 'AlreadyOpen'],
+      ['LIBRARY_NEWER', 'page', 'This library is from a newer Kataki', 'It was last saved by Kataki {libraryVersion}. This is {appVersion}. Update to open it. Nothing was changed.', 'Check for updates · Open the last backup', 'this board only · appears on OpeningFailed'],
+      ['LIBRARY_MIGRATION_FAILED', 'page', 'Kataki couldn’t bring your library up to date', 'Your library is exactly as it was. A copy was made before trying: {copyPath}.', 'Report a bug · Show the copy · Quit', 'this board only · appears on OpeningFailed'],
+      ['STORY_UNREADABLE', 'page', 'Part of {story} didn’t read back', '{goodLines} lines are fine; {badLines} couldn’t be read. The rest of your library isn’t affected.', 'Open what’s readable · Restore it from a backup · Report a bug', 'this board only · appears on /story/:id, in place of the Scene'],
+      ['APP_CRASHED', 'dialog', 'Kataki closed unexpectedly', 'Last time, Kataki stopped at {time} while {name} was answering. Everything up to {his} last finished line is safe. The line {he} was writing is gone.', 'Continue the story · Report it · Stay here', 'CrashRecovered'],
+      ['DISK_FULL', 'page', 'There’s no room left on {drive}', 'Kataki needs about {neededMb} MB to keep saving. Your stories are safe up to {lastSavedAt}. Lines you write now wait here until there’s room. Don’t close Kataki until this goes away.', 'Try again · Show what uses space · Move the library…', 'DiskFull'],
+      ['DISK_READONLY', 'page', 'Kataki can’t write to its folder', '{libraryFolder} is read-only. Your stories are safe; nothing new can be saved until Kataki can write there.', 'Try again · Move the library… · Show the folder', 'DiskFull'],
+      ['Getting a model'],
+      ['DOWNLOAD_NETWORK', 'callout', 'The download stopped', 'This computer lost its internet connection at {doneGb} GB. It picks up from there.', 'Resume', 'FirstRunDownload'],
+      ['DOWNLOAD_DISK', 'callout', 'Not enough room on {drive}', 'The model needs {needGb} GB and {freeGb} GB is free. Free some space, or keep models on another drive.', 'Choose a folder', 'FirstRunDownload'],
+      ['DOWNLOAD_CHECKSUM', 'callout', 'The file didn’t check out', 'What arrived doesn’t match what was sent, so Kataki threw it away. Downloading again usually fixes it.', 'Download again', 'FirstRunDownload'],
+      ['HARDWARE_TOO_SMALL', 'callout', 'This computer may be slow with Kataki’s model', 'kataki-small-3b wants {needGb} GB of free memory and {freeGb} GB is free. It will run, slowly. A server on another computer or an online model will be faster.', 'Download anyway · Use an online model', 'this board only · appears on FirstRun'],
+      ['Model servers'],
+      ['SERVER_NO_MODEL', 'statusline', 'Connected, but no model loaded', 'Load a model in {server}, then test again.', 'Test again', 'FirstRunServer'],
+      ['SERVER_UNREACHABLE', 'statusline', 'Nothing answered', 'Nothing answered at {address} after {seconds} s. Is the server running, and is that its port?', 'Test again · Look again', 'FirstRunServer · HomeOffline · SetModels'],
+      ['SERVER_NOT_COMPATIBLE', 'statusline', 'It answered, but not like a model server', 'The address is right but it isn’t an OpenAI-style API.', 'Edit address', 'FirstRunServer'],
+      ['SERVER_UNAUTHORIZED', 'statusline', 'It wants a key', 'The server said 401. Add its key above.', '', 'FirstRunServer'],
+      ['SERVER_TIMEOUT', 'statusline', '{server} took too long', 'No answer in {seconds} s. Big models on small computers can be slow. You can raise the limit in Advanced.', 'Test again · Open Advanced', 'this board only · appears on SetModelsFailed'],
+      ['MODEL_GONE', 'page', 'Nobody is home to answer.', 'Kataki was talking to {server} {where} at {address}, and it stopped answering {ago}. Your story is safe: every line was written to disk as it arrived.', 'Try again · Use Kataki’s own model instead · Open Settings', 'ModelGone'],
+      ['CONTEXT_TOO_SMALL', 'statusline', 'This model holds {modelCtx} tokens', 'A scene needs about {needCtx}. Kataki drops the oldest lines first. A model with 16k or more fits better.', 'Choose another model', 'this board only · appears on SetModelsAdvanced'],
+      ['Online models'],
+      ['API_KEY_INVALID', 'statusline', 'Key not valid', '{provider} said this key isn’t valid. Copy it again from {keysPage}; it starts with {prefix}.', 'Test again', 'FirstRunOnline · SetModels'],
+      ['API_NO_CREDIT', 'statusline', 'No credit left on this key', 'Top up at the service, then test again.', 'Test again · Use Kataki’s own model', 'FirstRunOnline'],
+      ['API_RATE_LIMITED', 'line', 'Too many requests', 'The service asked Kataki to slow down. It tries again in {seconds} s.', 'Try now', 'FirstRunOnline'],
+      ['API_UNREACHABLE', 'line', 'Couldn’t reach the service', 'No internet, or the address is wrong. Local models still work.', 'Try again · Use Kataki’s own model', 'FirstRunOnline'],
+      ['API_MODEL_NOT_FOUND', 'statusline', '{provider} doesn’t offer {model} any more', 'Pick another from the list.', 'Choose a model', 'this board only · appears on SetModelsFailed'],
+      ['API_REFUSED', 'line', '{provider} refused this reply', 'It returned a refusal instead of a line. Nothing in the story changed. Try again, change your line, or use a local model.', 'Try again · Edit my line · Use Kataki’s own model', 'this board only · appears on SceneFailed'],
+      ['In a story'],
+      ['REPLY_UNREACHABLE', 'line', '{name}’s reply didn’t arrive', '{server} stopped answering at {time}. Your line is saved; nothing was lost. Kataki will try again by itself when the server is back.', 'Try again · Use Kataki’s own model · Edit my line', 'Backstage · Scene'],
+      ['REPLY_TIMEOUT', 'line', '{name} took too long', 'No words after {seconds} s. Your line is saved.', 'Try again · Edit my line', 'this board only · appears on SceneFailed'],
+      ['REPLY_EMPTY', 'line', '{name}’s reply came back empty', 'The model returned nothing. Some models do this now and then.', 'New take', 'this board only · appears on SceneFailed'],
+      ['REPLY_CUT_OFF', 'line', '{name}’s reply was cut short', 'It reached the {limit}-token reply limit.', 'Continue it · Keep it', 'this board only · appears on SceneFailed'],
+      ['MEMORY_READER_FAILED', 'statusline', '{name} didn’t take in the last {count} lines', 'The memory reader timed out. The story is fine; {name} just won’t remember those lines until it runs again.', 'Run it again', 'this board only · appears on BackstageLogs'],
+      ['NARRATOR_FAILED', 'toast', 'The narrator couldn’t add a line', '', 'Try again', 'Toasts'],
+      ['TIMESKIP_FAILED', 'dialog', 'Time didn’t pass', 'Fading memories didn’t finish, so Kataki put everything back to {fromTime}. Nothing changed.', 'Try again · Cancel', 'this board only · appears on SceneTimeSkip'],
+      ['LINE_SAVE_FAILED', 'line', 'Your last line isn’t saved yet', 'Kataki couldn’t write it to the library. It stays here and saves as soon as it can.', 'Try again · Copy the line', 'this board only · appears on SceneFailed'],
+      ['MUSIC_UNSUPPORTED', 'toast', 'That file won’t play', 'Kataki plays mp3, ogg and wav. This is .{ext}.', 'Choose another', 'Toasts'],
+      ['MUSIC_MISSING', 'statusline', '{file} isn’t where it was', 'It was moved or deleted. Pick it again, or choose another track.', 'Find it · Choose another', 'this board only · appears on SceneMusic'],
+      ['Characters and portraits'],
+      ['IMPORT_NO_CARD', 'inline', 'No character card inside this picture.', '', '', 'ImportCards'],
+      ['IMPORT_UNSUPPORTED_VERSION', 'inline', '{file} uses a card format Kataki can’t read yet', 'It says {spec}. Kataki reads chara_card_v1, v2 and v3.', 'Skip it', 'this board only · appears on ImportCards'],
+      ['IMPORT_DUPLICATE', 'inline', '{file} · someone called {name} is already here', '', 'Keep both · Replace the one here · Skip this card', 'this board only · appears on ImportCards'],
+      ['PORTRAIT_UNSUPPORTED', 'callout', 'That file isn’t a picture Kataki can use', 'PNG, JPG or WEBP, up to 20 MB.', 'Choose a file', 'NewCharacter'],
+      ['PORTRAIT_TOO_LARGE', 'callout', 'That picture is too big', 'PNG, JPG or WEBP, up to 20 MB. This one is {sizeMb} MB.', 'Choose a file', 'this board only · appears on PortraitPicker'],
+      ['Forms'],
+      ['NAME_REQUIRED', 'inline', 'Give them a name. It’s the one thing Kataki can’t guess.', '', '', 'NewCharacter'],
+      ['NAME_TAKEN', 'inline', 'There’s already a {name}', 'Two is fine. Add something to tell them apart.', '', 'this board only · appears on NewCharacterErrors'],
+      ['FIELD_TOO_LONG', 'inline', 'Keep it under {max} characters', 'This is {count}.', '', 'this board only · appears on NewCharacterErrors'],
+      ['GREETING_REQUIRED', 'inline', 'Write how they say hi. It’s their first line in every new story.', '', '', 'NewCharacter'],
+      ['CONFIRM_MISMATCH', 'inline', 'That doesn’t match yet.', '', '', 'SetData'],
+      ['World'],
+      ['DELETE_IN_USE', 'dialog', '{name} is in {count} stories', 'Those stories keep their own copy. Deleting only removes it from World.', 'Delete · Cancel', 'this board only · appears on World delete confirms (PlaceMenu, PlotMenu)'],
+      ['Data'],
+      ['EXPORT_WRITE_FAILED', 'toast', 'Couldn’t save to that folder', '{folder} is read-only or full.', 'Choose a folder', 'Toasts'],
+      ['BACKUP_FAILED', 'statusline', 'The {time} backup didn’t happen', 'Couldn’t write to {folder}. The last good one is from {lastBackupAt}.', 'Back up now · Choose a folder', 'this board only · appears on Backups'],
+      ['BACKUP_RESTORE_FAILED', 'dialog', 'That backup couldn’t be opened', 'It may be damaged. Your current library wasn’t touched.', 'Choose another', 'this board only · appears on Backups'],
+      ['Settings'],
+      ['SHORTCUT_TAKEN', 'callout', '{keys} already {does}', 'Use it for {action} instead, and leave {other} without a shortcut?', 'Use it here · Pick other keys', 'SetShortcuts'],
+      ['SHORTCUT_RESERVED', 'inline', 'Windows keeps {keys} for itself', 'Pick other keys.', '', 'this board only · appears on RemapShortcut'],
+      ['LANGUAGE_MODEL_WEAK', 'callout', '{model} writes {language} less well', 'Characters may slip into English. Kataki’s interface is fully in {language} either way.', 'Choose another model', 'this board only · appears on SetLanguage'],
+      ['Updates'],
+      ['UPDATE_UNREACHABLE', 'statusline', 'Couldn’t reach [UPDATE HOST]', 'You’re offline or it’s down. Kataki works fine without it.', 'Try again', 'this board only · appears on UpdateStates'],
+      ['UPDATE_VERIFY_FAILED', 'statusline', 'The update didn’t install', 'The file didn’t match what was published, so nothing was changed. You’re still on {appVersion}.', 'Try again', 'SetAbout'],
+      ['UPDATE_INSTALL_FAILED', 'statusline', '{version} didn’t install', 'Windows stopped the installer. You’re still on {appVersion}.', 'Try again · Report a bug', 'this board only · appears on UpdateStates'],
+      ['Feedback'],
+      ['FEEDBACK_OFFLINE', 'inline', 'Couldn’t send it', 'This computer isn’t reaching the internet. The report is saved and goes the next time Kataki is online, unless you cancel it.', 'Try again · Copy instead · Cancel it', 'Feedback · Toasts'],
+      ['FEEDBACK_TOO_LARGE', 'inline', 'The attachments are too big', 'Reports can carry {maxMb} MB. The log is {logMb} MB; Kataki can keep just the last hour.', 'Keep the last hour · Remove the log', 'this board only · appears on BugReport'],
+      ['FEEDBACK_FAILED', 'inline', 'It didn’t send', '[FEEDBACK HOST] answered {status}. Your text is kept here.', 'Try again · Copy it', 'this board only · appears on Feedback'],
+      ['Search'],
+      ['SEARCH_INDEXING', 'statusline', 'Search is still reading your library', '{done} of {total} lines. Some results may be missing until it’s done.', '', 'this board only · appears on Search'],
+      ['System'],
+      ['OFFLINE', 'banner', 'You’re offline', 'Local models work as always. Online models, updates and feedback wait.', '', 'this board only · appears on Home (when the computer has no network and an online model is chosen)'],
+      ['RENDERER_FALLBACK', 'toast', 'The graphics driver restarted', 'Kataki is drawing without the GPU for now. Restart to go back.', 'Restart', 'Toasts'],
+      ['UNKNOWN', 'dialog', 'Something went wrong', 'Kataki doesn’t know what happened here. Your work is saved. Reference {errorRef}.', 'Report a bug · Close', 'this board only · appears on any route or overlay']
+    ];
+    var rows = E.map(function (e) {
+      if (e.length === 1) return { isGroup: true, isErr: false, title: e[0] };
+      return { isGroup: false, isErr: true, code: e[0], surface: e[1], title: e[2], body: e[3], acts: e[4] ? '→ ' + e[4] : '', where: e[5] };
+    });
+    return A.page(this, {
+      s16: 16, rows: rows,
+      alertActs: [A.btn('primary', 'Restore yesterday’s backup'), A.btn('ghost', 'Try again')],
+      dlgActs: [A.btn('ghost', 'Close'), A.btn('primary', 'Report a bug')],
+      testAct: A.btn('secondary', 'Test again', { size: 'sm' }),
+      resumeAct: A.btn('secondary', 'Resume', { size: 'sm' })
+    });
+  }
+}
+</script>
+</body>
+</html>

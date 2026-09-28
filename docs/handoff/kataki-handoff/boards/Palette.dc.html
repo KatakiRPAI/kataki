@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · Command palette</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div data-theme="{{theme}}" style="position: relative; width: 1440px; height: 1360px; overflow: hidden;">
+  <div class="under" aria-hidden="true"><dc-import name="Home" theme="{{theme}}" hint-size="1440px,1360px"></dc-import></div>
+  <div class="ov">
+    <div class="ov__dim"></div>
+    <div class="ov__win ov__win--top">
+      <x-import component-from-global-scope="Kataki.CommandPalette" query="gala" groups="{{groups}}"></x-import>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"$preview":{"width":1440,"height":1360}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return window.KApp.page(this, {
+      groups: [
+        { title: 'Jump to', items: [
+          { icon: 'chat', label: 'The Gala List', story: true, meta: 'story · Close to the Crown', active: true },
+          { icon: 'map-pin', label: 'Corvel Palace', story: true, meta: 'place · not filed yet' },
+          { icon: 'book', label: 'The Invitation', story: true, meta: 'plot · Close to the Crown' } ] },
+        { title: 'Lines', items: [
+          { who: 'mike', label: '“The list. You said you weren’t coming to this.”', meta: 'Mike · Two Sugars, No Title · three weeks later' },
+          { who: 'jae', label: '“Your name’s on it. Don’t ask me how.”', meta: 'Jae · The Gala List' } ] },
+        { title: 'Do', items: [
+          { icon: 'plus', label: 'New story with Mike', shortcut: ['Enter'] },
+          { icon: 'swap', label: 'Switch persona to Cas', shortcut: ['Ctrl', 'P'] },
+          { icon: 'download', label: 'Export The Gala List' },
+          { icon: 'search', label: 'See all 19 results for “gala”', shortcut: ['Ctrl', 'Enter'] } ] }
+      ]
+    });
+  }
+}
+</script>
+</body>
+</html>

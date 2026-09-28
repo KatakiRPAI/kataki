@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · New character</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}.opt{display:flex;align-items:center;gap:14px;width:100%;box-sizing:border-box;padding:14px 16px;border:0;border-bottom:1px solid var(--hairline);background:transparent;color:var(--ink);font:inherit;text-align:start;cursor:pointer}.opt:last-child{border-bottom:0}.opt:hover{background:var(--raise)}.opt:focus-visible{outline:none;box-shadow:var(--focus-ring)}.opt__t{font-size:14.5px;font-weight:700}.opt__d{font-size:12.5px;color:var(--muted);margin-top:2px}.opt__s{margin-inline-start:auto;font-size:12.5px;color:var(--faint);white-space:nowrap}.optbody{padding:4px 16px 18px;border-bottom:1px solid var(--hairline);display:flex;flex-direction:column;gap:14px}.savebar{position:absolute;inset-inline:200px 0;bottom:0;z-index:5;display:flex;align-items:center;gap:16px;padding:16px 40px;background:var(--popover);border-top:1px solid var(--border);box-shadow:var(--shadow-float)}.pick-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}.pick-grid button{padding:0;border:2px solid transparent;border-radius:14px;overflow:hidden;background:var(--raise);cursor:pointer;aspect-ratio:3/4}.pick-grid button[aria-pressed="true"]{border-color:var(--accent)}.pick-grid img{width:100%;height:100%;object-fit:cover;display:block}</style>
+</helmet>
+<div data-theme="{{theme}}" class="app" style="height: {{hpx}};">
+  <div class="app__sky"><x-import component-from-global-scope="Kataki.Sky" clouds="{{no}}" style="position: absolute; inset: 0px;"></x-import></div>
+  <x-import component-from-global-scope="Kataki.Rail" active="Characters" theme="{{theme}}" hrefs="{{hrefs}}" on-navigate="{{nav}}" height="{{h}}"></x-import>
+
+  <main class="app__main" aria-label="{{pageTitle}}" style="gap: 26px;">
+    <x-import component-from-global-scope="Kataki.TopBar" back="Characters" back-href="Characters.dc.html"></x-import>
+    <div class="pg-head">
+      <div>
+        <h1 class="pg-title">{{pageTitle}}</h1>
+        <p class="pg-sub">{{pageSub}}</p>
+      </div>
+      <sc-if value="{{isNew}}" hint-placeholder-val="{{true}}">
+        <div class="row">
+          <x-import component-from-global-scope="Kataki.Button" icon="download" href="ImportCards.dc.html">Import a card</x-import>
+        </div>
+      </sc-if>
+    </div>
+
+    <sc-if value="{{isErrors}}" hint-placeholder-val="{{false}}">
+      <x-import component-from-global-scope="Kataki.Callout" tone="bad" title="Two things are missing">A name and how they say hi. Everything else can stay empty.</x-import>
+    </sc-if>
+    <sc-if value="{{isEdit}}" hint-placeholder-val="{{false}}">
+      <x-import component-from-global-scope="Kataki.Callout" title="Changes apply from his next line">What Mike already said stays as written. His memories aren’t touched by editing his profile.</x-import>
+    </sc-if>
+
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 36px; align-items: start;">
+      <div style="display: flex; flex-direction: column; gap: 26px; min-width: 0;">
+        <sc-if value="{{noFace}}" hint-placeholder-val="{{true}}">
+          <x-import component-from-global-scope="Kataki.DropZone" title="Give them a face" description="Drop an image, pick one from Kataki’s set, or leave it. They get an initial until you decide." empty="No portrait">
+            <x-import component-from-global-scope="Kataki.Button" size="sm" href="PortraitFocus.dc.html">Choose a file</x-import>
+            <x-import component-from-global-scope="Kataki.Button" size="sm" variant="ghost" href="PortraitPicker.dc.html">Pick from Kataki’s set</x-import>
+          </x-import>
+        </sc-if>
+        <sc-if value="{{hasFace}}" hint-placeholder-val="{{false}}">
+          <div class="card" style="display: flex; align-items: center; gap: 18px; padding: 16px 18px;">
+            <img src="/_blob/0b9fe4d5e949fe7395d2dc331675abe8" alt="Mike’s portrait" style="width: 88px; height: 110px; object-fit: cover; object-position: 50% 26%; border-radius: 10px;">
+            <div class="col" style="gap: 6px; flex: 1;">
+              <span style="font-size: 14.5px; font-weight: 700;">Portrait</span>
+              <span class="t-meta">mike.png · 1024 × 1280 · face at 50% 26%</span>
+            </div>
+            <x-import component-from-global-scope="Kataki.ButtonGroup">
+              <x-import component-from-global-scope="Kataki.Button" size="sm" href="PortraitFocus.dc.html">Crop and focus</x-import>
+              <x-import component-from-global-scope="Kataki.Button" size="sm" variant="ghost">Replace</x-import>
+              <x-import component-from-global-scope="Kataki.Button" size="sm" variant="ghost">Remove</x-import>
+            </x-import>
+          </div>
+        </sc-if>
+
+        <section class="col" style="gap: 16px;">
+          <x-import component-from-global-scope="Kataki.Eyebrow" tone="accent">Required</x-import>
+          <x-import component-from-global-scope="Kataki.TextField" label="Name" required="{{yes}}" default-value="{{nameVal}}" hint="What you call them. You can change it later." error="{{nameErr}}" max="{{m40}}"></x-import>
+          <x-import component-from-global-scope="Kataki.TextArea" label="How they say hi" required="{{yes}}" story="{{yes}}" rows="{{r3}}" default-value="{{hiVal}}" placeholder="*sets the bucket down, wipes her hands* Back gate’s locked again." hint="Their first line in every new story. Actions go between *asterisks*." error="{{hiErr}}"></x-import>
+          <x-import component-from-global-scope="Kataki.ChoiceChips" label="Stuck? Start from" options="{{moods}}"></x-import>
+        </section>
+
+        <section class="col" style="gap: 12px;">
+          <div class="row" style="justify-content: space-between;"><x-import component-from-global-scope="Kataki.Eyebrow">Optional · add any of these whenever</x-import><span class="t-faint">{{filledCount}}</span></div>
+          <div class="card" style="overflow: hidden;">
+            <button type="button" class="opt" aria-expanded="{{openStr}}"><x-import component-from-global-scope="Kataki.Icon" name="user" size="{{s18}}"></x-import><span><span class="opt__t" style="display: block;">About them</span><span class="opt__d" style="display: block;">What anyone would see. Two or three lines is plenty.</span></span><span class="opt__s">{{aboutState}}</span><x-import component-from-global-scope="Kataki.Icon" name="down" size="{{s16}}"></x-import></button>
+            <sc-if value="{{open}}" hint-placeholder-val="{{false}}"><div class="optbody"><x-import component-from-global-scope="Kataki.TextArea" label="About them" story="{{yes}}" rows="{{r4}}" default-value="{{aboutVal}}" hint="Everyone who meets them could notice this. Characters read it every turn."></x-import><x-import component-from-global-scope="Kataki.TextField" label="Tags" optional="{{yes}}" default-value="{{tagsVal}}" hint="Up to three, separated by commas. Shown on their profile."></x-import><x-import component-from-global-scope="Kataki.Segmented" label="Pronouns" options="{{pronouns}}" value="{{pronounVal}}"></x-import></div></sc-if>
+
+            <button type="button" class="opt" aria-expanded="{{openStr}}"><x-import component-from-global-scope="Kataki.Icon" name="quote" size="{{s18}}"></x-import><span><span class="opt__t" style="display: block;">How they talk</span><span class="opt__d" style="display: block;">Two sample lines. This does more than anything else here.</span></span><span class="opt__s">{{talkState}}</span><x-import component-from-global-scope="Kataki.Icon" name="down" size="{{s16}}"></x-import></button>
+            <sc-if value="{{open}}" hint-placeholder-val="{{false}}"><div class="optbody"><x-import component-from-global-scope="Kataki.TextArea" label="Sample line 1" story="{{yes}}" rows="{{r2}}" default-value="{{talk1}}"></x-import><x-import component-from-global-scope="Kataki.TextArea" label="Sample line 2" story="{{yes}}" rows="{{r2}}" default-value="{{talk2}}"></x-import><x-import component-from-global-scope="Kataki.Button" size="sm" variant="ghost" icon="plus">Add a line</x-import></div></sc-if>
+
+            <button type="button" class="opt" aria-expanded="{{openStr}}"><x-import component-from-global-scope="Kataki.Icon" name="lock" size="{{s18}}"></x-import><span><span class="opt__t" style="display: block;">Their secret</span><span class="opt__d" style="display: block;">Something only they know. It changes how they answer.</span></span><span class="opt__s">{{secretState}}</span><x-import component-from-global-scope="Kataki.Icon" name="down" size="{{s16}}"></x-import></button>
+            <sc-if value="{{open}}" hint-placeholder-val="{{false}}"><div class="optbody"><x-import component-from-global-scope="Kataki.TextArea" label="Their secret" story="{{yes}}" rows="{{r3}}" default-value="{{secretVal}}" hint="Only this character knows it. They never say it unless the story earns it."></x-import></div></sc-if>
+
+            <button type="button" class="opt" aria-expanded="{{openStr}}"><x-import component-from-global-scope="Kataki.Icon" name="users" size="{{s18}}"></x-import><span><span class="opt__t" style="display: block;">Relationships</span><span class="opt__d" style="display: block;">Who they already know, and how they feel about them.</span></span><span class="opt__s">{{relState}}</span><x-import component-from-global-scope="Kataki.Icon" name="down" size="{{s16}}"></x-import></button>
+            <sc-if value="{{open}}" hint-placeholder-val="{{false}}"><div class="optbody">
+              <div style="display: grid; grid-template-columns: minmax(0, 1fr) 200px auto; gap: 10px; align-items: end;"><x-import component-from-global-scope="Kataki.Select" label="Who" options="{{relWho1}}"></x-import><x-import component-from-global-scope="Kataki.Select" label="Feels" options="{{relHow}}"></x-import><x-import component-from-global-scope="Kataki.IconButton" icon="trash" label="Remove this relationship" size="sm"></x-import></div>
+              <div style="display: grid; grid-template-columns: minmax(0, 1fr) 200px auto; gap: 10px; align-items: end;"><x-import component-from-global-scope="Kataki.Select" label="Who" options="{{relWho2}}"></x-import><x-import component-from-global-scope="Kataki.Select" label="Feels" options="{{relHow2}}"></x-import><x-import component-from-global-scope="Kataki.IconButton" icon="trash" label="Remove this relationship" size="sm"></x-import></div>
+              <x-import component-from-global-scope="Kataki.Button" size="sm" variant="ghost" icon="plus">Add someone</x-import>
+            </div></sc-if>
+
+            <button type="button" class="opt" aria-expanded="{{openStr}}"><x-import component-from-global-scope="Kataki.Icon" name="map-pin" size="{{s18}}"></x-import><span><span class="opt__t" style="display: block;">Places they know</span><span class="opt__d" style="display: block;">Pick from your World, or write a new one.</span></span><span class="opt__s">{{placeState}}</span><x-import component-from-global-scope="Kataki.Icon" name="down" size="{{s16}}"></x-import></button>
+            <sc-if value="{{open}}" hint-placeholder-val="{{false}}"><div class="optbody"><div class="row row--wrap" style="gap: 8px;"><x-import component-from-global-scope="Kataki.Chip" default-pressed="{{yes}}" icon="map-pin">Halcyon Coffee</x-import><x-import component-from-global-scope="Kataki.Chip" default-pressed="{{yes}}" icon="map-pin">Corvel Palace</x-import><x-import component-from-global-scope="Kataki.Chip" icon="map-pin">The flat on Ardenne</x-import><x-import component-from-global-scope="Kataki.Chip" icon="plus" href="NewPlace.dc.html">New place</x-import></div></div></sc-if>
+
+            <button type="button" class="opt" aria-expanded="{{openStr}}"><x-import component-from-global-scope="Kataki.Icon" name="cpu" size="{{s18}}"></x-import><span><span class="opt__t" style="display: block;">Which model plays them, and how they remember</span><span class="opt__d" style="display: block;">Leave it and they use the defaults in Settings.</span></span><span class="opt__s">Default</span><x-import component-from-global-scope="Kataki.Icon" name="down" size="{{s16}}"></x-import></button>
+            <sc-if value="{{open}}" hint-placeholder-val="{{false}}"><div class="optbody"><x-import component-from-global-scope="Kataki.Select" label="Model" options="{{modelOpts}}" hint="Only models that are connected now are listed."></x-import><x-import component-from-global-scope="Kataki.Segmented" label="How fast their memories fade" options="{{fade}}" value="Default" size="sm"></x-import><x-import component-from-global-scope="Kataki.Toggle" label="They can doubt you"></x-import></div></sc-if>
+          </div>
+        </section>
+      </div>
+
+      <aside aria-label="As they will look" style="display: flex; flex-direction: column; gap: 16px; position: relative;">
+        <x-import component-from-global-scope="Kataki.Eyebrow">As they will look</x-import>
+        <div class="card" style="padding: 18px; display: flex; flex-direction: column; gap: 14px; align-items: flex-start;">
+          <x-import component-from-global-scope="Kataki.CharacterCard" who="{{previewWho}}" name="{{previewName}}" line="{{previewLine}}" when="{{previewWhen}}" badge="{{previewBadge}}"></x-import>
+          <sc-if value="{{hasHi}}" hint-placeholder-val="{{true}}"><x-import component-from-global-scope="Kataki.Bubble">{{hiVal}}</x-import></sc-if>
+        </div>
+        <x-import component-from-global-scope="Kataki.Callout" tone="{{readyTone}}" title="{{readyTitle}}">{{readyText}}</x-import>
+        <x-import component-from-global-scope="Kataki.Button" variant="primary" size="lg" full="{{yes}}" disabled="{{cantCreate}}">{{primaryLabel}}</x-import>
+        <sc-if value="{{isNew}}" hint-placeholder-val="{{true}}">
+          <div class="row" style="justify-content: space-between;">
+            <x-import component-from-global-scope="Kataki.Button" variant="ghost">Save as draft</x-import>
+            <x-import component-from-global-scope="Kataki.Button" variant="ghost" href="DiscardChanges.dc.html">Cancel</x-import>
+          </div>
+        </sc-if>
+        <div class="privacy"><x-import component-from-global-scope="Kataki.Icon" name="lock" size="{{s16}}"></x-import><span>Saved to this computer · nothing is uploaded</span></div>
+      </aside>
+    </div>
+  </main>
+
+  <sc-if value="{{isEdit}}" hint-placeholder-val="{{false}}">
+    <div class="savebar" role="region" aria-label="Unsaved changes">
+      <x-import component-from-global-scope="Kataki.Icon" name="edit" size="{{s18}}" color="var(--warm)"></x-import>
+      <span style="font-size: 14px; font-weight: 700;">2 unsaved changes</span>
+      <span class="t-meta">About them · Their secret</span>
+      <div class="k-btngroup">
+        <x-import component-from-global-scope="Kataki.Button" variant="ghost">Discard</x-import>
+        <x-import component-from-global-scope="Kataki.Button" variant="primary">Save changes</x-import>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ovPicker}}" hint-placeholder-val="{{false}}">
+    <div class="ov"><div class="ov__dim"></div><div class="ov__win">
+      <section class="dlg dlg--xl" role="dialog" aria-modal="true" aria-labelledby="pk-title">
+        <div class="dlg__head">
+          <div class="dlg__titles"><h2 class="dlg__title" id="pk-title">Kataki’s portraits</h2><p class="dlg__desc">Painted for Kataki and free to use for anyone you make. Nobody else in your library has these.</p></div>
+          <x-import component-from-global-scope="Kataki.IconButton" icon="x" label="Close" size="sm"></x-import>
+        </div>
+        <div class="dlg__body">
+          <div class="row" style="gap: 8px;"><x-import component-from-global-scope="Kataki.Chip" default-pressed="{{yes}}" size="sm">All</x-import><x-import component-from-global-scope="Kataki.Chip" size="sm">Unused</x-import></div>
+          <div class="pick-grid" role="group" aria-label="Portraits">
+            <button type="button" aria-pressed="false" aria-label="Portrait 1"><img src="/_blob/e49764b15e9de5d49d4bc2bbf8c90f65" alt=""></button>
+            <button type="button" aria-pressed="false" aria-label="Portrait 2"><img src="/_blob/0b9fe4d5e949fe7395d2dc331675abe8" alt=""></button>
+            <button type="button" aria-pressed="false" aria-label="Portrait 3"><img src="/_blob/24f537101f1220b0706482e827c12368" alt=""></button>
+            <button type="button" aria-pressed="false" aria-label="Portrait 4"><img src="/_blob/98b8803c4f86e4c451df752de430a773" alt=""></button>
+            <button type="button" aria-pressed="true" aria-label="Portrait 5, picked"><img src="/_blob/88294483e380df3b0fb980ee2c0b5d07" alt=""></button>
+            <button type="button" aria-pressed="false" aria-label="Portrait 6"><img src="/_blob/6ee3bde163b8abc870ce59996374605d" alt=""></button>
+          </div>
+          <span class="t-faint">A portrait already used by someone shows who. You can still pick it.</span>
+        </div>
+        <div class="dlg__foot"><span class="dlg__note">Portrait 5 · focus set for you, change it after</span><div class="k-btngroup"><x-import component-from-global-scope="Kataki.Button" variant="ghost">Cancel</x-import><x-import component-from-global-scope="Kataki.Button" variant="primary">Use this one</x-import></div></div>
+      </section>
+    </div></div>
+  </sc-if>
+
+  <sc-if value="{{ovFocus}}" hint-placeholder-val="{{false}}">
+    <div class="ov"><div class="ov__dim"></div><div class="ov__win">
+      <section class="dlg dlg--xl" role="dialog" aria-modal="true" aria-labelledby="fc-title">
+        <div class="dlg__head">
+          <div class="dlg__titles"><h2 class="dlg__title" id="fc-title">Where is their face?</h2><p class="dlg__desc">Drag the circle onto the face. Every crop, from the 20 px avatar to the full card, centres on it.</p></div>
+          <x-import component-from-global-scope="Kataki.IconButton" icon="x" label="Close" size="sm"></x-import>
+        </div>
+        <div class="dlg__body" style="flex-direction: row; gap: 28px; align-items: flex-start;">
+          <div style="position: relative; width: 420px; height: 520px; border-radius: 14px; overflow: hidden; flex-shrink: 0;">
+            <img src="/_blob/88294483e380df3b0fb980ee2c0b5d07" alt="The uploaded picture" style="width: 100%; height: 100%; object-fit: cover;">
+            <button type="button" aria-label="Face focus, 48% across, 30% down. Use the arrow keys to move it." style="position: absolute; left: 162px; top: 110px; width: 96px; height: 96px; border-radius: 50%; border: 2px solid #ffffff; box-shadow: 0 0 0 2px rgba(0,0,0,0.45), 0 0 0 9999px rgba(4,7,20,0.35); background: transparent; cursor: move;"></button>
+          </div>
+          <div class="col" style="gap: 18px;">
+            <span class="spec-cap">How it crops</span>
+            <div class="row" style="gap: 16px; align-items: flex-end;">
+              <img src="/_blob/88294483e380df3b0fb980ee2c0b5d07" alt="" style="width: 20px; height: 20px; border-radius: 50%; object-fit: cover; object-position: 48% 30%;">
+              <img src="/_blob/88294483e380df3b0fb980ee2c0b5d07" alt="" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover; object-position: 48% 30%;">
+              <img src="/_blob/88294483e380df3b0fb980ee2c0b5d07" alt="" style="width: 164px; height: 200px; border-radius: 16px; object-fit: cover; object-position: 48% 30%;">
+              <img src="/_blob/88294483e380df3b0fb980ee2c0b5d07" alt="" style="width: 272px; height: 150px; border-radius: 16px; object-fit: cover; object-position: 48% 30%;">
+            </div>
+            <span class="t-meta">Avatar · list · card · scene widget</span>
+            <x-import component-from-global-scope="Kataki.TextField" label="Describe the picture" hint="Read aloud by screen readers. About them, not the file." default-value="Nico, paint on her sleeves, half-smiling"></x-import>
+            <x-import component-from-global-scope="Kataki.Callout" tone="bad" title="That file isn’t a picture Kataki can use">PNG, JPG or WEBP, up to 20 MB. PORTRAIT_UNSUPPORTED</x-import>
+          </div>
+        </div>
+        <div class="dlg__foot"><span class="dlg__note">The file is copied into your library. The original isn’t changed.</span><div class="k-btngroup"><x-import component-from-global-scope="Kataki.Button" variant="ghost">Cancel</x-import><x-import component-from-global-scope="Kataki.Button" variant="primary">Use it</x-import></div></div>
+      </section>
+    </div></div>
+  </sc-if>
+
+  <sc-if value="{{ovDiscard}}" hint-placeholder-val="{{false}}">
+    <div class="ov"><div class="ov__dim"></div><div class="ov__win">
+      <x-import component-from-global-scope="Kataki.Dialog" size="sm" icon="alert" tone="warm" title="Leave without saving?" description="You changed About them and Their secret. If you leave now, those changes are lost." actions="{{discardActions}}"></x-import>
+    </div></div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"mode":{"editor":"enum","options":["new","full","errors","edit"],"default":"new"},"overlay":{"editor":"enum","options":["none","picker","focus","discard"],"default":"none"},"$preview":{"width":1440,"height":1200}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var A = window.KApp;
+    var mode = this.props.mode || 'new', ov = this.props.overlay || 'none';
+    var edit = mode === 'edit', full = mode === 'full' || edit, errors = mode === 'errors';
+    var h = (mode === 'full' || mode === 'edit') ? 1900 : 1200;
+    var d = edit ? {
+      name: 'Mike', hi: '*flips the sign back around* Ten minutes. Drink it fast or I’m putting you to work.',
+      about: 'Barista at Halcyon Coffee on Mercer Street. Twenty-four. Keeps his head down and his counter clean. His mother is the queen’s hairdresser.',
+      tags: 'Barista, Steady, Private', t1: 'Ten minutes. Drink it fast or I’m putting you to work.', t2: '*wipes the counter twice* It’s fine. It’s not fine, but it’s fine.',
+      secret: 'He cuts the queen’s hair now. His mother’s hands shake and no one can know.', pron: 'he / him'
+    } : errors ? { name: '', hi: '', about: '', tags: '', t1: '', t2: '', secret: '', pron: 'she / her' } : {
+      name: 'Dani', hi: '*sets the bucket down, wipes her hands* Back gate’s locked again.',
+      about: full ? 'Florist. Delivers to the palace back gate twice a week and knows every guard by first name.' : '',
+      tags: full ? 'Florist, Chatty' : '', t1: full ? 'You want the lilies or the ones that don’t make the queen sneeze?' : '', t2: full ? '*counts stems under her breath* Eleven. Always eleven.' : '',
+      secret: full ? 'She has been carrying letters out of the palace for someone, and she has read every one.' : '', pron: 'she / her'
+    };
+    var filled = function (v) { return v ? 'Written' : 'Empty'; };
+    return A.page(this, {
+      h: h, hpx: h + 'px', s16: 16, s18: 18, m40: 40, r2: 2, r3: 3, r4: 4,
+      isNew: !edit, isEdit: edit, isErrors: errors,
+      pageTitle: edit ? 'Edit Mike' : 'New character',
+      pageSub: edit ? 'Made 24 May · 4 stories · 63 memories' : 'Two things are required. Everything else can wait, or never happen.',
+      noFace: !edit, hasFace: edit,
+      nameVal: d.name, hiVal: d.hi, hasHi: !!d.hi,
+      nameErr: errors ? 'Give them a name. It’s the one thing Kataki can’t guess.' : '',
+      hiErr: errors ? 'Write how they say hi. It’s their first line in every new story.' : '',
+      moods: ['Warm', 'Guarded', 'In a hurry', 'Mid-argument'],
+      open: full, openStr: full ? 'true' : 'false',
+      aboutVal: d.about, tagsVal: d.tags, talk1: d.t1, talk2: d.t2, secretVal: d.secret,
+      aboutState: filled(d.about), talkState: filled(d.t1), secretState: filled(d.secret),
+      relState: full ? '2 people' : 'Empty', placeState: full ? '2 places' : 'Empty',
+      filledCount: full ? '5 of 6 written' : '0 of 6 written',
+      pronouns: ['she / her', 'he / him', 'they / them', 'Something else'], pronounVal: d.pron,
+      relWho1: edit ? ['Theo', 'Liv', 'Jae'] : ['Jae', 'Mike', 'Theo'], relHow: edit ? ['wary', 'fond', 'close', 'uneasy', 'hostile', 'never met'] : ['fond', 'wary', 'close', 'uneasy', 'hostile', 'never met'],
+      relWho2: edit ? ['Liv', 'Theo', 'Jae'] : ['Mike', 'Jae', 'Theo'], relHow2: edit ? ['fond', 'wary', 'close', 'uneasy', 'hostile', 'never met'] : ['wary', 'fond', 'close', 'uneasy', 'hostile', 'never met'],
+      modelOpts: ['Default · qwen3.5-9b', 'qwen3.5-9b · llama.cpp', 'kataki-small-3b · Kataki’s own', 'qwen/qwen3.5-72b · OpenRouter'],
+      fade: ['Like Settings · life-like', 'Fast', 'Life-like', 'Slow', 'Never'],
+      previewWho: edit ? 'mike' : 'dani', previewName: d.name || 'No name yet', previewLine: d.about ? d.about.split('.')[0] + '.' : '',
+      previewWhen: edit ? 'Played 2 hours ago' : 'Never played', previewBadge: edit ? '' : (d.secret ? '' : 'Draft'),
+      readyTone: errors ? 'bad' : 'ok',
+      readyTitle: errors ? 'Not yet' : edit ? 'He stays the same person' : 'They can start now',
+      readyText: errors ? 'A name and a greeting is all it takes.' : edit ? 'Edits change who he is from now on, not what already happened.' : (d.secret ? 'Everything that matters is here. Dani is ready for a story.' : 'A name and a greeting is enough to play. Dani stays a draft until you give her a secret; that is the part that makes someone behave like a person.'),
+      primaryLabel: edit ? 'Save changes' : d.name ? 'Create ' + d.name : 'Create',
+      cantCreate: false,
+      ovPicker: ov === 'picker', ovFocus: ov === 'focus', ovDiscard: ov === 'discard',
+      discardActions: [A.btn('ghost', 'Keep editing'), A.btn('danger', 'Discard changes'), A.btn('primary', 'Save and leave')]
+    });
+  }
+}
+</script>
+</body>
+</html>

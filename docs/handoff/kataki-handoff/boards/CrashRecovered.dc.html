@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · After a crash</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div data-theme="{{theme}}" style="position: relative; width: 1440px; height: 1360px; overflow: hidden;">
+  <div class="under" aria-hidden="true"><dc-import name="Home" theme="{{theme}}" hint-size="1440px,1360px"></dc-import></div>
+  <div class="ov">
+    <div class="ov__dim"></div>
+    <div class="ov__win">
+      <x-import component-from-global-scope="Kataki.Dialog" icon="refresh" tone="warm" title="Kataki closed unexpectedly" description="Last time, Kataki stopped at 7:22 pm while Mike was answering. Everything up to his last finished line is safe. The line he was writing is gone." note="Crash log saved · KT-CRASH-0412" actions="{{actions}}">
+        <x-import component-from-global-scope="Kataki.Panel" level="raise">
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <x-import component-from-global-scope="Kataki.KeyValue" icon="book" label="Last story">Two Sugars, No Title · saved at 7:22 pm</x-import>
+            <x-import component-from-global-scope="Kataki.KeyValue" icon="alert" label="Lost">One unfinished reply from Mike</x-import>
+            <x-import component-from-global-scope="Kataki.KeyValue" icon="shield" label="Checked">Library read cleanly · 412 lines · no damage</x-import>
+          </div>
+        </x-import>
+        <x-import component-from-global-scope="Kataki.Checkbox" label="Ask me before reopening the last scene next time" description="Kataki goes to Home first after a crash either way."></x-import>
+      </x-import>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"$preview":{"width":1440,"height":1360}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var A = window.KApp;
+    return A.page(this, { actions: [A.btn('ghost', 'Report it'), A.btn('secondary', 'Stay here'), A.btn('primary', 'Continue the story')] });
+  }
+}
+</script>
+</body>
+</html>

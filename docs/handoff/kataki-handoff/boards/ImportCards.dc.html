@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · Import cards</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}.imp{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:14px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--hairline)}.imp:last-child{border-bottom:0}.imp__face{width:44px;height:44px;border-radius:50%;background:var(--raise);display:flex;align-items:center;justify-content:center;color:var(--faint);font-family:var(--font-story);font-size:18px}</style>
+</helmet>
+<div data-theme="{{theme}}" style="position: relative; width: 1440px; height: 1100px; overflow: hidden;">
+  <div class="under" aria-hidden="true"><dc-import name="Characters" theme="{{theme}}" hint-size="1440px,1100px"></dc-import></div>
+  <div class="ov">
+    <div class="ov__dim"></div>
+    <div class="ov__win">
+      <section class="dlg dlg--lg" role="dialog" aria-modal="true" aria-labelledby="imp-title">
+        <div class="dlg__head">
+          <span class="dlg__icon"><x-import component-from-global-scope="Kataki.Icon" name="download" size="{{s20}}"></x-import></span>
+          <div class="dlg__titles">
+            <h2 class="dlg__title" id="imp-title">Import cards</h2>
+            <p class="dlg__desc">Character cards from SillyTavern, Chub or Janitor: PNG with the card inside, or JSON. Lorebooks come in as places and plots.</p>
+          </div>
+          <x-import component-from-global-scope="Kataki.IconButton" icon="x" label="Close" size="sm"></x-import>
+        </div>
+        <div class="dlg__body">
+          <x-import component-from-global-scope="Kataki.DropZone" icon="download" title="Drop cards here" description="Several at once, or a whole folder. Nothing is added until you press Import.">
+            <x-import component-from-global-scope="Kataki.Button" size="sm">Choose files</x-import>
+            <x-import component-from-global-scope="Kataki.Button" size="sm" variant="ghost">Choose a folder</x-import>
+          </x-import>
+          <div class="row" style="justify-content: space-between;">
+            <span style="font-size: 14px; font-weight: 700;">4 found in Downloads\cards</span>
+            <span class="t-meta">3 ready · 1 already here · 1 can’t be read</span>
+          </div>
+          <div class="card" style="background: var(--raise);">
+            <div class="imp">
+              <span class="imp__face">A</span>
+              <div><div style="font-family: var(--font-story); font-size: 17px; font-weight: 600;">Ada Wren</div><div class="t-meta">ada_wren.png · Card V2 · 2 places, 1 plot in its lorebook</div></div>
+              <x-import component-from-global-scope="Kataki.StatePill" tone="ok">Ready</x-import>
+            </div>
+            <div class="imp">
+              <span class="imp__face">B</span>
+              <div><div style="font-family: var(--font-story); font-size: 17px; font-weight: 600;">Brother Anselm</div><div class="t-meta">anselm.json · Card V3 · no portrait, gets an initial</div></div>
+              <x-import component-from-global-scope="Kataki.StatePill" tone="ok">Ready</x-import>
+            </div>
+            <div class="imp">
+              <x-import component-from-global-scope="Kataki.Avatar" who="mike" size="{{s44}}" alt="Mike"></x-import>
+              <div><div style="font-family: var(--font-story); font-size: 17px; font-weight: 600;">Mike</div><div class="t-meta">mike_barista.png · someone called Mike is already here</div></div>
+              <div style="width: 200px;"><x-import component-from-global-scope="Kataki.Select" label="" options="{{dupe}}"></x-import></div>
+            </div>
+            <div class="imp">
+              <span class="imp__face"><x-import component-from-global-scope="Kataki.Icon" name="alert" size="{{s18}}" color="var(--bad)"></x-import></span>
+              <div><div style="font-size: 14px; font-weight: 700;">holiday_card.png</div><div class="t-meta">No character card inside this picture. IMPORT_NO_CARD</div></div>
+              <x-import component-from-global-scope="Kataki.StatePill" tone="bad">Skipped</x-import>
+            </div>
+          </div>
+          <x-import component-from-global-scope="Kataki.Checkbox" label="Bring their example conversations in as “How they talk”" default-checked="{{yes}}"></x-import>
+        </div>
+        <div class="dlg__foot">
+          <span class="dlg__note">Copied into your library. The files you chose aren’t changed or moved.</span>
+          <div class="k-btngroup">
+            <x-import component-from-global-scope="Kataki.Button" variant="ghost">Cancel</x-import>
+            <x-import component-from-global-scope="Kataki.Button" variant="primary">Import 3</x-import>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"$preview":{"width":1440,"height":1100}}'>
+class Component extends DCLogic {
+  renderVals() { return window.KApp.page(this, { s18: 18, s20: 20, s44: 44, dupe: ['Keep both', 'Replace the one here', 'Skip this card'] }); }
+}
+</script>
+</body>
+</html>

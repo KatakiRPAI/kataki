@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · Home</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div data-theme="{{theme}}" class="app" style="height: 1360px;">
+  <div class="app__sky"><x-import component-from-global-scope="Kataki.Sky" style="position: absolute; inset: 0px;"></x-import></div>
+  <x-import component-from-global-scope="Kataki.Rail" active="Home" settings-dot="{{yes}}" theme="{{theme}}" hrefs="{{hrefs}}" on-navigate="{{nav}}" height="{{h}}" class="app__rail"></x-import>
+
+  <main class="app__main" aria-label="Home">
+    <a href="Scene.dc.html" class="sr">Skip to the story</a>
+    <x-import component-from-global-scope="Kataki.TopBar" who="liv" name="Liv"></x-import>
+
+    <sc-if value="{{offline}}" hint-placeholder-val="{{false}}">
+      <x-import component-from-global-scope="Kataki.StatusLine" tone="bad" title="Nobody is answering" action="{{offlineAction}}">llama.cpp at localhost:8080 stopped answering 4 minutes ago. You can read, edit and export everything; new replies wait until it is back.</x-import>
+    </sc-if>
+
+    <x-import component-from-global-scope="Kataki.ContinueHero" title="Two Sugars, No Title" book="Close to the Crown" last-line="“…I could have sworn. Three weeks is a long time to hold one sentence.”" who="mike" mood="Doubtful" stats="41 memories · 2 changed since you left" where="Three weeks later · Corvel Palace · 7:22 pm" place="corvel-palace" caption="the gala, three weeks later" place-alt="Corvel Palace on the night of the gala" continue-href="Scene.dc.html" new-href="NewStory.dc.html"></x-import>
+
+    <section class="sec" aria-label="Since you last played">
+      <div style="display: flex; gap: 22px; align-items: baseline;">
+        <x-import component-from-global-scope="Kataki.Eyebrow">Since you last played</x-import>
+        <span class="t-faint">3 events · 2 hours ago</span>
+      </div>
+      <div style="display: flex; gap: 12px;">
+        <x-import component-from-global-scope="Kataki.EventCard" who="mike" name="Mike" event="Memory faded" tone="warm" memory="“She didn’t want to be on the gala list.”" meta="sharp → hazy"></x-import>
+        <x-import component-from-global-scope="Kataki.EventCard" who="mike" name="Mike" event="Memory doubted" tone="warm" memory="“She says she never said it.”" meta="conflicts with 1 memory"></x-import>
+        <x-import component-from-global-scope="Kataki.EventCard" who="theo" name="Theo" event="New memory" tone="ok" memory="“Liv sent him to the back for milk.”" meta="witnessed"></x-import>
+      </div>
+    </section>
+
+    <section class="sec" aria-label="Your characters">
+      <div class="sec-head">
+        <h2 class="sec-title">Your characters</h2>
+        <div class="row" style="gap: 8px;">
+          <x-import component-from-global-scope="Kataki.Chip" default-pressed="{{yes}}" count="{{c5}}" size="sm">All</x-import>
+          <x-import component-from-global-scope="Kataki.Chip" count="{{c1}}" size="sm">In a story</x-import>
+          <x-import component-from-global-scope="Kataki.Chip" count="{{c1}}" size="sm">Drafts</x-import>
+        </div>
+      </div>
+      <div style="display: flex; gap: 16px; align-items: flex-start;">
+        <a href="Profile.dc.html" aria-label="Mike, in a story"><x-import component-from-global-scope="Kataki.CharacterCard" who="mike" name="Mike" when="Played 2 hours ago · wary" featured="{{yes}}" badge="In a story" badge-tone="warm" alt="Mike, leaning on the counter, looking wary"></x-import></a>
+        <x-import component-from-global-scope="Kataki.CharacterCard" who="theo" name="Theo" when="Played yesterday" alt="Theo"></x-import>
+        <x-import component-from-global-scope="Kataki.CharacterCard" who="nico" name="Nico" when="Played 4 days ago" alt="Nico"></x-import>
+        <x-import component-from-global-scope="Kataki.CharacterCard" who="jae" name="Jae" when="Played last week" alt="Jae"></x-import>
+        <x-import component-from-global-scope="Kataki.CharacterCard" who="dani" name="Dani" when="No secret yet" badge="Draft"></x-import>
+        <x-import component-from-global-scope="Kataki.AddCard" href="NewCharacter.dc.html" sub="or import a card">New character</x-import>
+      </div>
+    </section>
+
+    <section class="sec" aria-label="Other threads">
+      <div class="sec-head">
+        <h2 class="sec-title">Other threads</h2>
+        <x-import component-from-global-scope="Kataki.TextLink" href="Stories.dc.html">All stories</x-import>
+      </div>
+      <div style="display: flex; gap: 14px; align-items: stretch;">
+        <x-import component-from-global-scope="Kataki.StoryCard" people="{{jaeLiv}}" title="The Gala List" book="Close to the Crown" quote="“Officially? No comment. Unofficially, be there by eight.”" when="Played last week" story-time="two days before the gala"></x-import>
+        <x-import component-from-global-scope="Kataki.StoryCard" who="nico" title="Three in the Morning" book="The Flat on Ardenne" quote="“You’re not going to like this painting.”" when="Played 4 days ago" story-time="the night before a game"></x-import>
+        <x-import component-from-global-scope="Kataki.StoryCard" who="cas" title="The Long Way Home" book="Not in a book · as Cas" quote="“Leave it. We’ll push.”" when="Played 3 weeks ago" story-time="the week the engine died"></x-import>
+      </div>
+    </section>
+
+    <div class="privacy">
+      <x-import component-from-global-scope="Kataki.Icon" name="lock" size="{{s16}}"></x-import>
+      <span>Everything here lives on this computer.</span>
+      <a href="SetData.dc.html">Where is my data?</a>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"offline":{"editor":"boolean","default":false},"$preview":{"width":1440,"height":1360}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var A = window.KApp;
+    return A.page(this, {
+      h: 1360, s16: 16, c1: 1, c5: 5,
+      offline: !!this.props.offline,
+      offlineAction: A.el('Button', { size: 'sm', href: 'ModelGone.dc.html' }, 'What happened'),
+      jaeLiv: [{ who: 'jae' }, { who: 'liv' }]
+    });
+  }
+}
+</script>
+</body>
+</html>

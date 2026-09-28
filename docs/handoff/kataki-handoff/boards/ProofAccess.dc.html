@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · Keyboard, focus, motion, contrast</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.g2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px;align-items:start}
+.blk{display:flex;flex-direction:column;gap:14px;padding:22px 24px}
+.blk h2{margin:0;font-family:var(--font-display);font-size:22px;font-weight:700}
+.fr .k-btn,.fr .k-iconbtn,.fr .k-chip,.fr .k-input{box-shadow:var(--focus-ring)}
+.fr-row{display:flex;flex-wrap:wrap;gap:18px;align-items:center}
+.ord{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 20px;counter-reset:o}
+.ord li{counter-increment:o;display:flex;gap:10px;align-items:baseline;font-size:13.5px;line-height:19px;color:var(--mid)}
+.ord li::before{content:counter(o);flex-shrink:0;width:22px;height:22px;border-radius:11px;background:var(--accent);color:var(--on-accent,#fff);font-size:11.5px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+.mt{display:grid;grid-template-columns:200px minmax(0,1fr) minmax(0,1fr);font-size:13px;line-height:18px}
+.mt > span{padding:8px 10px;border-bottom:1px solid var(--hairline);color:var(--mid)}
+.mt > span.h{font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint)}
+.mt > span.n{color:var(--ink);font-weight:600}
+.hc{--border:rgba(255,255,255,.55);--hairline:rgba(255,255,255,.4);--muted:#dfe6ff;--faint:#c9d3f5;--mid:#f2f5ff}
+.hc .k-sky,.hc .sample__sky{opacity:.25}
+.sample{position:relative;overflow:hidden;border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:12px;background:var(--ground);border:1px solid var(--border)}
+</style>
+</helmet>
+<div data-theme="{{theme}}" class="board" style="height: 1100px;">
+  <header>
+    <div class="board__kicker">R5 · Proof · access</div>
+    <h1 class="board__title">Keyboard, focus, motion, contrast</h1>
+    <p class="board__lede">Nothing in Kataki needs a mouse. These are the rules every board above follows; KEYBOARD.md and ACCESSIBILITY in the spec have the full lists.</p>
+  </header>
+  <div class="g2">
+    <section class="card blk" aria-labelledby="pa-focus">
+      <h2 id="pa-focus">Focus ring</h2>
+      <span class="t-body">:focus-visible only. 2 px of the ground colour, then 2 px of accent (--focus-ring). In a story the accent is the scene primary. Never removed, never clipped: containers that scroll get 4 px of inner padding.</span>
+      <div class="fr fr-row">
+        <x-import component-from-global-scope="Kataki.Button" variant="primary">Continue</x-import>
+        <x-import component-from-global-scope="Kataki.Button">New story</x-import>
+        <x-import component-from-global-scope="Kataki.IconButton" icon="dots" label="More"></x-import>
+        <x-import component-from-global-scope="Kataki.Chip" size="sm">Favourites</x-import>
+      </div>
+    </section>
+    <section class="card blk" aria-labelledby="pa-order">
+      <h2 id="pa-order">Tab order on Home</h2>
+      <ol class="ord">
+        <li>Skip to the story (hidden until focused)</li>
+        <li>Rail · one stop, ↑ ↓ move, Enter goes</li>
+        <li>New character</li>
+        <li>Persona switch</li>
+        <li>Search</li>
+        <li>Continue</li>
+        <li>New story</li>
+        <li>Character filter chips</li>
+        <li>Character cards · one stop, arrows move</li>
+        <li>All stories</li>
+        <li>Story cards · one stop, arrows move</li>
+        <li>Where is my data?</li>
+      </ol>
+      <span class="t-meta">In a story, focus lands in the composer. F6 cycles header → story → composer → widgets. Esc closes the top overlay and returns focus to what opened it.</span>
+    </section>
+    <section class="card blk" aria-labelledby="pa-motion">
+      <h2 id="pa-motion">Reduced motion</h2>
+      <span class="t-body">Appearance › Reduce motion: Follow Windows (default), Always, Never. Every moving thing has a still form:</span>
+      <div class="mt" role="table" aria-label="Motion and its still form">
+        <span class="h" role="columnheader">Motion</span><span class="h" role="columnheader">Normal</span><span class="h" role="columnheader">Reduced</span>
+        <span class="n">Entering a story</span><span>clouds part, 600 ms</span><span>crossfade, 150 ms</span>
+        <span class="n">Changing place</span><span>clouds close and part, 900 ms</span><span>crossfade, 200 ms</span>
+        <span class="n">Time skip</span><span>clouds sweep, card rises</span><span>card appears</span>
+        <span class="n">A reply arriving</span><span>words stream, caret blinks</span><span>words stream, caret steady</span>
+        <span class="n">Widgets appearing</span><span>slide and fade, 220 ms</span><span>fade, 120 ms</span>
+        <span class="n">Toasts</span><span>rise and fade</span><span>fade</span>
+        <span class="n">The Sky</span><span>stars twinkle</span><span>stars still</span>
+      </div>
+    </section>
+    <section class="card blk" aria-labelledby="pa-hc">
+      <h2 id="pa-hc">High contrast</h2>
+      <span class="t-body">Appearance › High contrast raises every border and hairline, lifts muted text to near-ink, and dims the sky to a quarter. Colours of meaning (warm, ok, bad) don’t change. Windows high-contrast mode (forced-colors) is respected on top.</span>
+      <div class="g2" style="gap: 14px;">
+        <div class="sample"><span class="t-meta">Normal</span><x-import component-from-global-scope="Kataki.TextField" label="Name" hint="What you call them." default-value="Mike" story="{{yes}}"></x-import><x-import component-from-global-scope="Kataki.StatePill" tone="warm">Doubtful</x-import></div>
+        <div class="sample hc"><span class="t-meta">High contrast</span><x-import component-from-global-scope="Kataki.TextField" label="Name" hint="What you call them." default-value="Mike" story="{{yes}}"></x-import><x-import component-from-global-scope="Kataki.StatePill" tone="warm">Doubtful</x-import></div>
+      </div>
+      <span class="t-meta">What screen readers hear: a reply once it finishes (“Mike: …”), reactions after it, errors at once (assertive), a time skip as its card text. Streaming text is never read word by word.</span>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"$preview":{"width":1440,"height":1100}}'>
+class Component extends DCLogic {
+  renderVals() { return window.KApp.page(this, {}); }
+}
+</script>
+</body>
+</html>

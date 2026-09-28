@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · Every menu in a story</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.sboard{position:relative;box-sizing:border-box;width:1440px;height:1300px;padding:56px 72px 72px;overflow:hidden;background:#1a1410;color:var(--scene-ink);font-family:var(--font-ui);display:flex;flex-direction:column;gap:32px}
+.sboard__bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(18px) brightness(.28);transform:scale(1.1)}
+.sboard > *:not(.sboard__bg){position:relative}
+.sboard .board__kicker{color:var(--scene-action)}
+.sboard .board__title{color:var(--scene-ink)}
+.sboard .board__lede{color:var(--scene-muted)}
+.mgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:36px 32px;align-items:start}
+.mcell{display:flex;flex-direction:column;gap:10px;min-width:0}
+.mcell__name{font-family:var(--font-mono);font-size:12.5px;color:var(--scene-action)}
+.mcell__where{font-size:12.5px;line-height:17px;color:var(--scene-muted)}
+.mcell .k-menu{width:100%;box-sizing:border-box}
+.find{display:flex;flex-direction:column;gap:6px;padding:10px;border-radius:18px;background:var(--scene-composer);border:1px solid var(--scene-border)}
+.find input{height:36px;padding:0 12px;border-radius:12px;border:1px solid var(--scene-border);background:rgba(0,0,0,.2);color:var(--scene-ink);font:inherit;font-size:13.5px}
+.find__hit{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:10px;font-size:13px;line-height:18px}
+.find__hit:hover,.find__hit.is-active{background:var(--scene-glass)}
+.find__hit mark{background:rgba(255,200,120,.3);color:inherit;border-radius:3px}
+.find__foot{display:flex;justify-content:space-between;padding:4px 10px 2px;font-size:12px;color:var(--scene-muted)}
+</style>
+</helmet>
+<div data-theme="{{theme}}" class="sboard">
+  <img class="sboard__bg" src="/_blob/1e023859469874b847f3f6c9eb3831a9" alt="">
+  <header>
+    <div class="board__kicker">M2 · Menus · in a story</div>
+    <h1 class="board__title">Every menu in a story</h1>
+    <p class="board__lede">Scene menus use the warm scene surface, never the Sky one. Same keyboard rules: arrows, Enter, Esc returns focus. Right-click opens the menu of whatever is under the pointer; Shift F10 opens it for whatever has focus.</p>
+  </header>
+  <div class="mgrid">
+    <sc-for list="{{menus}}" as="m" hint-placeholder-count="7">
+      <div class="mcell">
+        <span class="mcell__name">{{m.name}}</span>
+        <span class="mcell__where">{{m.where}}</span>
+        <div class="k-menu k-menu--scene" role="menu" aria-label="{{m.name}}">
+          <sc-if value="{{m.title}}" hint-placeholder-val="{{false}}"><div class="k-menu__title">{{m.title}}</div></sc-if>
+          <sc-for list="{{m.items}}" as="i" hint-placeholder-count="6">
+            <sc-if value="{{i.div}}" hint-placeholder-val="{{false}}"><div class="k-menu__divider" role="separator"></div></sc-if>
+            <sc-if value="{{i.item}}" hint-placeholder-val="{{true}}">
+              <button type="button" role="{{i.role}}" aria-checked="{{i.ac}}" class="k-menu__item {{i.cls}}" disabled="{{i.dis}}">
+                <sc-if value="{{i.who}}" hint-placeholder-val="{{false}}"><x-import component-from-global-scope="Kataki.Avatar" who="{{i.who}}" size="{{s22}}" alt="" away="{{i.away}}"></x-import></sc-if>
+                <sc-if value="{{i.icon}}" hint-placeholder-val="{{true}}"><x-import component-from-global-scope="Kataki.Icon" name="{{i.icon}}" size="{{s16}}"></x-import></sc-if>
+                <sc-if value="{{i.blank}}" hint-placeholder-val="{{false}}"><span class="k-menu__noicon"></span></sc-if>
+                <span class="k-menu__label">{{i.label}}<span class="k-menu__detail">{{i.detail}}</span></span>
+                <sc-if value="{{i.keys}}" hint-placeholder-val="{{false}}"><x-import component-from-global-scope="Kataki.Shortcut" keys="{{i.keys}}"></x-import></sc-if>
+                <sc-if value="{{i.checked}}" hint-placeholder-val="{{false}}"><x-import component-from-global-scope="Kataki.Icon" name="check" size="{{s15}}"></x-import></sc-if>
+              </button>
+            </sc-if>
+          </sc-for>
+        </div>
+      </div>
+    </sc-for>
+    <div class="mcell">
+      <span class="mcell__name">ModeMenu</span>
+      <span class="mcell__where">Composer mode chip · Auto shows what it detected</span>
+      <x-import component-from-global-scope="Kataki.ModeMenu" value="Whisper"></x-import>
+    </div>
+    <div class="mcell">
+      <span class="mcell__name">FindInStory</span>
+      <span class="mcell__where">Search button in the Scene · Ctrl F · Enter jumps, Shift Enter goes back</span>
+      <div class="find" role="dialog" aria-label="Find in this story">
+        <input type="search" value="gala" aria-label="Find in this story">
+        <div class="find__hit is-active"><span class="scene-t">Liv · 7:12 pm · the evening it rained</span><span>…I’m on the <mark>gala</mark> list and I don’t want to be…</span></div>
+        <div class="find__hit"><span class="scene-t">Title card · three weeks later</span><span>Corvel Palace · the <mark>gala</mark></span></div>
+        <div class="find__hit"><span class="scene-t">Mike · 7:18 pm</span><span>You said you weren’t coming to this.</span></div>
+        <div class="find__foot"><span>1 of 3</span><span>Esc to close</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"$preview":{"width":1440,"height":1300}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var A = window.KApp;
+    var mk = function (list) {
+      return list.map(function (m) {
+        if (m === '-') return { div: true, item: false };
+        var chk = m.checked !== undefined;
+        return { div: false, item: true, icon: m.who ? '' : (m.icon || ''), who: m.who || '', away: !!m.away, blank: !m.icon && !m.who, label: m.label, detail: m.detail || '', keys: m.keys || null, checked: !!m.checked, role: chk ? 'menuitemradio' : 'menuitem', ac: chk ? String(!!m.checked) : undefined, dis: m.disabled ? true : undefined, cls: (m.danger ? 'is-danger' : '') + (m.checked ? ' is-active' : '') };
+      });
+    };
+    return A.page(this, {
+      s15: 15, s16: 16, s22: 22,
+      menus: [
+        { name: 'SceneStoryMenu', where: 'Scene ··· top right', items: mk([{ icon: 'layers', label: 'Edit widgets', detail: 'Move, pin, remove or add', keys: ['Ctrl', 'E'] }, { icon: 'book', label: 'Reading mode', detail: 'Just the story', keys: ['Ctrl', 'Shift', 'R'] }, { icon: 'map-pin', label: 'Scene and place', detail: 'Where, when, who is here' }, { icon: 'clock', label: 'Pass time', detail: 'Skip ahead in the story' }, { icon: 'quote', label: 'Drop in a plot…', detail: 'Start something from World' }, { icon: 'cpu', label: 'Backstage', detail: 'How replies are made', keys: ['Ctrl', 'B'] }, { icon: 'settings', label: 'Story settings', detail: 'Persona, book, models, memory' }, '-', { icon: 'download', label: 'Export story…' }, { icon: 'pushpin', label: 'Pin to Home' }, { icon: 'help', label: 'Tell us something', keys: ['Ctrl', 'Shift', 'F'] }, '-', { icon: 'trash', label: 'Delete story…', danger: true }]) },
+        { name: 'LineMenu', where: 'Right-click a line, or ··· in its line tools', items: mk([{ icon: 'layers', label: 'Copy the line' }, { icon: 'edit', label: 'Edit', keys: ['↑'], detail: 'your last line only by key' }, { icon: 'refresh', label: 'New take', keys: ['Ctrl', 'R'], detail: 'replies only' }, { icon: 'eyeoff', label: 'Hide from the story' }, { icon: 'swap', label: 'Branch a new story from here' }, '-', { icon: 'undo', label: 'Rewind to here…', danger: true, detail: 'removes the 4 lines after it' }, { icon: 'trash', label: 'Delete this line…', danger: true }]) },
+        { name: 'CharacterWidgetMenu', where: 'Right-click a character widget', items: mk([{ icon: 'user', label: 'Open Mike’s card' }, { icon: 'chat', label: 'Let him answer next' }, { icon: 'arrow', label: 'Send him away' }, { icon: 'pushpin', label: 'Unpin', detail: 'shows only when he acts' }, '-', { icon: 'x', label: 'Remove widget' }]) },
+        { name: 'WhoAnswersMenu', where: 'Composer Advanced · the ··· after the Answers chips, when more than three could answer', title: 'Who answers next', items: mk([{ icon: 'spark', label: 'Whoever fits', detail: 'Kataki decides', checked: true }, { who: 'mike', label: 'Mike', checked: false }, { who: 'theo', away: true, label: 'Theo', detail: 'away · send for him first', checked: false, disabled: true }, { icon: 'feather', label: 'The narrator', checked: false }, { icon: 'hand', label: 'Nobody', detail: 'I’ll keep going', checked: false }]) },
+        { name: 'WidgetMenu', where: 'Right-click any other widget', items: mk([{ icon: 'pushpin', label: 'Unpin' }, { icon: 'layers', label: 'Duplicate' }, { icon: 'drag', label: 'Move', keys: ['Space'] }, '-', { icon: 'x', label: 'Remove widget' }, { icon: 'grid', label: 'Edit all widgets', keys: ['Ctrl', 'E'] }]) },
+        { name: 'ClockMenu', where: 'Right-click the story clock', items: mk([{ icon: 'clock', label: 'Pass time…' }, { icon: 'eye', label: 'Show the real date', detail: '24 May, by the story’s calendar' }, { icon: 'refresh', label: 'Set the time…' }, '-', { icon: 'x', label: 'Remove widget' }]) },
+        { name: 'MusicMenu', where: 'Right-click the music widget', items: mk([{ icon: 'pause', label: 'Pause' }, { icon: 'ff', label: 'Next track' }, { icon: 'spark', label: 'Match the scene', checked: true }, { icon: 'volume', label: 'Choose…' }, { icon: 'mute', label: 'Mute', keys: ['Ctrl', 'M'] }, '-', { icon: 'x', label: 'Remove widget' }]) }
+      ]
+    });
+  }
+}
+</script>
+</body>
+</html>

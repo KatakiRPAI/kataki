@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · Backstage</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.bsx{position:absolute;inset:84px 24px 24px;z-index:11;display:grid;grid-template-columns:300px minmax(0,1fr) 320px;gap:20px;align-items:start}
+.bsx--wide{grid-template-columns:300px minmax(0,1fr)}
+.bcol{display:flex;flex-direction:column;gap:16px;min-width:0}
+.who-tabs{display:flex;gap:6px}
+.who-tab{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 12px 0 4px;border-radius:17px;border:1px solid var(--bs-line);background:transparent;color:var(--bs-muted);font-family:var(--font-mono);font-size:12px;cursor:pointer}
+.who-tab[aria-selected="true"]{background:var(--bs-panel);color:var(--bs-ink);border-color:var(--bs-accent, #6aa8ff)}
+.mg{display:grid;grid-template-columns:minmax(0,1fr) 22px minmax(0,1fr) 22px minmax(0,1fr) 22px minmax(0,1fr);gap:0;align-items:stretch}
+.mg__col{display:flex;flex-direction:column;gap:10px;min-width:0}
+.mg__arrow{display:flex;align-items:center;justify-content:center;color:var(--bs-muted)}
+.mg__arrow i{display:block;width:12px;height:1px;background:currentColor;position:relative}
+.mg__arrow i::after{content:"";position:absolute;inset-inline-end:-1px;top:-3px;border:3.5px solid transparent;border-inline-start:5px solid currentColor;border-inline-end:0}
+.mg .k-node{cursor:pointer}
+.mg .is-sel .k-node{outline:2px solid #ffd08a;outline-offset:2px;border-radius:10px}
+.decide{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border:1px solid var(--bs-line);border-radius:12px;font-size:12px;line-height:16px}
+.decide b{font-weight:500;color:var(--bs-ink)}
+.decide span{color:var(--bs-muted)}
+.decide.is-won{border-color:#a9e0c8}
+.bsrow{display:grid;grid-template-columns:120px minmax(0,1fr);gap:10px;font-size:12px;line-height:17px;padding:6px 0;border-bottom:1px solid var(--bs-line)}
+.bsrow:last-child{border-bottom:0}
+.bsrow span:first-child{color:var(--bs-muted)}
+.bsbtn{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:8px;border:1px solid var(--bs-line);background:transparent;color:var(--bs-ink);font-family:var(--font-mono);font-size:11.5px;cursor:pointer}
+.bsbtn:hover{background:var(--bs-panel)}
+.pre{margin:0;padding:14px 16px;border-radius:12px;background:rgba(0,0,0,.3);border:1px solid var(--bs-line);font-family:var(--font-mono);font-size:11.5px;line-height:17px;color:var(--bs-ink);white-space:pre-wrap;overflow:hidden}
+.pre .seg{display:block;color:var(--bs-muted);margin:10px 0 4px}
+.pre .seg:first-child{margin-top:0}
+.mtable{display:flex;flex-direction:column}
+.mrow{display:grid;grid-template-columns:minmax(0,1fr) 110px 100px 110px 70px;gap:12px;align-items:center;padding:8px 4px;border-bottom:1px solid var(--bs-line);font-size:12px;line-height:16px}
+.mrow--head{color:var(--bs-muted);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase}
+.sharp{display:flex;align-items:center;gap:6px}
+.sharp i{display:block;height:4px;border-radius:2px;background:#8cc3ff}
+.logl{display:grid;grid-template-columns:96px 54px 120px minmax(0,1fr);gap:10px;padding:4px 0;font-size:11.5px;line-height:16px}
+.logl--warn .lv{color:#ffd08a}
+.logl--error .lv{color:#ff8fa3}
+.lv{color:#a9e0c8}
+.bsfilter{display:flex;gap:6px;flex-wrap:wrap}
+.bsfilter .bsbtn[aria-pressed="true"]{background:var(--bs-panel);border-color:#6aa8ff}
+.bsin{height:30px;flex:1;padding:0 10px;border-radius:8px;border:1px solid var(--bs-line);background:rgba(0,0,0,.25);color:var(--bs-ink);font-family:var(--font-mono);font-size:12px}
+.turn{display:flex;align-items:center;gap:10px;font-size:11.5px;color:var(--bs-muted)}
+.turn input{flex:1;accent-color:#6aa8ff}
+</style>
+</helmet>
+<div data-theme="{{theme}}" class="scene">
+  <img class="scene__art" src="/_blob/f9ee926a93a1e0c21681768006f8293a" alt="">
+  <div class="scene__tint"></div>
+  <div class="bs" aria-hidden="true"></div>
+  <div class="scene__tl" style="z-index: 12;"><x-import component-from-global-scope="Kataki.SceneHeader" title="Two Sugars, No Title" subtitle="Backstage · turn 41 · 7:22 pm" back-href="Home.dc.html"></x-import></div>
+  <div class="scene__tr" style="z-index: 12;">
+    <x-import component-from-global-scope="Kataki.BackstageToggle" default-on="{{yes}}"></x-import>
+    <x-import component-from-global-scope="Kataki.SceneButton" icon="x" label="Leave Backstage" href="SceneAfterSkip.dc.html"></x-import>
+  </div>
+
+  <div class="bsx {{wideCls}}" role="region" aria-label="Backstage">
+    <div class="bcol">
+      <x-import component-from-global-scope="Kataki.BackstagePanel" title="Engine · this turn" status="engine ok">
+        <x-import component-from-global-scope="Kataki.EngineRow" job="Recall" model="qwen3.5-9b" stat="0.2 s" detail="· 3 of 41 matched"></x-import>
+        <x-import component-from-global-scope="Kataki.EngineRow" job="Feelings" model="qwen3.5-9b" stat="0.6 s" detail="· 3 changed"></x-import>
+        <x-import component-from-global-scope="Kataki.EngineRow" job="Reasoning" model="qwen3.5-9b" stat="4.1 s" detail="· thought 212 tok"></x-import>
+        <x-import component-from-global-scope="Kataki.EngineRow" job="Characters" model="qwen3.5-9b" stat="1.9 s" detail="· 64 tok · 34 tok/s"></x-import>
+        <x-import component-from-global-scope="Kataki.EngineRow" job="Memory reader" model="kataki-small-3b" stat="waiting" detail="· 2 new lines" state="wait"></x-import>
+        <x-import component-from-global-scope="Kataki.EngineRow" job="Narrator" model="—" stat="idle" state="idle"></x-import>
+      </x-import>
+      <x-import component-from-global-scope="Kataki.BackstagePanel" title="Whose mind">
+        <div class="who-tabs" role="tablist" aria-label="Whose mind">
+          <button type="button" class="who-tab" role="tab" aria-selected="true"><x-import component-from-global-scope="Kataki.Avatar" who="mike" size="{{s26}}" alt=""></x-import>Mike</button>
+          <button type="button" class="who-tab" role="tab" aria-selected="false"><x-import component-from-global-scope="Kataki.Avatar" who="theo" size="{{s26}}" away="{{yes}}" alt=""></x-import>Theo · away</button>
+          <button type="button" class="who-tab" role="tab" aria-selected="false">Narrator</button>
+        </div>
+        <div class="turn"><span>turn</span><input type="range" min="1" max="41" value="41" aria-label="Which turn"><span>41 / 41</span></div>
+      </x-import>
+      <div class="bsfilter" role="toolbar" aria-label="Backstage views">
+        <sc-for list="{{views}}" as="t" hint-placeholder-count="4"><a class="bsbtn" href="{{t.href}}" aria-current="{{t.cur}}" style="{{t.style}}">{{t.label}}</a></sc-for>
+      </div>
+    </div>
+
+    <sc-if value="{{isMind}}" hint-placeholder-val="{{true}}">
+      <x-import component-from-global-scope="Kataki.BackstagePanel" title="Mike’s mind · turn 41" action="copy as JSON" action-icon="link">
+        <div class="mg" role="list" aria-label="How Mike’s reply was decided, left to right">
+          <div class="mg__col" role="listitem"><span class="bs-t">In</span>
+            <x-import component-from-global-scope="Kataki.MindNode" kind="HEARD" value="{{n92}}" hot="{{yes}}">Liv: “I never said that. I said I didn’t want to be on it.”</x-import>
+            <x-import component-from-global-scope="Kataki.MindNode" kind="SCENE" value="{{n60}}">Corvel Palace · the gala · night</x-import>
+            <x-import component-from-global-scope="Kataki.MindNode" kind="WHO" value="{{n40}}">Liv · Mike · Theo not here</x-import>
+          </div>
+          <div class="mg__arrow" aria-hidden="true"><i></i></div>
+          <div class="mg__col" role="listitem"><span class="bs-t">Sense</span>
+            <div class="{{recallCls}}"><a href="BackstageNode.dc.html" style="display: block; color: inherit;"><x-import component-from-global-scope="Kataki.MindNode" kind="RECALL" value="{{n42}}" hot="{{yes}}">“Not coming to the gala” · hazy · 3 weeks</x-import></a></div>
+            <x-import component-from-global-scope="Kataki.MindNode" kind="FEELS" value="{{n66}}">warmth +4 · doubt +12</x-import>
+          </div>
+          <div class="mg__arrow" aria-hidden="true"><i></i></div>
+          <div class="mg__col" role="listitem"><span class="bs-t">Inside</span>
+            <x-import component-from-global-scope="Kataki.MindNode" kind="GOALS" value="{{n57}}">Protect his mother · see her again</x-import>
+            <x-import component-from-global-scope="Kataki.MindNode" kind="BELIEFS" value="{{n46}}">She said she wasn’t coming</x-import>
+            <x-import component-from-global-scope="Kataki.MindNode" kind="SECRET" value="{{n30}}">His mother cuts the queen’s hair</x-import>
+          </div>
+          <div class="mg__arrow" aria-hidden="true"><i></i></div>
+          <div class="mg__col" role="listitem"><span class="bs-t">Decide</span>
+            <div class="decide is-won"><b>Say it · doubt, gently</b><span>0.61 · chosen</span></div>
+            <div class="decide"><b>Let it go</b><span>0.24</span></div>
+            <div class="decide"><b>Ask Theo later</b><span>0.15 · Theo isn’t here</span></div>
+          </div>
+        </div>
+      </x-import>
+    </sc-if>
+
+    <sc-if value="{{isNode}}" hint-placeholder-val="{{false}}">
+      <x-import component-from-global-scope="Kataki.BackstagePanel" title="RECALL · Mike · turn 41" action="back to the mind" action-icon="left">
+        <div class="bsrow"><span>asked</span><span>Liv: “I never said that. I said I didn’t want to be on it.”</span></div>
+        <div class="bsrow"><span>searched</span><span>41 memories Mike holds · 0.2 s · qwen3.5-9b embeddings</span></div>
+        <div class="bsrow"><span>threshold</span><span>0.35 · 3 matched</span></div>
+        <span class="bs-t" style="margin-top: 8px;">Matched</span>
+        <div class="mtable">
+          <div class="mrow mrow--head"><span>memory</span><span>sharpness</span><span>source</span><span>score</span><span></span></div>
+          <div class="mrow"><span>She didn’t want to be on the gala list.</span><span class="sharp"><i style="width: 38px;"></i>hazy</span><span>witnessed</span><span>0.42 · used</span><span><button type="button" class="bsbtn">open</button></span></div>
+          <div class="mrow"><span>Her mother is the queen’s step-sister.</span><span class="sharp"><i style="width: 52px;"></i>sharp</span><span>told by Liv</span><span>0.38 · used</span><span><button type="button" class="bsbtn">open</button></span></div>
+          <div class="mrow"><span>She takes anything hot.</span><span class="sharp"><i style="width: 30px;"></i>hazy</span><span>witnessed</span><span>0.36 · used</span><span><button type="button" class="bsbtn">open</button></span></div>
+          <div class="mrow" style="opacity: 0.55;"><span>Theo was out the back for the secret.</span><span class="sharp"><i style="width: 44px;"></i>sharp</span><span>inferred</span><span>0.21 · below</span><span></span></div>
+        </div>
+        <span class="bs-t" style="margin-top: 8px;">Sent on</span>
+        <pre class="pre">RECALL (hazy, 3 weeks): she didn't want to be on the gala list.
+RECALL (sharp): her mother is the queen's step-sister.
+RECALL (hazy): she takes anything hot.</pre>
+        <div class="row" style="gap: 8px;"><button type="button" class="bsbtn">copy</button><button type="button" class="bsbtn">run this stage again</button></div>
+      </x-import>
+    </sc-if>
+
+    <sc-if value="{{isPrompt}}" hint-placeholder-val="{{false}}">
+      <x-import component-from-global-scope="Kataki.BackstagePanel" title="The full prompt · Mike · turn 41" action="copy all" action-icon="link">
+        <x-import component-from-global-scope="Kataki.PromptBar" label="~7,300 / 16,384 tokens" meta="cache reuse 81%" segments="{{segs}}"></x-import>
+        <pre class="pre" style="max-height: 520px;"><span class="seg">── rules · 600 / 900</span>You are Mike in a story with Liv. Stay in the scene. Write what Mike says and does. *Actions* between asterisks. Never write Liv’s lines.
+<span class="seg">── cards · 1,450 / 2,000</span>Mike · barista at Halcyon Coffee · careful, dry, kind under it · his mother cuts the queen’s hair · …
+<span class="seg">── mind · 820 / 1,600</span>FEELS warmth 0.72 · trust 0.54 · doubt 0.46
+RECALL (hazy, 3 weeks): she didn't want to be on the gala list.
+GOALS protect his mother · see her again
+<span class="seg">── examples · 540 / 800</span>Mike: *flips the sign back around* Ten minutes. …
+<span class="seg">── history · 3,600 / 9,000 · 18 lines, oldest dropped first</span>[7:14 pm] Mike: *sets the cup down very carefully* Then stop saying it so loud. …
+[three weeks later · Corvel Palace]
+[7:20 pm] Liv: I never said that. I said I didn't want to be on it.
+<span class="seg">── tail · 290 / 400</span>Mike (doubtful, gentle):</pre>
+        <span class="bs-t">Read-only. What the model saw, exactly. Change it in Settings → Memory and thinking.</span>
+      </x-import>
+    </sc-if>
+
+    <sc-if value="{{isMemory}}" hint-placeholder-val="{{false}}">
+      <x-import component-from-global-scope="Kataki.BackstagePanel" title="Every memory Mike holds · 41" action="open in his profile" action-icon="user">
+        <div class="row" style="gap: 8px;"><input class="bsin" type="search" placeholder="filter memories" aria-label="Filter memories"><div class="bsfilter"><button type="button" class="bsbtn" aria-pressed="true">all</button><button type="button" class="bsbtn" aria-pressed="false">sharp</button><button type="button" class="bsbtn" aria-pressed="false">hazy</button><button type="button" class="bsbtn" aria-pressed="false">doubted</button></div></div>
+        <div class="mtable">
+          <div class="mrow mrow--head"><span>memory</span><span>sharpness</span><span>source</span><span>story time</span><span></span></div>
+          <sc-for list="{{mems}}" as="m" hint-placeholder-count="8"><div class="mrow"><span>{{m.text}}</span><span class="sharp"><i style="{{m.bar}}"></i>{{m.sharp}}</span><span>{{m.src}}</span><span>{{m.when}}</span><span><button type="button" class="bsbtn">forget</button></span></div></sc-for>
+        </div>
+        <span class="bs-t">Forget removes it from Mike only. It asks first. Showing 8 of 41 · scroll for more.</span>
+      </x-import>
+    </sc-if>
+
+    <sc-if value="{{isLogs}}" hint-placeholder-val="{{false}}">
+      <x-import component-from-global-scope="Kataki.BackstagePanel" title="Logs · this session" action="save log file" action-icon="download">
+        <div class="row" style="gap: 8px;"><input class="bsin" type="search" placeholder="filter logs" aria-label="Filter logs"><div class="bsfilter"><button type="button" class="bsbtn" aria-pressed="true">all</button><button type="button" class="bsbtn" aria-pressed="false">info</button><button type="button" class="bsbtn" aria-pressed="false">warn</button><button type="button" class="bsbtn" aria-pressed="false">error</button></div></div>
+        <div role="log" aria-label="Log lines">
+          <sc-for list="{{logs}}" as="l" hint-placeholder-count="12"><div class="logl logl--{{l.lv}}"><span style="color: var(--bs-muted);">{{l.t}}</span><span class="lv">{{l.lv}}</span><span>{{l.src}}</span><span>{{l.msg}}</span></div></sc-for>
+        </div>
+        <span class="bs-t">Logs stay on this computer. Nothing here is sent unless you attach it to a bug report.</span>
+      </x-import>
+    </sc-if>
+
+    <sc-if value="{{showRight}}" hint-placeholder-val="{{true}}">
+      <div class="bcol">
+        <x-import component-from-global-scope="Kataki.BackstagePanel" title="Prompt" action="full prompt" action-icon="eye">
+          <x-import component-from-global-scope="Kataki.PromptBar" label="~7,300 / 16,384 tokens" meta="cache reuse 81%" segments="{{segs}}"></x-import>
+        </x-import>
+        <x-import component-from-global-scope="Kataki.BackstagePanel" title="The reply">
+          <div class="bsrow"><span>said</span><span>“…I could have sworn. Three weeks is a long time to hold one sentence.”</span></div>
+          <div class="bsrow"><span>tokens</span><span>64 out · 7,300 in</span></div>
+          <div class="bsrow"><span>took</span><span>6.8 s total · 1.9 s writing</span></div>
+          <div class="bsrow"><span>changed</span><span>doubt 0.34 → 0.46 · 1 memory read</span></div>
+        </x-import>
+      </div>
+    </sc-if>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"view":{"editor":"enum","options":["mind","node","prompt","memory","logs"],"default":"mind"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var A = window.KApp, v = this.props.view || 'mind';
+    var tabs = [['mind', 'mind', 'Backstage.dc.html'], ['prompt', 'prompt', 'BackstagePrompt.dc.html'], ['memory', 'memories', 'BackstageMemory.dc.html'], ['logs', 'logs', 'BackstageLogs.dc.html']];
+    var wide = v === 'prompt' || v === 'memory' || v === 'logs';
+    var bar = function (n) { return 'width: ' + n + 'px;'; };
+    return A.page(this, {
+      s26: 26, n30: 0.30, n40: 0.40, n42: 0.42, n46: 0.46, n57: 0.57, n60: 0.60, n66: 0.66, n92: 0.92,
+      isMind: v === 'mind', isNode: v === 'node', isPrompt: v === 'prompt', isMemory: v === 'memory', isLogs: v === 'logs',
+      showRight: !wide, wideCls: wide ? 'bsx--wide' : '', recallCls: v === 'node' ? 'is-sel' : '',
+      views: tabs.map(function (t) { var cur = t[0] === v || (v === 'node' && t[0] === 'mind'); return { label: t[1], href: t[2], cur: cur ? 'page' : undefined, style: cur ? 'background: var(--bs-panel); border-color: #6aa8ff;' : '' }; }),
+      segs: [{ name: 'rules', value: 600, limit: 900 }, { name: 'cards', value: 1450, limit: 2000 }, { name: 'mind', value: 820, limit: 1600 }, { name: 'examples', value: 540, limit: 800 }, { name: 'history', value: 3600, limit: 9000 }, { name: 'tail', value: 290, limit: 400 }],
+      mems: [
+        { text: 'She didn’t want to be on the gala list.', sharp: 'hazy', bar: bar(38), src: 'witnessed', when: '3 weeks ago' },
+        { text: 'Her mother is the queen’s step-sister.', sharp: 'sharp', bar: bar(52), src: 'told by Liv', when: '3 weeks ago' },
+        { text: 'She says she never said it.', sharp: 'sharp', bar: bar(64), src: 'witnessed', when: 'just now' },
+        { text: 'She takes anything hot.', sharp: 'hazy', bar: bar(30), src: 'witnessed', when: '3 weeks ago' },
+        { text: 'Theo went out the back when she told me.', sharp: 'sharp', bar: bar(48), src: 'inferred', when: '3 weeks ago' },
+        { text: 'She borrowed nothing. I lent her the jacket.', sharp: 'sharp', bar: bar(60), src: 'witnessed', when: '4 min ago' },
+        { text: 'The palace smells of lilies and floor polish.', sharp: 'sharp', bar: bar(46), src: 'witnessed', when: '10 min ago' },
+        { text: 'My mother’s hands shake now.', sharp: 'sharp', bar: bar(64), src: 'from his card', when: 'always' }
+      ],
+      logs: [
+        { t: '19:22:04.112', lv: 'info', src: 'turn', msg: 'turn 41 started · speaker mike' },
+        { t: '19:22:04.310', lv: 'info', src: 'recall', msg: '3 of 41 matched · 0.2 s' },
+        { t: '19:22:04.905', lv: 'info', src: 'feelings', msg: 'doubt 0.34 → 0.46 · warmth 0.68 → 0.72' },
+        { t: '19:22:09.020', lv: 'info', src: 'reasoning', msg: 'thought 212 tok · 4.1 s' },
+        { t: '19:22:10.930', lv: 'info', src: 'characters', msg: 'reply 64 tok · 34 tok/s · cache reuse 81%' },
+        { t: '19:22:10.941', lv: 'info', src: 'store', msg: 'line saved · story 7f3a · line 312' },
+        { t: '19:22:11.002', lv: 'warn', src: 'memory-reader', msg: 'queued behind characters · 2 lines waiting' },
+        { t: '19:22:41.010', lv: 'error', src: 'model', msg: 'ECONNREFUSED localhost:8080 · REPLY_UNREACHABLE' },
+        { t: '19:22:41.012', lv: 'info', src: 'model', msg: 'retrying every 10 s · attempt 1' },
+        { t: '19:22:51.020', lv: 'info', src: 'model', msg: 'retrying every 10 s · attempt 2' },
+        { t: '19:23:01.031', lv: 'info', src: 'model', msg: 'connected · qwen3.5-9b · llama.cpp' },
+        { t: '19:23:01.040', lv: 'info', src: 'turn', msg: 'turn 42 resumed from saved line' }
+      ]
+    });
+  }
+}
+</script>
+</body>
+</html>

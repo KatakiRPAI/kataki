@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · Settings, Models</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}.jobx{padding:6px 20px 20px 48px;border-bottom:1px solid var(--hairline);display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 24px;background:var(--raise)}.connerr{margin:0 20px 14px 58px}.found{display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:14px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--hairline)}.found:last-child{border-bottom:0}</style>
+</helmet>
+<div data-theme="{{theme}}" class="app" style="height: {{hpx}};">
+  <div class="app__sky"><x-import component-from-global-scope="Kataki.Sky" clouds="{{no}}" style="position: absolute; inset: 0px;"></x-import></div>
+  <x-import component-from-global-scope="Kataki.Rail" active="Settings" theme="{{theme}}" hrefs="{{hrefs}}" on-navigate="{{nav}}" height="{{h}}"></x-import>
+  <main class="app__main" aria-label="Settings" style="gap: 24px;">
+    <x-import component-from-global-scope="Kataki.TopBar" who="liv" name="Liv"></x-import>
+    <h1 class="pg-title">Settings</h1>
+    <div class="set">
+      <x-import component-from-global-scope="Kataki.SideNav" label="Settings" active="Models" items="{{navItems}}" footer="{{whatsNew}}"></x-import>
+      <div class="set__panel">
+        <sc-if value="{{isOk}}" hint-placeholder-val="{{true}}">
+          <x-import component-from-global-scope="Kataki.StatusLine" title="Everything is working" action="{{testAgain}}">Running on qwen3.5-9b through llama.cpp on this computer · last reply took 3.1 s</x-import>
+        </sc-if>
+        <sc-if value="{{isFailed}}" hint-placeholder-val="{{false}}">
+          <x-import component-from-global-scope="Kataki.StatusLine" tone="warm" title="Using the fallback" action="{{testAgain}}">llama.cpp isn’t answering, so Kataki’s own model is speaking for now. Replies are shorter and plainer until it’s back.</x-import>
+        </sc-if>
+
+        <x-import component-from-global-scope="Kataki.SettingsSection" title="Where it runs" note="One of these has to be reachable. Kataki uses the first that answers, top to bottom.">
+          <x-import component-from-global-scope="Kataki.ConnectionRow" icon="server" name="llama.cpp" status="{{llamaStatus}}" detail="{{llamaDetail}}"></x-import>
+          <sc-if value="{{isFailed}}" hint-placeholder-val="{{false}}"><div class="connerr"><x-import component-from-global-scope="Kataki.Callout" tone="bad" title="Nothing answered at localhost:8080" action="{{llamaFix}}">Tested 12 s ago: connection refused. Is llama.cpp still running? SERVER_UNREACHABLE</x-import></div></sc-if>
+          <x-import component-from-global-scope="Kataki.ConnectionRow" icon="globe" name="OpenRouter" status="{{orStatus}}" detail="{{orDetail}}"></x-import>
+          <sc-if value="{{isFailed}}" hint-placeholder-val="{{false}}"><div class="connerr"><x-import component-from-global-scope="Kataki.Callout" tone="bad" title="OpenRouter turned the key down" action="{{keyFix}}">It answered 401. The key may have been revoked or mistyped. API_KEY_INVALID</x-import></div></sc-if>
+          <x-import component-from-global-scope="Kataki.ConnectionRow" icon="cpu" name="Kataki’s own model" status="fallback" detail="kataki-small-3b · 1.2 GB · downloaded · answers when nothing above does"></x-import>
+          <div style="display: flex; gap: 10px; padding: 14px 20px;">
+            <x-import component-from-global-scope="Kataki.Button" size="sm" icon="search" href="FindServers.dc.html">Look for servers on this computer</x-import>
+            <x-import component-from-global-scope="Kataki.Button" size="sm" icon="plus" href="AddApi.dc.html">Add an online model</x-import>
+            <x-import component-from-global-scope="Kataki.Button" size="sm" variant="ghost" icon="swap">Change the order</x-import>
+          </div>
+        </x-import>
+
+        <x-import component-from-global-scope="Kataki.SettingsSection" title="Who does what" note="Kataki uses more than one model. Leave these and they all use the first connection.">
+          <x-import component-from-global-scope="Kataki.JobRow" icon="users" name="Characters" description="Speaking, in character" model="qwen3.5-9b" open="{{isAdvanced}}"></x-import>
+          <sc-if value="{{isAdvanced}}" hint-placeholder-val="{{false}}">
+            <div class="jobx">
+              <x-import component-from-global-scope="Kataki.Select" label="Model" options="{{models}}"></x-import>
+              <x-import component-from-global-scope="Kataki.Select" label="Thinking before replying" options="{{effort}}"></x-import>
+              <x-import component-from-global-scope="Kataki.Slider" label="Temperature" default-value="{{v80}}" min="{{v0}}" max="{{v200}}" value-text="0.80" ends="{{tempEnds}}"></x-import>
+              <x-import component-from-global-scope="Kataki.Slider" label="Context length" default-value="{{v16}}" min="{{v2}}" max="{{v128}}" value-text="16,384 tokens" ends="{{ctxEnds}}"></x-import>
+              <x-import component-from-global-scope="Kataki.TextField" label="Longest reply" default-value="220" suffix="tokens"></x-import>
+              <x-import component-from-global-scope="Kataki.TextField" label="Top-p" default-value="0.95"></x-import>
+              <x-import component-from-global-scope="Kataki.TextField" label="Min-p" default-value="0.05"></x-import>
+              <x-import component-from-global-scope="Kataki.TextField" label="Repetition penalty" default-value="1.10"></x-import>
+              <x-import component-from-global-scope="Kataki.TextField" label="Stop sequences" optional="{{yes}}" default-value="\nLiv:" hint="One per line. Kataki adds the persona’s name for you."></x-import>
+              <x-import component-from-global-scope="Kataki.TextField" label="Seed" optional="{{yes}}" placeholder="random" hint="Set one to make a reply repeat exactly."></x-import>
+              <div class="row" style="grid-column: span 2; justify-content: space-between;"><span class="t-faint">Changes apply from the next reply · Backstage shows the values each turn used</span><x-import component-from-global-scope="Kataki.Button" size="sm" variant="ghost" icon="refresh">Back to defaults</x-import></div>
+            </div>
+          </sc-if>
+          <x-import component-from-global-scope="Kataki.JobRow" icon="quill" name="Narrator" description="Scene text, time skips, place descriptions" model="Same as characters"></x-import>
+          <x-import component-from-global-scope="Kataki.JobRow" icon="thought" name="Memory reader" description="Deciding what a character keeps and what fades" model="kataki-small-3b"></x-import>
+          <x-import component-from-global-scope="Kataki.JobRow" icon="spark" name="Reasoning" description="The thinking pass before a reply" model="qwen3.5-9b · low effort"></x-import>
+          <x-import component-from-global-scope="Kataki.JobRow" icon="search" name="Recall by meaning" description="Finding old lines that match, not just words" model="all-minilm · embeddings"></x-import>
+        </x-import>
+      </div>
+    </div>
+  </main>
+
+  <sc-if value="{{ovAdd}}" hint-placeholder-val="{{false}}">
+    <div class="ov"><div class="ov__dim"></div><div class="ov__win">
+      <section class="dlg dlg--lg" role="dialog" aria-modal="true" aria-labelledby="api-title">
+        <div class="dlg__head"><span class="dlg__icon"><x-import component-from-global-scope="Kataki.Icon" name="globe" size="{{s20}}"></x-import></span><div class="dlg__titles"><h2 class="dlg__title" id="api-title">Add an online model</h2><p class="dlg__desc">Each reply sends that turn’s prompt to the service. Backstage shows exactly what went.</p></div><x-import component-from-global-scope="Kataki.IconButton" icon="x" label="Close" size="sm"></x-import></div>
+        <div class="dlg__body">
+          <x-import component-from-global-scope="Kataki.Segmented" label="Service" options="{{services}}" value="Something else"></x-import>
+          <x-import component-from-global-scope="Kataki.TextField" label="Address" required="{{yes}}" icon="link" default-value="https://api.together.xyz/v1" hint="Anything that speaks the OpenAI chat API."></x-import>
+          <x-import component-from-global-scope="Kataki.TextField" label="Key" required="{{yes}}" type="password" icon="key" default-value="tg-0000000000000000"></x-import>
+          <x-import component-from-global-scope="Kataki.TextField" label="Call it" optional="{{yes}}" default-value="Together" hint="How it’s listed in Where it runs."></x-import>
+          <x-import component-from-global-scope="Kataki.StatusLine" title="Key works">Together · 128 models · meta-llama/llama-4-70b picked</x-import>
+          <x-import component-from-global-scope="Kataki.Select" label="Model" options="{{apiModels}}"></x-import>
+        </div>
+        <div class="dlg__foot"><span class="dlg__note">Key kept in Windows Credential Manager</span><div class="k-btngroup"><x-import component-from-global-scope="Kataki.Button" variant="ghost">Cancel</x-import><x-import component-from-global-scope="Kataki.Button">Test</x-import><x-import component-from-global-scope="Kataki.Button" variant="primary">Add it</x-import></div></div>
+      </section>
+    </div></div>
+  </sc-if>
+
+  <sc-if value="{{ovFind}}" hint-placeholder-val="{{false}}">
+    <div class="ov"><div class="ov__dim"></div><div class="ov__win">
+      <section class="dlg dlg--lg" role="dialog" aria-modal="true" aria-labelledby="fs-title">
+        <div class="dlg__head"><span class="dlg__icon"><x-import component-from-global-scope="Kataki.Icon" name="search" size="{{s20}}"></x-import></span><div class="dlg__titles"><h2 class="dlg__title" id="fs-title">Servers on this computer</h2><p class="dlg__desc">Looked on the usual ports just now. Nothing on your network is scanned, only this computer.</p></div><x-import component-from-global-scope="Kataki.IconButton" icon="x" label="Close" size="sm"></x-import></div>
+        <div class="dlg__body">
+          <div class="card" style="background: var(--raise);">
+            <div class="found"><x-import component-from-global-scope="Kataki.Icon" name="server" size="{{s20}}"></x-import><div><div style="font-weight: 700;">llama.cpp · port 8080</div><div class="t-meta">qwen3.5-9b loaded · already added</div></div><x-import component-from-global-scope="Kataki.StatePill" tone="ok">Added</x-import></div>
+            <div class="found"><x-import component-from-global-scope="Kataki.Icon" name="server" size="{{s20}}"></x-import><div><div style="font-weight: 700;">Ollama · port 11434</div><div class="t-meta">3 models: llama3.2, mistral-nemo, qwen3:8b</div></div><x-import component-from-global-scope="Kataki.Button" size="sm">Add</x-import></div>
+            <div class="found"><x-import component-from-global-scope="Kataki.Icon" name="server" size="{{s20}}"></x-import><div><div style="font-weight: 700; color: var(--muted);">LM Studio · port 1234</div><div class="t-meta">Not running</div></div><x-import component-from-global-scope="Kataki.StatePill" tone="muted">Not found</x-import></div>
+            <div class="found"><x-import component-from-global-scope="Kataki.Icon" name="server" size="{{s20}}"></x-import><div><div style="font-weight: 700; color: var(--muted);">KoboldCpp · port 5001</div><div class="t-meta">Not running</div></div><x-import component-from-global-scope="Kataki.StatePill" tone="muted">Not found</x-import></div>
+          </div>
+          <x-import component-from-global-scope="Kataki.Divider" label="Or add one by address"></x-import>
+          <div style="display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end;">
+            <x-import component-from-global-scope="Kataki.TextField" label="Address" icon="link" default-value="http://192.168.1.20:8080" hint="Another computer on your network works too, if its server allows it."></x-import>
+            <div style="padding-bottom: 26px;"><x-import component-from-global-scope="Kataki.Button">Test</x-import></div>
+          </div>
+        </div>
+        <div class="dlg__foot"><x-import component-from-global-scope="Kataki.Button" variant="ghost" icon="refresh">Look again</x-import><x-import component-from-global-scope="Kataki.Button" variant="primary">Done</x-import></div>
+      </section>
+    </div></div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"state":{"editor":"enum","options":["ok","advanced","failed"],"default":"ok"},"overlay":{"editor":"enum","options":["none","addApi","find"],"default":"none"},"$preview":{"width":1440,"height":1200}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var A = window.KApp;
+    var st = this.props.state || 'ok', ov = this.props.overlay || 'none';
+    var failed = st === 'failed';
+    var h = st === 'advanced' ? 1500 : failed ? 1300 : 1200;
+    return A.page(this, {
+      h: h, hpx: h + 'px', s20: 20, v0: 0, v2: 2, v16: 16, v80: 80, v128: 128, v200: 200,
+      isOk: !failed, isFailed: failed, isAdvanced: st === 'advanced',
+      llamaStatus: failed ? 'offline' : 'connected', llamaDetail: failed ? 'http://localhost:8080 · last answered 4 minutes ago' : 'http://localhost:8080 · qwen3.5-9b loaded · 9.2 GB',
+      orStatus: failed ? 'offline' : 'ready', orDetail: failed ? 'Key stored in this computer’s keychain · rejected at 7:24 pm' : 'Key stored in this computer’s keychain · never sent anywhere else',
+      testAgain: A.btn('secondary', 'Test again', { size: 'sm' }),
+      llamaFix: A.btn('secondary', 'Test again', { size: 'sm' }),
+      keyFix: A.btn('secondary', 'Replace the key', { size: 'sm' }),
+      models: ['qwen3.5-9b · llama.cpp', 'kataki-small-3b · Kataki’s own', 'qwen/qwen3.5-72b · OpenRouter'],
+      effort: ['None', 'Low', 'Medium', 'High'], tempEnds: ['steady', 'wild'], ctxEnds: ['2K', '128K'],
+      services: ['OpenRouter', 'OpenAI', 'Anthropic', 'Something else'], apiModels: ['meta-llama/llama-4-70b', 'mistralai/mistral-large', 'qwen/qwen3.5-72b'],
+      ovAdd: ov === 'addApi', ovFind: ov === 'find',
+      navItems: [{ icon: 'settings', label: 'General', href: 'SetGeneral.dc.html' }, { icon: 'sun', label: 'Appearance', href: 'SetAppearance.dc.html' }, { icon: 'globe', label: 'Language', href: 'SetLanguage.dc.html' }, { icon: 'cpu', label: 'Models', href: 'SetModels.dc.html' }, { icon: 'thought', label: 'Memory and thinking', href: 'SetMemory.dc.html' }, { icon: 'shield', label: 'Data and privacy', href: 'SetData.dc.html' }, { icon: 'key', label: 'Shortcuts', href: 'SetShortcuts.dc.html' }, { icon: 'help', label: 'About', href: 'SetAbout.dc.html' }],
+      whatsNew: A.el('TextLink', { icon: 'spark', href: 'SetAbout.dc.html' }, 'What’s new')
+    });
+  }
+}
+</script>
+</body>
+</html>

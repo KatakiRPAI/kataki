@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · Every menu in the Sky</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.mgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:36px 32px;align-items:start}
+.mcell{display:flex;flex-direction:column;gap:10px;min-width:0}
+.mcell__name{font-family:var(--font-mono);font-size:12.5px;color:var(--accent-text)}
+.mcell__where{font-size:12.5px;line-height:17px;color:var(--muted)}
+.rules{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+</style>
+</helmet>
+<div data-theme="{{theme}}" class="board" style="height: 1700px;">
+  <header>
+    <div class="board__kicker">M1 · Menus · Sky</div>
+    <h1 class="board__title">Every menu in the Sky</h1>
+    <p class="board__lede">Every dropdown and ··· menu outside a story, with its exact items in order. Opened by its button, by right-click on the thing it belongs to, or Shift F10. Arrows move, Enter picks, Esc closes and returns focus to the button.</p>
+  </header>
+  <div class="mgrid">
+    <sc-for list="{{menus}}" as="m" hint-placeholder-count="13">
+      <div class="mcell">
+        <span class="mcell__name">{{m.name}}</span>
+        <span class="mcell__where">{{m.where}}</span>
+        <x-import component-from-global-scope="Kataki.Menu" label="{{m.name}}" title="{{m.title}}" width="{{w}}" items="{{m.items}}" footer="{{m.footer}}"></x-import>
+      </div>
+    </sc-for>
+  </div>
+  <div class="rules">
+    <x-import component-from-global-scope="Kataki.Callout" tone="info" title="Placement">Below and aligned to the start of the button; flips above when there is less than its height below. 8 px from the button, 16 px from any window edge.</x-import>
+    <x-import component-from-global-scope="Kataki.Callout" tone="info" title="Danger items">Always last, after a divider, in the bad colour. They never act straight away: each opens its confirm dialog.</x-import>
+    <x-import component-from-global-scope="Kataki.Callout" tone="info" title="Disabled items">Stay visible with the reason as detail text, so nothing vanishes without saying why.</x-import>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"$preview":{"width":1440,"height":1700}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var A = window.KApp, D = { divider: true };
+    return A.page(this, {
+      w: 300,
+      menus: [
+        { name: 'PersonaMenu', where: 'Top bar persona switch · every Sky page · Ctrl P opens it', title: 'Playing as', footer: 'Switching changes who you are in new lines. Stories you already started keep their persona.', items: [{ who: 'liv', label: 'Liv Sandoval', meta: 'default', checked: true }, { who: 'cas', label: 'Cas Brennan', checked: false }, { icon: 'eye', label: 'Director · play no one', checked: false }, D, { icon: 'plus', label: 'New persona' }, { icon: 'user', label: 'Manage personas' }] },
+        { name: 'StoryMenu', where: 'StoryCard ··· and right-click · Home, Stories, Search', items: [{ icon: 'play', label: 'Continue' }, { icon: 'edit', label: 'Rename', shortcut: ['F2'] }, { icon: 'pushpin', label: 'Pin to Home' }, { icon: 'book', label: 'Move to a book…' }, { icon: 'swap', label: 'Branch a copy' }, { icon: 'download', label: 'Export…' }, D, { icon: 'trash', label: 'Delete story…', danger: true, shortcut: ['Del'] }] },
+        { name: 'CharacterMenu', where: 'CharacterCard ··· and right-click · Characters, Profile header', items: [{ icon: 'play', label: 'Continue', detail: 'the last story with Mike' }, { icon: 'plus', label: 'New story with Mike' }, { icon: 'edit', label: 'Edit' }, { icon: 'star', label: 'Favourite' }, { icon: 'layers', label: 'Duplicate' }, { icon: 'download', label: 'Export card…', detail: 'PNG with the card inside, or JSON' }, D, { icon: 'trash', label: 'Delete Mike…', danger: true }] },
+        { name: 'GroupMenu', where: 'A group row ··· · Characters › Groups', items: [{ icon: 'play', label: 'New story with this group' }, { icon: 'edit', label: 'Edit group' }, { icon: 'layers', label: 'Duplicate' }, D, { icon: 'trash', label: 'Delete group…', danger: true, detail: 'the characters stay' }] },
+        { name: 'SortMenu', where: 'Sort on Stories, drawn open · Characters and World use their own lists (SCREENS.md)', title: 'Sort by', items: [{ label: 'Recently played', checked: true }, { label: 'Recently written', checked: false }, { label: 'Story time', checked: false }, { label: 'Name, A to Z', checked: false }] },
+        { name: 'FilterMenu', where: 'Characters filter chips as a menu, below 1280 wide · one at a time', title: 'Show', items: [{ label: 'All', count: 7, checked: true }, { label: 'In a story', count: 1, checked: false }, { label: 'Favourites', count: 2, checked: false }, { label: 'Drafts', count: 1, checked: false }, { label: 'Also a persona', count: 1, checked: false }] },
+        { name: 'PlaceMenu', where: 'PlaceCard ··· · World, Place detail', items: [{ icon: 'play', label: 'New story here' }, { icon: 'edit', label: 'Edit' }, { icon: 'image', label: 'Change the picture…' }, { icon: 'layers', label: 'Duplicate' }, D, { icon: 'trash', label: 'Delete place…', danger: true, detail: 'stories keep their copy' }] },
+        { name: 'PlotMenu', where: 'PlotCard ··· · World, Plot detail', items: [{ icon: 'quote', label: 'Drop into a story…' }, { icon: 'edit', label: 'Edit' }, { icon: 'layers', label: 'Duplicate' }, D, { icon: 'trash', label: 'Delete plot…', danger: true }] },
+        { name: 'BookMenu', where: 'A book in World’s book list · ··· or right-click', items: [{ icon: 'edit', label: 'Rename book' }, { icon: 'image', label: 'Change the cover…' }, { icon: 'plus', label: 'New story in this book' }, D, { icon: 'trash', label: 'Delete book…', danger: true, detail: 'its stories stay, unbooked' }] },
+        { name: 'MemoryMenu', where: 'MemoryRow ··· · Profile › Memories', items: [{ icon: 'edit', label: 'Edit the wording' }, { icon: 'spark', label: 'Make it sharp again' }, { icon: 'eyeoff', label: 'Keep it from fading' }, D, { icon: 'trash', label: 'Forget this…', danger: true }] },
+        { name: 'PersonaCardMenu', where: 'PersonaCard ··· · You', items: [{ icon: 'user', label: 'Play as Cas' }, { icon: 'edit', label: 'Edit' }, { icon: 'layers', label: 'Duplicate' }, D, { icon: 'trash', label: 'Delete persona…', danger: true, disabled: false }] },
+        { name: 'TextMenu', where: 'Right-click in any text field or line, Sky and Scene. Electron has none by default: build it.', items: [{ section: 'Spelling' }, { label: 'favourite' }, { label: 'favorite' }, { icon: 'plus', label: 'Add to dictionary' }, D, { icon: 'x', label: 'Cut', shortcut: ['Ctrl', 'X'] }, { icon: 'layers', label: 'Copy', shortcut: ['Ctrl', 'C'] }, { icon: 'download', label: 'Paste', shortcut: ['Ctrl', 'V'] }, { label: 'Select all', shortcut: ['Ctrl', 'A'] }] },
+        { name: 'ConnectionMenu', where: 'ConnectionRow ··· · Settings › Models', items: [{ icon: 'check', label: 'Use for everything' }, { icon: 'refresh', label: 'Test again' }, { icon: 'edit', label: 'Edit address or key' }, { icon: 'cpu', label: 'Use for one job…', disabled: true, detail: 'turn on Advanced first' }, D, { icon: 'trash', label: 'Remove connection…', danger: true }] }
+      ]
+    });
+  }
+}
+</script>
+</body>
+</html>

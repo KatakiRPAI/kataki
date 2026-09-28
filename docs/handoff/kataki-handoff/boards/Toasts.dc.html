@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · Every toast</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.tgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px 32px;align-items:start}
+.tcol{display:flex;flex-direction:column;gap:12px;min-width:0}
+.tcol h2{margin:0;font-family:var(--font-display);font-size:20px;font-weight:700}
+.titem{display:flex;flex-direction:column;gap:5px}
+.titem .code{padding-inline-start:4px}
+.titem .k-toast{max-width:100%;box-sizing:border-box}
+</style>
+</helmet>
+<div data-theme="{{theme}}" class="board" style="height: 1300px;">
+  <header>
+    <div class="board__kicker">M3 · Toasts</div>
+    <h1 class="board__title">Every toast</h1>
+    <p class="board__lede">A toast confirms something that already happened, or offers to undo it. It never asks a question and never carries the only copy of an error. Bottom centre in the Sky, above the composer in a story. One at a time, newest wins; the rest queue.</p>
+  </header>
+  <div class="tgrid">
+    <sc-for list="{{groups}}" as="g" hint-placeholder-count="3">
+      <section class="tcol" aria-label="{{g.title}}">
+        <h2>{{g.title}}</h2>
+        <span class="t-meta">{{g.rule}}</span>
+        <sc-for list="{{g.items}}" as="t" hint-placeholder-count="6">
+          <div class="titem">
+            <x-import component-from-global-scope="Kataki.Toast" icon="{{t.icon}}" tone="{{t.tone}}" action="{{t.action}}">{{t.text}}</x-import>
+            <span class="code">{{t.code}}</span>
+          </div>
+        </sc-for>
+      </section>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"$preview":{"width":1440,"height":1300}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var A = window.KApp;
+    var T = function (code, icon, text, action, tone) { return { code: code, icon: icon, text: text, action: action || undefined, tone: tone || undefined }; };
+    return A.page(this, {
+      groups: [
+        { title: 'Done, with Undo', rule: '10 s · Ctrl Z also undoes while it shows · paused on hover or focus', items: [
+          T('toast.story.deleted', 'trash', 'Two Sugars, No Title was deleted', 'Undo'),
+          T('toast.character.deleted', 'trash', 'Mike was deleted · his 3 stories kept him as he was', 'Undo'),
+          T('toast.memory.forgotten', 'eyeoff', 'Mike forgot one memory', 'Undo'),
+          T('toast.story.moved', 'book', 'Moved to Close to the Crown', 'Undo'),
+          T('toast.story.pinned', 'pushpin', 'Pinned to Home', 'Undo'),
+          T('toast.line.hidden', 'eyeoff', 'Line hidden from the story', 'Undo'),
+          T('toast.shortcut.changed', 'key', 'Reading mode is now Ctrl Shift R', 'Undo')
+        ] },
+        { title: 'Done', rule: '6 s · no action, or one that opens the result', items: [
+          T('toast.story.renamed', 'check', 'Renamed to Two Sugars, No Title'),
+          T('toast.export.done', 'download', 'Saved to Downloads as two-sugars.kataki', 'Show'),
+          T('toast.import.done', 'download', 'Imported 3 characters · 1 skipped', 'See why'),
+          T('toast.backup.done', 'shield', 'Backup made · 14:02'),
+          T('toast.copied', 'check', 'Copied'),
+          T('toast.feedback.sent', 'check', 'Sent. Thank you.'),
+          T('toast.persona.switched', 'user', 'Playing as Cas from the next line')
+        ] },
+        { title: 'Background and problems', rule: '6 s, or until dismissed when there is an action · problems also stay in their own place', items: [
+          T('toast.model.back', 'check', 'The model is back · 2 replies caught up'),
+          T('toast.download.done', 'check', 'Kataki’s own model is ready'),
+          T('toast.update.ready', 'download', '0.4.3 installs when you close Kataki', 'Restart now'),
+          T('toast.feedback.queued', 'cloud', 'You’re offline · it sends when you’re back · FEEDBACK_OFFLINE'),
+          T('toast.music.unsupported', 'volume', 'That file won’t play · mp3, ogg or wav · MUSIC_UNSUPPORTED', 'Choose another', 'bad'),
+          T('toast.narrator.failed', 'feather', 'The narrator couldn’t add a line · NARRATOR_FAILED', 'Try again', 'bad'),
+          T('toast.export.failed', 'alert', 'Couldn’t save to that folder · EXPORT_WRITE_FAILED', 'Choose a folder', 'bad'),
+          T('toast.renderer.fallback', 'alert', 'The graphics driver restarted · RENDERER_FALLBACK', 'Restart', 'bad'),
+          T('toast.notFound', 'alert', 'That story isn’t in your library any more'),
+          T('toast.zoom.cap', 'eye', 'Make the window wider to go past 150%')
+        ] }
+      ]
+    });
+  }
+}
+</script>
+</body>
+</html>

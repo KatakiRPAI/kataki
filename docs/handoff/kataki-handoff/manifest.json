@@ -1,0 +1,4609 @@
+{
+ "name": "Kataki RPAI · app screens",
+ "boards": 118,
+ "canvas": "Kataki · App screens (Claude Design)",
+ "generatedFrom": "project/*.dc.html",
+ "counts": {
+  "overlay": 39,
+  "proof": 6,
+  "reference": 6,
+  "route": 28,
+  "state": 37,
+  "takeover": 2
+ },
+ "boardsList": [
+  {
+   "code": "00",
+   "board": "Main",
+   "file": "boards/Main.dc.html",
+   "title": "00 · Map of the app",
+   "mapTitle": "Map of the app",
+   "kind": "reference",
+   "route": "—",
+   "sitsOn": null,
+   "reachedBy": "Start here",
+   "canvas": {
+    "x": 0,
+    "y": 0,
+    "w": 1440,
+    "h": 1240
+   },
+   "interactive": true,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [],
+   "linksTo": [],
+   "components": [
+    "Callout",
+    "Sky",
+    "Stat"
+   ]
+  },
+  {
+   "code": "A1",
+   "board": "Opening",
+   "file": "boards/Opening.dc.html",
+   "title": "A1 · Opening · cold start",
+   "mapTitle": "Opening",
+   "kind": "route",
+   "route": "/opening",
+   "sitsOn": null,
+   "reachedBy": "App launch",
+   "canvas": {
+    "x": 0,
+    "y": 1660,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [],
+   "linksTo": [],
+   "components": [
+    "Sky",
+    "StepList"
+   ]
+  },
+  {
+   "code": "A2",
+   "board": "OpeningFailed",
+   "file": "boards/OpeningFailed.dc.html",
+   "title": "A2 · Opening · the library can’t be read",
+   "mapTitle": "Library can’t be read",
+   "kind": "state",
+   "route": "/opening",
+   "sitsOn": "Opening",
+   "reachedBy": "Library fails to open · LIBRARY_UNREADABLE",
+   "canvas": {
+    "x": 1520,
+    "y": 1660,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [],
+   "linksTo": [],
+   "components": [
+    "Alert",
+    "Callout",
+    "Sky",
+    "StepList"
+   ]
+  },
+  {
+   "code": "A3",
+   "board": "CrashRecovered",
+   "file": "boards/CrashRecovered.dc.html",
+   "title": "A3 · After a crash · restore",
+   "mapTitle": "After a crash",
+   "kind": "overlay",
+   "route": "/home",
+   "sitsOn": "Home",
+   "reachedBy": "Launch after a crash · APP_CRASHED",
+   "canvas": {
+    "x": 3040,
+    "y": 1660,
+    "w": 1440,
+    "h": 1360
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Home",
+     "props": {}
+    }
+   ],
+   "linksTo": [],
+   "components": [
+    "Checkbox",
+    "Dialog",
+    "KeyValue",
+    "Panel"
+   ]
+  },
+  {
+   "code": "B1",
+   "board": "FirstRun",
+   "file": "boards/FirstRun.dc.html",
+   "title": "B1 · First run · three doors",
+   "mapTitle": "First run · three doors",
+   "kind": "route",
+   "route": "/welcome",
+   "sitsOn": null,
+   "reachedBy": "First launch, no library",
+   "canvas": {
+    "x": 4560,
+    "y": 1660,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": true,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [],
+   "linksTo": [
+    "FirstRunDownload",
+    "FirstRunOnline",
+    "FirstRunWho",
+    "ImportCards"
+   ],
+   "components": [
+    "AvatarStack",
+    "Button",
+    "DoorCard",
+    "Sky",
+    "TextLink"
+   ]
+  },
+  {
+   "code": "B2",
+   "board": "FirstRunDownload",
+   "file": "boards/FirstRunDownload.dc.html",
+   "title": "B2 · First run · downloading Kataki’s model",
+   "mapTitle": "Downloading the model",
+   "kind": "route",
+   "route": "/welcome/download",
+   "sitsOn": null,
+   "reachedBy": "Start now",
+   "canvas": {
+    "x": 6080,
+    "y": 1660,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [],
+   "linksTo": [
+    "FirstRun",
+    "FirstRunWho"
+   ],
+   "components": [
+    "Button",
+    "ButtonGroup",
+    "Callout",
+    "ProgressBar",
+    "Sky",
+    "StepList",
+    "TextLink"
+   ]
+  },
+  {
+   "code": "B3",
+   "board": "FirstRunServer",
+   "file": "boards/FirstRunServer.dc.html",
+   "title": "B3 · First run · no server found, add one",
+   "mapTitle": "Add a model server",
+   "kind": "route",
+   "route": "/welcome/server",
+   "sitsOn": null,
+   "reachedBy": "Use a model server",
+   "canvas": {
+    "x": 7600,
+    "y": 1660,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [],
+   "linksTo": [
+    "FirstRun"
+   ],
+   "components": [
+    "Button",
+    "Select",
+    "Sky",
+    "Spinner",
+    "StatusLine",
+    "TextField",
+    "TextLink"
+   ]
+  },
+  {
+   "code": "B4",
+   "board": "FirstRunOnline",
+   "file": "boards/FirstRunOnline.dc.html",
+   "title": "B4 · First run · online model and key",
+   "mapTitle": "Online model and key",
+   "kind": "route",
+   "route": "/welcome/online",
+   "sitsOn": null,
+   "reachedBy": "Use an online model · Add a key",
+   "canvas": {
+    "x": 9120,
+    "y": 1660,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [],
+   "linksTo": [
+    "FirstRun"
+   ],
+   "components": [
+    "Button",
+    "Callout",
+    "RadioGroup",
+    "Select",
+    "Sky",
+    "StatusLine",
+    "TextField",
+    "TextLink"
+   ]
+  },
+  {
+   "code": "B5",
+   "board": "FirstRunWho",
+   "file": "boards/FirstRunWho.dc.html",
+   "title": "B5 · First run · who first",
+   "mapTitle": "Who first",
+   "kind": "route",
+   "route": "/welcome/who",
+   "sitsOn": null,
+   "reachedBy": "After a model is chosen, or Meanwhile, pick who you’ll meet",
+   "canvas": {
+    "x": 10640,
+    "y": 1660,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": true,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [],
+   "linksTo": [
+    "FirstRun",
+    "FirstRunPersona",
+    "HomeEmpty",
+    "SceneFirst"
+   ],
+   "components": [
+    "Avatar",
+    "Button",
+    "CharacterCard",
+    "Sky"
+   ]
+  },
+  {
+   "code": "B6",
+   "board": "FirstRunPersona",
+   "file": "boards/FirstRunPersona.dc.html",
+   "title": "B6 · First run · you are (persona)",
+   "mapTitle": "You are",
+   "kind": "overlay",
+   "route": "/welcome/who",
+   "sitsOn": "FirstRunWho",
+   "reachedBy": "And you are · Change",
+   "canvas": {
+    "x": 12160,
+    "y": 1660,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "FirstRunWho",
+     "props": {}
+    }
+   ],
+   "linksTo": [
+    "FirstRunWho"
+   ],
+   "components": [
+    "Avatar",
+    "Button",
+    "ButtonGroup",
+    "Checkbox",
+    "IconButton",
+    "TextArea",
+    "TextField"
+   ]
+  },
+  {
+   "code": "C1",
+   "board": "Home",
+   "file": "boards/Home.dc.html",
+   "title": "C1 · Home",
+   "mapTitle": "Home",
+   "kind": "route",
+   "route": "/home",
+   "sitsOn": null,
+   "reachedBy": "Rail Home · G then H · default after launch",
+   "canvas": {
+    "x": 0,
+    "y": 3440,
+    "w": 1440,
+    "h": 1360
+   },
+   "interactive": true,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ],
+    "offline": false
+   },
+   "imports": [],
+   "linksTo": [
+    "ModelGone",
+    "NewCharacter",
+    "NewStory",
+    "Profile",
+    "Scene",
+    "SetData",
+    "Stories"
+   ],
+   "components": [
+    "AddCard",
+    "Button",
+    "CharacterCard",
+    "Chip",
+    "ContinueHero",
+    "EventCard",
+    "Eyebrow",
+    "Rail",
+    "Sky",
+    "StatusLine",
+    "StoryCard",
+    "TextLink",
+    "TopBar"
+   ]
+  },
+  {
+   "code": "C2",
+   "board": "HomeEmpty",
+   "file": "boards/HomeEmpty.dc.html",
+   "title": "C2 · Home · day one",
+   "mapTitle": "Home · day one",
+   "kind": "state",
+   "route": "/home",
+   "sitsOn": "Home",
+   "reachedBy": "No story played yet",
+   "canvas": {
+    "x": 1520,
+    "y": 3440,
+    "w": 1440,
+    "h": 1100
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [],
+   "linksTo": [
+    "ImportCards",
+    "NewCharacter",
+    "NewPlace",
+    "SceneFirst"
+   ],
+   "components": [
+    "Button",
+    "Callout",
+    "CharacterCard",
+    "DoorCard",
+    "Eyebrow",
+    "Rail",
+    "Sky",
+    "TopBar"
+   ]
+  },
+  {
+   "code": "C3",
+   "board": "HomeOffline",
+   "file": "boards/HomeOffline.dc.html",
+   "title": "C3 · Home · model unreachable",
+   "mapTitle": "Home · model unreachable",
+   "kind": "state",
+   "route": "/home",
+   "sitsOn": "Home",
+   "reachedBy": "Chosen model connection not answering",
+   "canvas": {
+    "x": 3040,
+    "y": 3440,
+    "w": 1440,
+    "h": 1360
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Home",
+     "props": {
+      "offline": "{{yes}}"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "C4",
+   "board": "PersonaMenu",
+   "file": "boards/PersonaMenu.dc.html",
+   "title": "C4 · Playing as · persona menu",
+   "mapTitle": "Playing as menu",
+   "kind": "overlay",
+   "route": "/home",
+   "sitsOn": "Home",
+   "reachedBy": "Persona switch in the top bar · Ctrl P",
+   "canvas": {
+    "x": 4560,
+    "y": 3440,
+    "w": 1440,
+    "h": 1360
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Home",
+     "props": {}
+    }
+   ],
+   "linksTo": [],
+   "components": [
+    "Menu"
+   ]
+  },
+  {
+   "code": "C5",
+   "board": "Palette",
+   "file": "boards/Palette.dc.html",
+   "title": "C5 · Command palette · a query",
+   "mapTitle": "Command palette",
+   "kind": "overlay",
+   "route": "any Sky route",
+   "sitsOn": "Home",
+   "reachedBy": "Ctrl K · the search field",
+   "canvas": {
+    "x": 6080,
+    "y": 3440,
+    "w": 1440,
+    "h": 1360
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Home",
+     "props": {}
+    }
+   ],
+   "linksTo": [],
+   "components": [
+    "CommandPalette"
+   ]
+  },
+  {
+   "code": "C6",
+   "board": "PaletteEmpty",
+   "file": "boards/PaletteEmpty.dc.html",
+   "title": "C6 · Command palette · nothing typed",
+   "mapTitle": "Palette · nothing typed",
+   "kind": "state",
+   "route": "any Sky route",
+   "sitsOn": "Palette",
+   "reachedBy": "Palette opened, nothing typed",
+   "canvas": {
+    "x": 7600,
+    "y": 3440,
+    "w": 1440,
+    "h": 1360
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Home",
+     "props": {}
+    }
+   ],
+   "linksTo": [],
+   "components": [
+    "CommandPalette"
+   ]
+  },
+  {
+   "code": "C7",
+   "board": "PaletteNone",
+   "file": "boards/PaletteNone.dc.html",
+   "title": "C7 · Command palette · no matches",
+   "mapTitle": "Palette · no matches",
+   "kind": "state",
+   "route": "any Sky route",
+   "sitsOn": "Palette",
+   "reachedBy": "Query with no matches",
+   "canvas": {
+    "x": 9120,
+    "y": 3440,
+    "w": 1440,
+    "h": 1360
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Home",
+     "props": {}
+    }
+   ],
+   "linksTo": [],
+   "components": [
+    "CommandPalette"
+   ]
+  },
+  {
+   "code": "C8",
+   "board": "Search",
+   "file": "boards/Search.dc.html",
+   "title": "C8 · Search results",
+   "mapTitle": "Search results",
+   "kind": "route",
+   "route": "/search?q=",
+   "sitsOn": null,
+   "reachedBy": "Enter in the palette · “See all results”",
+   "canvas": {
+    "x": 10640,
+    "y": 3440,
+    "w": 1440,
+    "h": 1100
+   },
+   "interactive": true,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [],
+   "linksTo": [
+    "Home"
+   ],
+   "components": [
+    "Rail",
+    "SearchField",
+    "SearchResult",
+    "Select",
+    "ShowMore",
+    "Sky",
+    "Tabs",
+    "TextLink"
+   ]
+  },
+  {
+   "code": "C9",
+   "board": "SearchNone",
+   "file": "boards/SearchNone.dc.html",
+   "title": "C9 · Search · nothing found",
+   "mapTitle": "Search · nothing found",
+   "kind": "state",
+   "route": "/search?q=",
+   "sitsOn": "Search",
+   "reachedBy": "Zero results",
+   "canvas": {
+    "x": 12160,
+    "y": 3440,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [],
+   "linksTo": [
+    "Home"
+   ],
+   "components": [
+    "Chip",
+    "EmptyState",
+    "Rail",
+    "SearchField",
+    "Sky",
+    "TextLink"
+   ]
+  },
+  {
+   "code": "D1",
+   "board": "Characters",
+   "file": "boards/Characters.dc.html",
+   "title": "D1 · Characters · grid",
+   "mapTitle": "Characters · grid",
+   "kind": "route",
+   "route": "/characters",
+   "sitsOn": null,
+   "reachedBy": "Rail Characters · G then C",
+   "canvas": {
+    "x": 0,
+    "y": 5220,
+    "w": 1440,
+    "h": 1100
+   },
+   "interactive": true,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ],
+    "view": [
+     "grid",
+     "list"
+    ],
+    "filter": [
+     "all",
+     "favourites-empty"
+    ],
+    "height": 1100
+   },
+   "imports": [],
+   "linksTo": [
+    "ImportCards",
+    "NewCharacter",
+    "NewGroup",
+    "NewStoryGroup",
+    "Profile"
+   ],
+   "components": [
+    "AddCard",
+    "AvatarStack",
+    "Button",
+    "CharacterCard",
+    "Chip",
+    "EmptyState",
+    "IconButton",
+    "ListRow",
+    "Rail",
+    "Segmented",
+    "Select",
+    "Sky",
+    "StatePill",
+    "StoryName",
+    "TopBar"
+   ]
+  },
+  {
+   "code": "D2",
+   "board": "CharactersList",
+   "file": "boards/CharactersList.dc.html",
+   "title": "D2 · Characters · list",
+   "mapTitle": "Characters · list",
+   "kind": "state",
+   "route": "/characters",
+   "sitsOn": "Characters",
+   "reachedBy": "Show as: List",
+   "canvas": {
+    "x": 1520,
+    "y": 5220,
+    "w": 1440,
+    "h": 1100
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Characters",
+     "props": {
+      "view": "list"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "D3",
+   "board": "CharactersNone",
+   "file": "boards/CharactersNone.dc.html",
+   "title": "D3 · Characters · filter with nothing in it",
+   "mapTitle": "Empty filter",
+   "kind": "state",
+   "route": "/characters",
+   "sitsOn": "Characters",
+   "reachedBy": "A filter with no one in it",
+   "canvas": {
+    "x": 3040,
+    "y": 5220,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Characters",
+     "props": {
+      "filter": "favourites-empty",
+      "height": "{{h}}"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "D4",
+   "board": "ImportCards",
+   "file": "boards/ImportCards.dc.html",
+   "title": "D4 · Import cards",
+   "mapTitle": "Import cards",
+   "kind": "overlay",
+   "route": "/characters",
+   "sitsOn": "Characters",
+   "reachedBy": "Import cards",
+   "canvas": {
+    "x": 4560,
+    "y": 5220,
+    "w": 1440,
+    "h": 1100
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Characters",
+     "props": {}
+    }
+   ],
+   "linksTo": [],
+   "components": [
+    "Avatar",
+    "Button",
+    "Checkbox",
+    "DropZone",
+    "IconButton",
+    "Select",
+    "StatePill"
+   ]
+  },
+  {
+   "code": "D5",
+   "board": "NewGroup",
+   "file": "boards/NewGroup.dc.html",
+   "title": "D5 · New group",
+   "mapTitle": "New group",
+   "kind": "overlay",
+   "route": "/characters",
+   "sitsOn": "Characters",
+   "reachedBy": "New group",
+   "canvas": {
+    "x": 6080,
+    "y": 5220,
+    "w": 1440,
+    "h": 1100
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Characters",
+     "props": {}
+    }
+   ],
+   "linksTo": [
+    "Characters"
+   ],
+   "components": [
+    "Button",
+    "Chip",
+    "Field",
+    "IconButton",
+    "Select",
+    "TextField"
+   ]
+  },
+  {
+   "code": "E1",
+   "board": "Profile",
+   "file": "boards/Profile.dc.html",
+   "title": "E1 · Profile · Story tab",
+   "mapTitle": "Profile · Story",
+   "kind": "route",
+   "route": "/characters/:id?tab=story",
+   "sitsOn": null,
+   "reachedBy": "A character card or name anywhere",
+   "canvas": {
+    "x": 7600,
+    "y": 5220,
+    "w": 1440,
+    "h": 1500
+   },
+   "interactive": true,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ],
+    "tab": [
+     "story",
+     "profile"
+    ],
+    "overlay": [
+     "none",
+     "memories",
+     "forget",
+     "delete"
+    ]
+   },
+   "imports": [],
+   "linksTo": [
+    "Backstage",
+    "Characters",
+    "EditCharacter",
+    "ExportStory",
+    "NewStory",
+    "ProfileMemories",
+    "Scene",
+    "Stories"
+   ],
+   "components": [
+    "Bubble",
+    "Button",
+    "Checkbox",
+    "Chip",
+    "Dialog",
+    "Eyebrow",
+    "IconButton",
+    "ListRow",
+    "MemoryRow",
+    "Meter",
+    "Panel",
+    "RadioGroup",
+    "Rail",
+    "RelationshipCard",
+    "SearchField",
+    "SecretCard",
+    "Select",
+    "SettingsRow",
+    "Sky",
+    "Stamp",
+    "Stat",
+    "StatRow",
+    "StatePill",
+    "Still",
+    "StoryName",
+    "Tabs",
+    "Tag",
+    "TextField",
+    "TextLink",
+    "TopBar"
+   ]
+  },
+  {
+   "code": "E2",
+   "board": "ProfileTab",
+   "file": "boards/ProfileTab.dc.html",
+   "title": "E2 · Profile · Profile tab",
+   "mapTitle": "Profile · Profile",
+   "kind": "route",
+   "route": "/characters/:id?tab=profile",
+   "sitsOn": "Profile",
+   "reachedBy": "Profile tab",
+   "canvas": {
+    "x": 9120,
+    "y": 5220,
+    "w": 1440,
+    "h": 1500
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Profile",
+     "props": {
+      "tab": "profile"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "E3",
+   "board": "ProfileMemories",
+   "file": "boards/ProfileMemories.dc.html",
+   "title": "E3 · Profile · every memory",
+   "mapTitle": "Every memory",
+   "kind": "overlay",
+   "route": "/characters/:id",
+   "sitsOn": "Profile",
+   "reachedBy": "All 41 memories",
+   "canvas": {
+    "x": 10640,
+    "y": 5220,
+    "w": 1440,
+    "h": 1500
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Profile",
+     "props": {
+      "overlay": "memories"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "E4",
+   "board": "ForgetMemory",
+   "file": "boards/ForgetMemory.dc.html",
+   "title": "E4 · Make him forget something",
+   "mapTitle": "Make him forget",
+   "kind": "overlay",
+   "route": "/characters/:id",
+   "sitsOn": "Profile",
+   "reachedBy": "Make him forget · Forget this…",
+   "canvas": {
+    "x": 12160,
+    "y": 5220,
+    "w": 1440,
+    "h": 1500
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Profile",
+     "props": {
+      "overlay": "forget"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "E5",
+   "board": "DeleteCharacter",
+   "file": "boards/DeleteCharacter.dc.html",
+   "title": "E5 · Delete a character",
+   "mapTitle": "Delete a character",
+   "kind": "overlay",
+   "route": "/characters/:id",
+   "sitsOn": "Profile",
+   "reachedBy": "Delete Mike… from the ··· menu",
+   "canvas": {
+    "x": 13680,
+    "y": 5220,
+    "w": 1440,
+    "h": 1500
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Profile",
+     "props": {
+      "overlay": "delete"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "F1",
+   "board": "NewCharacter",
+   "file": "boards/NewCharacter.dc.html",
+   "title": "F1 · New character",
+   "mapTitle": "New character",
+   "kind": "route",
+   "route": "/characters/new",
+   "sitsOn": null,
+   "reachedBy": "Rail New character · Ctrl Shift N · AddCard",
+   "canvas": {
+    "x": 0,
+    "y": 7140,
+    "w": 1440,
+    "h": 1200
+   },
+   "interactive": true,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ],
+    "mode": [
+     "new",
+     "full",
+     "errors",
+     "edit"
+    ],
+    "overlay": [
+     "none",
+     "picker",
+     "focus",
+     "discard"
+    ]
+   },
+   "imports": [],
+   "linksTo": [
+    "Characters",
+    "DiscardChanges",
+    "ImportCards",
+    "NewPlace",
+    "PortraitFocus",
+    "PortraitPicker"
+   ],
+   "components": [
+    "Bubble",
+    "Button",
+    "ButtonGroup",
+    "Callout",
+    "CharacterCard",
+    "Chip",
+    "ChoiceChips",
+    "Dialog",
+    "DropZone",
+    "Eyebrow",
+    "IconButton",
+    "Rail",
+    "Segmented",
+    "Select",
+    "Sky",
+    "TextArea",
+    "TextField",
+    "Toggle",
+    "TopBar"
+   ]
+  },
+  {
+   "code": "F2",
+   "board": "NewCharacterFull",
+   "file": "boards/NewCharacterFull.dc.html",
+   "title": "F2 · New character · every section open",
+   "mapTitle": "Every section open",
+   "kind": "state",
+   "route": "/characters/new",
+   "sitsOn": "NewCharacter",
+   "reachedBy": "Every optional section opened",
+   "canvas": {
+    "x": 1520,
+    "y": 7140,
+    "w": 1440,
+    "h": 1900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "NewCharacter",
+     "props": {
+      "mode": "full"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "F3",
+   "board": "NewCharacterErrors",
+   "file": "boards/NewCharacterErrors.dc.html",
+   "title": "F3 · New character · what’s missing",
+   "mapTitle": "What’s missing",
+   "kind": "state",
+   "route": "/characters/new",
+   "sitsOn": "NewCharacter",
+   "reachedBy": "Create pressed with required fields missing",
+   "canvas": {
+    "x": 3040,
+    "y": 7140,
+    "w": 1440,
+    "h": 1200
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "NewCharacter",
+     "props": {
+      "mode": "errors"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "F4",
+   "board": "PortraitPicker",
+   "file": "boards/PortraitPicker.dc.html",
+   "title": "F4 · Pick a portrait from Kataki’s set",
+   "mapTitle": "Kataki’s portraits",
+   "kind": "overlay",
+   "route": "/characters/new",
+   "sitsOn": "NewCharacter",
+   "reachedBy": "Pick from Kataki’s set",
+   "canvas": {
+    "x": 4560,
+    "y": 7140,
+    "w": 1440,
+    "h": 1200
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "NewCharacter",
+     "props": {
+      "overlay": "picker"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "F5",
+   "board": "PortraitFocus",
+   "file": "boards/PortraitFocus.dc.html",
+   "title": "F5 · Portrait · crop and focus",
+   "mapTitle": "Crop and focus",
+   "kind": "overlay",
+   "route": "/characters/new",
+   "sitsOn": "NewCharacter",
+   "reachedBy": "Crop and focus · after choosing a file",
+   "canvas": {
+    "x": 6080,
+    "y": 7140,
+    "w": 1440,
+    "h": 1200
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "NewCharacter",
+     "props": {
+      "overlay": "focus"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "F6",
+   "board": "EditCharacter",
+   "file": "boards/EditCharacter.dc.html",
+   "title": "F6 · Edit character · unsaved changes",
+   "mapTitle": "Edit character",
+   "kind": "route",
+   "route": "/characters/:id/edit",
+   "sitsOn": null,
+   "reachedBy": "Edit profile",
+   "canvas": {
+    "x": 7600,
+    "y": 7140,
+    "w": 1440,
+    "h": 1900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "NewCharacter",
+     "props": {
+      "mode": "edit"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "F7",
+   "board": "DiscardChanges",
+   "file": "boards/DiscardChanges.dc.html",
+   "title": "F7 · Leave without saving?",
+   "mapTitle": "Leave without saving?",
+   "kind": "overlay",
+   "route": "/characters/:id/edit",
+   "sitsOn": "EditCharacter",
+   "reachedBy": "Leaving with unsaved changes",
+   "canvas": {
+    "x": 9120,
+    "y": 7140,
+    "w": 1440,
+    "h": 1900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "NewCharacter",
+     "props": {
+      "mode": "edit",
+      "overlay": "discard"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "G1",
+   "board": "NewStory",
+   "file": "boards/NewStory.dc.html",
+   "title": "G1 · New story",
+   "mapTitle": "New story",
+   "kind": "route",
+   "route": "/stories/new",
+   "sitsOn": null,
+   "reachedBy": "New story · Ctrl N",
+   "canvas": {
+    "x": 10640,
+    "y": 7140,
+    "w": 1440,
+    "h": 1000
+   },
+   "interactive": true,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ],
+    "variant": [
+     "default",
+     "group",
+     "find",
+     "place"
+    ]
+   },
+   "imports": [],
+   "linksTo": [
+    "SceneFirst",
+    "Stories"
+   ],
+   "components": [
+    "Avatar",
+    "Button",
+    "Callout",
+    "Checkbox",
+    "Chip",
+    "Eyebrow",
+    "IconButton",
+    "PersonaCard",
+    "Rail",
+    "SearchField",
+    "Segmented",
+    "Select",
+    "Sky",
+    "StepHeader",
+    "Still",
+    "StoryName",
+    "TextArea",
+    "TextField",
+    "TopBar"
+   ]
+  },
+  {
+   "code": "G2",
+   "board": "NewStoryGroup",
+   "file": "boards/NewStoryGroup.dc.html",
+   "title": "G2 · New story · a group scene",
+   "mapTitle": "A group scene",
+   "kind": "state",
+   "route": "/stories/new",
+   "sitsOn": "NewStory",
+   "reachedBy": "Two or more people, or a group picked",
+   "canvas": {
+    "x": 12160,
+    "y": 7140,
+    "w": 1440,
+    "h": 1000
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "NewStory",
+     "props": {
+      "variant": "group"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "G3",
+   "board": "NewStoryFind",
+   "file": "boards/NewStoryFind.dc.html",
+   "title": "G3 · New story · find someone",
+   "mapTitle": "Find someone",
+   "kind": "overlay",
+   "route": "/stories/new",
+   "sitsOn": "NewStory",
+   "reachedBy": "Find someone",
+   "canvas": {
+    "x": 13680,
+    "y": 7140,
+    "w": 1440,
+    "h": 1000
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "NewStory",
+     "props": {
+      "variant": "find"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "G4",
+   "board": "NewStoryPlace",
+   "file": "boards/NewStoryPlace.dc.html",
+   "title": "G4 · New story · somewhere new",
+   "mapTitle": "Somewhere new",
+   "kind": "state",
+   "route": "/stories/new",
+   "sitsOn": "NewStory",
+   "reachedBy": "Where: Somewhere new",
+   "canvas": {
+    "x": 15200,
+    "y": 7140,
+    "w": 1440,
+    "h": 1000
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "NewStory",
+     "props": {
+      "variant": "place"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "H1",
+   "board": "Stories",
+   "file": "boards/Stories.dc.html",
+   "title": "H1 · Stories · by story",
+   "mapTitle": "By story",
+   "kind": "route",
+   "route": "/stories?by=story",
+   "sitsOn": null,
+   "reachedBy": "Rail Stories · G then S",
+   "canvas": {
+    "x": 0,
+    "y": 9460,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": true,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ],
+    "by": [
+     "story",
+     "character"
+    ],
+    "empty": false,
+    "overlay": [
+     "none",
+     "rename",
+     "delete",
+     "export"
+    ]
+   },
+   "imports": [],
+   "linksTo": [
+    "DeleteStory",
+    "ExportStory",
+    "NewStory",
+    "RenameStory",
+    "Scene"
+   ],
+   "components": [
+    "Avatar",
+    "Button",
+    "Checkbox",
+    "Chip",
+    "Dialog",
+    "EmptyState",
+    "EventCard",
+    "Eyebrow",
+    "Field",
+    "IconButton",
+    "Popover",
+    "RadioGroup",
+    "Rail",
+    "SearchField",
+    "Segmented",
+    "Select",
+    "Sky",
+    "StoryCard",
+    "StoryName",
+    "StoryPreview",
+    "TextField"
+   ]
+  },
+  {
+   "code": "H2",
+   "board": "StoriesByCharacter",
+   "file": "boards/StoriesByCharacter.dc.html",
+   "title": "H2 · Stories · by character",
+   "mapTitle": "By character",
+   "kind": "route",
+   "route": "/stories?by=character",
+   "sitsOn": "Stories",
+   "reachedBy": "By character",
+   "canvas": {
+    "x": 1520,
+    "y": 9460,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Stories",
+     "props": {
+      "by": "character"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "H3",
+   "board": "StoriesEmpty",
+   "file": "boards/StoriesEmpty.dc.html",
+   "title": "H3 · Stories · none yet",
+   "mapTitle": "None yet",
+   "kind": "state",
+   "route": "/stories",
+   "sitsOn": "Stories",
+   "reachedBy": "No stories yet",
+   "canvas": {
+    "x": 3040,
+    "y": 9460,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Stories",
+     "props": {
+      "empty": "{{yes}}"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "H4",
+   "board": "RenameStory",
+   "file": "boards/RenameStory.dc.html",
+   "title": "H4 · Rename a story",
+   "mapTitle": "Rename",
+   "kind": "overlay",
+   "route": "/stories",
+   "sitsOn": "Stories",
+   "reachedBy": "Rename · F2",
+   "canvas": {
+    "x": 4560,
+    "y": 9460,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Stories",
+     "props": {
+      "overlay": "rename"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "H5",
+   "board": "DeleteStory",
+   "file": "boards/DeleteStory.dc.html",
+   "title": "H5 · Delete a story",
+   "mapTitle": "Delete",
+   "kind": "overlay",
+   "route": "/stories",
+   "sitsOn": "Stories",
+   "reachedBy": "Delete story…",
+   "canvas": {
+    "x": 6080,
+    "y": 9460,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Stories",
+     "props": {
+      "overlay": "delete"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "H6",
+   "board": "ExportStory",
+   "file": "boards/ExportStory.dc.html",
+   "title": "H6 · Export a story",
+   "mapTitle": "Export",
+   "kind": "overlay",
+   "route": "/stories",
+   "sitsOn": "Stories",
+   "reachedBy": "Export…",
+   "canvas": {
+    "x": 7600,
+    "y": 9460,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Stories",
+     "props": {
+      "overlay": "export"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "I1",
+   "board": "World",
+   "file": "boards/World.dc.html",
+   "title": "I1 · World",
+   "mapTitle": "World",
+   "kind": "route",
+   "route": "/world",
+   "sitsOn": null,
+   "reachedBy": "Rail World · G then W",
+   "canvas": {
+    "x": 0,
+    "y": 10780,
+    "w": 1440,
+    "h": 1300
+   },
+   "interactive": true,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ],
+    "empty": false,
+    "overlay": [
+     "none",
+     "file",
+     "place",
+     "plot",
+     "newPlace",
+     "newPlot",
+     "newBook"
+    ],
+    "height": 1300
+   },
+   "imports": [],
+   "linksTo": [
+    "NewBook",
+    "NewPlace",
+    "NewPlot",
+    "NewStory",
+    "PlaceDetail",
+    "PlotDetail",
+    "World"
+   ],
+   "components": [
+    "AddCard",
+    "Breadcrumbs",
+    "Button",
+    "ButtonGroup",
+    "Checkbox",
+    "Chip",
+    "DropZone",
+    "EmptyState",
+    "Eyebrow",
+    "Field",
+    "IconButton",
+    "PlaceCard",
+    "PlotCard",
+    "Popover",
+    "Rail",
+    "Segmented",
+    "Select",
+    "Sky",
+    "Still",
+    "StoryName",
+    "Tabs",
+    "TextArea",
+    "TextField",
+    "TimeStrip",
+    "TopBar"
+   ]
+  },
+  {
+   "code": "I2",
+   "board": "WorldEmpty",
+   "file": "boards/WorldEmpty.dc.html",
+   "title": "I2 · World · empty",
+   "mapTitle": "Empty",
+   "kind": "state",
+   "route": "/world",
+   "sitsOn": "World",
+   "reachedBy": "No places, plots or books",
+   "canvas": {
+    "x": 1520,
+    "y": 10780,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "World",
+     "props": {
+      "empty": "{{yes}}",
+      "height": "{{h}}"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "I3",
+   "board": "PlaceDetail",
+   "file": "boards/PlaceDetail.dc.html",
+   "title": "I3 · A place",
+   "mapTitle": "A place",
+   "kind": "overlay",
+   "route": "/world",
+   "sitsOn": "World",
+   "reachedBy": "A place card",
+   "canvas": {
+    "x": 3040,
+    "y": 10780,
+    "w": 1440,
+    "h": 1300
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "World",
+     "props": {
+      "overlay": "place"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "I4",
+   "board": "PlotDetail",
+   "file": "boards/PlotDetail.dc.html",
+   "title": "I4 · A plot",
+   "mapTitle": "A plot",
+   "kind": "overlay",
+   "route": "/world",
+   "sitsOn": "World",
+   "reachedBy": "A plot card",
+   "canvas": {
+    "x": 4560,
+    "y": 10780,
+    "w": 1440,
+    "h": 1300
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "World",
+     "props": {
+      "overlay": "plot"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "I5",
+   "board": "NewPlace",
+   "file": "boards/NewPlace.dc.html",
+   "title": "I5 · New place",
+   "mapTitle": "New place",
+   "kind": "overlay",
+   "route": "/world",
+   "sitsOn": "World",
+   "reachedBy": "New place",
+   "canvas": {
+    "x": 6080,
+    "y": 10780,
+    "w": 1440,
+    "h": 1300
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "World",
+     "props": {
+      "overlay": "newPlace"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "I6",
+   "board": "NewPlot",
+   "file": "boards/NewPlot.dc.html",
+   "title": "I6 · New plot",
+   "mapTitle": "New plot",
+   "kind": "overlay",
+   "route": "/world",
+   "sitsOn": "World",
+   "reachedBy": "New plot",
+   "canvas": {
+    "x": 7600,
+    "y": 10780,
+    "w": 1440,
+    "h": 1300
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "World",
+     "props": {
+      "overlay": "newPlot"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "I7",
+   "board": "NewBook",
+   "file": "boards/NewBook.dc.html",
+   "title": "I7 · New book",
+   "mapTitle": "New book",
+   "kind": "overlay",
+   "route": "/world",
+   "sitsOn": "World",
+   "reachedBy": "New book",
+   "canvas": {
+    "x": 9120,
+    "y": 10780,
+    "w": 1440,
+    "h": 1300
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "World",
+     "props": {
+      "overlay": "newBook"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "I8",
+   "board": "FileDialog",
+   "file": "boards/FileDialog.dc.html",
+   "title": "I8 · File a place",
+   "mapTitle": "File a place",
+   "kind": "overlay",
+   "route": "/world",
+   "sitsOn": "World",
+   "reachedBy": "File it… on an unfiled place",
+   "canvas": {
+    "x": 10640,
+    "y": 10780,
+    "w": 1440,
+    "h": 1300
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "World",
+     "props": {
+      "overlay": "file"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "J1",
+   "board": "You",
+   "file": "boards/You.dc.html",
+   "title": "J1 · You",
+   "mapTitle": "You and personas",
+   "kind": "route",
+   "route": "/you",
+   "sitsOn": null,
+   "reachedBy": "Rail You · G then Y",
+   "canvas": {
+    "x": 0,
+    "y": 12500,
+    "w": 1440,
+    "h": 1100
+   },
+   "interactive": true,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ],
+    "overlay": [
+     "none",
+     "edit",
+     "delete"
+    ]
+   },
+   "imports": [],
+   "linksTo": [
+    "DeletePersona",
+    "EditPersona",
+    "ExportStory",
+    "ForgetMemory",
+    "PersonaMenu"
+   ],
+   "components": [
+    "AddCard",
+    "Avatar",
+    "Button",
+    "ButtonGroup",
+    "Checkbox",
+    "Dialog",
+    "Eyebrow",
+    "IconButton",
+    "PersonaCard",
+    "Rail",
+    "Select",
+    "Sky",
+    "StatRow",
+    "StatePill",
+    "Tag",
+    "TextArea",
+    "TextField",
+    "TextLink",
+    "Toggle"
+   ]
+  },
+  {
+   "code": "J2",
+   "board": "EditPersona",
+   "file": "boards/EditPersona.dc.html",
+   "title": "J2 · Edit persona",
+   "mapTitle": "Edit persona",
+   "kind": "overlay",
+   "route": "/you",
+   "sitsOn": "You",
+   "reachedBy": "Edit persona",
+   "canvas": {
+    "x": 1520,
+    "y": 12500,
+    "w": 1440,
+    "h": 1100
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "You",
+     "props": {
+      "overlay": "edit"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "J3",
+   "board": "DeletePersona",
+   "file": "boards/DeletePersona.dc.html",
+   "title": "J3 · Delete a persona",
+   "mapTitle": "Delete a persona",
+   "kind": "overlay",
+   "route": "/you",
+   "sitsOn": "You",
+   "reachedBy": "Delete this persona",
+   "canvas": {
+    "x": 3040,
+    "y": 12500,
+    "w": 1440,
+    "h": 1100
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "You",
+     "props": {
+      "overlay": "delete"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "K1",
+   "board": "SetGeneral",
+   "file": "boards/SetGeneral.dc.html",
+   "title": "K1 · Settings · General",
+   "mapTitle": "General",
+   "kind": "route",
+   "route": "/settings/general",
+   "sitsOn": null,
+   "reachedBy": "Rail Settings · Ctrl ,",
+   "canvas": {
+    "x": 0,
+    "y": 14020,
+    "w": 1440,
+    "h": 1000
+   },
+   "interactive": true,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [],
+   "linksTo": [
+    "SetAbout",
+    "SetAppearance",
+    "SetData",
+    "SetGeneral",
+    "SetLanguage",
+    "SetMemory",
+    "SetModels",
+    "SetShortcuts"
+   ],
+   "components": [
+    "Rail",
+    "Select",
+    "SettingsRow",
+    "SettingsSection",
+    "SideNav",
+    "Sky",
+    "Slider",
+    "StatePill",
+    "TextLink",
+    "Toggle",
+    "TopBar"
+   ]
+  },
+  {
+   "code": "K2",
+   "board": "SetAppearance",
+   "file": "boards/SetAppearance.dc.html",
+   "title": "K2 · Settings · Appearance",
+   "mapTitle": "Appearance",
+   "kind": "route",
+   "route": "/settings/appearance",
+   "sitsOn": null,
+   "reachedBy": "",
+   "canvas": {
+    "x": 1520,
+    "y": 14020,
+    "w": 1440,
+    "h": 1000
+   },
+   "interactive": true,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [],
+   "linksTo": [
+    "SetAbout",
+    "SetAppearance",
+    "SetData",
+    "SetGeneral",
+    "SetLanguage",
+    "SetMemory",
+    "SetModels",
+    "SetShortcuts"
+   ],
+   "components": [
+    "Callout",
+    "Rail",
+    "Segmented",
+    "Select",
+    "SettingsRow",
+    "SettingsSection",
+    "SideNav",
+    "Sky",
+    "TextLink",
+    "ThemeTile",
+    "Toggle",
+    "TopBar"
+   ]
+  },
+  {
+   "code": "K3",
+   "board": "SetLanguage",
+   "file": "boards/SetLanguage.dc.html",
+   "title": "K3 · Settings · Language",
+   "mapTitle": "Language",
+   "kind": "route",
+   "route": "/settings/language",
+   "sitsOn": null,
+   "reachedBy": "",
+   "canvas": {
+    "x": 3040,
+    "y": 14020,
+    "w": 1440,
+    "h": 1000
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [],
+   "linksTo": [
+    "SetAbout",
+    "SetAppearance",
+    "SetData",
+    "SetGeneral",
+    "SetLanguage",
+    "SetMemory",
+    "SetModels",
+    "SetShortcuts"
+   ],
+   "components": [
+    "Button",
+    "Callout",
+    "LanguageTile",
+    "Rail",
+    "Select",
+    "SettingsRow",
+    "SettingsSection",
+    "SideNav",
+    "Sky",
+    "StatePill",
+    "TextLink",
+    "TopBar"
+   ]
+  },
+  {
+   "code": "K4",
+   "board": "SetModels",
+   "file": "boards/SetModels.dc.html",
+   "title": "K4 · Settings · Models",
+   "mapTitle": "Models",
+   "kind": "route",
+   "route": "/settings/models",
+   "sitsOn": null,
+   "reachedBy": "",
+   "canvas": {
+    "x": 4560,
+    "y": 14020,
+    "w": 1440,
+    "h": 1200
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ],
+    "state": [
+     "ok",
+     "advanced",
+     "failed"
+    ],
+    "overlay": [
+     "none",
+     "addApi",
+     "find"
+    ]
+   },
+   "imports": [],
+   "linksTo": [
+    "AddApi",
+    "FindServers",
+    "SetAbout",
+    "SetAppearance",
+    "SetData",
+    "SetGeneral",
+    "SetLanguage",
+    "SetMemory",
+    "SetModels",
+    "SetShortcuts"
+   ],
+   "components": [
+    "Button",
+    "Callout",
+    "ConnectionRow",
+    "Divider",
+    "IconButton",
+    "JobRow",
+    "Rail",
+    "Segmented",
+    "Select",
+    "SettingsSection",
+    "SideNav",
+    "Sky",
+    "Slider",
+    "StatePill",
+    "StatusLine",
+    "TextField",
+    "TextLink",
+    "TopBar"
+   ]
+  },
+  {
+   "code": "K5",
+   "board": "SetModelsAdvanced",
+   "file": "boards/SetModelsAdvanced.dc.html",
+   "title": "K5 · Models · a job, Advanced open",
+   "mapTitle": "A job · Advanced",
+   "kind": "state",
+   "route": "/settings/models",
+   "sitsOn": "SetModels",
+   "reachedBy": "A job row opened",
+   "canvas": {
+    "x": 6080,
+    "y": 14020,
+    "w": 1440,
+    "h": 1500
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "SetModels",
+     "props": {
+      "state": "advanced"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "K6",
+   "board": "SetModelsFailed",
+   "file": "boards/SetModelsFailed.dc.html",
+   "title": "K6 · Models · a connection failing",
+   "mapTitle": "A connection failing",
+   "kind": "state",
+   "route": "/settings/models",
+   "sitsOn": "SetModels",
+   "reachedBy": "A connection failing",
+   "canvas": {
+    "x": 7600,
+    "y": 14020,
+    "w": 1440,
+    "h": 1300
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "SetModels",
+     "props": {
+      "state": "failed"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "K7",
+   "board": "AddApi",
+   "file": "boards/AddApi.dc.html",
+   "title": "K7 · Add an online model",
+   "mapTitle": "Add an online model",
+   "kind": "overlay",
+   "route": "/settings/models",
+   "sitsOn": "SetModels",
+   "reachedBy": "Add an online model",
+   "canvas": {
+    "x": 9120,
+    "y": 14020,
+    "w": 1440,
+    "h": 1200
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "SetModels",
+     "props": {
+      "overlay": "addApi"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "K8",
+   "board": "FindServers",
+   "file": "boards/FindServers.dc.html",
+   "title": "K8 · Look for servers · add one by address",
+   "mapTitle": "Look for servers",
+   "kind": "overlay",
+   "route": "/settings/models",
+   "sitsOn": "SetModels",
+   "reachedBy": "Look for servers on this computer",
+   "canvas": {
+    "x": 10640,
+    "y": 14020,
+    "w": 1440,
+    "h": 1200
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "SetModels",
+     "props": {
+      "overlay": "find"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "K9",
+   "board": "SetMemory",
+   "file": "boards/SetMemory.dc.html",
+   "title": "K9 · Settings · Memory and thinking",
+   "mapTitle": "Memory and thinking",
+   "kind": "route",
+   "route": "/settings/memory",
+   "sitsOn": null,
+   "reachedBy": "",
+   "canvas": {
+    "x": 12160,
+    "y": 14020,
+    "w": 1440,
+    "h": 1000
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [],
+   "linksTo": [
+    "Backstage",
+    "SetAbout",
+    "SetAppearance",
+    "SetData",
+    "SetGeneral",
+    "SetLanguage",
+    "SetMemory",
+    "SetModels",
+    "SetShortcuts"
+   ],
+   "components": [
+    "Callout",
+    "Rail",
+    "Segmented",
+    "Select",
+    "SettingsRow",
+    "SettingsSection",
+    "SideNav",
+    "Sky",
+    "Slider",
+    "TextLink",
+    "Toggle",
+    "TopBar"
+   ]
+  },
+  {
+   "code": "K10",
+   "board": "SetData",
+   "file": "boards/SetData.dc.html",
+   "title": "K10 · Settings · Data and privacy",
+   "mapTitle": "Data and privacy",
+   "kind": "route",
+   "route": "/settings/data",
+   "sitsOn": null,
+   "reachedBy": "",
+   "canvas": {
+    "x": 0,
+    "y": 15940,
+    "w": 1440,
+    "h": 1000
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ],
+    "overlay": [
+     "none",
+     "export",
+     "backups",
+     "delete"
+    ]
+   },
+   "imports": [],
+   "linksTo": [
+    "Backups",
+    "DeleteSomething",
+    "ExportAll",
+    "ImportCards",
+    "SetAbout",
+    "SetAppearance",
+    "SetData",
+    "SetGeneral",
+    "SetLanguage",
+    "SetMemory",
+    "SetModels",
+    "SetShortcuts"
+   ],
+   "components": [
+    "Button",
+    "Callout",
+    "FolderRow",
+    "IconButton",
+    "ProgressBar",
+    "RadioGroup",
+    "Rail",
+    "Segmented",
+    "Select",
+    "SettingsRow",
+    "SettingsSection",
+    "SideNav",
+    "Sky",
+    "StepList",
+    "TextField",
+    "TextLink",
+    "Toggle",
+    "TopBar"
+   ]
+  },
+  {
+   "code": "K11",
+   "board": "ExportAll",
+   "file": "boards/ExportAll.dc.html",
+   "title": "K11 · Export everything",
+   "mapTitle": "Export everything",
+   "kind": "overlay",
+   "route": "/settings/data",
+   "sitsOn": "SetData",
+   "reachedBy": "Export everything",
+   "canvas": {
+    "x": 1520,
+    "y": 15940,
+    "w": 1440,
+    "h": 1000
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "SetData",
+     "props": {
+      "overlay": "export"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "K12",
+   "board": "Backups",
+   "file": "boards/Backups.dc.html",
+   "title": "K12 · Backups and restore",
+   "mapTitle": "Backups and restore",
+   "kind": "overlay",
+   "route": "/settings/data",
+   "sitsOn": "SetData",
+   "reachedBy": "Automatic backups · Change",
+   "canvas": {
+    "x": 3040,
+    "y": 15940,
+    "w": 1440,
+    "h": 1000
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "SetData",
+     "props": {
+      "overlay": "backups"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "K13",
+   "board": "DeleteSomething",
+   "file": "boards/DeleteSomething.dc.html",
+   "title": "K13 · Delete something",
+   "mapTitle": "Delete something",
+   "kind": "overlay",
+   "route": "/settings/data",
+   "sitsOn": "SetData",
+   "reachedBy": "Delete something",
+   "canvas": {
+    "x": 4560,
+    "y": 15940,
+    "w": 1440,
+    "h": 1000
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "SetData",
+     "props": {
+      "overlay": "delete"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "K14",
+   "board": "SetShortcuts",
+   "file": "boards/SetShortcuts.dc.html",
+   "title": "K14 · Settings · Shortcuts",
+   "mapTitle": "Shortcuts",
+   "kind": "route",
+   "route": "/settings/shortcuts",
+   "sitsOn": null,
+   "reachedBy": "",
+   "canvas": {
+    "x": 6080,
+    "y": 15940,
+    "w": 1440,
+    "h": 1100
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ],
+    "remap": false
+   },
+   "imports": [],
+   "linksTo": [
+    "SetAbout",
+    "SetAppearance",
+    "SetData",
+    "SetGeneral",
+    "SetLanguage",
+    "SetMemory",
+    "SetModels",
+    "SetShortcuts"
+   ],
+   "components": [
+    "Button",
+    "ButtonGroup",
+    "Callout",
+    "Rail",
+    "SearchField",
+    "SettingsSection",
+    "Shortcut",
+    "ShortcutRow",
+    "SideNav",
+    "Sky",
+    "TextLink",
+    "TopBar"
+   ]
+  },
+  {
+   "code": "K15",
+   "board": "RemapShortcut",
+   "file": "boards/RemapShortcut.dc.html",
+   "title": "K15 · Change a shortcut",
+   "mapTitle": "Change a shortcut",
+   "kind": "state",
+   "route": "/settings/shortcuts",
+   "sitsOn": "SetShortcuts",
+   "reachedBy": "Click a shortcut to change it",
+   "canvas": {
+    "x": 7600,
+    "y": 15940,
+    "w": 1440,
+    "h": 1100
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "SetShortcuts",
+     "props": {
+      "remap": "{{yes}}"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "K16",
+   "board": "SetAbout",
+   "file": "boards/SetAbout.dc.html",
+   "title": "K16 · Settings · About",
+   "mapTitle": "About",
+   "kind": "route",
+   "route": "/settings/about",
+   "sitsOn": null,
+   "reachedBy": "What’s new link · Rail Settings dot",
+   "canvas": {
+    "x": 9120,
+    "y": 15940,
+    "w": 1440,
+    "h": 1000
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ],
+    "view": [
+     "main",
+     "updates",
+     "licences"
+    ]
+   },
+   "imports": [],
+   "linksTo": [
+    "BugReport",
+    "Feedback",
+    "Licences",
+    "SetAbout",
+    "SetAppearance",
+    "SetData",
+    "SetGeneral",
+    "SetLanguage",
+    "SetMemory",
+    "SetModels",
+    "SetShortcuts",
+    "Suggestion"
+   ],
+   "components": [
+    "Button",
+    "ButtonGroup",
+    "Changelog",
+    "IconButton",
+    "ProgressBar",
+    "Rail",
+    "SettingsRow",
+    "SettingsSection",
+    "SideNav",
+    "Sky",
+    "Spinner",
+    "StatusLine",
+    "TextLink",
+    "TopBar"
+   ]
+  },
+  {
+   "code": "K17",
+   "board": "UpdateStates",
+   "file": "boards/UpdateStates.dc.html",
+   "title": "K17 · Updates · every state",
+   "mapTitle": "Updates",
+   "kind": "reference",
+   "route": "/settings/about",
+   "sitsOn": "SetAbout",
+   "reachedBy": "Every state of Check for updates",
+   "canvas": {
+    "x": 10640,
+    "y": 15940,
+    "w": 1440,
+    "h": 1000
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "SetAbout",
+     "props": {
+      "view": "updates"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "K18",
+   "board": "Licences",
+   "file": "boards/Licences.dc.html",
+   "title": "K18 · Licences",
+   "mapTitle": "Licences",
+   "kind": "overlay",
+   "route": "/settings/about",
+   "sitsOn": "SetAbout",
+   "reachedBy": "Licences",
+   "canvas": {
+    "x": 12160,
+    "y": 15940,
+    "w": 1440,
+    "h": 1000
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "SetAbout",
+     "props": {
+      "view": "licences"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "L1",
+   "board": "Feedback",
+   "file": "boards/Feedback.dc.html",
+   "title": "L1 · Feedback",
+   "mapTitle": "Feedback",
+   "kind": "overlay",
+   "route": "any route",
+   "sitsOn": "Home",
+   "reachedBy": "Rail Feedback · Ctrl Shift F · Tell us something",
+   "canvas": {
+    "x": 0,
+    "y": 17460,
+    "w": 1440,
+    "h": 1360
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ],
+    "kind": [
+     "feedback",
+     "bug",
+     "suggestion",
+     "results"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Home",
+     "props": {}
+    },
+    {
+     "board": "Home",
+     "props": {}
+    }
+   ],
+   "linksTo": [],
+   "components": [
+    "Button",
+    "Checkbox",
+    "IconButton",
+    "Panel",
+    "Segmented",
+    "TextArea",
+    "TextField"
+   ]
+  },
+  {
+   "code": "L2",
+   "board": "BugReport",
+   "file": "boards/BugReport.dc.html",
+   "title": "L2 · Report a bug",
+   "mapTitle": "Report a bug",
+   "kind": "state",
+   "route": "any route",
+   "sitsOn": "Feedback",
+   "reachedBy": "What kind: Bug",
+   "canvas": {
+    "x": 1520,
+    "y": 17460,
+    "w": 1440,
+    "h": 1360
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Feedback",
+     "props": {
+      "kind": "bug"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "L3",
+   "board": "Suggestion",
+   "file": "boards/Suggestion.dc.html",
+   "title": "L3 · Suggest something",
+   "mapTitle": "Suggest something",
+   "kind": "state",
+   "route": "any route",
+   "sitsOn": "Feedback",
+   "reachedBy": "What kind: Suggestion",
+   "canvas": {
+    "x": 3040,
+    "y": 17460,
+    "w": 1440,
+    "h": 1360
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Feedback",
+     "props": {
+      "kind": "suggestion"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "L4",
+   "board": "FeedbackSent",
+   "file": "boards/FeedbackSent.dc.html",
+   "title": "L4 · Feedback · sent, copied, couldn’t send",
+   "mapTitle": "Sent · copied · failed",
+   "kind": "state",
+   "route": "any route",
+   "sitsOn": "Feedback",
+   "reachedBy": "After Send or Copy",
+   "canvas": {
+    "x": 4560,
+    "y": 17460,
+    "w": 1440,
+    "h": 1360
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Feedback",
+     "props": {
+      "kind": "results"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "M1",
+   "board": "MenusSky",
+   "file": "boards/MenusSky.dc.html",
+   "title": "M1 · Every menu in the Sky",
+   "mapTitle": "Every Sky menu",
+   "kind": "reference",
+   "route": "—",
+   "sitsOn": null,
+   "reachedBy": "Every Sky menu",
+   "canvas": {
+    "x": 6080,
+    "y": 17460,
+    "w": 1440,
+    "h": 1700
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [],
+   "linksTo": [],
+   "components": [
+    "Callout",
+    "Menu"
+   ]
+  },
+  {
+   "code": "M2",
+   "board": "MenusScene",
+   "file": "boards/MenusScene.dc.html",
+   "title": "M2 · Every menu in a story",
+   "mapTitle": "Every story menu",
+   "kind": "reference",
+   "route": "—",
+   "sitsOn": null,
+   "reachedBy": "Every Scene menu",
+   "canvas": {
+    "x": 7600,
+    "y": 17460,
+    "w": 1440,
+    "h": 1300
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [],
+   "linksTo": [],
+   "components": [
+    "Avatar",
+    "ModeMenu",
+    "Shortcut"
+   ]
+  },
+  {
+   "code": "M3",
+   "board": "Toasts",
+   "file": "boards/Toasts.dc.html",
+   "title": "M3 · Every toast",
+   "mapTitle": "Every toast",
+   "kind": "reference",
+   "route": "—",
+   "sitsOn": null,
+   "reachedBy": "Every toast",
+   "canvas": {
+    "x": 9120,
+    "y": 17460,
+    "w": 1440,
+    "h": 1300
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [],
+   "linksTo": [],
+   "components": [
+    "Toast"
+   ]
+  },
+  {
+   "code": "M4",
+   "board": "Errors",
+   "file": "boards/Errors.dc.html",
+   "title": "M4 · Every error, with its code",
+   "mapTitle": "Every error",
+   "kind": "reference",
+   "route": "—",
+   "sitsOn": null,
+   "reachedBy": "Every error code",
+   "canvas": {
+    "x": 10640,
+    "y": 17460,
+    "w": 1440,
+    "h": 2600
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [],
+   "linksTo": [],
+   "components": [
+    "Alert",
+    "Callout",
+    "Dialog",
+    "StatusLine",
+    "TextField",
+    "Toast"
+   ]
+  },
+  {
+   "code": "N1",
+   "board": "ModelGone",
+   "file": "boards/ModelGone.dc.html",
+   "title": "N1 · The model server went away",
+   "mapTitle": "Model server went away",
+   "kind": "route",
+   "route": "/status/model",
+   "sitsOn": null,
+   "reachedBy": "What happened · on any model error banner",
+   "canvas": {
+    "x": 0,
+    "y": 20480,
+    "w": 1440,
+    "h": 1000
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [],
+   "linksTo": [
+    "BugReport",
+    "FindServers",
+    "SetModelsFailed"
+   ],
+   "components": [
+    "Alert",
+    "Button",
+    "Callout",
+    "Rail",
+    "Sky",
+    "Spinner",
+    "TextLink",
+    "TopBar"
+   ]
+  },
+  {
+   "code": "N2",
+   "board": "DiskFull",
+   "file": "boards/DiskFull.dc.html",
+   "title": "N2 · The disk is full",
+   "mapTitle": "Disk is full",
+   "kind": "takeover",
+   "route": "window",
+   "sitsOn": null,
+   "reachedBy": "DISK_FULL · DISK_READONLY",
+   "canvas": {
+    "x": 1520,
+    "y": 20480,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [],
+   "linksTo": [
+    "Backups"
+   ],
+   "components": [
+    "Alert",
+    "Callout",
+    "Meter",
+    "Sky",
+    "Spinner"
+   ]
+  },
+  {
+   "code": "N3",
+   "board": "AlreadyOpen",
+   "file": "boards/AlreadyOpen.dc.html",
+   "title": "N3 · Kataki is already open",
+   "mapTitle": "Already open",
+   "kind": "takeover",
+   "route": "second window",
+   "sitsOn": null,
+   "reachedBy": "LIBRARY_LOCKED",
+   "canvas": {
+    "x": 3040,
+    "y": 20480,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [],
+   "linksTo": [],
+   "components": [
+    "Alert",
+    "Callout",
+    "Sky"
+   ]
+  },
+  {
+   "code": "P1",
+   "board": "Scene",
+   "file": "boards/Scene.dc.html",
+   "title": "P1 · In a story",
+   "mapTitle": "In a story",
+   "kind": "route",
+   "route": "/story/:id",
+   "sitsOn": null,
+   "reachedBy": "Continue · Start the scene · a story card",
+   "canvas": {
+    "x": 0,
+    "y": 21900,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": true,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ],
+    "variant": [
+     "default",
+     "joins",
+     "secret",
+     "advanced",
+     "modes",
+     "edit",
+     "reply",
+     "takes",
+     "after",
+     "failed",
+     "first",
+     "narrator",
+     "widgets",
+     "reading"
+    ],
+    "overlay": [
+     "none",
+     "menu",
+     "passtime",
+     "skip",
+     "music",
+     "peek",
+     "place",
+     "settings"
+    ]
+   },
+   "imports": [],
+   "linksTo": [
+    "Home",
+    "SceneMenu",
+    "ScenePeek"
+   ],
+   "components": [
+    "Avatar",
+    "BackstageToggle",
+    "Button",
+    "CharacterRowWidget",
+    "CharacterWidget",
+    "ChatLine",
+    "ChatPanel",
+    "Chip",
+    "ClockWidget",
+    "Composer",
+    "EditLine",
+    "Eyebrow",
+    "KeyValue",
+    "MemoryRow",
+    "Meter",
+    "ModeMenu",
+    "MusicWidget",
+    "Reaction",
+    "RecallBox",
+    "SceneButton",
+    "SceneHeader",
+    "SecretCard",
+    "Segmented",
+    "Select",
+    "Sheet",
+    "Shortcut",
+    "Slider",
+    "StatePill",
+    "StoryNote",
+    "Tag",
+    "TextField",
+    "TimeSkipCard",
+    "TitleCard",
+    "Toggle",
+    "Widget"
+   ]
+  },
+  {
+   "code": "P2",
+   "board": "SceneMenu",
+   "file": "boards/SceneMenu.dc.html",
+   "title": "P2 · The story menu",
+   "mapTitle": "Story menu",
+   "kind": "overlay",
+   "route": "/story/:id",
+   "sitsOn": "Scene",
+   "reachedBy": "··· top right",
+   "canvas": {
+    "x": 1520,
+    "y": 21900,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Scene",
+     "props": {
+      "variant": "secret",
+      "overlay": "menu"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "P3",
+   "board": "SceneWidgets",
+   "file": "boards/SceneWidgets.dc.html",
+   "title": "P3 · Editing widgets",
+   "mapTitle": "Editing widgets",
+   "kind": "state",
+   "route": "/story/:id",
+   "sitsOn": "Scene",
+   "reachedBy": "Edit widgets · Ctrl E",
+   "canvas": {
+    "x": 3040,
+    "y": 21900,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Scene",
+     "props": {
+      "variant": "widgets",
+      "overlay": "none"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "P4",
+   "board": "SceneJoins",
+   "file": "boards/SceneJoins.dc.html",
+   "title": "P4 · Someone joins",
+   "mapTitle": "Someone joins",
+   "kind": "state",
+   "route": "/story/:id",
+   "sitsOn": "Scene",
+   "reachedBy": "A character joins",
+   "canvas": {
+    "x": 4560,
+    "y": 21900,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Scene",
+     "props": {
+      "variant": "joins",
+      "overlay": "none"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "P5",
+   "board": "SceneSecret",
+   "file": "boards/SceneSecret.dc.html",
+   "title": "P5 · Reactions to a secret",
+   "mapTitle": "Reactions",
+   "kind": "state",
+   "route": "/story/:id",
+   "sitsOn": "Scene",
+   "reachedBy": "Reactions under lines",
+   "canvas": {
+    "x": 6080,
+    "y": 21900,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Scene",
+     "props": {
+      "variant": "secret",
+      "overlay": "none"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "P6",
+   "board": "SceneAdvanced",
+   "file": "boards/SceneAdvanced.dc.html",
+   "title": "P6 · Composer · Advanced",
+   "mapTitle": "Composer · Advanced",
+   "kind": "state",
+   "route": "/story/:id",
+   "sitsOn": "Scene",
+   "reachedBy": "Composer: Advanced",
+   "canvas": {
+    "x": 7600,
+    "y": 21900,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Scene",
+     "props": {
+      "variant": "advanced",
+      "overlay": "none"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "P7",
+   "board": "SceneModes",
+   "file": "boards/SceneModes.dc.html",
+   "title": "P7 · Composer · how your line is read",
+   "mapTitle": "How a line is read",
+   "kind": "overlay",
+   "route": "/story/:id",
+   "sitsOn": "Scene",
+   "reachedBy": "Mode chip in the composer",
+   "canvas": {
+    "x": 9120,
+    "y": 21900,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Scene",
+     "props": {
+      "variant": "modes",
+      "overlay": "none"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "P8",
+   "board": "SceneEditLine",
+   "file": "boards/SceneEditLine.dc.html",
+   "title": "P8 · Editing a line",
+   "mapTitle": "Editing a line",
+   "kind": "state",
+   "route": "/story/:id",
+   "sitsOn": "Scene",
+   "reachedBy": "Edit on a line · ↑ in an empty composer",
+   "canvas": {
+    "x": 10640,
+    "y": 21900,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Scene",
+     "props": {
+      "variant": "edit",
+      "overlay": "none"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "P9",
+   "board": "SceneReply",
+   "file": "boards/SceneReply.dc.html",
+   "title": "P9 · A reply arriving",
+   "mapTitle": "A reply arriving",
+   "kind": "state",
+   "route": "/story/:id",
+   "sitsOn": "Scene",
+   "reachedBy": "After Send",
+   "canvas": {
+    "x": 12160,
+    "y": 21900,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Scene",
+     "props": {
+      "variant": "reply",
+      "overlay": "none"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "P10",
+   "board": "SceneTakes",
+   "file": "boards/SceneTakes.dc.html",
+   "title": "P10 · Takes, hidden lines, regenerate",
+   "mapTitle": "Takes and hidden lines",
+   "kind": "state",
+   "route": "/story/:id",
+   "sitsOn": "Scene",
+   "reachedBy": "Hover or focus a line",
+   "canvas": {
+    "x": 13680,
+    "y": 21900,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Scene",
+     "props": {
+      "variant": "takes",
+      "overlay": "none"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "P11",
+   "board": "ScenePassTime",
+   "file": "boards/ScenePassTime.dc.html",
+   "title": "P11 · Pass time",
+   "mapTitle": "Pass time",
+   "kind": "overlay",
+   "route": "/story/:id",
+   "sitsOn": "Scene",
+   "reachedBy": "Pass time on the clock or composer",
+   "canvas": {
+    "x": 0,
+    "y": 23220,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Scene",
+     "props": {
+      "variant": "secret",
+      "overlay": "passtime"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "P12",
+   "board": "SceneTimeSkip",
+   "file": "boards/SceneTimeSkip.dc.html",
+   "title": "P12 · The time skip",
+   "mapTitle": "The time skip",
+   "kind": "overlay",
+   "route": "/story/:id",
+   "sitsOn": "Scene",
+   "reachedBy": "Pass time confirmed",
+   "canvas": {
+    "x": 1520,
+    "y": 23220,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Scene",
+     "props": {
+      "variant": "secret",
+      "overlay": "skip"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "P13",
+   "board": "SceneAfterSkip",
+   "file": "boards/SceneAfterSkip.dc.html",
+   "title": "P13 · After the skip",
+   "mapTitle": "After the skip",
+   "kind": "state",
+   "route": "/story/:id",
+   "sitsOn": "Scene",
+   "reachedBy": "First lines after a skip",
+   "canvas": {
+    "x": 3040,
+    "y": 23220,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Scene",
+     "props": {
+      "variant": "after",
+      "overlay": "none"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "P14",
+   "board": "SceneMusic",
+   "file": "boards/SceneMusic.dc.html",
+   "title": "P14 · Music and ambience",
+   "mapTitle": "Music",
+   "kind": "overlay",
+   "route": "/story/:id",
+   "sitsOn": "Scene",
+   "reachedBy": "Music widget",
+   "canvas": {
+    "x": 4560,
+    "y": 23220,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Scene",
+     "props": {
+      "variant": "after",
+      "overlay": "music"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "P15",
+   "board": "ScenePeek",
+   "file": "boards/ScenePeek.dc.html",
+   "title": "P15 · A character’s card",
+   "mapTitle": "A character’s card",
+   "kind": "overlay",
+   "route": "/story/:id",
+   "sitsOn": "Scene",
+   "reachedBy": "A character widget",
+   "canvas": {
+    "x": 6080,
+    "y": 23220,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Scene",
+     "props": {
+      "variant": "after",
+      "overlay": "peek"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "P16",
+   "board": "SceneReading",
+   "file": "boards/SceneReading.dc.html",
+   "title": "P16 · Reading mode",
+   "mapTitle": "Reading mode",
+   "kind": "state",
+   "route": "/story/:id",
+   "sitsOn": "Scene",
+   "reachedBy": "Reading mode · Ctrl Shift R",
+   "canvas": {
+    "x": 7600,
+    "y": 23220,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Scene",
+     "props": {
+      "variant": "reading",
+      "overlay": "none"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "P17",
+   "board": "ScenePlace",
+   "file": "boards/ScenePlace.dc.html",
+   "title": "P17 · Scene and place",
+   "mapTitle": "Scene and place",
+   "kind": "overlay",
+   "route": "/story/:id",
+   "sitsOn": "Scene",
+   "reachedBy": "Scene and place",
+   "canvas": {
+    "x": 9120,
+    "y": 23220,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Scene",
+     "props": {
+      "variant": "secret",
+      "overlay": "place"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "P18",
+   "board": "SceneSettings",
+   "file": "boards/SceneSettings.dc.html",
+   "title": "P18 · Story settings",
+   "mapTitle": "Story settings",
+   "kind": "overlay",
+   "route": "/story/:id",
+   "sitsOn": "Scene",
+   "reachedBy": "Story settings",
+   "canvas": {
+    "x": 10640,
+    "y": 23220,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Scene",
+     "props": {
+      "variant": "secret",
+      "overlay": "settings"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "P19",
+   "board": "SceneFailed",
+   "file": "boards/SceneFailed.dc.html",
+   "title": "P19 · A reply that didn’t arrive",
+   "mapTitle": "A reply that failed",
+   "kind": "state",
+   "route": "/story/:id",
+   "sitsOn": "Scene",
+   "reachedBy": "A reply fails",
+   "canvas": {
+    "x": 12160,
+    "y": 23220,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Scene",
+     "props": {
+      "variant": "failed",
+      "overlay": "none"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "P20",
+   "board": "SceneFirst",
+   "file": "boards/SceneFirst.dc.html",
+   "title": "P20 · The first moment of a new story",
+   "mapTitle": "A new story’s first moment",
+   "kind": "state",
+   "route": "/story/:id",
+   "sitsOn": "Scene",
+   "reachedBy": "A story with no lines yet",
+   "canvas": {
+    "x": 13680,
+    "y": 23220,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Scene",
+     "props": {
+      "variant": "first",
+      "overlay": "none"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "P21",
+   "board": "SceneNarrator",
+   "file": "boards/SceneNarrator.dc.html",
+   "title": "P21 · Narrator, a plot, more widgets",
+   "mapTitle": "Narrator, plot, widgets",
+   "kind": "state",
+   "route": "/story/:id",
+   "sitsOn": "Scene",
+   "reachedBy": "A plot dropped in; extra widgets",
+   "canvas": {
+    "x": 15200,
+    "y": 23220,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Scene",
+     "props": {
+      "variant": "narrator",
+      "overlay": "none"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "Q1",
+   "board": "Backstage",
+   "file": "boards/Backstage.dc.html",
+   "title": "Q1 · Backstage · the mind",
+   "mapTitle": "Backstage · the mind",
+   "kind": "state",
+   "route": "/story/:id",
+   "sitsOn": "Scene",
+   "reachedBy": "Backstage switch · Ctrl B",
+   "canvas": {
+    "x": 0,
+    "y": 24540,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ],
+    "view": [
+     "mind",
+     "node",
+     "prompt",
+     "memory",
+     "logs"
+    ]
+   },
+   "imports": [],
+   "linksTo": [
+    "BackstageNode",
+    "Home",
+    "SceneAfterSkip"
+   ],
+   "components": [
+    "Avatar",
+    "BackstagePanel",
+    "BackstageToggle",
+    "EngineRow",
+    "MindNode",
+    "PromptBar",
+    "SceneButton",
+    "SceneHeader"
+   ]
+  },
+  {
+   "code": "Q2",
+   "board": "BackstageNode",
+   "file": "boards/BackstageNode.dc.html",
+   "title": "Q2 · Backstage · one stage opened",
+   "mapTitle": "One stage opened",
+   "kind": "state",
+   "route": "/story/:id",
+   "sitsOn": "Backstage",
+   "reachedBy": "A stage in the mind",
+   "canvas": {
+    "x": 1520,
+    "y": 24540,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Backstage",
+     "props": {
+      "view": "node"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "Q3",
+   "board": "BackstagePrompt",
+   "file": "boards/BackstagePrompt.dc.html",
+   "title": "Q3 · Backstage · the full prompt",
+   "mapTitle": "The full prompt",
+   "kind": "state",
+   "route": "/story/:id",
+   "sitsOn": "Backstage",
+   "reachedBy": "full prompt",
+   "canvas": {
+    "x": 3040,
+    "y": 24540,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Backstage",
+     "props": {
+      "view": "prompt"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "Q4",
+   "board": "BackstageMemory",
+   "file": "boards/BackstageMemory.dc.html",
+   "title": "Q4 · Backstage · every memory",
+   "mapTitle": "Every memory",
+   "kind": "state",
+   "route": "/story/:id",
+   "sitsOn": "Backstage",
+   "reachedBy": "memories",
+   "canvas": {
+    "x": 4560,
+    "y": 24540,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Backstage",
+     "props": {
+      "view": "memory"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "Q5",
+   "board": "BackstageLogs",
+   "file": "boards/BackstageLogs.dc.html",
+   "title": "Q5 · Backstage · logs",
+   "mapTitle": "Logs",
+   "kind": "state",
+   "route": "/story/:id",
+   "sitsOn": "Backstage",
+   "reachedBy": "logs",
+   "canvas": {
+    "x": 6080,
+    "y": 24540,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [
+    {
+     "board": "Backstage",
+     "props": {
+      "view": "logs"
+     }
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  },
+  {
+   "code": "R1",
+   "board": "ProofCompact",
+   "file": "boards/ProofCompact.dc.html",
+   "title": "R1 · 1024 wide",
+   "mapTitle": "1024 wide",
+   "kind": "proof",
+   "route": "—",
+   "sitsOn": null,
+   "reachedBy": "1024 wide",
+   "canvas": {
+    "x": 0,
+    "y": 25860,
+    "w": 1024,
+    "h": 1760
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [],
+   "linksTo": [
+    "Home",
+    "NewStory",
+    "Scene"
+   ],
+   "components": [
+    "BackstageToggle",
+    "CharacterCard",
+    "CharacterRowWidget",
+    "ChatLine",
+    "ChatPanel",
+    "ClockWidget",
+    "Composer",
+    "ContinueHero",
+    "EventCard",
+    "Eyebrow",
+    "MusicWidget",
+    "Rail",
+    "Reaction",
+    "SceneButton",
+    "SceneHeader",
+    "Sky",
+    "TitleCard",
+    "TopBar"
+   ]
+  },
+  {
+   "code": "R2",
+   "board": "ProofArabic",
+   "file": "boards/ProofArabic.dc.html",
+   "title": "R2 · Arabic, right to left · Home",
+   "mapTitle": "Arabic · Home",
+   "kind": "proof",
+   "route": "—",
+   "sitsOn": null,
+   "reachedBy": "Arabic · Home",
+   "canvas": {
+    "x": 1104,
+    "y": 25860,
+    "w": 1440,
+    "h": 1360
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [],
+   "linksTo": [
+    "Feedback",
+    "NewCharacter",
+    "ProofArabicScene",
+    "SetLanguage"
+   ],
+   "components": [
+    "Avatar",
+    "Button",
+    "Callout",
+    "CharacterCard",
+    "EventCard",
+    "Eyebrow",
+    "SearchField",
+    "Sky",
+    "StatePill",
+    "Still",
+    "StoryCard",
+    "StoryName",
+    "TextLink"
+   ]
+  },
+  {
+   "code": "R3",
+   "board": "ProofArabicScene",
+   "file": "boards/ProofArabicScene.dc.html",
+   "title": "R3 · Arabic · in a story",
+   "mapTitle": "Arabic · a story",
+   "kind": "proof",
+   "route": "—",
+   "sitsOn": null,
+   "reachedBy": "Arabic · Scene",
+   "canvas": {
+    "x": 2624,
+    "y": 25860,
+    "w": 1440,
+    "h": 900
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [],
+   "linksTo": [
+    "ProofArabic"
+   ],
+   "components": [
+    "Callout",
+    "CharacterRowWidget",
+    "CharacterWidget",
+    "ChatLine",
+    "ClockWidget",
+    "MusicWidget",
+    "Reaction",
+    "SceneButton",
+    "Segmented",
+    "StoryNote",
+    "TitleCard"
+   ]
+  },
+  {
+   "code": "R4",
+   "board": "ProofText",
+   "file": "boards/ProofText.dc.html",
+   "title": "R4 · Text at 150% and 200%",
+   "mapTitle": "Text at 200%",
+   "kind": "proof",
+   "route": "—",
+   "sitsOn": null,
+   "reachedBy": "200%",
+   "canvas": {
+    "x": 4144,
+    "y": 25860,
+    "w": 1440,
+    "h": 2060
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [],
+   "linksTo": [
+    "Home",
+    "NewStory",
+    "Scene"
+   ],
+   "components": [
+    "AvatarStack",
+    "ChatLine",
+    "ChatPanel",
+    "Composer",
+    "ContinueHero",
+    "Rail",
+    "Reaction",
+    "SceneButton",
+    "Sky",
+    "TopBar"
+   ]
+  },
+  {
+   "code": "R5",
+   "board": "ProofAccess",
+   "file": "boards/ProofAccess.dc.html",
+   "title": "R5 · Keyboard, focus, motion, contrast",
+   "mapTitle": "Keyboard, focus, motion",
+   "kind": "proof",
+   "route": "—",
+   "sitsOn": null,
+   "reachedBy": "Access",
+   "canvas": {
+    "x": 5664,
+    "y": 25860,
+    "w": 1440,
+    "h": 1100
+   },
+   "interactive": false,
+   "props": {
+    "theme": [
+     "night",
+     "day"
+    ]
+   },
+   "imports": [],
+   "linksTo": [],
+   "components": [
+    "Button",
+    "Chip",
+    "IconButton",
+    "StatePill",
+    "TextField"
+   ]
+  },
+  {
+   "code": "R6",
+   "board": "ProofDay",
+   "file": "boards/ProofDay.dc.html",
+   "title": "R6 · Day · Home",
+   "mapTitle": "Day",
+   "kind": "proof",
+   "route": "—",
+   "sitsOn": "Home",
+   "reachedBy": "Day theme",
+   "canvas": {
+    "x": 7184,
+    "y": 25860,
+    "w": 1440,
+    "h": 1360
+   },
+   "interactive": false,
+   "props": {},
+   "imports": [
+    {
+     "board": "Home",
+     "props": {}
+    }
+   ],
+   "linksTo": [],
+   "components": []
+  }
+ ]
+}

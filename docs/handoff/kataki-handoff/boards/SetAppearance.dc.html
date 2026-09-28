@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · Settings, Appearance</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div data-theme="{{theme}}" class="app" style="height: 1000px;">
+  <div class="app__sky"><x-import component-from-global-scope="Kataki.Sky" clouds="{{no}}" style="position: absolute; inset: 0px;"></x-import></div>
+  <x-import component-from-global-scope="Kataki.Rail" active="Settings" theme="{{theme}}" hrefs="{{hrefs}}" on-navigate="{{nav}}" height="{{h}}"></x-import>
+  <main class="app__main" aria-label="Settings" style="gap: 24px;">
+    <x-import component-from-global-scope="Kataki.TopBar" who="liv" name="Liv"></x-import>
+    <h1 class="pg-title">Settings</h1>
+    <div class="set">
+      <x-import component-from-global-scope="Kataki.SideNav" label="Settings" active="Appearance" items="{{navItems}}" footer="{{whatsNew}}"></x-import>
+      <div class="set__panel">
+        <x-import component-from-global-scope="Kataki.SettingsSection" title="Appearance" note="The Sky has two themes. Inside a story it is always golden hour.">
+          <div style="padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; border-bottom: 1px solid var(--hairline);">
+            <span style="font-size: 14px; font-weight: 700;">Theme</span>
+            <div class="row" style="gap: 14px;">
+              <x-import component-from-global-scope="Kataki.ThemeTile" name="Night" note="The default" variant="night" selected="{{isNight}}" on-click="{{pickNight}}"></x-import>
+              <x-import component-from-global-scope="Kataki.ThemeTile" name="Day" note="Its own palette" variant="day" selected="{{isDay}}" on-click="{{pickDay}}"></x-import>
+              <x-import component-from-global-scope="Kataki.ThemeTile" name="Follow the system" note="Windows decides" variant="system" selected="{{isSystem}}" on-click="{{pickSystem}}"></x-import>
+            </div>
+          </div>
+          <x-import component-from-global-scope="Kataki.SettingsRow" title="Text size" description="Everything scales, the story included. The browser zoom goes to 200%."><x-import component-from-global-scope="Kataki.Segmented" label="Text size" options="{{sizes}}" default-value="100%" size="sm"></x-import></x-import>
+          <x-import component-from-global-scope="Kataki.SettingsRow" title="Reduce motion" description="Clouds crossfade instead of parting, stars stay still, the caret stops blinking."><div style="width: 200px;"><x-import component-from-global-scope="Kataki.Select" label="" options="{{motion}}"></x-import></div></x-import>
+          <x-import component-from-global-scope="Kataki.SettingsRow" title="Show the stars" description="Purely decorative. Turning them off leaves the gradient."><x-import component-from-global-scope="Kataki.Toggle" default-on="{{yes}}" label="Show the stars"></x-import></x-import>
+          <x-import component-from-global-scope="Kataki.SettingsRow" title="Story typeface" description="What characters’ lines and story names are set in."><div style="width: 200px;"><x-import component-from-global-scope="Kataki.Select" label="" options="{{faces}}"></x-import></div></x-import>
+          <x-import component-from-global-scope="Kataki.SettingsRow" title="High contrast" description="Raises every border, dims the sky behind text, and drops the place art behind the chat to 30%."><x-import component-from-global-scope="Kataki.Toggle" label="High contrast"></x-import></x-import>
+        </x-import>
+        <x-import component-from-global-scope="Kataki.Callout" title="What isn’t adjustable, on purpose">Accent colour, spacing, corner radius and layout density. Kataki has one look; you choose the light it’s seen in.</x-import>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var A = window.KApp, self = this;
+    var base = A.page(this, {});
+    var pick = (this.state && this.state.pick) || base.theme;
+    var set = function (v) { return function () { self.setState({ pick: v, theme: v === 'system' ? 'night' : v }); }; };
+    return A.page(this, {
+      h: 1000,
+      isNight: pick === 'night', isDay: pick === 'day', isSystem: pick === 'system',
+      pickNight: set('night'), pickDay: set('day'), pickSystem: set('system'),
+      navItems: [{ icon: 'settings', label: 'General', href: 'SetGeneral.dc.html' }, { icon: 'sun', label: 'Appearance', href: 'SetAppearance.dc.html' }, { icon: 'globe', label: 'Language', href: 'SetLanguage.dc.html' }, { icon: 'cpu', label: 'Models', href: 'SetModels.dc.html' }, { icon: 'thought', label: 'Memory and thinking', href: 'SetMemory.dc.html' }, { icon: 'shield', label: 'Data and privacy', href: 'SetData.dc.html' }, { icon: 'key', label: 'Shortcuts', href: 'SetShortcuts.dc.html' }, { icon: 'help', label: 'About', href: 'SetAbout.dc.html' }],
+      whatsNew: A.el('TextLink', { icon: 'spark', href: 'SetAbout.dc.html' }, 'What’s new'),
+      sizes: ['100%', '125%', '150%'], motion: ['Follow Windows', 'Always reduce', 'Never reduce'], faces: ['Newsreader, a book face', 'Figtree, plain', 'Atkinson Hyperlegible']
+    });
+  }
+}
+</script>
+</body>
+</html>

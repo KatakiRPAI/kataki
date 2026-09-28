@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · Search, nothing found</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div data-theme="{{theme}}" class="app" style="height: 900px;">
+  <div class="app__sky"><x-import component-from-global-scope="Kataki.Sky" clouds="{{no}}" style="position: absolute; inset: 0px;"></x-import></div>
+  <x-import component-from-global-scope="Kataki.Rail" active="Search" theme="{{theme}}" hrefs="{{hrefs}}" on-navigate="{{nav}}" height="{{h}}"></x-import>
+
+  <main class="app__main" aria-label="Search results" style="gap: 24px;">
+    <div style="display: flex; align-items: center; gap: 16px;">
+      <x-import component-from-global-scope="Kataki.TextLink" href="Home.dc.html" icon="left">Home</x-import>
+      <div style="flex: 1;"><x-import component-from-global-scope="Kataki.SearchField" size="lg" value="galla" shortcut="{{no}}" label="Search everything"></x-import></div>
+    </div>
+    <div class="pg-head">
+      <div>
+        <h1 class="pg-title">“galla”</h1>
+        <p class="pg-sub">0 results</p>
+      </div>
+    </div>
+    <div style="max-width: 640px; padding-top: 24px;">
+      <x-import component-from-global-scope="Kataki.EmptyState" icon="search" title="Nothing called “galla”" actions="{{actions}}">Search looks at names, lines, memories, places and plots. Check the spelling, or try a character’s name.</x-import>
+    </div>
+    <div style="max-width: 640px;">
+      <div class="t-faint" style="padding-bottom: 8px;">Did you mean</div>
+      <div class="row">
+        <x-import component-from-global-scope="Kataki.Chip" count="{{c19}}">gala</x-import>
+        <x-import component-from-global-scope="Kataki.Chip" count="{{c2}}">Halla</x-import>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var A = window.KApp;
+    return A.page(this, { h: 900, c2: 2, c19: 19, actions: [A.btn('secondary', 'New character called “galla”', { size: 'sm', icon: 'plus' }), A.btn('ghost', 'Clear search', { size: 'sm' })] });
+  }
+}
+</script>
+</body>
+</html>

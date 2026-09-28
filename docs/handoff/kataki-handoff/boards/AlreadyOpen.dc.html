@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · Already open</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div data-theme="{{theme}}" style="position: relative; width: 1440px; height: 900px; overflow: hidden; background: var(--ground); color: var(--ink); font-family: var(--font-ui);">
+  <x-import component-from-global-scope="Kataki.Sky" style="position: absolute; inset: 0px;"></x-import>
+  <main aria-label="Kataki is already open" style="position: relative; width: 720px; margin: 0px auto; padding-top: 200px; display: flex; flex-direction: column; gap: 22px;">
+    <div style="font-family: var(--font-display); font-size: 26px; font-weight: 800; letter-spacing: -0.015em;">Kataki</div>
+    <x-import component-from-global-scope="Kataki.Alert" title="Kataki is already open" code="LIBRARY_LOCKED" icon="layers" actions="{{actions}}">Another Kataki window has your library open. Two at once could overwrite each other, so this one waits.</x-import>
+    <x-import component-from-global-scope="Kataki.Callout" tone="info" title="Usually you won’t see this">Opening Kataki a second time brings the first window forward instead. This page only shows when the first window hasn’t answered for 3 seconds, for example while it is still starting or stuck.</x-import>
+    <span class="t-meta">Quit this one closes only this window. The other keeps running.</span>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var A = window.KApp;
+    return A.page(this, { actions: [A.btn('primary', 'Switch to it'), A.btn('ghost', 'Quit this one')] });
+  }
+}
+</script>
+</body>
+</html>

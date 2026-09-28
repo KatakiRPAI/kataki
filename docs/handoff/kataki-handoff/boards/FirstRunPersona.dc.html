@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · First run, you are</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div data-theme="{{theme}}" style="position: relative; width: 1440px; height: 900px; overflow: hidden;">
+  <div class="under" aria-hidden="true"><dc-import name="FirstRunWho" theme="{{theme}}" hint-size="1440px,900px"></dc-import></div>
+  <div class="ov">
+    <div class="ov__dim"></div>
+    <div class="ov__win">
+      <section class="dlg" role="dialog" aria-modal="true" aria-labelledby="p-title">
+        <div class="dlg__head">
+          <div class="dlg__titles">
+            <h2 class="dlg__title" id="p-title">Who are you in these stories?</h2>
+            <p class="dlg__desc">Characters see this person, not you. You can have several and switch whenever you like.</p>
+          </div>
+          <x-import component-from-global-scope="Kataki.IconButton" icon="x" label="Close" size="sm"></x-import>
+        </div>
+        <div class="dlg__body">
+          <div class="row" style="gap: 16px;">
+            <x-import component-from-global-scope="Kataki.Avatar" who="liv" size="{{s64}}" alt="Liv"></x-import>
+            <div class="col" style="gap: 6px;">
+              <x-import component-from-global-scope="Kataki.ButtonGroup"><x-import component-from-global-scope="Kataki.Button" size="sm">Choose a picture</x-import><x-import component-from-global-scope="Kataki.Button" size="sm" variant="ghost">Remove</x-import></x-import>
+              <span class="t-faint">Optional. Without one, characters still know your name.</span>
+            </div>
+          </div>
+          <x-import component-from-global-scope="Kataki.TextField" label="Name" required="{{yes}}" default-value="Liv Sandoval" hint="What characters call you." max="{{m40}}"></x-import>
+          <x-import component-from-global-scope="Kataki.TextArea" label="Who you are, in a line or two" optional="{{yes}}" rows="{{r2}}" default-value="Cheerleader. The queen’s step-sister’s daughter." hint="What anyone meeting you would notice."></x-import>
+          <x-import component-from-global-scope="Kataki.Checkbox" label="Or just be “You” for now" description="Characters call you “you”. Give yourself a name any time in You."></x-import>
+        </div>
+        <div class="dlg__foot">
+          <span class="dlg__note">Saved to this computer</span>
+          <div class="k-btngroup">
+            <x-import component-from-global-scope="Kataki.Button" variant="ghost" href="FirstRunWho.dc.html">Cancel</x-import>
+            <x-import component-from-global-scope="Kataki.Button" variant="primary" href="FirstRunWho.dc.html">Save</x-import>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return window.KApp.page(this, { s64: 64, m40: 40, r2: 2 }); }
+}
+</script>
+</body>
+</html>

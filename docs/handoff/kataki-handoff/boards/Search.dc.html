@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · Search results</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div data-theme="{{theme}}" class="app" style="height: 1100px;">
+  <div class="app__sky"><x-import component-from-global-scope="Kataki.Sky" clouds="{{no}}" style="position: absolute; inset: 0px;"></x-import></div>
+  <x-import component-from-global-scope="Kataki.Rail" active="Search" theme="{{theme}}" hrefs="{{hrefs}}" on-navigate="{{nav}}" height="{{h}}"></x-import>
+
+  <main class="app__main" aria-label="Search results" style="gap: 24px;">
+    <div style="display: flex; align-items: center; gap: 16px;">
+      <x-import component-from-global-scope="Kataki.TextLink" href="Home.dc.html" icon="left">Home</x-import>
+      <div style="flex: 1;"><x-import component-from-global-scope="Kataki.SearchField" size="lg" value="gala" shortcut="{{no}}" label="Search everything"></x-import></div>
+    </div>
+    <div class="pg-head">
+      <div>
+        <h1 class="pg-title">“gala”</h1>
+        <p class="pg-sub">19 results across everything · names, lines, memories, places and plots</p>
+      </div>
+      <div style="width: 220px;"><x-import component-from-global-scope="Kataki.Select" label="Sort" options="{{sorts}}"></x-import></div>
+    </div>
+    <x-import component-from-global-scope="Kataki.Tabs" label="Search results" size="sm" tabs="{{tabs}}" counts="{{counts}}"></x-import>
+
+    <div style="display: flex; flex-direction: column; gap: 10px; max-width: 900px;">
+      <x-import component-from-global-scope="Kataki.SearchResult" icon="chat" story="{{yes}}" title="The Gala List" meta="Story · Close to the Crown · played last week" excerpt="Liv, Jae · 3 messages · two days before the gala" who="jae"></x-import>
+      <x-import component-from-global-scope="Kataki.SearchResult" icon="quote" title="“The list. You said you weren’t coming to this.”" meta="Mike · Two Sugars, No Title · three weeks later · 7:18 pm" excerpt="He looks at the jacket he borrowed, then at you." who="mike" action="Open the line"></x-import>
+      <x-import component-from-global-scope="Kataki.SearchResult" icon="thought" title="She did not want to be on the gala list." meta="A memory Mike holds · going hazy · witnessed" excerpt="Earlier version, kept: “Her mother is the queen’s step-sister, and she is on the list.”" who="mike"></x-import>
+      <x-import component-from-global-scope="Kataki.SearchResult" icon="quote" title="“Your name’s on it. Don’t ask me how.”" meta="Jae · The Gala List · two days before" excerpt="*chewing gum, not looking up*" who="jae" action="Open the line"></x-import>
+      <x-import component-from-global-scope="Kataki.SearchResult" icon="map-pin" story="{{yes}}" title="Corvel Palace" meta="Place · not filed yet · Jae knows it" excerpt="Gold stairs, orange trees, and a guest list nobody admits to reading."></x-import>
+      <x-import component-from-global-scope="Kataki.SearchResult" icon="book" story="{{yes}}" title="The Invitation" meta="Plot · Close to the Crown" excerpt="“The palace sends out the gala list, and both your names are on it.”"></x-import>
+      <div style="padding-top: 4px;"><x-import component-from-global-scope="Kataki.ShowMore">13 more</x-import></div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"$preview":{"width":1440,"height":1100}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return window.KApp.page(this, {
+      h: 1100,
+      tabs: ['All', 'Lines', 'Stories', 'Characters', 'Places and plots', 'Memories'],
+      counts: { All: 19, Lines: 9, Stories: 3, Characters: 2, 'Places and plots': 4, Memories: 1 },
+      sorts: ['Best match', 'Newest first', 'Oldest first']
+    });
+  }
+}
+</script>
+</body>
+</html>

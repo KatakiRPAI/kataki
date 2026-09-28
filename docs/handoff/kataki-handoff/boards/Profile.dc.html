@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · Mike</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}.pf-h{margin:0 0 10px;font-size:10.5px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--faint)}.pf-text{margin:0;font-size:15px;line-height:24px;color:var(--mid)}</style>
+</helmet>
+<div data-theme="{{theme}}" class="app" style="height: 1500px;">
+  <div class="app__sky"><x-import component-from-global-scope="Kataki.Sky" style="position: absolute; inset: 0px;"></x-import></div>
+  <x-import component-from-global-scope="Kataki.Rail" active="Characters" theme="{{theme}}" hrefs="{{hrefs}}" on-navigate="{{nav}}" height="{{h}}"></x-import>
+
+  <main class="app__main" aria-label="Mike" style="gap: 28px;">
+    <x-import component-from-global-scope="Kataki.TopBar" back="Characters" back-href="Characters.dc.html"></x-import>
+
+    <section style="display: flex; gap: 40px; align-items: flex-end;">
+      <img src="/_blob/0b9fe4d5e949fe7395d2dc331675abe8" alt="Mike, leaning on the counter at Halcyon, looking wary" style="width: 300px; height: 360px; object-fit: cover; object-position: 50% 26%; border-radius: 16px; box-shadow: var(--shadow-float); flex-shrink: 0;">
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 14px; padding-bottom: 6px;">
+        <x-import component-from-global-scope="Kataki.Stamp" exact="Today, 7:12 pm" detail="Two Sugars, No Title">Played 2 hours ago</x-import>
+        <h1 style="margin: 0; font-family: var(--font-story); font-size: 57px; line-height: 60px; font-weight: 500; letter-spacing: -0.012em;">Mike Dorsey</h1>
+        <p style="margin: 0; font-family: var(--font-story); font-style: italic; font-size: 20px; line-height: 29px; color: var(--mid);">Barista at Halcyon. Son of the queen’s hairdresser.</p>
+        <div class="row" style="gap: 8px;">
+          <x-import component-from-global-scope="Kataki.Tag">Barista</x-import>
+          <x-import component-from-global-scope="Kataki.Tag">Steady</x-import>
+          <x-import component-from-global-scope="Kataki.Tag">Private</x-import>
+        </div>
+        <div class="row" style="gap: 12px;">
+          <x-import component-from-global-scope="Kataki.Button" variant="primary" size="lg" href="Scene.dc.html">Continue</x-import>
+          <x-import component-from-global-scope="Kataki.Button" size="lg" href="NewStory.dc.html">New story</x-import>
+          <x-import component-from-global-scope="Kataki.IconButton" icon="star" label="Favourite" pressed="{{yes}}"></x-import>
+          <x-import component-from-global-scope="Kataki.IconButton" icon="dots" label="More for Mike"></x-import>
+        </div>
+        <x-import component-from-global-scope="Kataki.StatRow" stats="{{stats}}"><x-import component-from-global-scope="Kataki.Stat" value="24 May" label="together since"></x-import></x-import>
+      </div>
+    </section>
+
+    <x-import component-from-global-scope="Kataki.Tabs" label="Mike" tabs="{{tabs}}" value="{{tabLabel}}" on-change="{{pickTab}}"></x-import>
+
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 32px; align-items: start;">
+      <div style="display: flex; flex-direction: column; gap: 30px; min-width: 0;">
+        <sc-if value="{{isStory}}" hint-placeholder-val="{{true}}">
+          <section>
+            <h2 class="pf-h">How he talks</h2>
+            <div class="col" style="gap: 10px;">
+              <x-import component-from-global-scope="Kataki.Bubble">Ten minutes. Drink it fast or I’m putting you to work.</x-import>
+              <x-import component-from-global-scope="Kataki.Bubble" indent="{{yes}}">*wipes the counter twice* It’s fine. It’s not fine, but it’s fine.</x-import>
+            </div>
+          </section>
+          <x-import component-from-global-scope="Kataki.SecretCard" name="Mike">He cuts the queen’s hair now. His mother’s hands shake and no one can know.</x-import>
+          <section>
+            <h2 class="pf-h">Who he knows</h2>
+            <div class="row" style="gap: 12px;">
+              <x-import component-from-global-scope="Kataki.RelationshipCard" who="theo" name="Theo" how="wary of him"></x-import>
+              <x-import component-from-global-scope="Kataki.RelationshipCard" who="liv" name="Liv" how="fond of her"></x-import>
+              <x-import component-from-global-scope="Kataki.RelationshipCard" who="jae" name="Jae" how="never met"></x-import>
+            </div>
+          </section>
+          <section>
+            <h2 class="pf-h">Moments together</h2>
+            <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px;">
+              <x-import component-from-global-scope="Kataki.Still" place="halcyon-coffee" caption="the evening it rained" height="{{h200}}" alt="Halcyon Coffee in the rain"></x-import>
+              <x-import component-from-global-scope="Kataki.Still" place="corvel-palace" caption="the gala" height="{{h200}}" alt="Corvel Palace at night"></x-import>
+            </div>
+          </section>
+        </sc-if>
+
+        <sc-if value="{{isProfile}}" hint-placeholder-val="{{false}}">
+          <div class="row" style="justify-content: space-between;">
+            <span class="t-meta">What you wrote when you made him. Characters read all of this every turn.</span>
+            <x-import component-from-global-scope="Kataki.Button" icon="edit" href="EditCharacter.dc.html">Edit profile</x-import>
+          </div>
+          <section><h2 class="pf-h">About</h2><p class="pf-text">Barista at Halcyon Coffee on Mercer Street. Twenty-four. Keeps his head down and his counter clean. His mother is the queen’s hairdresser; her hands have started to shake and he covers for her. Also known as Michael, to his mother only.</p></section>
+          <section><h2 class="pf-h">How he says hi</h2><x-import component-from-global-scope="Kataki.Bubble">*flips the sign back around* Ten minutes. Drink it fast or I’m putting you to work.</x-import></section>
+          <section><h2 class="pf-h">How he talks · sample lines</h2><div class="col" style="gap: 10px;"><x-import component-from-global-scope="Kataki.Bubble">Ten minutes. Drink it fast or I’m putting you to work.</x-import><x-import component-from-global-scope="Kataki.Bubble" indent="{{yes}}">*wipes the counter twice* It’s fine. It’s not fine, but it’s fine.</x-import></div></section>
+          <x-import component-from-global-scope="Kataki.SecretCard" name="Mike">He cuts the queen’s hair now. His mother’s hands shake and no one can know.</x-import>
+          <section>
+            <h2 class="pf-h">Details</h2>
+            <x-import component-from-global-scope="Kataki.Panel" flush="{{yes}}">
+              <x-import component-from-global-scope="Kataki.SettingsRow" title="Pronouns" description="Used in reactions: “Mike has his doubts”."><span class="t-body">he / him</span></x-import>
+              <x-import component-from-global-scope="Kataki.SettingsRow" title="Places he knows" description="He can talk about these without being told."><span class="t-body">Halcyon Coffee · Corvel Palace</span></x-import>
+              <x-import component-from-global-scope="Kataki.SettingsRow" title="Which model plays him" description="Leave it and he uses the default."><span class="t-body">Default · qwen3.5-9b</span></x-import>
+              <x-import component-from-global-scope="Kataki.SettingsRow" title="Memory" description="Overrides Settings for him alone."><span class="t-body">Life-like · can doubt you</span></x-import>
+              <x-import component-from-global-scope="Kataki.SettingsRow" title="Made" description="From Kataki’s set, changed by you."><span class="t-body">24 May 2026 · edited 3 times</span></x-import>
+            </x-import>
+          </section>
+        </sc-if>
+      </div>
+
+      <aside aria-label="Right now" style="display: flex; flex-direction: column; gap: 18px;">
+        <x-import component-from-global-scope="Kataki.Panel">
+          <div style="display: flex; flex-direction: column; gap: 18px;">
+            <div class="col" style="gap: 8px;">
+              <x-import component-from-global-scope="Kataki.Eyebrow">Right now</x-import>
+              <div class="row" style="gap: 10px;"><x-import component-from-global-scope="Kataki.StoryName" size="row">Two Sugars, No Title</x-import><x-import component-from-global-scope="Kataki.StatePill" tone="warm">Doubtful</x-import></div>
+              <span class="t-meta">at the gala, three weeks later</span>
+            </div>
+            <hr class="hair">
+            <div class="col" style="gap: 10px;">
+              <x-import component-from-global-scope="Kataki.Eyebrow">How he feels about you</x-import>
+              <x-import component-from-global-scope="Kataki.Meter" label="warmth" value="{{v72}}" tone="ok"></x-import>
+              <x-import component-from-global-scope="Kataki.Meter" label="trust" value="{{v54}}"></x-import>
+              <x-import component-from-global-scope="Kataki.Meter" label="doubt" value="{{v46}}" tone="warm"></x-import>
+            </div>
+            <hr class="hair">
+            <div class="col" style="gap: 14px;">
+              <div class="row" style="justify-content: space-between;"><x-import component-from-global-scope="Kataki.Eyebrow">What he still holds onto</x-import><span class="t-faint">3 of 41</span></div>
+              <x-import component-from-global-scope="Kataki.MemoryRow" word="going hazy" value="{{v40}}">She did not want to be on the gala list.</x-import>
+              <x-import component-from-global-scope="Kataki.MemoryRow" word="held tight" value="{{v88}}" tone="warm">Her mother is the queen’s step-sister.</x-import>
+              <x-import component-from-global-scope="Kataki.MemoryRow" word="doubted" value="{{v55}}" tone="warm">She says she never said it.</x-import>
+              <div class="row" style="justify-content: space-between;">
+                <x-import component-from-global-scope="Kataki.TextLink" href="ProfileMemories.dc.html">All 41 memories</x-import>
+                <x-import component-from-global-scope="Kataki.TextLink" href="Backstage.dc.html" icon="layers" quiet="{{yes}}">Open Backstage</x-import>
+              </div>
+            </div>
+          </div>
+        </x-import>
+        <x-import component-from-global-scope="Kataki.Panel" flush="{{yes}}">
+          <div style="padding: 14px 16px 4px;"><x-import component-from-global-scope="Kataki.Eyebrow">Stories together</x-import></div>
+          <x-import component-from-global-scope="Kataki.ListRow" story="{{yes}}" title="Two Sugars, No Title" subtitle="three weeks later" meta="2 hours ago" href="Scene.dc.html"></x-import>
+          <x-import component-from-global-scope="Kataki.ListRow" story="{{yes}}" title="The Gala List" subtitle="two days before" meta="last week" href="Stories.dc.html"></x-import>
+          <x-import component-from-global-scope="Kataki.ListRow" story="{{yes}}" title="Closing Shift" subtitle="day one" meta="a month ago" href="Stories.dc.html"></x-import>
+          <x-import component-from-global-scope="Kataki.ListRow" story="{{yes}}" title="The Long Way Home" subtitle="as Cas" meta="3 weeks ago" href="Stories.dc.html"></x-import>
+        </x-import>
+        <x-import component-from-global-scope="Kataki.TextLink" href="ExportStory.dc.html" icon="download" quiet="{{yes}}">Export everything about Mike</x-import>
+      </aside>
+    </div>
+  </main>
+
+  <sc-if value="{{ovMemories}}" hint-placeholder-val="{{false}}">
+    <div class="ov">
+      <div class="ov__dim"></div>
+      <div style="position: absolute; inset-inline-end: 0px; top: 0px; bottom: 0px; width: 560px; box-sizing: border-box; padding: 20px; display: flex;">
+        <section class="dlg" role="dialog" aria-modal="true" aria-labelledby="mem-title" style="width: 100%; height: 100%; max-width: none;">
+          <div class="dlg__head">
+            <div class="dlg__titles">
+              <h2 class="dlg__title" id="mem-title">Everything Mike remembers about you</h2>
+              <p class="dlg__desc">41 memories, sharpest first. Stored when they happened; nothing here is written now.</p>
+            </div>
+            <x-import component-from-global-scope="Kataki.IconButton" icon="x" label="Close" size="sm"></x-import>
+          </div>
+          <div class="dlg__body" style="gap: 14px; overflow: hidden;">
+            <x-import component-from-global-scope="Kataki.SearchField" placeholder="Search Mike’s memories" label="Search Mike’s memories" shortcut="{{no}}"></x-import>
+            <div class="row row--wrap" style="gap: 8px;">
+              <x-import component-from-global-scope="Kataki.Chip" default-pressed="{{yes}}" count="{{c41}}" size="sm">All</x-import>
+              <x-import component-from-global-scope="Kataki.Chip" count="{{c22}}" size="sm">Sharp</x-import>
+              <x-import component-from-global-scope="Kataki.Chip" count="{{c14}}" size="sm">Hazy</x-import>
+              <x-import component-from-global-scope="Kataki.Chip" count="{{c3}}" size="sm">Doubted</x-import>
+              <x-import component-from-global-scope="Kataki.Chip" count="{{c2}}" size="sm">Forgotten</x-import>
+            </div>
+            <div style="width: 240px;"><x-import component-from-global-scope="Kataki.Select" label="Story" options="{{storyOpts}}"></x-import></div>
+            <sc-for list="{{memories}}" as="m" hint-placeholder-count="6">
+              <div style="display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: start; padding-bottom: 12px; border-bottom: 1px solid var(--hairline);">
+                <x-import component-from-global-scope="Kataki.MemoryRow" word="{{m.word}}" value="{{m.value}}" tone="{{m.tone}}" meta="{{m.meta}}">{{m.text}}</x-import>
+                <x-import component-from-global-scope="Kataki.IconButton" icon="dots" label="More for this memory" size="sm"></x-import>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ovForget}}" hint-placeholder-val="{{false}}">
+    <div class="ov">
+      <div class="ov__dim"></div>
+      <div class="ov__win">
+        <section class="dlg dlg--lg" role="dialog" aria-modal="true" aria-labelledby="fg-title">
+          <div class="dlg__head">
+            <span class="dlg__icon" style="color: var(--warm);"><x-import component-from-global-scope="Kataki.Icon" name="eyeoff" size="{{s20}}"></x-import></span>
+            <div class="dlg__titles">
+              <h2 class="dlg__title" id="fg-title">Make Mike forget something</h2>
+              <p class="dlg__desc">He won’t remember it happened. The lines stay in the story; he just can’t recall them. You can undo this for 30 days.</p>
+            </div>
+            <x-import component-from-global-scope="Kataki.IconButton" icon="x" label="Close" size="sm"></x-import>
+          </div>
+          <div class="dlg__body">
+            <x-import component-from-global-scope="Kataki.SearchField" placeholder="Find a memory" label="Find a memory" shortcut="{{no}}"></x-import>
+            <div class="card" style="background: var(--raise); padding: 6px 16px;">
+              <div style="padding: 10px 0px; border-bottom: 1px solid var(--hairline);"><x-import component-from-global-scope="Kataki.Checkbox" label="Her mother is the queen’s step-sister." description="held tight · told by Liv · Two Sugars, No Title · 7:12 pm" default-checked="{{yes}}"></x-import></div>
+              <div style="padding: 10px 0px; border-bottom: 1px solid var(--hairline);"><x-import component-from-global-scope="Kataki.Checkbox" label="She did not want to be on the gala list." description="going hazy · told by Liv · Two Sugars, No Title · 7:12 pm" default-checked="{{yes}}"></x-import></div>
+              <div style="padding: 10px 0px;"><x-import component-from-global-scope="Kataki.Checkbox" label="She says she never said it." description="doubted · heard · Two Sugars, No Title · 7:20 pm"></x-import></div>
+            </div>
+            <x-import component-from-global-scope="Kataki.RadioGroup" label="Also" options="{{forgetOpts}}" default-value="just"></x-import>
+          </div>
+          <div class="dlg__foot">
+            <span class="dlg__note">2 memories · this can’t be seen by Mike, only by you</span>
+            <div class="k-btngroup">
+              <x-import component-from-global-scope="Kataki.Button" variant="ghost">Cancel</x-import>
+              <x-import component-from-global-scope="Kataki.Button" variant="danger">Forget 2</x-import>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ovDelete}}" hint-placeholder-val="{{false}}">
+    <div class="ov">
+      <div class="ov__dim"></div>
+      <div class="ov__win">
+        <x-import component-from-global-scope="Kataki.Dialog" icon="trash" tone="bad" title="Delete Mike?" description="His profile, portrait and 63 memories go. The 4 stories he is in stay, with his lines kept and his name greyed out." note="Export him first if you might want him back." actions="{{deleteActions}}">
+          <x-import component-from-global-scope="Kataki.RadioGroup" label="The stories he’s in" options="{{deleteOpts}}" default-value="keep"></x-import>
+          <x-import component-from-global-scope="Kataki.TextField" label="Type Mike to confirm" placeholder="Mike"></x-import>
+        </x-import>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"tab":{"editor":"enum","options":["story","profile"],"default":"story"},"overlay":{"editor":"enum","options":["none","memories","forget","delete"],"default":"none"},"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var A = window.KApp, self = this;
+    var tab = (this.state && this.state.tab) || this.props.tab || 'story';
+    var ov = this.props.overlay || 'none';
+    var M = [
+      ['held tight', 88, 'warm', 'told by Liv · 3 weeks ago', 'Her mother is the queen’s step-sister.'],
+      ['sharp', 80, 'ok', 'witnessed · 3 weeks ago', 'She sent Theo to the back for milk, all of it.'],
+      ['sharp', 74, 'ok', 'witnessed · 3 weeks ago', 'She asked for anything hot and didn’t care what.'],
+      ['doubted', 55, 'warm', 'heard · tonight', 'She says she never said it.'],
+      ['going hazy', 40, 'muted', 'told by Liv · 3 weeks ago', 'She did not want to be on the gala list.'],
+      ['forgotten', 6, 'muted', 'witnessed · a month ago', 'The espresso machine broke on her first visit.']
+    ];
+    return A.page(this, {
+      h: 1500, h200: 200, s20: 20,
+      v40: 40, v46: 46, v54: 54, v55: 55, v72: 72, v88: 88,
+      c2: 2, c3: 3, c14: 14, c22: 22, c41: 41,
+      stats: [['4', 'stories'], ['412', 'lines'], ['2', 'places']],
+      tabs: ['Story', 'Profile'], tabLabel: tab === 'profile' ? 'Profile' : 'Story',
+      pickTab: function (v) { self.setState({ tab: v === 'Profile' ? 'profile' : 'story' }); },
+      isStory: tab !== 'profile', isProfile: tab === 'profile',
+      ovMemories: ov === 'memories', ovForget: ov === 'forget', ovDelete: ov === 'delete',
+      storyOpts: ['Every story', 'Two Sugars, No Title', 'The Gala List', 'Closing Shift', 'The Long Way Home'],
+      memories: M.map(function (m) { return { word: m[0], value: m[1], tone: m[2], meta: m[3], text: m[4] }; }),
+      forgetOpts: [{ value: 'just', label: 'Just these memories' }, { value: 'scene', label: 'Everything from the scene they came from', description: 'The evening it rained · 11 memories' }],
+      deleteOpts: [{ value: 'keep', label: 'Keep them, with his lines', description: 'The default. Nothing you wrote is lost.' }, { value: 'drop', label: 'Delete them too', description: 'The Gala List and Closing Shift have only him and you in them.' }],
+      deleteActions: [A.btn('ghost', 'Keep him'), A.btn('secondary', 'Export first', { icon: 'download' }), A.btn('danger', 'Delete Mike')]
+    });
+  }
+}
+</script>
+</body>
+</html>

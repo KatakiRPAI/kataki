@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · The disk is full</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div data-theme="{{theme}}" style="position: relative; width: 1440px; height: 900px; overflow: hidden; background: var(--ground); color: var(--ink); font-family: var(--font-ui);">
+  <x-import component-from-global-scope="Kataki.Sky" style="position: absolute; inset: 0px;"></x-import>
+  <main aria-label="The disk is full" style="position: relative; width: 820px; margin: 0px auto; padding-top: 110px; display: flex; flex-direction: column; gap: 22px;">
+    <div style="font-family: var(--font-display); font-size: 26px; font-weight: 800; letter-spacing: -0.015em;">Kataki</div>
+    <x-import component-from-global-scope="Kataki.Alert" title="There’s no room left on C:" code="DISK_FULL" icon="alert" actions="{{actions}}">Kataki needs about 20 MB to keep saving. Your stories are safe up to 7:22 pm. Lines you write now wait here, in this window, until there’s room. Don’t close Kataki until this goes away.</x-import>
+    <div class="card" style="padding: 18px 22px; display: flex; flex-direction: column; gap: 12px;">
+      <span class="sec-title" style="font-size: 17px;">What Kataki uses on C:</span>
+      <x-import component-from-global-scope="Kataki.Meter" label="Models · 10.4 GB" value="{{v88}}" tone="warm"></x-import>
+      <x-import component-from-global-scope="Kataki.Meter" label="Portraits and places · 310 MB" value="{{v3}}"></x-import>
+      <x-import component-from-global-scope="Kataki.Meter" label="Stories and characters · 48 MB" value="{{v1}}"></x-import>
+      <x-import component-from-global-scope="Kataki.Meter" label="Backups · 1.1 GB" value="{{v9}}"></x-import>
+      <span class="t-meta">Free on C: 4 MB of 237 GB. Most of the space is used by other programs; Kataki only lists its own.</span>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px;">
+      <x-import component-from-global-scope="Kataki.Callout" tone="info" title="Move models to another drive" action="{{moveAct}}">Models are the biggest thing Kataki keeps. D: has 412 GB free.</x-import>
+      <x-import component-from-global-scope="Kataki.Callout" tone="info" title="Keep fewer backups" action="{{backAct}}">Seven nightly backups use 1.1 GB. Keeping three frees about 620 MB.</x-import>
+    </div>
+    <div class="row" style="gap: 10px;" role="status" aria-live="polite"><x-import component-from-global-scope="Kataki.Spinner" size="{{s14}}"></x-import><span class="t-meta">Checking for room every 30 s · 3 lines waiting to be saved · DISK_READONLY uses this same page with its own title and text</span></div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var A = window.KApp;
+    return A.page(this, {
+      s14: 14, v88: 88, v3: 3, v1: 1, v9: 9,
+      actions: [A.btn('primary', 'Try again', { icon: 'refresh' }), A.btn('secondary', 'Show what uses space'), A.btn('ghost', 'Move the library…')],
+      moveAct: A.btn('secondary', 'Move models…', { size: 'sm' }),
+      backAct: A.btn('secondary', 'Open Backups', { size: 'sm', href: 'Backups.dc.html' })
+    });
+  }
+}
+</script>
+</body>
+</html>

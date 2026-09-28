@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · Settings, About</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}.lic{display:grid;grid-template-columns:minmax(0,1fr) 170px auto;gap:14px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--hairline);font-size:13.5px}.lic:last-child{border-bottom:0}</style>
+</helmet>
+<div data-theme="{{theme}}" class="app" style="height: 1000px;">
+  <div class="app__sky"><x-import component-from-global-scope="Kataki.Sky" clouds="{{no}}" style="position: absolute; inset: 0px;"></x-import></div>
+  <x-import component-from-global-scope="Kataki.Rail" active="Settings" theme="{{theme}}" hrefs="{{hrefs}}" on-navigate="{{nav}}" height="{{h}}"></x-import>
+  <main class="app__main" aria-label="Settings" style="gap: 24px;">
+    <x-import component-from-global-scope="Kataki.TopBar" who="liv" name="Liv"></x-import>
+    <h1 class="pg-title">Settings</h1>
+    <div class="set">
+      <x-import component-from-global-scope="Kataki.SideNav" label="Settings" active="About" items="{{navItems}}" footer="{{whatsNew}}"></x-import>
+      <div class="set__panel">
+        <div class="card" style="display: flex; align-items: center; gap: 18px; padding: 20px 22px;">
+          <span style="width: 56px; height: 56px; border-radius: 16px; background: var(--raise); display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-size: 30px; font-weight: 800; color: var(--accent-text);">K</span>
+          <div style="flex: 1;">
+            <div style="font-family: var(--font-display); font-size: 22px; font-weight: 800;">Kataki RPAI</div>
+            <div class="t-meta">Version 0.4.2 · Windows 11 · local-first · nothing here phones home</div>
+          </div>
+          <x-import component-from-global-scope="Kataki.ButtonGroup">
+            <x-import component-from-global-scope="Kataki.Button" size="sm" icon="refresh">Check for updates</x-import>
+            <x-import component-from-global-scope="Kataki.Button" size="sm" variant="ghost" href="Licences.dc.html">Licences</x-import>
+            <x-import component-from-global-scope="Kataki.Button" size="sm" variant="ghost" icon="book">The manual</x-import>
+          </x-import>
+        </div>
+
+        <sc-if value="{{showUpdates}}" hint-placeholder-val="{{false}}">
+          <section class="col" style="gap: 10px;" aria-label="Every update state">
+            <span class="spec-cap">Every state of Check for updates, in the order they happen</span>
+            <x-import component-from-global-scope="Kataki.StatusLine" title="Checking"><span class="row" style="gap: 8px;"><x-import component-from-global-scope="Kataki.Spinner" size="{{s14}}"></x-import>Asking [UPDATE HOST] for the latest version number…</span></x-import>
+            <x-import component-from-global-scope="Kataki.StatusLine" title="You’re up to date">0.4.2 is the latest · checked just now</x-import>
+            <x-import component-from-global-scope="Kataki.StatusLine" tone="warm" title="0.4.3 is out" action="{{getIt}}">38 MB · [FIRST LINE OF ITS RELEASE NOTES] · the full list opens in What’s new after it installs.</x-import>
+            <x-import component-from-global-scope="Kataki.ProgressBar" label="Downloading 0.4.3" value="{{v44}}" value-text="17 of 38 MB · keep playing, it installs when you close Kataki"></x-import>
+            <x-import component-from-global-scope="Kataki.StatusLine" title="0.4.3 is ready" action="{{restart}}">Installs the next time Kataki closes, or now if you restart. Your place is kept.</x-import>
+            <x-import component-from-global-scope="Kataki.StatusLine" tone="bad" title="The update didn’t install" action="{{retry}}">The file didn’t match what was published, so nothing was changed. You’re still on 0.4.2. UPDATE_VERIFY_FAILED</x-import>
+            <x-import component-from-global-scope="Kataki.StatusLine" tone="warm" title="Updates are off">You chose Never in General. Kataki won’t ask. You can still check by hand.</x-import>
+          </section>
+        </sc-if>
+
+        <sc-if value="{{showMain}}" hint-placeholder-val="{{true}}">
+          <x-import component-from-global-scope="Kataki.SettingsSection" title="Tell us something" note="All three go to the same place. Nothing is sent until you’ve seen exactly what it contains.">
+            <x-import component-from-global-scope="Kataki.SettingsRow" title="Give feedback" description="Anything at all. Two sentences is fine."><x-import component-from-global-scope="Kataki.Button" size="sm" href="Feedback.dc.html">Give feedback</x-import></x-import>
+            <x-import component-from-global-scope="Kataki.SettingsRow" title="Report a bug" description="Attaches your version, OS and the last error, every field removable."><x-import component-from-global-scope="Kataki.Button" size="sm" href="BugReport.dc.html">Report a bug</x-import></x-import>
+            <x-import component-from-global-scope="Kataki.SettingsRow" title="Suggest something" description="What you wanted Kataki to do, and it didn’t."><x-import component-from-global-scope="Kataki.Button" size="sm" href="Suggestion.dc.html">Suggest something</x-import></x-import>
+          </x-import>
+          <x-import component-from-global-scope="Kataki.SettingsSection" title="What’s new" note="Every visible change gets a line here. Nothing is ever removed quietly.">
+            <div style="padding: 6px 20px 16px;"><x-import component-from-global-scope="Kataki.Changelog" items="{{log}}"></x-import></div>
+          </x-import>
+        </sc-if>
+      </div>
+    </div>
+  </main>
+
+  <sc-if value="{{showLicences}}" hint-placeholder-val="{{false}}">
+    <div class="ov"><div class="ov__dim"></div><div class="ov__win">
+      <section class="dlg dlg--lg" role="dialog" aria-modal="true" aria-labelledby="lc-title">
+        <div class="dlg__head"><div class="dlg__titles"><h2 class="dlg__title" id="lc-title">Licences</h2><p class="dlg__desc">What Kataki is built from, and the terms each part comes under.</p></div><x-import component-from-global-scope="Kataki.IconButton" icon="x" label="Close" size="sm"></x-import></div>
+        <div class="dlg__body">
+          <div class="card" style="background: var(--raise);">
+            <div class="lic"><span>Kataki RPAI</span><span class="t-meta">[KATAKI LICENCE]</span><x-import component-from-global-scope="Kataki.Button" size="sm" variant="link">Read it</x-import></div>
+            <div class="lic"><span>Baloo 2, Baloo Bhaijaan 2, Figtree, Newsreader, JetBrains Mono, IBM Plex Sans Arabic, Noto Naskh Arabic</span><span class="t-meta">SIL Open Font 1.1</span><x-import component-from-global-scope="Kataki.Button" size="sm" variant="link">Read it</x-import></div>
+            <div class="lic"><span>kataki-small-3b, Kataki’s own model</span><span class="t-meta">[MODEL LICENCE]</span><x-import component-from-global-scope="Kataki.Button" size="sm" variant="link">Read it</x-import></div>
+            <div class="lic"><span>Electron, React</span><span class="t-meta">MIT</span><x-import component-from-global-scope="Kataki.Button" size="sm" variant="link">Read it</x-import></div>
+            <div class="lic"><span>Portraits and places in Kataki’s set</span><span class="t-meta">[ART LICENCE]</span><x-import component-from-global-scope="Kataki.Button" size="sm" variant="link">Read it</x-import></div>
+            <div class="lic"><span>Every other package, generated at build time</span><span class="t-meta">as each states</span><x-import component-from-global-scope="Kataki.Button" size="sm" variant="link">See all</x-import></div>
+          </div>
+        </div>
+        <div class="dlg__foot"><span class="dlg__note">The full texts ship inside Kataki and open offline</span><x-import component-from-global-scope="Kataki.Button" variant="primary">Close</x-import></div>
+      </section>
+    </div></div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"view":{"editor":"enum","options":["main","updates","licences"],"default":"main"},"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var A = window.KApp, v = this.props.view || 'main';
+    return A.page(this, {
+      h: 1000, s14: 14, v44: 44,
+      showMain: v !== 'updates', showUpdates: v === 'updates', showLicences: v === 'licences',
+      getIt: A.btn('primary', 'Download', { size: 'sm' }), restart: A.btn('primary', 'Restart now', { size: 'sm' }), retry: A.btn('secondary', 'Try again', { size: 'sm' }),
+      log: [{ version: '0.4.2', when: 'today', text: 'The Sky is dark by default. Activity moved into Home as “Since you last played”. Chats and Characters became Stories.' }, { version: '0.4.1', when: 'last week', text: 'Characters can doubt you. Story clocks show the real date on hover.' }, { version: '0.4.0', when: 'three weeks ago', text: 'Widgets in the Scene: move, pin, duplicate. Music can be your own file.' }],
+      navItems: [{ icon: 'settings', label: 'General', href: 'SetGeneral.dc.html' }, { icon: 'sun', label: 'Appearance', href: 'SetAppearance.dc.html' }, { icon: 'globe', label: 'Language', href: 'SetLanguage.dc.html' }, { icon: 'cpu', label: 'Models', href: 'SetModels.dc.html' }, { icon: 'thought', label: 'Memory and thinking', href: 'SetMemory.dc.html' }, { icon: 'shield', label: 'Data and privacy', href: 'SetData.dc.html' }, { icon: 'key', label: 'Shortcuts', href: 'SetShortcuts.dc.html' }, { icon: 'help', label: 'About', href: 'SetAbout.dc.html' }],
+      whatsNew: A.el('TextLink', { icon: 'spark', href: 'SetAbout.dc.html' }, 'What’s new')
+    });
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,1055 @@
+[
+ {
+  "code": "LIBRARY_UNREADABLE",
+  "group": "Opening and the library",
+  "surface": "page",
+  "title": "Kataki can’t read your library.",
+  "body": "The file {file} in {folder} didn’t open. It may be damaged, or another program may be holding it. Nothing has been changed or deleted.",
+  "actions": [
+   "Restore {backupWhen}’s backup",
+   "Open the folder",
+   "Try again",
+   "Start with an empty library"
+  ],
+  "recovery": "Never overwrite the unreadable file. Restoring copies the backup beside it as library.restored-{date} and opens that; the damaged file moves to library/damaged/. “Restore…” shows only when a backup exists.",
+  "appearsOn": [
+   "OpeningFailed"
+  ],
+  "drawnOn": [
+   "OpeningFailed"
+  ]
+ },
+ {
+  "code": "LIBRARY_LOCKED",
+  "group": "Opening and the library",
+  "surface": "page",
+  "title": "Kataki is already open",
+  "body": "Another Kataki window has your library open. Two at once could overwrite each other, so this one waits.",
+  "actions": [
+   "Switch to it",
+   "Quit this one"
+  ],
+  "recovery": "Single-instance lock. Second launch focuses the first window and exits; this page shows only if the first window doesn’t answer within 3 s.",
+  "appearsOn": [
+   "AlreadyOpen"
+  ],
+  "drawnOn": [
+   "AlreadyOpen"
+  ]
+ },
+ {
+  "code": "LIBRARY_NEWER",
+  "group": "Opening and the library",
+  "surface": "page",
+  "title": "This library is from a newer Kataki",
+  "body": "It was last saved by Kataki {libraryVersion}. This is {appVersion}. Update to open it. Nothing was changed.",
+  "actions": [
+   "Check for updates",
+   "Open the last backup"
+  ],
+  "recovery": "Read-only refusal. Never migrate downwards.",
+  "appearsOn": [
+   "OpeningFailed"
+  ],
+  "drawnOn": []
+ },
+ {
+  "code": "LIBRARY_MIGRATION_FAILED",
+  "group": "Opening and the library",
+  "surface": "page",
+  "title": "Kataki couldn’t bring your library up to date",
+  "body": "Your library is exactly as it was. A copy was made before trying: {copyPath}.",
+  "actions": [
+   "Report a bug",
+   "Show the copy",
+   "Quit"
+  ],
+  "recovery": "Migrations run in one transaction on a copy; the original is only replaced after success.",
+  "appearsOn": [
+   "OpeningFailed"
+  ],
+  "drawnOn": []
+ },
+ {
+  "code": "STORY_UNREADABLE",
+  "group": "Opening and the library",
+  "surface": "page",
+  "title": "Part of {story} didn’t read back",
+  "body": "{goodLines} lines are fine; {badLines} couldn’t be read. The rest of your library isn’t affected.",
+  "actions": [
+   "Open what’s readable",
+   "Restore it from a backup",
+   "Report a bug"
+  ],
+  "recovery": "Shown in place of the Scene. Open what’s readable marks the damaged rows and never deletes them.",
+  "appearsOn": [
+   "/story/:id, in place of the Scene"
+  ],
+  "drawnOn": []
+ },
+ {
+  "code": "APP_CRASHED",
+  "group": "Opening and the library",
+  "surface": "dialog",
+  "title": "Kataki closed unexpectedly",
+  "body": "Last time, Kataki stopped at {time} while {name} was answering. Everything up to {his} last finished line is safe. The line {he} was writing is gone.",
+  "actions": [
+   "Continue the story",
+   "Report it",
+   "Stay here"
+  ],
+  "recovery": "The dialog shows the crash reference (“Crash log saved · KT-CRASH-{nnnn}”) instead of this code. The crash log stays local until attached to a bug report.",
+  "appearsOn": [
+   "CrashRecovered"
+  ],
+  "drawnOn": [
+   "CrashRecovered"
+  ]
+ },
+ {
+  "code": "DISK_FULL",
+  "group": "Opening and the library",
+  "surface": "page",
+  "title": "There’s no room left on {drive}",
+  "body": "Kataki needs about {neededMb} MB to keep saving. Your stories are safe up to {lastSavedAt}. Lines you write now wait here until there’s room. Don’t close Kataki until this goes away.",
+  "actions": [
+   "Try again",
+   "Show what uses space",
+   "Move the library…"
+  ],
+  "recovery": "Queue writes in memory, retry every 30 s, never drop a line.",
+  "appearsOn": [
+   "DiskFull"
+  ],
+  "drawnOn": [
+   "DiskFull"
+  ]
+ },
+ {
+  "code": "DISK_READONLY",
+  "group": "Opening and the library",
+  "surface": "page",
+  "title": "Kataki can’t write to its folder",
+  "body": "{libraryFolder} is read-only. Your stories are safe; nothing new can be saved until Kataki can write there.",
+  "actions": [
+   "Try again",
+   "Move the library…",
+   "Show the folder"
+  ],
+  "recovery": "Same queue as DISK_FULL.",
+  "appearsOn": [
+   "DiskFull"
+  ],
+  "drawnOn": [
+   "DiskFull"
+  ]
+ },
+ {
+  "code": "DOWNLOAD_NETWORK",
+  "group": "Getting a model",
+  "surface": "callout",
+  "title": "The download stopped",
+  "body": "This computer lost its internet connection at {doneGb} GB. It picks up from there.",
+  "actions": [
+   "Resume"
+  ],
+  "recovery": "HTTP range resume. Auto-retry 3 times at 5 s, 20 s, 60 s before showing.",
+  "appearsOn": [
+   "FirstRunDownload"
+  ],
+  "drawnOn": [
+   "FirstRunDownload"
+  ]
+ },
+ {
+  "code": "DOWNLOAD_DISK",
+  "group": "Getting a model",
+  "surface": "callout",
+  "title": "Not enough room on {drive}",
+  "body": "The model needs {needGb} GB and {freeGb} GB is free. Free some space, or keep models on another drive.",
+  "actions": [
+   "Choose a folder"
+  ],
+  "recovery": "Checked before starting and again every 100 MB.",
+  "appearsOn": [
+   "FirstRunDownload"
+  ],
+  "drawnOn": [
+   "FirstRunDownload"
+  ]
+ },
+ {
+  "code": "DOWNLOAD_CHECKSUM",
+  "group": "Getting a model",
+  "surface": "callout",
+  "title": "The file didn’t check out",
+  "body": "What arrived doesn’t match what was sent, so Kataki threw it away. Downloading again usually fixes it.",
+  "actions": [
+   "Download again"
+  ],
+  "recovery": "SHA-256 against the published manifest. Partial file deleted (it is Kataki’s own temp file, not the user’s).",
+  "appearsOn": [
+   "FirstRunDownload"
+  ],
+  "drawnOn": [
+   "FirstRunDownload"
+  ]
+ },
+ {
+  "code": "HARDWARE_TOO_SMALL",
+  "group": "Getting a model",
+  "surface": "callout",
+  "title": "This computer may be slow with Kataki’s model",
+  "body": "kataki-small-3b wants {needGb} GB of free memory and {freeGb} GB is free. It will run, slowly. A server on another computer or an online model will be faster.",
+  "actions": [
+   "Download anyway",
+   "Use an online model"
+  ],
+  "recovery": "Warning only; never blocks.",
+  "appearsOn": [
+   "FirstRun"
+  ],
+  "drawnOn": []
+ },
+ {
+  "code": "SERVER_NO_MODEL",
+  "group": "Model servers",
+  "surface": "statusline",
+  "title": "Connected, but no model loaded",
+  "body": "Load a model in {server}, then test again.",
+  "actions": [
+   "Test again"
+  ],
+  "recovery": "Poll every 10 s while the page is open.",
+  "appearsOn": [
+   "FirstRunServer",
+   "SetModelsFailed"
+  ],
+  "drawnOn": [
+   "FirstRunServer"
+  ]
+ },
+ {
+  "code": "SERVER_UNREACHABLE",
+  "group": "Model servers",
+  "surface": "statusline",
+  "title": "Nothing answered",
+  "body": "Nothing answered at {address} after {seconds} s. Is the server running, and is that its port?",
+  "actions": [
+   "Test again",
+   "Look again"
+  ],
+  "recovery": "detail is the OS error, e.g. ECONNREFUSED, verbatim.",
+  "variants": {
+   "SetModelsFailed": {
+    "title": "Nothing answered at {address}",
+    "body": "Tested {ago}: connection refused. Is {server} still running?",
+    "actions": [
+     "Test again"
+    ]
+   },
+   "HomeOffline": {
+    "surface": "banner",
+    "title": "Nobody is answering",
+    "body": "{server} at {address} stopped answering {ago}. You can read, edit and export everything; new replies wait until it is back.",
+    "actions": [
+     "What happened"
+    ]
+   }
+  },
+  "appearsOn": [
+   "FirstRunServer",
+   "SetModelsFailed"
+  ],
+  "drawnOn": [
+   "FirstRunServer",
+   "HomeOffline",
+   "SetModels"
+  ]
+ },
+ {
+  "code": "SERVER_NOT_COMPATIBLE",
+  "group": "Model servers",
+  "surface": "statusline",
+  "title": "It answered, but not like a model server",
+  "body": "The address is right but it isn’t an OpenAI-style API.",
+  "actions": [
+   "Edit address"
+  ],
+  "recovery": "Probe GET /v1/models then POST /v1/chat/completions with max_tokens 1.",
+  "appearsOn": [
+   "SetModelsFailed"
+  ],
+  "drawnOn": [
+   "FirstRunServer"
+  ]
+ },
+ {
+  "code": "SERVER_UNAUTHORIZED",
+  "group": "Model servers",
+  "surface": "statusline",
+  "title": "It wants a key",
+  "body": "The server said 401. Add its key above.",
+  "actions": [],
+  "recovery": "Key stored with the OS keychain (safeStorage).",
+  "appearsOn": [
+   "SetModelsFailed"
+  ],
+  "drawnOn": [
+   "FirstRunServer"
+  ]
+ },
+ {
+  "code": "SERVER_TIMEOUT",
+  "group": "Model servers",
+  "surface": "statusline",
+  "title": "{server} took too long",
+  "body": "No answer in {seconds} s. Big models on small computers can be slow. You can raise the limit in Advanced.",
+  "actions": [
+   "Test again",
+   "Open Advanced"
+  ],
+  "recovery": "Default timeout 60 s to first token.",
+  "appearsOn": [
+   "SetModelsFailed"
+  ],
+  "drawnOn": []
+ },
+ {
+  "code": "MODEL_GONE",
+  "group": "Model servers",
+  "surface": "page",
+  "title": "Nobody is home to answer.",
+  "body": "Kataki was talking to {server} {where} at {address}, and it stopped answering {ago}. Your story is safe: every line was written to disk as it arrived.",
+  "actions": [
+   "Try again",
+   "Use Kataki’s own model instead",
+   "Open Settings"
+  ],
+  "recovery": "Shown over a story only after 3 failed retries. Replies catch up in order when it returns.",
+  "appearsOn": [
+   "ModelGone"
+  ],
+  "drawnOn": [
+   "ModelGone"
+  ]
+ },
+ {
+  "code": "CONTEXT_TOO_SMALL",
+  "group": "Model servers",
+  "surface": "statusline",
+  "title": "This model holds {modelCtx} tokens",
+  "body": "A scene needs about {needCtx}. Kataki drops the oldest lines first. A model with 16k or more fits better.",
+  "actions": [
+   "Choose another model"
+  ],
+  "recovery": "Warning only. History is the only segment trimmed.",
+  "appearsOn": [
+   "SetModelsAdvanced"
+  ],
+  "drawnOn": []
+ },
+ {
+  "code": "API_KEY_INVALID",
+  "group": "Online models",
+  "surface": "statusline",
+  "title": "Key not valid",
+  "body": "{provider} said this key isn’t valid. Copy it again from {keysPage}; it starts with {prefix}.",
+  "actions": [
+   "Test again"
+  ],
+  "recovery": "Never log the key; show only its last 4.",
+  "variants": {
+   "SetModelsFailed": {
+    "title": "{provider} turned the key down",
+    "body": "It answered 401. The key may have been revoked or mistyped.",
+    "actions": [
+     "Replace the key"
+    ]
+   }
+  },
+  "appearsOn": [
+   "FirstRunOnline",
+   "SetModelsFailed",
+   "AddApi"
+  ],
+  "drawnOn": [
+   "FirstRunOnline",
+   "SetModels"
+  ]
+ },
+ {
+  "code": "API_NO_CREDIT",
+  "group": "Online models",
+  "surface": "statusline",
+  "title": "No credit left on this key",
+  "body": "Top up at the service, then test again.",
+  "actions": [
+   "Test again",
+   "Use Kataki’s own model"
+  ],
+  "recovery": "Stops retrying until the user acts.",
+  "appearsOn": [
+   "SetModelsFailed"
+  ],
+  "drawnOn": [
+   "FirstRunOnline"
+  ]
+ },
+ {
+  "code": "API_RATE_LIMITED",
+  "group": "Online models",
+  "surface": "line",
+  "title": "Too many requests",
+  "body": "The service asked Kataki to slow down. It tries again in {seconds} s.",
+  "actions": [
+   "Try now"
+  ],
+  "recovery": "Honour Retry-After; else 5, 15, 45 s.",
+  "appearsOn": [
+   "SetModelsFailed",
+   "SceneFailed"
+  ],
+  "drawnOn": [
+   "FirstRunOnline"
+  ]
+ },
+ {
+  "code": "API_UNREACHABLE",
+  "group": "Online models",
+  "surface": "line",
+  "title": "Couldn’t reach the service",
+  "body": "No internet, or the address is wrong. Local models still work.",
+  "actions": [
+   "Try again",
+   "Use Kataki’s own model"
+  ],
+  "recovery": "Retry every 10 s while a reply is waiting.",
+  "appearsOn": [
+   "SetModelsFailed",
+   "SceneFailed"
+  ],
+  "drawnOn": [
+   "FirstRunOnline"
+  ]
+ },
+ {
+  "code": "API_MODEL_NOT_FOUND",
+  "group": "Online models",
+  "surface": "statusline",
+  "title": "{provider} doesn’t offer {model} any more",
+  "body": "Pick another from the list.",
+  "actions": [
+   "Choose a model"
+  ],
+  "recovery": "Refresh the model list from the provider.",
+  "appearsOn": [
+   "SetModelsFailed"
+  ],
+  "drawnOn": []
+ },
+ {
+  "code": "API_REFUSED",
+  "group": "Online models",
+  "surface": "line",
+  "title": "{provider} refused this reply",
+  "body": "It returned a refusal instead of a line. Nothing in the story changed. Try again, change your line, or use a local model.",
+  "actions": [
+   "Try again",
+   "Edit my line",
+   "Use Kataki’s own model"
+  ],
+  "recovery": "Detected by provider finish_reason / error type only; never by reading the text.",
+  "appearsOn": [
+   "SceneFailed"
+  ],
+  "drawnOn": []
+ },
+ {
+  "code": "REPLY_UNREACHABLE",
+  "group": "In a story",
+  "surface": "line",
+  "title": "{name}’s reply didn’t arrive",
+  "body": "{server} stopped answering at {time}. Your line is saved; nothing was lost. Kataki will try again by itself when the server is back.",
+  "actions": [
+   "Try again",
+   "Use Kataki’s own model",
+   "Edit my line"
+  ],
+  "recovery": "Composer stays usable; new lines queue.",
+  "appearsOn": [
+   "SceneFailed"
+  ],
+  "drawnOn": [
+   "Backstage",
+   "Scene"
+  ]
+ },
+ {
+  "code": "REPLY_TIMEOUT",
+  "group": "In a story",
+  "surface": "line",
+  "title": "{name} took too long",
+  "body": "No words after {seconds} s. Your line is saved.",
+  "actions": [
+   "Try again",
+   "Edit my line"
+  ],
+  "recovery": "Stop the stream, keep partial text as a hidden take.",
+  "appearsOn": [
+   "SceneFailed"
+  ],
+  "drawnOn": []
+ },
+ {
+  "code": "REPLY_EMPTY",
+  "group": "In a story",
+  "surface": "line",
+  "title": "{name}’s reply came back empty",
+  "body": "The model returned nothing. Some models do this now and then.",
+  "actions": [
+   "New take"
+  ],
+  "recovery": "Auto-retry once silently before showing.",
+  "appearsOn": [
+   "SceneFailed"
+  ],
+  "drawnOn": []
+ },
+ {
+  "code": "REPLY_CUT_OFF",
+  "group": "In a story",
+  "surface": "line",
+  "title": "{name}’s reply was cut short",
+  "body": "It reached the {limit}-token reply limit.",
+  "actions": [
+   "Continue it",
+   "Keep it"
+  ],
+  "recovery": "finish_reason = length. Continue uses Ctrl J.",
+  "appearsOn": [
+   "SceneFailed"
+  ],
+  "drawnOn": []
+ },
+ {
+  "code": "MEMORY_READER_FAILED",
+  "group": "In a story",
+  "surface": "statusline",
+  "title": "{name} didn’t take in the last {count} lines",
+  "body": "The memory reader timed out. The story is fine; {name} just won’t remember those lines until it runs again.",
+  "actions": [
+   "Run it again"
+  ],
+  "recovery": "Shown in Backstage and as a dot on the widget. Retries on the next turn.",
+  "appearsOn": [
+   "BackstageLogs"
+  ],
+  "drawnOn": []
+ },
+ {
+  "code": "NARRATOR_FAILED",
+  "group": "In a story",
+  "surface": "toast",
+  "title": "The narrator couldn’t add a line",
+  "body": "",
+  "actions": [
+   "Try again"
+  ],
+  "recovery": "Story continues without it.",
+  "appearsOn": [
+   "Toasts"
+  ],
+  "drawnOn": [
+   "Toasts"
+  ]
+ },
+ {
+  "code": "TIMESKIP_FAILED",
+  "group": "In a story",
+  "surface": "dialog",
+  "title": "Time didn’t pass",
+  "body": "Fading memories didn’t finish, so Kataki put everything back to {fromTime}. Nothing changed.",
+  "actions": [
+   "Try again",
+   "Cancel"
+  ],
+  "recovery": "Time skip is one transaction: clock, presence, memory fade.",
+  "appearsOn": [
+   "SceneTimeSkip"
+  ],
+  "drawnOn": []
+ },
+ {
+  "code": "LINE_SAVE_FAILED",
+  "group": "In a story",
+  "surface": "line",
+  "title": "Your last line isn’t saved yet",
+  "body": "Kataki couldn’t write it to the library. It stays here and saves as soon as it can.",
+  "actions": [
+   "Try again",
+   "Copy the line"
+  ],
+  "recovery": "Leads to DISK_FULL / DISK_READONLY if the cause is the disk.",
+  "appearsOn": [
+   "SceneFailed"
+  ],
+  "drawnOn": []
+ },
+ {
+  "code": "MUSIC_UNSUPPORTED",
+  "group": "In a story",
+  "surface": "toast",
+  "title": "That file won’t play",
+  "body": "Kataki plays mp3, ogg and wav. This is .{ext}.",
+  "actions": [
+   "Choose another"
+  ],
+  "recovery": "File not copied into the library.",
+  "appearsOn": [
+   "Toasts",
+   "SceneMusic"
+  ],
+  "drawnOn": [
+   "Toasts"
+  ]
+ },
+ {
+  "code": "MUSIC_MISSING",
+  "group": "In a story",
+  "surface": "statusline",
+  "title": "{file} isn’t where it was",
+  "body": "It was moved or deleted. Pick it again, or choose another track.",
+  "actions": [
+   "Find it",
+   "Choose another"
+  ],
+  "recovery": "Uploaded tracks are copied into the library, so this only happens to linked files.",
+  "appearsOn": [
+   "SceneMusic"
+  ],
+  "drawnOn": []
+ },
+ {
+  "code": "IMPORT_NO_CARD",
+  "group": "Characters and portraits",
+  "surface": "inline",
+  "title": "No character card inside this picture.",
+  "body": "",
+  "actions": [],
+  "recovery": "The row shows the Skipped pill. Other files in the batch continue.",
+  "appearsOn": [
+   "ImportCards"
+  ],
+  "drawnOn": [
+   "ImportCards"
+  ]
+ },
+ {
+  "code": "IMPORT_UNSUPPORTED_VERSION",
+  "group": "Characters and portraits",
+  "surface": "inline",
+  "title": "{file} uses a card format Kataki can’t read yet",
+  "body": "It says {spec}. Kataki reads chara_card_v1, v2 and v3.",
+  "actions": [
+   "Skip it"
+  ],
+  "recovery": "Log the spec string.",
+  "appearsOn": [
+   "ImportCards"
+  ],
+  "drawnOn": []
+ },
+ {
+  "code": "IMPORT_DUPLICATE",
+  "group": "Characters and portraits",
+  "surface": "inline",
+  "title": "{file} · someone called {name} is already here",
+  "body": "",
+  "actions": [
+   "Keep both",
+   "Replace the one here",
+   "Skip this card"
+  ],
+  "recovery": "The three choices are a Select on the row. Replace keeps the existing character’s memories and stories.",
+  "appearsOn": [
+   "ImportCards"
+  ],
+  "drawnOn": []
+ },
+ {
+  "code": "PORTRAIT_UNSUPPORTED",
+  "group": "Characters and portraits",
+  "surface": "callout",
+  "title": "That file isn’t a picture Kataki can use",
+  "body": "PNG, JPG or WEBP, up to 20 MB.",
+  "actions": [
+   "Choose a file"
+  ],
+  "recovery": "Sniff bytes, not the extension. Shown in Crop and focus (F5) after a file is chosen.",
+  "appearsOn": [
+   "PortraitPicker"
+  ],
+  "drawnOn": [
+   "NewCharacter"
+  ]
+ },
+ {
+  "code": "PORTRAIT_TOO_LARGE",
+  "group": "Characters and portraits",
+  "surface": "callout",
+  "title": "That picture is too big",
+  "body": "PNG, JPG or WEBP, up to 20 MB. This one is {sizeMb} MB.",
+  "actions": [
+   "Choose a file"
+  ],
+  "recovery": "Accepted images are re-encoded to 1024 px WebP.",
+  "appearsOn": [
+   "PortraitPicker"
+  ],
+  "drawnOn": []
+ },
+ {
+  "code": "NAME_REQUIRED",
+  "group": "Forms",
+  "surface": "inline",
+  "title": "Give them a name. It’s the one thing Kataki can’t guess.",
+  "body": "",
+  "actions": [],
+  "recovery": "Validated on Create and on blur after the first edit. Other forms use the same code with their own line: “Give it a name.” (place, plot, book, group), “Give yourself a name.” (persona).",
+  "appearsOn": [
+   "NewCharacterErrors"
+  ],
+  "drawnOn": [
+   "NewCharacter"
+  ]
+ },
+ {
+  "code": "NAME_TAKEN",
+  "group": "Forms",
+  "surface": "inline",
+  "title": "There’s already a {name}",
+  "body": "Two is fine. Add something to tell them apart.",
+  "actions": [],
+  "recovery": "Warning, not blocking.",
+  "appearsOn": [
+   "NewCharacterErrors"
+  ],
+  "drawnOn": []
+ },
+ {
+  "code": "FIELD_TOO_LONG",
+  "group": "Forms",
+  "surface": "inline",
+  "title": "Keep it under {max} characters",
+  "body": "This is {count}.",
+  "actions": [],
+  "recovery": "Blocks Save for that field only.",
+  "appearsOn": [
+   "NewCharacterErrors"
+  ],
+  "drawnOn": []
+ },
+ {
+  "code": "GREETING_REQUIRED",
+  "group": "Forms",
+  "surface": "inline",
+  "title": "Write how they say hi. It’s their first line in every new story.",
+  "body": "",
+  "actions": [],
+  "recovery": "Validated on Create and on blur after the first edit.",
+  "appearsOn": [
+   "NewCharacterErrors"
+  ],
+  "drawnOn": [
+   "NewCharacter"
+  ]
+ },
+ {
+  "code": "CONFIRM_MISMATCH",
+  "group": "Forms",
+  "surface": "inline",
+  "title": "That doesn’t match yet.",
+  "body": "",
+  "actions": [],
+  "recovery": "Case-sensitive, trimmed. The confirm button stays disabled until it matches.",
+  "appearsOn": [
+   "DeleteSomething"
+  ],
+  "drawnOn": [
+   "SetData"
+  ]
+ },
+ {
+  "code": "DELETE_IN_USE",
+  "group": "World",
+  "surface": "dialog",
+  "title": "{name} is in {count} stories",
+  "body": "Those stories keep their own copy. Deleting only removes it from World.",
+  "actions": [
+   "Delete",
+   "Cancel"
+  ],
+  "recovery": "Not an error state; a guard shown inside the delete confirm.",
+  "appearsOn": [
+   "World delete confirms (PlaceMenu, PlotMenu)"
+  ],
+  "drawnOn": []
+ },
+ {
+  "code": "EXPORT_WRITE_FAILED",
+  "group": "Data",
+  "surface": "toast",
+  "title": "Couldn’t save to that folder",
+  "body": "{folder} is read-only or full.",
+  "actions": [
+   "Choose a folder"
+  ],
+  "recovery": "No partial file left behind (write to temp, then rename).",
+  "appearsOn": [
+   "Toasts",
+   "ExportStory",
+   "ExportAll"
+  ],
+  "drawnOn": [
+   "Toasts"
+  ]
+ },
+ {
+  "code": "BACKUP_FAILED",
+  "group": "Data",
+  "surface": "statusline",
+  "title": "The {time} backup didn’t happen",
+  "body": "Couldn’t write to {folder}. The last good one is from {lastBackupAt}.",
+  "actions": [
+   "Back up now",
+   "Choose a folder"
+  ],
+  "recovery": "Also sets the Settings dot on the Rail.",
+  "appearsOn": [
+   "Backups"
+  ],
+  "drawnOn": []
+ },
+ {
+  "code": "BACKUP_RESTORE_FAILED",
+  "group": "Data",
+  "surface": "dialog",
+  "title": "That backup couldn’t be opened",
+  "body": "It may be damaged. Your current library wasn’t touched.",
+  "actions": [
+   "Choose another"
+  ],
+  "recovery": "Restore opens a copy; never overwrites the live library until it opens.",
+  "appearsOn": [
+   "Backups"
+  ],
+  "drawnOn": []
+ },
+ {
+  "code": "SHORTCUT_TAKEN",
+  "group": "Settings",
+  "surface": "callout",
+  "title": "{keys} already {does}",
+  "body": "Use it for {action} instead, and leave {other} without a shortcut?",
+  "actions": [
+   "Use it here",
+   "Pick other keys"
+  ],
+  "recovery": "Use it here unassigns the other action.",
+  "appearsOn": [
+   "RemapShortcut"
+  ],
+  "drawnOn": [
+   "SetShortcuts"
+  ]
+ },
+ {
+  "code": "SHORTCUT_RESERVED",
+  "group": "Settings",
+  "surface": "inline",
+  "title": "Windows keeps {keys} for itself",
+  "body": "Pick other keys.",
+  "actions": [],
+  "recovery": "Reserved list: Alt F4, Ctrl Alt Del, Win + anything, Alt Tab, F11 handled by Kataki itself.",
+  "appearsOn": [
+   "RemapShortcut"
+  ],
+  "drawnOn": []
+ },
+ {
+  "code": "LANGUAGE_MODEL_WEAK",
+  "group": "Settings",
+  "surface": "callout",
+  "title": "{model} writes {language} less well",
+  "body": "Characters may slip into English. Kataki’s interface is fully in {language} either way.",
+  "actions": [
+   "Choose another model"
+  ],
+  "recovery": "Driven by a static per-model language list shipped with Kataki.",
+  "appearsOn": [
+   "SetLanguage"
+  ],
+  "drawnOn": []
+ },
+ {
+  "code": "UPDATE_UNREACHABLE",
+  "group": "Updates",
+  "surface": "statusline",
+  "title": "Couldn’t reach [UPDATE HOST]",
+  "body": "You’re offline or it’s down. Kataki works fine without it.",
+  "actions": [
+   "Try again"
+  ],
+  "recovery": "Silent when automatic; shown only on a manual check.",
+  "appearsOn": [
+   "UpdateStates"
+  ],
+  "drawnOn": []
+ },
+ {
+  "code": "UPDATE_VERIFY_FAILED",
+  "group": "Updates",
+  "surface": "statusline",
+  "title": "The update didn’t install",
+  "body": "The file didn’t match what was published, so nothing was changed. You’re still on {appVersion}.",
+  "actions": [
+   "Try again"
+  ],
+  "recovery": "Signature and hash checked before install.",
+  "appearsOn": [
+   "UpdateStates"
+  ],
+  "drawnOn": [
+   "SetAbout"
+  ]
+ },
+ {
+  "code": "UPDATE_INSTALL_FAILED",
+  "group": "Updates",
+  "surface": "statusline",
+  "title": "{version} didn’t install",
+  "body": "Windows stopped the installer. You’re still on {appVersion}.",
+  "actions": [
+   "Try again",
+   "Report a bug"
+  ],
+  "recovery": "Installer exit code goes into the log.",
+  "appearsOn": [
+   "UpdateStates"
+  ],
+  "drawnOn": []
+ },
+ {
+  "code": "FEEDBACK_OFFLINE",
+  "group": "Feedback",
+  "surface": "inline",
+  "title": "Couldn’t send it",
+  "body": "This computer isn’t reaching the internet. The report is saved and goes the next time Kataki is online, unless you cancel it.",
+  "actions": [
+   "Try again",
+   "Copy instead",
+   "Cancel it"
+  ],
+  "recovery": "Saved to the Outbox; sent once when online; toast.feedback.queued confirms after the dialog closes.",
+  "appearsOn": [
+   "Feedback",
+   "Toasts"
+  ],
+  "drawnOn": [
+   "Feedback",
+   "Toasts"
+  ]
+ },
+ {
+  "code": "FEEDBACK_TOO_LARGE",
+  "group": "Feedback",
+  "surface": "inline",
+  "title": "The attachments are too big",
+  "body": "Reports can carry {maxMb} MB. The log is {logMb} MB; Kataki can keep just the last hour.",
+  "actions": [
+   "Keep the last hour",
+   "Remove the log"
+  ],
+  "recovery": "Trim happens on a copy.",
+  "appearsOn": [
+   "BugReport"
+  ],
+  "drawnOn": []
+ },
+ {
+  "code": "FEEDBACK_FAILED",
+  "group": "Feedback",
+  "surface": "inline",
+  "title": "It didn’t send",
+  "body": "[FEEDBACK HOST] answered {status}. Your text is kept here.",
+  "actions": [
+   "Try again",
+   "Copy it"
+  ],
+  "recovery": "Never lose the text.",
+  "appearsOn": [
+   "Feedback"
+  ],
+  "drawnOn": []
+ },
+ {
+  "code": "SEARCH_INDEXING",
+  "group": "Search",
+  "surface": "statusline",
+  "title": "Search is still reading your library",
+  "body": "{done} of {total} lines. Some results may be missing until it’s done.",
+  "actions": [],
+  "recovery": "Index built in a worker, resumable.",
+  "appearsOn": [
+   "Search"
+  ],
+  "drawnOn": []
+ },
+ {
+  "code": "OFFLINE",
+  "group": "System",
+  "surface": "banner",
+  "title": "You’re offline",
+  "body": "Local models work as always. Online models, updates and feedback wait.",
+  "actions": [],
+  "recovery": "From navigator.onLine plus a probe; banner clears itself.",
+  "appearsOn": [
+   "Home (when the computer has no network and an online model is chosen)"
+  ],
+  "drawnOn": []
+ },
+ {
+  "code": "RENDERER_FALLBACK",
+  "group": "System",
+  "surface": "toast",
+  "title": "The graphics driver restarted",
+  "body": "Kataki is drawing without the GPU for now. Restart to go back.",
+  "actions": [
+   "Restart"
+  ],
+  "recovery": "Electron gpu-process-crashed.",
+  "appearsOn": [
+   "any route"
+  ],
+  "drawnOn": [
+   "Toasts"
+  ]
+ },
+ {
+  "code": "UNKNOWN",
+  "group": "System",
+  "surface": "dialog",
+  "title": "Something went wrong",
+  "body": "Kataki doesn’t know what happened here. Your work is saved. Reference {errorRef}.",
+  "actions": [
+   "Report a bug",
+   "Close"
+  ],
+  "recovery": "React error boundary per route and per overlay. errorRef format KT-ERR-{4 digits}.",
+  "appearsOn": [
+   "any route or overlay"
+  ],
+  "drawnOn": []
+ }
+]

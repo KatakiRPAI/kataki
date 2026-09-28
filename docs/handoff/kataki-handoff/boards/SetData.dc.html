@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · Settings, Data and privacy</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}.bk{display:grid;grid-template-columns:minmax(0,1fr) 90px auto;gap:14px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--hairline)}.bk:last-child{border-bottom:0}</style>
+</helmet>
+<div data-theme="{{theme}}" class="app" style="height: 1000px;">
+  <div class="app__sky"><x-import component-from-global-scope="Kataki.Sky" clouds="{{no}}" style="position: absolute; inset: 0px;"></x-import></div>
+  <x-import component-from-global-scope="Kataki.Rail" active="Settings" theme="{{theme}}" hrefs="{{hrefs}}" on-navigate="{{nav}}" height="{{h}}"></x-import>
+  <main class="app__main" aria-label="Settings" style="gap: 24px;">
+    <x-import component-from-global-scope="Kataki.TopBar" who="liv" name="Liv"></x-import>
+    <h1 class="pg-title">Settings</h1>
+    <div class="set">
+      <x-import component-from-global-scope="Kataki.SideNav" label="Settings" active="Data and privacy" items="{{navItems}}" footer="{{whatsNew}}"></x-import>
+      <div class="set__panel">
+        <x-import component-from-global-scope="Kataki.Callout" tone="privacy" title="Nothing leaves this computer unless you connect an online model">No account, no sync, no telemetry. With an online model connected, the only thing sent is the prompt for that reply, shown in full in Backstage.</x-import>
+        <x-import component-from-global-scope="Kataki.SettingsSection" title="Where your things live">
+          <x-import component-from-global-scope="Kataki.FolderRow" icon="book" label="Stories and characters" path="C:\Users\you\Kataki\library" size="48 MB"></x-import>
+          <x-import component-from-global-scope="Kataki.FolderRow" icon="image" label="Portraits and places" path="C:\Users\you\Kataki\art" size="310 MB"></x-import>
+          <x-import component-from-global-scope="Kataki.FolderRow" icon="cpu" label="Models" path="C:\Users\you\Kataki\models" size="10.4 GB"></x-import>
+          <div style="padding: 12px 20px;"><x-import component-from-global-scope="Kataki.Button" size="sm" variant="ghost" icon="swap">Move the library somewhere else</x-import></div>
+        </x-import>
+        <x-import component-from-global-scope="Kataki.SettingsSection" title="Take it with you">
+          <x-import component-from-global-scope="Kataki.SettingsRow" title="Export everything" description="One folder of readable files: Markdown transcripts, JSON characters, the art. Nothing proprietary."><x-import component-from-global-scope="Kataki.Button" size="sm" icon="download" href="ExportAll.dc.html">Export</x-import></x-import>
+          <x-import component-from-global-scope="Kataki.SettingsRow" title="Automatic backups" description="Daily · keeps the last 7 · D:\Backups\Kataki · last one last night, 11:02 pm"><div class="row" style="gap: 10px;"><x-import component-from-global-scope="Kataki.Button" size="sm" href="Backups.dc.html">Change</x-import><x-import component-from-global-scope="Kataki.Toggle" default-on="{{yes}}" label="Automatic backups"></x-import></div></x-import>
+          <x-import component-from-global-scope="Kataki.SettingsRow" title="Import" description="Character cards from SillyTavern, Chub or Janitor, a .kataki file, or a whole exported library."><x-import component-from-global-scope="Kataki.Button" size="sm" href="ImportCards.dc.html">Import</x-import></x-import>
+          <x-import component-from-global-scope="Kataki.SettingsRow" title="Keys" description="2 keys in Windows Credential Manager: OpenRouter, Together. Never written to a file."><x-import component-from-global-scope="Kataki.Button" size="sm" variant="ghost">Forget both keys</x-import></x-import>
+          <x-import component-from-global-scope="Kataki.SettingsRow" title="Delete" description="One story, one character, or everything. There is no server copy, so deleted is deleted."><x-import component-from-global-scope="Kataki.Button" size="sm" variant="danger" href="DeleteSomething.dc.html">Delete something</x-import></x-import>
+        </x-import>
+      </div>
+    </div>
+  </main>
+
+  <sc-if value="{{ovExport}}" hint-placeholder-val="{{false}}">
+    <div class="ov"><div class="ov__dim"></div><div class="ov__win" style="gap: 24px; align-items: flex-start; padding-top: 140px; box-sizing: border-box;">
+      <section class="dlg" role="dialog" aria-modal="true" aria-labelledby="ea-title" aria-busy="true">
+        <div class="dlg__head"><span class="dlg__icon"><x-import component-from-global-scope="Kataki.Icon" name="download" size="{{s20}}"></x-import></span><div class="dlg__titles"><h2 class="dlg__title" id="ea-title">Exporting everything</h2><p class="dlg__desc">To Documents\Kataki\exports\kataki-2026-09-27. Keep using Kataki; this runs on its own.</p></div></div>
+        <div class="dlg__body">
+          <x-import component-from-global-scope="Kataki.ProgressBar" label="Writing files" value="{{v58}}" value-text="212 of 364 files · 210 MB of 358 MB"></x-import>
+          <x-import component-from-global-scope="Kataki.StepList" steps="{{exSteps}}"></x-import>
+        </div>
+        <div class="dlg__foot"><span class="dlg__note">Models aren’t included; they download again anywhere.</span><x-import component-from-global-scope="Kataki.Button" variant="ghost">Stop</x-import></div>
+      </section>
+      <section class="dlg dlg--sm" role="dialog" aria-labelledby="ed-title">
+        <div class="dlg__head"><span class="dlg__icon" style="color: var(--ok);"><x-import component-from-global-scope="Kataki.Icon" name="check" size="{{s20}}"></x-import></span><div class="dlg__titles"><h2 class="dlg__title" id="ed-title">Exported</h2><p class="dlg__desc">364 files, 358 MB. Everything you made, readable without Kataki.</p></div></div>
+        <div class="dlg__foot"><x-import component-from-global-scope="Kataki.Button" variant="ghost">Done</x-import><x-import component-from-global-scope="Kataki.Button" variant="primary">Open the folder</x-import></div>
+      </section>
+    </div></div>
+  </sc-if>
+
+  <sc-if value="{{ovBackups}}" hint-placeholder-val="{{false}}">
+    <div class="ov"><div class="ov__dim"></div><div class="ov__win">
+      <section class="dlg dlg--lg" role="dialog" aria-modal="true" aria-labelledby="bk-title">
+        <div class="dlg__head"><span class="dlg__icon"><x-import component-from-global-scope="Kataki.Icon" name="shield" size="{{s20}}"></x-import></span><div class="dlg__titles"><h2 class="dlg__title" id="bk-title">Backups</h2><p class="dlg__desc">A full copy of your library, made in the background. Art is copied once and then only what changed.</p></div><x-import component-from-global-scope="Kataki.IconButton" icon="x" label="Close" size="sm"></x-import></div>
+        <div class="dlg__body">
+          <div style="display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end;"><x-import component-from-global-scope="Kataki.TextField" label="Where" default-value="D:\Backups\Kataki" hint="Another drive is safest."></x-import><div style="padding-bottom: 26px;"><x-import component-from-global-scope="Kataki.Button">Choose</x-import></div></div>
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px;">
+            <x-import component-from-global-scope="Kataki.Segmented" label="How often" options="{{often}}" value="Daily" size="sm"></x-import>
+            <x-import component-from-global-scope="Kataki.Select" label="Keep" options="{{keep}}"></x-import>
+          </div>
+          <div class="col" style="gap: 8px;">
+            <div class="row" style="justify-content: space-between;"><span style="font-size: 14px; font-weight: 700;">Backups here</span><x-import component-from-global-scope="Kataki.Button" size="sm" variant="ghost" icon="refresh">Back up now</x-import></div>
+            <div class="card" style="background: var(--raise);">
+              <div class="bk"><span>Last night, 11:02 pm</span><span class="t-meta">52 MB</span><x-import component-from-global-scope="Kataki.Button" size="sm">Restore</x-import></div>
+              <div class="bk"><span>Thursday, 11:00 pm</span><span class="t-meta">51 MB</span><x-import component-from-global-scope="Kataki.Button" size="sm">Restore</x-import></div>
+              <div class="bk"><span>Wednesday, 11:01 pm</span><span class="t-meta">49 MB</span><x-import component-from-global-scope="Kataki.Button" size="sm">Restore</x-import></div>
+            </div>
+          </div>
+          <x-import component-from-global-scope="Kataki.Callout" tone="warm" title="Restoring replaces your library">What you have now is backed up first, so restoring can be undone. Kataki restarts to finish.</x-import>
+        </div>
+        <div class="dlg__foot"><span class="dlg__note">7 backups · 352 MB on D:</span><div class="k-btngroup"><x-import component-from-global-scope="Kataki.Button" variant="ghost">Cancel</x-import><x-import component-from-global-scope="Kataki.Button" variant="primary">Save</x-import></div></div>
+      </section>
+    </div></div>
+  </sc-if>
+
+  <sc-if value="{{ovDelete}}" hint-placeholder-val="{{false}}">
+    <div class="ov"><div class="ov__dim"></div><div class="ov__win">
+      <section class="dlg dlg--lg" role="dialog" aria-modal="true" aria-labelledby="ds-title">
+        <div class="dlg__head"><span class="dlg__icon" style="color: var(--bad);"><x-import component-from-global-scope="Kataki.Icon" name="trash" size="{{s20}}"></x-import></span><div class="dlg__titles"><h2 class="dlg__title" id="ds-title">Delete something</h2><p class="dlg__desc">There is no server copy. Your backups are the only way back.</p></div><x-import component-from-global-scope="Kataki.IconButton" icon="x" label="Close" size="sm"></x-import></div>
+        <div class="dlg__body">
+          <x-import component-from-global-scope="Kataki.RadioGroup" label="What" options="{{scopes}}" default-value="all"></x-import>
+          <x-import component-from-global-scope="Kataki.Callout" tone="bad" title="Everything means everything" action="{{exportFirst}}">6 characters, 12 stories, 14 places and plots, 2 personas, every memory and every picture you added. Models and keys stay.</x-import>
+          <x-import component-from-global-scope="Kataki.TextField" label="Type DELETE EVERYTHING to confirm" placeholder="DELETE EVERYTHING" error="That doesn’t match yet."></x-import>
+        </div>
+        <div class="dlg__foot"><span class="dlg__note">Kataki restarts to first run afterwards</span><div class="k-btngroup"><x-import component-from-global-scope="Kataki.Button" variant="ghost">Keep it all</x-import><x-import component-from-global-scope="Kataki.Button" variant="danger" disabled="{{yes}}">Delete everything</x-import></div></div>
+      </section>
+    </div></div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"overlay":{"editor":"enum","options":["none","export","backups","delete"],"default":"none"},"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var A = window.KApp, ov = this.props.overlay || 'none';
+    return A.page(this, {
+      h: 1000, s20: 20, v58: 58,
+      ovExport: ov === 'export', ovBackups: ov === 'backups', ovDelete: ov === 'delete',
+      exSteps: [{ label: 'Stories', detail: '12 as Markdown and JSON', state: 'done' }, { label: 'Characters and personas', detail: '8 as JSON with portraits', state: 'done' }, { label: 'Art', detail: '212 of 346 pictures', state: 'doing' }, { label: 'World', detail: '14 places and plots', state: 'wait' }],
+      often: ['Daily', 'Weekly', 'When Kataki closes'], keep: ['The last 7', 'The last 30', 'All of them'],
+      scopes: [{ value: 'story', label: 'One story' }, { value: 'character', label: 'One character' }, { value: 'persona', label: 'One persona' }, { value: 'all', label: 'Everything', description: 'Back to first run, as if Kataki were just installed' }],
+      exportFirst: A.btn('secondary', 'Export everything first', { size: 'sm', icon: 'download' }),
+      navItems: [{ icon: 'settings', label: 'General', href: 'SetGeneral.dc.html' }, { icon: 'sun', label: 'Appearance', href: 'SetAppearance.dc.html' }, { icon: 'globe', label: 'Language', href: 'SetLanguage.dc.html' }, { icon: 'cpu', label: 'Models', href: 'SetModels.dc.html' }, { icon: 'thought', label: 'Memory and thinking', href: 'SetMemory.dc.html' }, { icon: 'shield', label: 'Data and privacy', href: 'SetData.dc.html' }, { icon: 'key', label: 'Shortcuts', href: 'SetShortcuts.dc.html' }, { icon: 'help', label: 'About', href: 'SetAbout.dc.html' }],
+      whatsNew: A.el('TextLink', { icon: 'spark', href: 'SetAbout.dc.html' }, 'What’s new')
+    });
+  }
+}
+</script>
+</body>
+</html>

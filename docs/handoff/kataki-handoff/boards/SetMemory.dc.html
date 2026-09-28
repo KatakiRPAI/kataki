@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · Settings, Memory and thinking</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div data-theme="{{theme}}" class="app" style="height: 1000px;">
+  <div class="app__sky"><x-import component-from-global-scope="Kataki.Sky" clouds="{{no}}" style="position: absolute; inset: 0px;"></x-import></div>
+  <x-import component-from-global-scope="Kataki.Rail" active="Settings" theme="{{theme}}" hrefs="{{hrefs}}" on-navigate="{{nav}}" height="{{h}}"></x-import>
+  <main class="app__main" aria-label="Settings" style="gap: 24px;">
+    <x-import component-from-global-scope="Kataki.TopBar" who="liv" name="Liv"></x-import>
+    <h1 class="pg-title">Settings</h1>
+    <div class="set">
+      <x-import component-from-global-scope="Kataki.SideNav" label="Settings" active="Memory and thinking" items="{{navItems}}" footer="{{whatsNew}}"></x-import>
+      <div class="set__panel">
+        <x-import component-from-global-scope="Kataki.SettingsSection" title="Memory and thinking" note="How much of a person a character is allowed to be. These are defaults; any character can change them.">
+          <x-import component-from-global-scope="Kataki.SettingsRow" title="How fast memories fade" description="Sharp, then hazy, then gone, by story time. Slower means more consistent and slower replies."><x-import component-from-global-scope="Kataki.Segmented" label="How fast memories fade" options="{{fade}}" default-value="Life-like" size="sm"></x-import></x-import>
+          <x-import component-from-global-scope="Kataki.SettingsRow" title="They can be wrong" description="A hazy memory can come back slightly changed, the way people misremember."><x-import component-from-global-scope="Kataki.Toggle" default-on="{{yes}}" label="They can be wrong"></x-import></x-import>
+          <x-import component-from-global-scope="Kataki.SettingsRow" title="They can doubt you" description="If what you say contradicts what they hold, they may say so instead of going along."><x-import component-from-global-scope="Kataki.Toggle" default-on="{{yes}}" label="They can doubt you"></x-import></x-import>
+          <x-import component-from-global-scope="Kataki.SettingsRow" title="How much they think before answering" description="More thinking is slower and more in character."><x-import component-from-global-scope="Kataki.Segmented" label="Thinking" options="{{think}}" default-value="Some" size="sm"></x-import></x-import>
+        </x-import>
+        <x-import component-from-global-scope="Kataki.SettingsSection" title="What they notice">
+          <x-import component-from-global-scope="Kataki.SettingsRow" title="Hearing" description="Whether someone in the room hears a whisper, and whether someone who left hears anything."><div style="width: 220px;"><x-import component-from-global-scope="Kataki.Select" label="" options="{{hearing}}"></x-import></div></x-import>
+          <x-import component-from-global-scope="Kataki.SettingsRow" title="Recall by meaning" description="Finds the old line that matches what is happening, not only the same words. Needs an embedding model."><x-import component-from-global-scope="Kataki.Toggle" default-on="{{yes}}" label="Recall by meaning"></x-import></x-import>
+          <x-import component-from-global-scope="Kataki.SettingsRow" title="How far back they look" description="Older than this and only memories carry, not the lines themselves."><div style="width: 240px;"><x-import component-from-global-scope="Kataki.Slider" label="How far back they look" default-value="{{v40}}" min="{{v10}}" max="{{v200}}" step="{{v10}}" value-text="40 messages" ends="{{ends}}"></x-import></div></x-import>
+        </x-import>
+        <x-import component-from-global-scope="Kataki.Callout" title="Backstage shows you all of this happening" action="{{bsAction}}">Inside any story, Backstage draws the path a reply took: what was heard, recalled, felt and decided, with the exact prompt and token count. Nothing here is hidden from you.</x-import>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var A = window.KApp;
+    return A.page(this, {
+      h: 1000, v10: 10, v40: 40, v200: 200,
+      navItems: [{ icon: 'settings', label: 'General', href: 'SetGeneral.dc.html' }, { icon: 'sun', label: 'Appearance', href: 'SetAppearance.dc.html' }, { icon: 'globe', label: 'Language', href: 'SetLanguage.dc.html' }, { icon: 'cpu', label: 'Models', href: 'SetModels.dc.html' }, { icon: 'thought', label: 'Memory and thinking', href: 'SetMemory.dc.html' }, { icon: 'shield', label: 'Data and privacy', href: 'SetData.dc.html' }, { icon: 'key', label: 'Shortcuts', href: 'SetShortcuts.dc.html' }, { icon: 'help', label: 'About', href: 'SetAbout.dc.html' }],
+      whatsNew: A.el('TextLink', { icon: 'spark', href: 'SetAbout.dc.html' }, 'What’s new'),
+      fade: ['Fast', 'Life-like', 'Slow', 'Never'], think: ['None', 'Some', 'A lot'], hearing: ['Realistic', 'Everyone hears everything'], ends: ['10', '200'],
+      bsAction: A.btn('secondary', 'Open Backstage', { size: 'sm', href: 'Backstage.dc.html' })
+    });
+  }
+}
+</script>
+</body>
+</html>

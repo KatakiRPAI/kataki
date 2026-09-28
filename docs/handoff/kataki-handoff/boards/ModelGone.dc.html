@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kataki · The model server went away</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.works{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.cause{display:grid;grid-template-columns:260px minmax(0,1fr) auto;gap:18px;align-items:center;padding:14px 20px;border-bottom:1px solid var(--hairline)}
+.cause:last-child{border-bottom:0}
+.cause b{font-size:14px}
+</style>
+</helmet>
+<div data-theme="{{theme}}" class="app" style="height: 1000px;">
+  <div class="app__sky"><x-import component-from-global-scope="Kataki.Sky" style="position: absolute; inset: 0px;"></x-import></div>
+  <x-import component-from-global-scope="Kataki.Rail" active="Home" theme="{{theme}}" hrefs="{{hrefs}}" on-navigate="{{nav}}" height="{{h}}"></x-import>
+  <main class="app__main" aria-label="The model server went away" style="gap: 24px; max-width: 980px;">
+    <x-import component-from-global-scope="Kataki.TopBar" who="liv" name="Liv"></x-import>
+    <x-import component-from-global-scope="Kataki.Alert" title="Nobody is home to answer." code="MODEL_GONE · ECONNREFUSED" icon="server" actions="{{actions}}">Kataki was talking to <b>llama.cpp</b> on this computer at <b>localhost:8080</b>, and it stopped answering <b>4 minutes ago</b>. Your story is safe: every line was written to disk as it arrived.</x-import>
+    <div class="row" style="gap: 10px;" role="status" aria-live="polite"><x-import component-from-global-scope="Kataki.Spinner" size="{{s14}}"></x-import><span class="t-meta">Trying again every 10 s · next in 6 s · this page closes itself when it answers</span></div>
+
+    <section class="sec" aria-labelledby="mg-works">
+      <div class="sec-head"><h2 class="sec-title" id="mg-works">What still works</h2></div>
+      <div class="works">
+        <x-import component-from-global-scope="Kataki.Callout" tone="ok" icon="book" title="Read">Every story you have is here and readable. Nothing needed a server to be written.</x-import>
+        <x-import component-from-global-scope="Kataki.Callout" tone="ok" icon="edit" title="Write">Edit lines, rename stories, file places, build characters. All of it is local.</x-import>
+        <x-import component-from-global-scope="Kataki.Callout" tone="ok" icon="download" title="Export">Take everything out as Markdown and JSON, right now, whatever the model is doing.</x-import>
+      </div>
+    </section>
+
+    <section class="sec" aria-labelledby="mg-causes">
+      <div class="sec-head"><h2 class="sec-title" id="mg-causes">What usually causes this</h2></div>
+      <div class="card">
+        <div class="cause"><b>The server was closed</b><span class="t-body">Start llama.cpp again and press Try again. Kataki reconnects without losing your place.</span><span></span></div>
+        <div class="cause"><b>The computer went to sleep</b><span class="t-body">Some servers don’t come back on wake. Restarting it is enough.</span><span></span></div>
+        <div class="cause"><b>The model was unloaded to free memory</b><span class="t-body">qwen3.5-9b needs 9.2 GB. Kataki’s own model needs 1.2 GB and runs alongside anything.</span><x-import component-from-global-scope="Kataki.Button" size="sm" variant="secondary">Use Kataki’s own model</x-import></div>
+        <div class="cause"><b>The port changed</b><span class="t-body">Kataki can look for servers on this computer again.</span><x-import component-from-global-scope="Kataki.Button" size="sm" variant="secondary" href="FindServers.dc.html">Look for servers</x-import></div>
+      </div>
+    </section>
+
+    <div class="row" style="gap: 10px;"><span class="t-meta">Still stuck?</span><x-import component-from-global-scope="Kataki.TextLink" href="BugReport.dc.html" icon="help">Report this with the log attached</x-import></div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var A = window.KApp;
+    return A.page(this, {
+      h: 1000, s14: 14,
+      actions: [A.btn('primary', 'Try again', { icon: 'refresh' }), A.btn('secondary', 'Use Kataki’s own model instead'), A.btn('ghost', 'Open Settings', { href: 'SetModelsFailed.dc.html' })]
+    });
+  }
+}
+</script>
+</body>
+</html>

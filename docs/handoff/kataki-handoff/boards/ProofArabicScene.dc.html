@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>Kataki · Arabic, in a story</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/kataki/tokens.css">
+<link rel="stylesheet" href="ds/kataki/components/bundle.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="ds/kataki/components/bundle.js"></script>
+<script src="app/app.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&amp;family=Baloo+Bhaijaan+2:wght@500;600;700;800&amp;family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&amp;family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&amp;family=Noto+Naskh+Arabic:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.ar .k-line__text{line-height:1.75}
+[dir="rtl"] .k-line__text em{font-style:normal}
+.proofnote{position:absolute;inset-inline-end:24px;bottom:24px;z-index:3;width:272px}
+</style>
+</helmet>
+<div data-theme="{{theme}}" dir="rtl" lang="ar" class="scene ar">
+  <img class="scene__art" src="/_blob/1e023859469874b847f3f6c9eb3831a9" alt="مقهى هالسيون تحت المطر">
+  <div class="scene__tint"></div>
+  <div class="scene__vig"></div>
+  <div class="scene__tl">
+    <div class="k-scenehead"><x-import component-from-global-scope="Kataki.SceneButton" icon="cloud" label="العودة إلى السماء" href="ProofArabic.dc.html"></x-import><div class="k-scenehead__text"><span class="k-scenehead__title">ملعقتا سكّر، بلا لقب</span><span class="k-scenehead__sub">بدور ليف · قريبًا من التاج</span></div></div>
+  </div>
+  <div class="scene__tr">
+    <button type="button" role="switch" aria-checked="false" class="k-bstoggle"><x-import component-from-global-scope="Kataki.Icon" name="layers" size="{{s16}}"></x-import>خلف الكواليس<span class="k-bstoggle__track"><span class="k-bstoggle__knob"></span></span></button>
+    <x-import component-from-global-scope="Kataki.SceneButton" icon="search" label="ابحث في هذه القصة"></x-import>
+    <x-import component-from-global-scope="Kataki.SceneButton" icon="dots" label="قائمة القصة"></x-import>
+  </div>
+
+  <div class="scene__chat">
+    <section class="k-chat" aria-label="القصة" style="height: 868px;">
+      <div class="k-chat__lines" aria-live="polite">
+        <x-import component-from-global-scope="Kataki.TitleCard">مقهى هالسيون · المساء الذي أمطرت فيه</x-import>
+        <x-import component-from-global-scope="Kataki.ChatLine" speaker="liv" name="ليف" time="7:02 م" text="ما زلتم مفتوحين؟ سآخذ أي شيء ساخن، لا يهمني ما هو."></x-import>
+        <x-import component-from-global-scope="Kataki.ChatLine" speaker="mike" name="مايك" time="7:04 م" text="*يقلب اللافتة من جديد* عشر دقائق. اشربها بسرعة وإلا جعلتك تعمل."><x-import component-from-global-scope="Kataki.Reaction" kind="warm" who="mike" soft="{{yes}}">مايك سعيد بقدومك</x-import></x-import>
+        <x-import component-from-global-scope="Kataki.StoryNote" who="theo">ينضم ثيو.</x-import>
+        <x-import component-from-global-scope="Kataki.ChatLine" speaker="theo" name="ثيو" time="7:06 م" text="*يضع حقيبته على المنضدة* هل قال أحدهم عمل مجاني؟"><x-import component-from-global-scope="Kataki.Reaction" kind="mood" who="mike">مايك حذِر من ثيو</x-import></x-import>
+        <x-import component-from-global-scope="Kataki.StoryNote" who="theo" away="{{yes}}">ذهب ثيو إلى الخلف.</x-import>
+        <x-import component-from-global-scope="Kataki.ChatLine" speaker="liv" name="ليف" time="7:12 م" text="بسرعة، قبل أن يعود. أمي أخت الملكة غير الشقيقة. اسمي على قائمة الحفل ولا أريده هناك. لا تخبر أحدًا."><x-import component-from-global-scope="Kataki.Reaction" kind="memory" who="mike">سيتذكّر مايك هذا</x-import></x-import>
+        <x-import component-from-global-scope="Kataki.ChatLine" speaker="mike" name="مايك" time="7:14 م" text="*يضع الكوب بحذر شديد* إذن توقّفي عن قولها بصوت عالٍ. أمي تقصّ شعرها."><x-import component-from-global-scope="Kataki.Reaction" kind="feeling" who="mike">مايك قلِق عليكِ</x-import></x-import>
+      </div>
+      <div class="k-chat__composer">
+        <div class="k-composer">
+          <label class="k-composer__field"><span class="k-sr">سطرك</span><textarea rows="2" placeholder="تكلّمي أو تصرّفي بدور ليف…"></textarea></label>
+          <div class="k-composer__bar">
+            <div class="k-composer__left">
+              <x-import component-from-global-scope="Kataki.Segmented" label="تفاصيل المحرّر" options="{{segOpts}}" value="بسيط" tone="scene" size="sm"></x-import>
+              <x-import component-from-global-scope="Kataki.SceneButton" icon="ff" label="تابِع القصة" icon-size="{{s14}}"></x-import>
+            </div>
+            <div class="k-composer__right">
+              <button type="button" class="k-mode" aria-haspopup="menu" aria-expanded="false"><x-import component-from-global-scope="Kataki.Icon" name="spark" size="{{s14}}" color="var(--event-memory)"></x-import>تلقائي<x-import component-from-global-scope="Kataki.Icon" name="down" size="{{s14}}"></x-import></button>
+              <button type="button" class="k-btn k-btn--scene-send">أرسل<x-import component-from-global-scope="Kataki.Icon" name="send" size="{{s15}}" flip="{{yes}}"></x-import></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="scene__right">
+    <x-import component-from-global-scope="Kataki.CharacterWidget" who="mike" name="مايك" mood="قلِق" status="هنا · الثقة +6 في هذا المشهد" alt="مايك"></x-import>
+    <x-import component-from-global-scope="Kataki.CharacterRowWidget" who="theo" name="ثيو" status="في الخلف · بعيد" away="{{yes}}"></x-import>
+  </div>
+  <div class="scene__left">
+    <x-import component-from-global-scope="Kataki.ClockWidget" time="7:14 م" rel="المساء الذي أمطرت فيه" place="مقهى هالسيون" kind="dusk"></x-import>
+    <x-import component-from-global-scope="Kataki.MusicWidget" track="مطر على نافذة مقهى" source="مطابقة للمشهد"></x-import>
+  </div>
+  <div class="proofnote" dir="ltr" lang="en" style="inset-inline-end: auto; inset-inline-start: 24px; top: 96px; bottom: auto;"><x-import component-from-global-scope="Kataki.Callout" tone="warm" title="R3 · what this proves">The whole Scene mirrors: chat on the right, widgets on the left, the send arrow flips, the clock does not. *Actions* keep their action colour but are never slanted in Arabic. Toggle, header and composer are drawn with their DS classes and Arabic text: the components must take these strings as props.</x-import></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["night","day"],"default":"night"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var A = window.KApp;
+    return A.page(this, { s14: 14, s15: 15, s16: 16, segOpts: ['بسيط', 'متقدّم'] });
+  }
+}
+</script>
+</body>
+</html>
