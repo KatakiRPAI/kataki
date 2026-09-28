@@ -6,7 +6,7 @@ import { api } from './api'
 import { K } from './ds'
 import { LibraryProvider } from './hooks'
 import { Menus, Toasts } from './overlay'
-import { loadPrefs, pref, setPref, skyTheme, usePrefs } from './prefs'
+import { loadPrefs, setPref, skyTheme, usePrefs } from './prefs'
 import { t } from './strings'
 import Home from './sky/Home'
 import NotBuilt from './sky/NotBuilt'
@@ -18,6 +18,10 @@ import Editor from './sky/Editor'
 import Settings, { last as lastSettings } from './sky/Settings'
 import World from './sky/World'
 import You from './sky/You'
+import Search from './sky/Search'
+import FirstRun, { ModelGone, Opening } from './sky/FirstRun'
+import { Palette } from './sky/Palette'
+import { Feedback, openFeedback } from './sky/Feedback'
 import Scene from './scene/Scene'
 
 const RAIL: Record<string, string> = {
@@ -41,7 +45,7 @@ function Links({ children }: { children: ReactNode }) {
     addEventListener('click', on)
     return () => removeEventListener('click', on)
   }, [navigate])
-  return <LibraryProvider>{children}<Toasts /><Menus /></LibraryProvider>
+  return <LibraryProvider>{children}<Palette /><Feedback /><Toasts /><Menus /></LibraryProvider>
 }
 
 /** The Sky: every page outside a story. Rail, the Sky behind, the Night/Day theme. */
@@ -51,6 +55,7 @@ function Sky() {
   const theme = skyTheme(prefs)
   const flip = (to: string) => {
     if (to === 'Day' || to === 'Night') setPref('appearance.theme', to === 'Day' ? 'day' : 'night')
+    if (to === 'Feedback') openFeedback('feedback')
   }
   const at = pathname.split('/')[1]
   return (
@@ -70,10 +75,10 @@ const routes: RouteObject[] = [
   {
     element: <Links><Outlet /></Links>,
     children: [
-      { path: '/', element: <Start /> },
+      { path: '/', element: <Opening /> },
       { path: '/story/:id', element: <Scene /> },
-      { path: '/opening', element: <NotBuilt bare /> },
-      { path: '/welcome/*', element: <NotBuilt bare /> },
+      { path: '/opening', element: <Opening /> },
+      { path: '/welcome/*', element: <FirstRun /> },
       {
         element: <Sky />,
         children: [
@@ -87,27 +92,14 @@ const routes: RouteObject[] = [
           sky('/settings/:panel', <Settings />),
           sky('/world', <World />),
           sky('/you', <You />),
-          ...['/search',
-            '/status/model'].map((p) => sky(p)),
+          sky('/search', <Search />),
+          sky('/status/model', <ModelGone />),
           sky('*'),
         ],
       },
     ],
   },
 ]
-
-/** Launch: Home, or the last scene when Settings › General says so (ROUTES.md › Where the app starts). */
-function Start() {
-  const navigate = useNavigate()
-  useEffect(() => {
-    loadPrefs().then(async () => {
-      const all = pref<string>('general.openTo', 'home') === 'last' ? await api<{ id: number; last_at: string }[]>('/stories').catch(() => []) : []
-      const last = all.sort((a, b) => b.last_at.localeCompare(a.last_at))[0]
-      navigate(last ? `/story/${last.id}` : '/home', { replace: true })
-    })
-  }, [navigate])
-  return null
-}
 
 export const router = window.kataki ? createMemoryRouter(routes, { initialEntries: ['/'] }) : createBrowserRouter(routes)
 document.title = t('app.name')

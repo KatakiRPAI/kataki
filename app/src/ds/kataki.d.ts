@@ -66,7 +66,7 @@ export declare function StepHeader(props: { n: number | string; title: string; o
 /** The five-item navigation: Home, Stories, Characters, World, You; New character under a rule; Settings, Feedback and the Day/Night switch in the foot. */
 export declare function Rail(props: { active?: "Home" | "Stories" | "Characters" | "World" | "You"; compact?: boolean; theme?: "night" | "day"; hrefs?: Record<string, string>; onNavigate?: (to: string) => void; settingsDot?: boolean; height?: number }): React.ReactElement;
 /** Who you are playing as, top left of every Sky page. Opens the persona menu. */
-export declare function PersonaSwitch(props: { who?: Who; src?: string; name?: string; open?: boolean }): React.ReactElement;
+export declare function PersonaSwitch(props: { [extra: string]: any; who?: Who; src?: string; name?: string; open?: boolean }): React.ReactElement;
 /** The strip above page content: persona switch (or a back link) on one side, search on the other. */
 export declare function TopBar(props: { who?: Who; src?: string; name?: string; back?: string; backHref?: string; children?: ReactNode }): React.ReactElement;
 /** Switches between views of the same thing: Story / Profile on a character, Everything / Places / Plots. */
@@ -90,7 +90,7 @@ export declare function Sheet(props: { onClose?: () => void; title: string; tone
 /** A short confirmation at the bottom of the window, with an optional undo. Intentional addition: deletes and forgets need a way back. */
 export declare function Toast(props: { icon?: IconName; tone?: "bad"; action?: string; onAction?: () => void; onDismiss?: () => void; children: ReactNode }): React.ReactElement;
 /** Ctrl K over anything: jump to a story, character or place, find a line, or run a command. */
-export declare function CommandPalette(props: { query?: string; groups: { title: string; items: { label: string; icon?: IconName; who?: Who; src?: string; meta?: string; shortcut?: string[]; story?: boolean; active?: boolean }[] }[] }): React.ReactElement;
+export declare function CommandPalette(props: { [extra: string]: any; query?: string; groups: { title: string; items: { [extra: string]: any; label: string; icon?: IconName; who?: Who; src?: string; meta?: string; shortcut?: string[]; story?: boolean; active?: boolean }[] }[] }): React.ReactElement;
 /** A short note inside a page: info, privacy, warm (worth knowing), ok, bad. Icon plus text; no coloured side stripe. */
 export declare function Callout(props: { tone?: "info" | "privacy" | "warm" | "ok" | "bad"; icon?: IconName; title?: string; action?: ReactNode; children?: ReactNode }): React.ReactElement;
 /** A page-level problem: what happened in plain words, the technical code small, and the fixes as buttons. */
@@ -158,7 +158,7 @@ export declare function PlotCard(props: { quote: string; opening: string; people
 /** One of the three ways to start on first run. `recommended` is the one that needs no setup. */
 export declare function DoorCard(props: { icon?: IconName; eyebrow: string; title: string; recommended?: boolean; actions?: ReactNode; children: ReactNode }): React.ReactElement;
 /** One hit on the search page: kind icon, title, where it lives, the matching excerpt, the character, and Open. */
-export declare function SearchResult(props: { icon?: IconName; title: string; story?: boolean; meta?: string; excerpt?: ReactNode; who?: Who; src?: string; action?: string }): React.ReactElement;
+export declare function SearchResult(props: { [extra: string]: any; icon?: IconName; title: string; story?: boolean; meta?: string; excerpt?: ReactNode; who?: Who; src?: string; action?: string }): React.ReactElement;
 /** A choice of theme with a swatch: Night, Day, Follow the system. */
 export declare function ThemeTile(props: { name: string; note?: string; variant?: "night" | "day" | "system"; selected?: boolean; onClick?: () => void }): React.ReactElement;
 /** An interface language with its own name, how complete it is, and an RTL mark. */

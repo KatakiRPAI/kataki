@@ -64,7 +64,7 @@ export default function Editor() {
   const [roles] = useLoad(() => api<RoleRow[]>('/roles'), [])
   const item = id ? byId.get(id) : undefined
   const [base, setBase] = useState<Form>()
-  const [f, setF] = useState<Form>(formOf())
+  const [f, setF] = useState<Form>(() => ({ ...formOf(), name: new URLSearchParams(location.search).get('name') ?? '' }))
   const [open, setOpen] = useState<Section[]>([])
   const [tried, setTried] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -75,7 +75,7 @@ export default function Editor() {
     if (base || (id && !item)) return
     const start = formOf(item)
     setBase(start)
-    setF(start)
+    if (item) setF(start)
     if (item) setOpen(SECTIONS.map(([s]) => s).filter((s) => filled[s](start)))
   }, [item, id, base])
 

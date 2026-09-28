@@ -57,14 +57,14 @@ export default function Scene() {
   const [reading, setReading] = useState(false)
   const [backstage, setBackstage] = useState(params.has('backstage'))
   const [finding, setFinding] = useState(false)
-  const [found, setFound] = useState<number>()
+  const [found, setFound] = useState<number | undefined>(() => Number(params.get('line')) || undefined) // a line opened from search
   const [skip, setSkip] = useState<Skip | null>(null)
   const [meter, setMeter] = useState<{ used: number; budget: number }>()
   const [tick, setTick] = useState(0)
   const controller = useRef<AbortController | null>(null)
   const retryBody = useRef<{ path: string; body: object } | null>(null)
   const chat = useRef<HTMLDivElement>(null)
-  const follow = useRef(true)
+  const follow = useRef(!params.get('line'))
   const [below, setBelow] = useState(false)
   const setAdvanced = (v: boolean) => { setAdvancedState(v); try { localStorage.setItem(ADVANCED, v ? '1' : '0') } catch { /* kept for the session */ } }
 

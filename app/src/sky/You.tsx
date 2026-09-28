@@ -17,7 +17,7 @@ export default function You() {
   const def = prefs.persona as number | null | undefined
   const [picked, setPicked] = useState<number | null>()
   const current = picked === undefined ? (def === null ? null : personas.find((p) => p.id === def) ?? personas[0]) : picked === null ? null : personas.find((p) => p.id === picked)
-  const [editing, setEditing] = useState<Item | 'new'>()
+  const [editing, setEditing] = useState<Item | 'new' | undefined>(() => (new URLSearchParams(location.search).get('new') ? 'new' : undefined))
   const [deleting, setDeleting] = useState<Item>()
   const [stories] = useLoad(() => api<StorySummary[]>('/stories'), [])
   return (

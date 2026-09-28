@@ -37,7 +37,7 @@
     var people = p.people || [], max = p.max || 4, s = p.size || 30;
     var shown = people.slice(0, max), extra = people.length - shown.length;
     return h('span', { className: 'k-stack', 'aria-label': p.label },
-      shown.map(function (x, i) { return h(Avatar, { key: i, who: x.who, src: x.src, name: x.name, alt: x.alt || x.name || '', size: s, className: 'k-stack__item' }); }),
+      shown.map(function (x, i) { return h(Avatar, { key: i, who: x.who, src: x.src, name: x.name, focus: x.focus, alt: x.alt || x.name || '', size: s, className: 'k-stack__item' }); }),
       extra > 0 ? h('span', { className: 'k-stack__more', style: { width: s, height: s } }, '+' + extra) : null);
   }
   function Eyebrow(p) { return h('div', { className: cx('k-eyebrow', p.tone && 'k-eyebrow--' + p.tone, p.className) }, p.children); }
@@ -325,18 +325,18 @@
   function CommandPalette(p) {
     var groups = p.groups || [];
     return h('div', { className: 'k-palette', role: 'dialog', 'aria-label': 'Search and commands' },
-      h('div', { className: 'k-palette__input' }, h(Icon, { name: 'search', size: 18 }), h('input', { defaultValue: p.query, placeholder: 'Search, or type a command', 'aria-label': 'Search' }), h(Kbd, null, 'Esc')),
+      h('div', { className: 'k-palette__input' }, h(Icon, { name: 'search', size: 18 }), h('input', Object.assign({ placeholder: p.placeholder || 'Search, or type a command', 'aria-label': p.label || 'Search', autoFocus: !!p.onQuery, onKeyDown: p.onKeyDown, role: 'combobox', 'aria-expanded': 'true' }, p.onQuery ? { value: p.query || '', onChange: function (e) { p.onQuery(e.target.value); } } : { defaultValue: p.query })), h(Kbd, null, 'Esc')),
       h('div', { className: 'k-palette__list', role: 'listbox' }, groups.map(function (g) {
         return h('div', { key: g.title, className: 'k-palette__group' }, h('div', { className: 'k-palette__title' }, g.title),
           g.items.map(function (it, i) {
-            return h('div', { key: i, role: 'option', 'aria-selected': it.active ? 'true' : 'false', className: cx('k-palette__item', it.active && 'is-active') },
-              it.who ? h(Avatar, { who: it.who, src: it.src, size: 22 }) : h(Icon, { name: it.icon || 'right', size: 16 }),
+            return h('div', { key: i, role: 'option', id: it.id, 'aria-selected': it.active ? 'true' : 'false', className: cx('k-palette__item', it.active && 'is-active'), onClick: it.onSelect, onMouseEnter: it.onHover },
+              it.who || it.src || it.name ? h(Avatar, { who: it.who, src: it.src, name: it.name, size: 22 }) : h(Icon, { name: it.icon || 'right', size: 16 }),
               h('span', { className: cx('k-palette__label', it.story && 'k-palette__label--story') }, it.label),
               it.meta ? h('span', { className: 'k-palette__meta' }, it.meta) : null,
               it.shortcut ? h(Shortcut, { keys: it.shortcut }) : null);
           }));
       })),
-      h('div', { className: 'k-palette__foot' }, h(Shortcut, { keys: ['↑', '↓'] }), 'move', h(Kbd, null, 'Enter'), 'open', h(Kbd, null, 'Tab'), 'filter'));
+      h('div', { className: 'k-palette__foot' }, h(Shortcut, { keys: ['↑', '↓'] }), p.moveLabel || 'move', h(Kbd, null, 'Enter'), p.openLabel || 'open', h(Kbd, null, 'Tab'), p.filterLabel || 'filter'));
   }
 
   /* ---------- feedback ---------- */

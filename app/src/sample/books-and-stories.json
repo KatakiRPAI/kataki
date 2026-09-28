@@ -1,0 +1,66 @@
+[
+ {
+  "id": "close-to-the-crown",
+  "name": "Close to the Crown",
+  "stories": [
+   {
+    "id": "two-sugars-no-title",
+    "name": "Two Sugars, No Title",
+    "persona": "liv",
+    "characters": [
+     "mike",
+     "theo"
+    ],
+    "place": "halcyon-coffee",
+    "anchor_event": "the evening it rained",
+    "anchor_date": "24 May",
+    "last_played": "today, 7:12 pm"
+   },
+   {
+    "id": "the-gala-list",
+    "name": "The Gala List",
+    "persona": "liv",
+    "characters": [
+     "jae"
+    ],
+    "place": "halcyon-coffee",
+    "anchor_event": "two days before the gala",
+    "last_played": "yesterday, 10:20 pm"
+   }
+  ]
+ },
+ {
+  "id": "the-flat-on-ardenne",
+  "name": "The Flat on Ardenne",
+  "stories": [
+   {
+    "id": "three-in-the-morning",
+    "name": "Three in the Morning",
+    "persona": "liv",
+    "characters": [
+     "nico"
+    ],
+    "place": "flat-on-ardenne",
+    "anchor_event": "the night before the game",
+    "last_played": "18 Sep, 11:35 pm"
+   }
+  ]
+ },
+ {
+  "id": null,
+  "name": "Not in a book",
+  "stories": [
+   {
+    "id": "the-long-way-home",
+    "name": "The Long Way Home",
+    "persona": "cas",
+    "characters": [
+     "mike"
+    ],
+    "place": null,
+    "anchor_event": "the week the engine died",
+    "last_played": "8 Sep, 9:05 pm"
+   }
+  ]
+ }
+]

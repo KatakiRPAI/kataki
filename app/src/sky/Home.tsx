@@ -1,7 +1,7 @@
 // Home (C1, C2, C3): docs/handoff/kataki-handoff/SCREENS.md › /home.
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
-import { api, type ActivityEvent, type Item, type Person, type Story, type StorySummary } from '../api'
+import { api, type ActivityEvent, type Item, type Person, type Provider, type RoleRow, type Story, type StorySummary } from '../api'
 import { K } from '../ds'
 import { face, scenery, twelve, useLibrary, useLoad, utc } from '../hooks'
 import { relative, t } from '../strings'
@@ -21,6 +21,13 @@ export default function Home() {
   const [stories] = useLoad(() => api<StorySummary[]>('/stories'), [])
   const [events] = useLoad(() => api<ActivityEvent[]>('/activity?limit=12'), [])
   const [filter, setFilter] = useState<Filter>('all')
+  // C3: is anyone answering? Sky pages never wait on it.
+  const [offline] = useLoad(async () => {
+    const rp = (await api<RoleRow[]>('/roles')).find((r) => r.role === 'rp')
+    if (!rp?.effective_provider_id) return null
+    const provider = (await api<Provider[]>('/providers')).find((p) => p.id === rp.effective_provider_id)
+    return api(`/providers/${rp.effective_provider_id}/models`).then(() => null, () => provider?.name ?? '?')
+  }, [])
   const played = [...(stories ?? [])].sort((a, b) => utc(b.last_at) - utc(a.last_at))
   const hero = played[0]
   const [people] = useLoad(() => (hero ? api<Person[]>(`/stories/${hero.id}/people`) : Promise.resolve([])), [hero?.id])
@@ -75,6 +82,9 @@ export default function Home() {
     <main className="app__main" aria-label={t('home.label')}>
       <a href={`/story/${hero.id}`} className="sr">{t('home.skip')}</a>
       {top}
+      {offline && (
+        <K.StatusLine tone="bad" title={t('home.offline')} action={<K.Button size="sm" href="/status/model">{t('home.what')}</K.Button>}>{t('home.offlineBody', { server: offline })}</K.StatusLine>
+      )}
       <K.ContinueHero
         title={hero.title}
         book={hero.book?.title ?? t('home.noBook')}

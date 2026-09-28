@@ -1,0 +1,29 @@
+[
+ {
+  "id": "the-invitation",
+  "name": "The Invitation",
+  "premise": "The palace sends out the gala list, and both your names are on it.",
+  "opening_narration": "A courier bike pulls up outside Halcyon, and the envelope has a seal on it.",
+  "book": "close-to-the-crown",
+  "stories": [
+   "two-sugars-no-title"
+  ],
+  "characters": [
+   "mike",
+   "jae"
+  ]
+ },
+ {
+  "id": "closing-shift",
+  "name": "Closing Shift",
+  "premise": "The café shuts in ten minutes and neither of you wants to leave.",
+  "opening_narration": "The espresso machine sighs and goes quiet.",
+  "book": "close-to-the-crown",
+  "stories": [
+   "two-sugars-no-title"
+  ],
+  "characters": [
+   "mike"
+  ]
+ }
+]

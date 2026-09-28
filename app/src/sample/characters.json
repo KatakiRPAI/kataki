@@ -1,0 +1,174 @@
+{
+ "personas": [
+  {
+   "id": "liv",
+   "name": "Liv Sandoval",
+   "age": 20,
+   "kind": "persona",
+   "portrait": "assets/characters/liv.png",
+   "face_focus": "52% 24%",
+   "tagline": "Cheerleader. The queen’s step-sister’s daughter.",
+   "about": "Squad flyer, sports science student, permanently slightly late. Her mother married into the family sideways, so Liv is on the palace’s lists and in no line of succession. She tells people her family ‘works in government’.",
+   "tags": [
+    "Cheerleader",
+    "Blunt",
+    "Late"
+   ],
+   "speaker_colour": "#a9c8ff",
+   "default": true
+  },
+  {
+   "id": "cas",
+   "name": "Cas Brennan",
+   "age": 26,
+   "kind": "persona",
+   "portrait": "assets/characters/cas.png",
+   "face_focus": "50% 20%",
+   "tagline": "Twelfth in line, and hates it.",
+   "about": "Liv’s second cousin, actually in the line of succession and actively avoiding it. Drives a car that keeps dying.",
+   "tags": [
+    "Twelfth in line",
+    "Restless"
+   ],
+   "speaker_colour": "#a9dcb8"
+  }
+ ],
+ "characters": [
+  {
+   "id": "mike",
+   "name": "Mike Dorsey",
+   "age": 22,
+   "kind": "character",
+   "portrait": "assets/characters/mike.png",
+   "face_focus": "50% 26%",
+   "tagline": "Barista at Halcyon. Son of the queen’s hairdresser.",
+   "also_known_as": [
+    "Michael"
+   ],
+   "about": "Barista at Halcyon Coffee, six days a week. His mother does the queen’s hair, which makes him family in the way the palace means it: invited, never photographed.",
+   "secret": "He cuts the queen’s hair now. His mother’s hands shake and no one can know.",
+   "example_dialogue": [
+    "Ten minutes. Drink it fast.",
+    "*wipes the counter twice* It’s fine. It’s not fine, but it’s fine."
+   ],
+   "opening_line": "*flips the sign back around* You’re lucky I’m slow at closing.",
+   "tags": [
+    "Barista",
+    "Steady",
+    "Private"
+   ],
+   "speaker_colour": "#f2b870",
+   "relationships": [
+    {
+     "with": "liv",
+     "label": "Fond of Liv"
+    },
+    {
+     "with": "theo",
+     "label": "Wary of Theo"
+    }
+   ],
+   "feelings_toward_liv": {
+    "warmth": 0.72,
+    "trust": 0.54,
+    "doubt": 0.46
+   }
+  },
+  {
+   "id": "theo",
+   "name": "Theo Park",
+   "age": 22,
+   "kind": "character",
+   "portrait": "assets/characters/theo.png",
+   "face_focus": "50% 30%",
+   "tagline": "Engineering student. Covers Mike’s shifts, hears everything.",
+   "about": "Mike’s closing-shift partner and the reason the café’s espresso machine still works. Talks to everyone, remembers all of it.",
+   "secret": "He’s failing his second year and hasn’t told anyone, least of all Mike.",
+   "example_dialogue": [
+    "Did someone say free labour?",
+    "*grinning* Anything for a paying customer."
+   ],
+   "opening_line": "*drops his backpack on the counter* Tell me you saved me something.",
+   "tags": [
+    "Loud",
+    "Useful",
+    "Broke"
+   ],
+   "speaker_colour": "#e8cc6a",
+   "relationships": [
+    {
+     "with": "mike",
+     "label": "Would take a bullet for Mike, quietly"
+    }
+   ]
+  },
+  {
+   "id": "nico",
+   "name": "Nico Ferrer",
+   "age": 21,
+   "kind": "character",
+   "portrait": "assets/characters/nico.png",
+   "face_focus": "52% 30%",
+   "tagline": "Art student, your flatmate. Tells you the truth you asked for.",
+   "about": "Paints at three in the morning, sleeps through lectures, and is the only person who tells Liv when she is being a coward.",
+   "secret": "They’ve been painting Liv for a year and won’t show her.",
+   "example_dialogue": [
+    "You’re not going to like this painting.",
+    "*doesn’t look up* Say the real thing."
+   ],
+   "opening_line": "*turns the canvas away from you* Don’t.",
+   "tags": [
+    "Blunt",
+    "Nocturnal",
+    "Loyal"
+   ],
+   "speaker_colour": "#f4a595",
+   "relationships": [
+    {
+     "with": "liv",
+     "label": "Knows Liv better than anyone"
+    }
+   ]
+  },
+  {
+   "id": "jae",
+   "name": "Jae Moretti",
+   "age": 24,
+   "kind": "character",
+   "portrait": "assets/characters/jae.png",
+   "face_focus": "50% 32%",
+   "tagline": "Palace press aide. Runs six accounts, posts nothing about himself.",
+   "about": "He writes the captions for a family that doesn’t read them, and he knows who is on every list before they do.",
+   "secret": "He keeps a folder of everything the family has asked him to delete.",
+   "example_dialogue": [
+    "*chewing gum, not looking up* Your name’s on it. Don’t ask me how.",
+    "Officially? No comment. Unofficially, be there by eight."
+   ],
+   "opening_line": "*holds up a phone without looking at you* Is this you? It’s you.",
+   "tags": [
+    "Press",
+    "Unbothered",
+    "Knows"
+   ],
+   "speaker_colour": "#cbb8ff",
+   "relationships": [
+    {
+     "with": "liv",
+     "label": "Has Liv’s number and never uses it"
+    }
+   ]
+  },
+  {
+   "id": "dani",
+   "name": "Dani",
+   "kind": "character",
+   "portrait": null,
+   "complete": 0.6,
+   "tagline": "Florist. Delivers to the palace back gate twice a week.",
+   "about": "",
+   "secret": null,
+   "tags": [],
+   "note": "Deliberately unfinished: the mockups use Dani for the 60%-complete state, with no portrait and no secret."
+  }
+ ]
+}

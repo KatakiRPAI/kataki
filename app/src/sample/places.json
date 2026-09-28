@@ -1,0 +1,58 @@
+[
+ {
+  "id": "halcyon-coffee",
+  "name": "Halcyon Coffee",
+  "image": "assets/places/halcyon-coffee.png",
+  "description": "A corner café with mismatched chairs. Rain on the window most of the year. Closes at 7:15 and never on time.",
+  "book": "close-to-the-crown",
+  "stories": [
+   "two-sugars-no-title",
+   "the-gala-list"
+  ],
+  "known_by": [
+   "mike",
+   "theo"
+  ],
+  "times_of_day": [
+   "dawn",
+   "day",
+   "dusk",
+   "night"
+  ]
+ },
+ {
+  "id": "corvel-palace",
+  "name": "Corvel Palace",
+  "image": "assets/places/corvel-palace.png",
+  "description": "Gold stairs, orange trees, and a guest list nobody admits to reading. The family use the east door; everyone else is photographed.",
+  "book": null,
+  "stories": [],
+  "known_by": [
+   "jae"
+  ],
+  "times_of_day": [
+   "dawn",
+   "day",
+   "dusk",
+   "night"
+  ]
+ },
+ {
+  "id": "flat-on-ardenne",
+  "name": "The flat on Ardenne",
+  "image": "assets/places/flat-on-ardenne.png",
+  "description": "Two students, one sofa, a television nobody watches. Paint drying on the radiator.",
+  "book": "the-flat-on-ardenne",
+  "stories": [
+   "three-in-the-morning"
+  ],
+  "known_by": [
+   "nico"
+  ],
+  "times_of_day": [
+   "day",
+   "dusk",
+   "night"
+  ]
+ }
+]
