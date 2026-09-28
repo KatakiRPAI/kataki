@@ -227,6 +227,7 @@ async def _generate(
         yield ("error", {"message": f"No model is set for the '{role}' role yet."})
         return
     ep = knobs.thinking(conn, ep)  # Settings › Memory and thinking › Thinking
+    ep = knobs.character_model(conn, speaker_id, ep, get_key)  # their own model, if they have one
     story = _story(conn, story_id)
     path = chat.path_to(conn, parent_id)
     names = dict(

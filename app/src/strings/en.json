@@ -1331,5 +1331,7 @@
   "title.you": "You",
   "title.settings": "Settings",
   "title.modelGone": "Nobody is answering",
-  "title.edit": "Edit {name}"
+  "title.edit": "Edit {name}",
+  "pf.model": "Which model plays {p, select, she {her} he {him} other {them}}",
+  "pf.modelSub": "Leave it and the story’s model speaks for them."
 }

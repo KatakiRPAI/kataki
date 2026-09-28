@@ -69,3 +69,17 @@ def test_a_characters_authored_relationships_start_the_story(conn):
     ).fetchall()
     assert [(r["src"], r["dst"], r["rel"]) for r in rels] == [("Mike", "Theo", "wary of")]
     assert alone  # someone not in the story brings nothing
+
+
+def test_a_character_can_have_their_own_model(conn):
+    from kataki.llm import Endpoint
+
+    pid = conn.execute("INSERT INTO providers(name, base_url) VALUES('far', 'http://far/v1')").lastrowid
+    conn.commit()
+    _, plain = _story(conn)
+    _, own = _story(conn, model={"provider_id": pid, "model": "big"})
+    _, gone = _story(conn, model={"provider_id": 999, "model": "big"})
+    ep = Endpoint(base_url="http://near/v1", model="small")
+    assert knobs.character_model(conn, plain, ep, lambda n: None) is ep
+    assert (knobs.character_model(conn, own, ep, lambda n: "k").base_url, knobs.character_model(conn, own, ep, lambda n: "k").model) == ("http://far/v1", "big")
+    assert knobs.character_model(conn, gone, ep, lambda n: None) is ep

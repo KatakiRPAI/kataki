@@ -58,3 +58,15 @@ def thinking(conn: sqlite3.Connection, ep):
         params["thinking"] = "enabled"
         params.setdefault("reasoning_effort", "high")
     return replace(ep, params=params) if params != ep.params else ep
+
+
+def character_model(conn: sqlite3.Connection, entity_id: int | None, ep, get_key):
+    """Which model plays this character (F2), if their profile names one: `data.model` =
+    {provider_id, model}. Otherwise the endpoint the story's roles chose."""
+    own = _own(conn, entity_id).get("model") or {}
+    if not own.get("model") or not own.get("provider_id"):
+        return ep
+    provider = conn.execute("SELECT * FROM providers WHERE id=?", (own["provider_id"],)).fetchone()
+    if provider is None:  # the connection was removed: the default speaks for them
+        return ep
+    return replace(ep, base_url=provider["base_url"], model=own["model"], api_key=get_key(provider["name"]))

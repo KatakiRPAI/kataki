@@ -62,6 +62,7 @@ export type ItemData = {
   places?: number[] // places they know
   relationships?: { id: number; feels: string }[] // an authored starting point
   fade?: 'inherit' | 'fast' | 'lifelike' | 'slow' | 'never'
+  model?: { provider_id: number; model: string } // which model plays them (F2); none = the default
   doubt?: boolean // they can doubt you
   edits?: number // how many times the profile was saved
   source?: 'shipped' | 'made' | 'imported'

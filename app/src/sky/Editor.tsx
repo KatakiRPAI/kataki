@@ -1,7 +1,7 @@
 // Making and editing a character (F1–F7): docs/handoff/kataki-handoff/SCREENS.md › /characters/new.
 import { useEffect, useRef, useState } from 'react'
 import { useBlocker, useNavigate, useParams } from 'react-router'
-import { api, mediaUrl, upload, type Item, type Pronouns, type RoleRow, type StorySummary } from '../api'
+import { api, mediaUrl, upload, type Item, type Pronouns, type Provider, type RoleRow, type StorySummary } from '../api'
 import { storiesWith } from '../characters'
 import { K } from '../ds'
 import { useLibrary, useLoad, utc, useTitle } from '../hooks'
@@ -29,20 +29,20 @@ const SECTIONS: [Section, Key, Key, import('../ds/kataki').IconName][] = [
 type Form = {
   name: string; greeting: string; about: string; tagline: string; tags: string; pronouns: Pronouns
   lines: string[]; secret: string; relationships: { id: number; feels: string }[]; places: number[]
-  fade: (typeof FADES)[number]; doubt: boolean; portrait?: string; focus?: string; alt?: string
+  fade: (typeof FADES)[number]; doubt: boolean; portrait?: string; focus?: string; alt?: string; model: string // "providerId:model", or '' for the default
 }
 
 function formOf(c?: Item): Form {
   return {
     name: c?.name ?? '', greeting: c?.data.first_message ?? '', about: c?.description ?? '', tagline: c?.data.tagline ?? '',
     tags: (c?.tags ?? []).join(', '), pronouns: c?.data.pronouns ?? 'they', lines: c ? linesOf(c) : ['', ''], secret: c?.private ?? '',
-    relationships: c?.data.relationships ?? [], places: c?.data.places ?? [], fade: c?.data.fade ?? 'inherit', doubt: c?.data.doubt !== false,
+    relationships: c?.data.relationships ?? [], places: c?.data.places ?? [], fade: c?.data.fade ?? 'inherit', doubt: c?.data.doubt !== false, model: c?.data.model?.model ? `${c.data.model.provider_id}:${c.data.model.model}` : '',
     portrait: c?.data.portrait, focus: c?.data.focus, alt: c?.data.alt,
   }
 }
 const filled: Record<Section, (f: Form) => boolean> = {
   about: (f) => !!(f.about.trim() || f.tagline.trim()), talk: (f) => f.lines.some((l) => l.trim()), secret: (f) => !!f.secret.trim(),
-  rels: (f) => f.relationships.length > 0, places: (f) => f.places.length > 0, model: (f) => f.fade !== 'inherit' || !f.doubt,
+  rels: (f) => f.relationships.length > 0, places: (f) => f.places.length > 0, model: (f) => f.fade !== 'inherit' || !f.doubt || !!f.model,
 }
 const changed = (a: Form, b: Form): Section[] => {
   const s: Section[] = []
@@ -51,7 +51,7 @@ const changed = (a: Form, b: Form): Section[] => {
   if (a.secret !== b.secret) s.push('secret')
   if (JSON.stringify(a.relationships) !== JSON.stringify(b.relationships)) s.push('rels')
   if (JSON.stringify(a.places) !== JSON.stringify(b.places)) s.push('places')
-  if (a.fade !== b.fade || a.doubt !== b.doubt) s.push('model')
+  if (a.fade !== b.fade || a.doubt !== b.doubt || a.model !== b.model) s.push('model')
   return s
 }
 
@@ -101,6 +101,13 @@ export default function Editor() {
   const others = items.filter((i) => i.kind === 'character' && i.id !== id)
   const places = items.filter((i) => i.kind === 'place' && !i.data.unlisted)
   const rp = roles?.find((r) => r.role === 'rp')?.effective_model
+  // every model a connection offers now ("Only models that are connected now are listed.")
+  const [models] = useLoad(async () => {
+    const providers = await api<Provider[]>('/providers')
+    const all = await Promise.all(providers.map((p) => api<{ models: string[] }>(`/providers/${p.id}/models`).then((m) => m.models.map((x) => [`${p.id}:${x}`, `${p.name} · ${x}`] as [string, string]), () => [])))
+    return all.flat()
+  }, [])
+  const modelOptions: [string, string][] = [['', rp ? t('ed.modelDefault', { model: rp }) : t('ed.modelNone')], ...(models ?? []), ...(f.model && !(models ?? []).some(([k]) => k === f.model) ? [[f.model, f.model.split(':').slice(1).join(':')] as [string, string]] : [])]
   const theirs = item ? storiesWith(item, stories) : []
 
   const save = async (draftOnly = false) => {
@@ -118,6 +125,7 @@ export default function Editor() {
         ...(item?.data ?? { source: 'made' }), tagline: f.tagline.trim() || undefined, pronouns: f.pronouns, first_message: f.greeting.trim(),
         lines, example_dialogue: lines.map((l) => `${f.name.trim()}: ${l}`).join('\n'),
         portrait: f.portrait, focus: f.focus, alt: f.alt, places: f.places, relationships: f.relationships, fade: f.fade, doubt: f.doubt,
+        model: f.model ? { provider_id: Number(f.model.split(':')[0]), model: f.model.split(':').slice(1).join(':') } : undefined,
         edits: item ? (item.data.edits ?? 0) + 1 : 0,
       },
     }
@@ -262,7 +270,8 @@ export default function Editor() {
                         )}
                         {s === 'model' && (
                           <>
-                            <K.Select label={t('ed.modelLabel')} hint={t('ed.modelHint')} options={[rp ? t('ed.modelDefault', { model: rp }) : t('ed.modelNone')]} />
+                            <K.Select label={t('ed.modelLabel')} hint={t('ed.modelHint')} options={modelOptions.map(([, l]) => l)} value={modelOptions.find(([k]) => k === f.model)?.[1]}
+                              onChange={(v) => set('model', modelOptions.find(([, l]) => l === v)?.[0] ?? '')} />
                             <K.Segmented label={t('ed.fade')} size="sm" options={FADES.map((x) => (x === 'inherit' ? t('ed.fadeInherit') : t(`fade.${x}` as Key)))}
                               value={f.fade === 'inherit' ? t('ed.fadeInherit') : t(`fade.${f.fade}` as Key)}
                               onChange={(v) => set('fade', FADES.find((x) => (x === 'inherit' ? t('ed.fadeInherit') : t(`fade.${x}` as Key)) === v) ?? 'inherit')} />

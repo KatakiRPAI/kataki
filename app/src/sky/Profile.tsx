@@ -155,6 +155,9 @@ export default function Profile() {
                   <K.SettingsRow title={t('pf.places', { p })} description={t('pf.placesSub', { p })}>
                     <span className="t-body">{(c.data.places ?? []).map((x) => byId.get(x)?.name).filter(Boolean).join(' · ') || t('pf.none')}</span>
                   </K.SettingsRow>
+                  <K.SettingsRow title={t('pf.model', { p })} description={t('pf.modelSub')}>
+                    <span className="t-body">{c.data.model?.model ?? t('ed.modelNone')}</span>
+                  </K.SettingsRow>
                   <K.SettingsRow title={t('pf.memory')} description={t('pf.memorySub', { p })}>
                     <span className="t-body">{t(`fade.${c.data.fade ?? 'inherit'}` as Key)}{c.data.doubt !== false ? ` · ${t('fade.doubt')}` : ''}</span>
                   </K.SettingsRow>
