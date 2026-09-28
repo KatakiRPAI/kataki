@@ -625,3 +625,21 @@ def branch_story(conn: sqlite3.Connection, message_id: int) -> int:
                 )
         conn.execute("UPDATE stories SET active_leaf_id=? WHERE id=?", (msg[message_id], new))
     return new
+
+
+def become(conn: sqlite3.Connection, story_id: int, persona_id: int) -> int:
+    """The story's entity for this library persona, brought in (and put in the current scene)
+    if they aren't in it yet. Characters meet the new person from the next line."""
+    row = conn.execute(
+        "SELECT id FROM entities WHERE story_id=? AND lib_item_id=? AND is_ai=0", (story_id, persona_id)
+    ).fetchone()
+    if row:
+        return row["id"]
+    if (item := get_item(conn, persona_id)) is None:
+        raise ValueError(f"no library item {persona_id}")
+    with conn:
+        entity_id = _instantiate(conn, story_id, item, False)
+        scene = conn.execute("SELECT max(id) FROM scenes WHERE story_id=?", (story_id,)).fetchone()[0]
+        if scene is not None:
+            conn.execute("INSERT INTO presence(scene_id, entity_id, present) VALUES(?, ?, 1)", (scene, entity_id))
+    return entity_id

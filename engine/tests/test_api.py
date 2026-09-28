@@ -1304,3 +1304,14 @@ def test_a_branch_is_a_new_story_up_to_that_line(api, story):
     assert _lines(api, new)[-2:] == ["one", "two"]
     assert set(cast(api, new)) == set(cast(api, story))  # the same people
     assert _lines(api, story)[-1] == "three"  # the original is untouched
+
+
+def test_you_can_become_someone_else_mid_story_or_no_one(api, story):
+    sable = api.post("/library", json={"kind": "character", "name": "Sable", "data": {"persona": True}}).json()["id"]
+    now = api.patch(f"/stories/{story}", json={"persona_id": sable}).json()
+    assert now["persona"]["name"] == "Sable"
+    assert "Sable" in cast(api, story)  # she is in the story now, as you
+    aren = cast(api, story)["Aren"]["lib_item_id"]
+    assert api.patch(f"/stories/{story}", json={"persona_id": aren}).json()["persona"]["name"] == "Aren"
+    assert len([e for e in cast(api, story).values() if e["name"] == "Aren"]) == 1  # not twice
+    assert api.patch(f"/stories/{story}", json={"persona_id": None}).json()["persona"] is None

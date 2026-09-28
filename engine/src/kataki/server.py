@@ -168,6 +168,7 @@ class StoryPatch(BaseModel):
     roles: dict | None = None  # per-story role overrides, same shape as PUT /roles/{role}
     ui: dict | None = None  # the app's own per-story state (widget layout, notes); never read here
     moments: list[Moment] | None = None  # what the story's dates count from
+    persona_id: int | None = None  # who you are from now on (a library persona); None = no one
 
 
 class TurnIn(BaseModel):
@@ -960,8 +961,12 @@ def create_app(
     async def edit_story(story_id: int, s: StoryPatch):
         story = story_row(story_id)
         fields = s.model_dump(
-            exclude_unset=True, exclude={"roles", "ui", "moments", "book_id", "tags"}
+            exclude_unset=True, exclude={"roles", "ui", "moments", "book_id", "tags", "persona_id"}
         )
+        if "persona_id" in s.model_fields_set:
+            fields["persona_entity_id"] = (
+                None if s.persona_id is None else library.become(conn, story_id, s.persona_id)
+            )
         if s.tags is not None:
             with conn:  # its own commit: a patch of tags alone writes nothing else
                 library.set_tags(conn, "story", story_id, s.tags)

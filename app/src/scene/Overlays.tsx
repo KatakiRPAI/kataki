@@ -1,10 +1,10 @@
 // The Scene's own overlays (SCENE.md › Other overlays): Pass time (P11), Scene and place (P17),
 // Story settings (P18), a character's card (P15) and Find in story.
 import { useEffect, useRef, useState } from 'react'
-import { api, later as words, UNITS, type Book, type CastEntity, type Feelings, type Item, type KnownMemory, type Person, type Story, type Unit } from '../api'
+import { api, later as words, UNITS, type Book, type CastEntity, type Provider, type Feelings, type Item, type KnownMemory, type Person, type Story, type Unit } from '../api'
 import { K } from '../ds'
 import { scenery, twelve, useLibrary, useLoad } from '../hooks'
-import { Overlay } from '../overlay'
+import { Overlay, toast } from '../overlay'
 import { t, type Key } from '../strings'
 
 // what the engine's clock reads, and what the button says
@@ -115,6 +115,17 @@ export function StorySettings({ story, advanced, onAdvanced, onClose, onChange }
   const [title, setTitle] = useState(story.title)
   const patch = (body: object) => api(`/stories/${story.id}`, 'PATCH', body).then(onChange)
   const bookOptions: [number | null, string][] = [[null, t('set.noBook')], ...(books ?? []).map((b) => [b.id, b.title] as [number, string])]
+  const { items } = useLibrary()
+  const personaOptions: [number | null, string][] = [...items.filter((i) => i.kind === 'character' && i.data.persona).map((p) => [p.id, p.name] as [number, string]), [null, t('pm.director')]]
+  // a model for this story alone: any model a connection offers, or the default (Settings › Models)
+  const [models] = useLoad(async () => {
+    const providers = await api<Provider[]>('/providers')
+    const all = await Promise.all(providers.map((p) => api<{ models: string[] }>(`/providers/${p.id}/models`).then((m) => m.models.map((x) => [`${p.id}:${x}`, `${p.name} · ${x}`] as [string, string]), () => [])))
+    return all.flat()
+  }, [])
+  const own = (story.roles as { rp?: { provider_id?: number; model?: string } }).rp
+  const currentModel = own?.model ? `${own.provider_id}:${own.model}` : ''
+  const modelOptions: [string, string][] = [['', t('set.modelDefault')], ...(models ?? []), ...(currentModel && !(models ?? []).some(([k]) => k === currentModel) ? [[currentModel, own!.model!] as [string, string]] : [])]
   return (
     <Overlay onClose={onClose}>
       <div className="scene-sheet">
@@ -123,6 +134,16 @@ export function StorySettings({ story, advanced, onAdvanced, onClose, onChange }
             <K.TextField label={t('set.name')} story max={60} value={title} onChange={setTitle} />
             <K.Select label={t('set.book')} options={bookOptions.map(([, l]) => l)} value={bookOptions.find(([id]) => id === (story.book?.id ?? null))?.[1]}
               onChange={(v) => patch({ book_id: bookOptions.find(([, l]) => l === v)?.[0] ?? null })} />
+            <K.Select label={t('set.you')} hint={t('set.youHint')} options={personaOptions.map(([, l]) => l)}
+              value={personaOptions.find(([id]) => id === (story.persona?.lib_item_id ?? null))?.[1] ?? personaOptions.at(-1)?.[1]}
+              onChange={(v) => { patch({ persona_id: personaOptions.find(([, l]) => l === v)?.[0] ?? null }); toast(t('toast.personaSwitched', { name: v }), {}, 3000) }} />
+            <K.Select label={t('set.model')} hint={t('set.modelHint')} options={modelOptions.map(([, l]) => l)}
+              value={modelOptions.find(([k]) => k === currentModel)?.[1] ?? modelOptions[0][1]}
+              onChange={(v) => {
+                const key = modelOptions.find(([, l]) => l === v)?.[0] ?? ''
+                const [pid, ...rest] = key.split(':')
+                patch({ roles: key ? { rp: { provider_id: Number(pid), model: rest.join(':'), kind: 'auto', params: {} } } : {} })
+              }} />
             <K.SettingsRow title={t('set.hears')} description={t('set.hearsSub')}><K.Toggle label={t('set.hears')} on={advanced} onToggle={onAdvanced} /></K.SettingsRow>
             <K.SettingsRow title={t('set.minutes')} description={t('set.minutesSub')}>
               <input className="spop__num" type="number" min={1} max={1440} defaultValue={story.minutes_per_turn} aria-label={t('set.minutes')}

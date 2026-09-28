@@ -1303,5 +1303,11 @@
   "bk.go": "Restore and restart",
   "bk.cancel": "Cancel",
   "toast.backedUp": "Backed up",
-  "toast.restartToFinish": "Restart Kataki to finish restoring"
+  "toast.restartToFinish": "Restart Kataki to finish restoring",
+  "set.you": "You are",
+  "set.youHint": "Changing it mid-story: characters meet the new person from the next line.",
+  "set.model": "Model for this story",
+  "set.modelHint": "Characters in this story speak through it. Leave it and they use Settings › Models.",
+  "set.modelDefault": "Like Settings",
+  "toast.personaSwitched": "You are {name} from the next line"
 }
