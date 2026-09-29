@@ -17,6 +17,9 @@ updates:
       # Electron is pinned on purpose (44.4.1): moving it is a reviewed PR of its own.
       # Security updates still arrive; this only stops routine version bumps.
       - dependency-name: electron
+      # the types follow the Node the app runs on (24), not the newest Node
+      - dependency-name: "@types/node"
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: github-actions
     directory: /
