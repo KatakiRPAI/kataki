@@ -35,6 +35,7 @@ from kataki import (
     clock,
     draft,
     extract,
+    features,
     images,
     intake,
     library,
@@ -437,7 +438,17 @@ def create_app(
     @app.get("/health")
     async def health():
         schema = conn.execute("PRAGMA user_version").fetchone()[0]
-        return {"status": "ok", "version": __version__, "schema": schema}
+        return {
+            "status": "ok",
+            "version": __version__,
+            "schema": schema,
+            "channel": features.channel(),
+            "host": "desktop",
+        }
+
+    @app.get("/features")
+    async def list_features():
+        return features.listing(conn)
 
     @app.get("/search")
     async def search(q: str, limit: int = Query(50, ge=1, le=500)):
