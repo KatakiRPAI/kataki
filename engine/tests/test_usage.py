@@ -4,7 +4,7 @@ import functools
 
 import pytest
 
-from kataki import library, roles, turns, usage
+from kataki import chat, library, roles, turns, usage
 from kataki.llm import Endpoint
 
 pytestmark = pytest.mark.anyio
@@ -48,3 +48,22 @@ async def test_a_json_call_is_recorded_too(conn, backend):
 def test_resolve_stamps_the_role_and_story(local_model):
     ep = roles.resolve(local_model, "utility", 7)
     assert (ep.role, ep.story_id) == ("utility", 7)
+
+
+async def test_a_failing_usage_hook_never_costs_the_reply(local_model, backend):
+    conn = local_model
+    mira = library.create_item(conn, "character", "Mira")
+    aren = library.create_item(conn, "character", "Aren")
+    story = library.create_story(conn, "s", character_ids=[mira], persona_id=aren)
+    llm = backend.llm
+
+    def broken(ep, used):
+        raise RuntimeError("meter down")
+
+    llm.on_usage = broken
+    backend.say({"content": "Hello.", "usage": {"prompt_tokens": 1, "completion_tokens": 1}})
+
+    events = [event async for event in turns.turn(conn, llm, story, "Hi, Mira.")]
+
+    assert any(e[0] == "done" for e in events)
+    assert "Hello." in [m["text"] for m in chat.active_path(conn, story)]

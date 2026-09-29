@@ -9,6 +9,7 @@ or inline think tags.
 import asyncio
 import contextlib
 import json
+import logging
 import re
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
@@ -150,7 +151,11 @@ class LLM:
 
     def _used(self, ep: Endpoint, usage: dict | None) -> None:
         if usage and self.on_usage:
-            self.on_usage(ep, usage)
+            try:
+                self.on_usage(ep, usage)
+            except Exception as e:  # the reply is already generated: never lose it to a meter
+                # an online host that must fail closed does so in its own hook (track B3)
+                logging.getLogger(__name__).warning("usage not recorded for %s: %s", ep.model, e)
 
     @staticmethod
     def _check(r: httpx2.Response) -> None:
