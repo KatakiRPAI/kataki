@@ -162,3 +162,25 @@ def test_hours_later_only_the_mood_is_left():
     later = inner.tick(hurt(), 120, P)
     block = inner.render(later, P, "Mira")
     assert "Feeling:" not in block and "Mood: low." in block
+
+
+def test_react_hurts_whoever_heard_it_and_save_anchors_it(local_model):
+    from kataki import chat, turns
+
+    conn = local_model
+    mira = library.create_item(conn, "character", "Mira")
+    tobin = library.create_item(conn, "character", "Tobin")
+    aren = library.create_item(conn, "character", "Aren")
+    story = library.create_story(conn, "s", character_ids=[mira, tobin], persona_id=aren)
+    ids = dict(conn.execute("SELECT name, id FROM entities WHERE story_id=?", (story,)).fetchall())
+    turns.say(conn, story, "Tobin, you're useless.", audience=[ids["Tobin"]])  # a whisper
+
+    path = chat.active_path(conn, story)
+    states = inner.react(conn, story, path)
+    assert states[ids["Tobin"]]["emotions"][0]["label"] == "hurt"
+    assert states[ids["Mira"]]["emotions"] == []  # she didn't hear it
+
+    inner.save(conn, states, path[-1]["id"])
+    kept = inner.current(conn, ids["Tobin"], path, inner.profile(conn, ids["Tobin"]))
+    assert kept["emotions"][0]["cause"] == 'Aren said "Tobin, you\'re useless."'
+    assert inner.current(conn, ids["Tobin"], path[:-1], inner.shape({})) is None  # other branch

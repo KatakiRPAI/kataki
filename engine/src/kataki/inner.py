@@ -10,12 +10,13 @@ probes (evals/probes.py), not by feel.
 """
 
 import copy
+import json
 import re
 import sqlite3
 
 import numpy as np
 
-from kataki import knobs
+from kataki import chat, db, knobs
 
 DEFAULT = {  # research note 22 §1; the profile editor fills the rest later
     "axes": {  # [mean 0-100, spread 0-30]
@@ -310,3 +311,56 @@ def face(state: dict) -> str:
     """The sprite for what they show (the lite level's face, no model call)."""
     shown = state.get("shown")
     return FEEL[shown["label"]][1] if shown else "neutral"
+
+
+def _quote(text: str, n: int = 60) -> str:
+    text = " ".join(text.split())
+    return text if len(text) <= n else text[: n - 1].rstrip() + "…"
+
+
+def current(conn: sqlite3.Connection, entity_id: int, path: list, prof: dict) -> dict | None:
+    """Their latest state on this branch (anchored on a message of `path`, or written by the
+    user), or None when they have felt nothing yet. Not ticked to now."""
+    where, args = db.anchor_filter(set(), {m["id"] for m in path})
+    row = conn.execute(
+        f"SELECT state FROM mind_states WHERE entity_id=? AND {where}"
+        " ORDER BY story_time DESC, id DESC LIMIT 1",
+        [entity_id, *args],
+    ).fetchone()
+    return json.loads(row["state"]) if row else None
+
+
+def react(conn: sqlite3.Connection, story_id: int, path: list, model=None) -> dict[int, dict]:
+    """Everyone here after the latest line, as they are now: faded to the present, stirred by
+    that line if they heard it and it meant something, regulated. Nothing is written; the same
+    path always gives the same answer, so a new take never feels it twice."""
+    if not path:
+        return {}
+    last, now = path[-1], path[-1]["story_time"]
+    scene_id = chat.scene_of(conn, story_id, path)
+    cast = [
+        e
+        for e in chat.present_entities(conn, scene_id, path)
+        if e["is_ai"] and e["kind"] == "character"
+    ]
+    names = dict(conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)))
+    hit = sense(last["text"], model) if last["role"] == "user" else None
+    out = {}
+    for e in cast:
+        prof = profile(conn, e["id"])
+        state = tick(current(conn, e["id"], path, prof) or fresh(prof, now), now, prof)
+        if hit and last["id"] in chat.heard_by(conn, path, e["id"]):
+            cause = f'{names.get(last["speaker_id"], "Someone")} said "{_quote(last["text"])}"'
+            for label, intensity in appraise(*hit, prof, state):
+                state = feel(state, label, intensity, cause, prof)
+        out[e["id"]] = regulate(state, prof)
+    return out
+
+
+def save(conn: sqlite3.Connection, states: dict[int, dict], message_id: int) -> None:
+    """One row per character, anchored on the reply they were part of."""
+    with conn:
+        conn.executemany(
+            "INSERT INTO mind_states(entity_id, story_time, state, message_id) VALUES(?, ?, ?, ?)",
+            [(eid, s["t"], json.dumps(s), message_id) for eid, s in states.items()],
+        )
