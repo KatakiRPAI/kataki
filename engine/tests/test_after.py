@@ -285,3 +285,20 @@ async def test_the_side_call_re_reads_the_line_instead_of_feeling_it_twice(
     assert st["reg_load"] == once["reg_load"] and st["mood"] == once["mood"]
     later = inner.tick(st, st["t"] + 120, prof)
     assert inner.mood_word(later, prof) == "low"
+
+
+@pytest.mark.anyio
+async def test_the_mood_a_reply_shows_is_the_one_the_side_call_saved(
+    conn, story, backend, side_call
+):
+    """The rules read her as wound up (an insult from Aren); the side call reads the line as a
+    sad one. `done.mood` and the saved `gen.mind` must show what was saved, not the rules' first read."""
+    mira, aren = eid(conn, "Mira"), f"E{eid(conn, 'Aren')}"
+    felt = {"label": "sad", "intensity": 1, "about": aren, "cause": "c"}
+    backend.say("Hm.", said(felt=felt, events=[{"target": aren, "type": "insult", "intensity": 1}]))
+    events = await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
+    path = chat.active_path(conn, story)
+    prof = inner.profile(conn, mira)
+    saved = inner.public(inner.current(conn, mira, path, prof), prof)
+    assert saved["label"] == "sad"
+    assert events[-1][1]["mood"] == saved == json.loads(path[-1]["gen"])["mind"]

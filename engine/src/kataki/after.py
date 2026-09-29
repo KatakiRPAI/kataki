@@ -236,6 +236,10 @@ def _apply(
                 (speaker_id, message_id),
             )
             inner.save(conn, {speaker_id: st}, message_id)
+            conn.execute(  # the reply shows the mood just saved, not the rules' first read
+                "UPDATE messages SET gen=json_set(gen, '$.mind', json(?)) WHERE id=?",
+                (json.dumps(inner.public(st, prof)), message_id),
+            )
     if taken:  # else the rules' rows for this line (if any) stay
         bonds.replace(conn, story_id, speaker_id, message_id, new)
 
