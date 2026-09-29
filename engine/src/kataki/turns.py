@@ -9,6 +9,7 @@ Events: ("meta", {...}) first, then ("thought" | "token", text)..., then ("done"
 
 import asyncio
 import json
+import logging
 import re
 import sqlite3
 import time
@@ -251,11 +252,17 @@ async def _generate(
         conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)).fetchall()
     )
     minds: dict[int, dict] = {}  # everyone here, as they feel after the latest line
-    if features.enabled(conn, "mind.affect"):
-        minds = inner.react(conn, story_id, path, await asyncio.to_thread(embed.builtin))
     inside = ""
-    if speaker_id in minds:
-        inside = inner.render(minds[speaker_id], inner.profile(conn, speaker_id), names[speaker_id])
+    try:  # the mind adds to a turn, it never stops one
+        if features.enabled(conn, "mind.affect"):
+            minds = inner.react(conn, story_id, path, await asyncio.to_thread(embed.builtin))
+        if speaker_id in minds:
+            inside = inner.render(
+                minds[speaker_id], inner.profile(conn, speaker_id), names[speaker_id]
+            )
+    except Exception as e:
+        logging.getLogger(__name__).warning("mind skipped for story %s: %s", story_id, e)
+        minds, inside = {}, ""
 
     trace: dict = {"why": why, "ms": {}}
     at = time.monotonic()
@@ -374,13 +381,19 @@ async def _generate(
             trace["ms"]["reply"] = ms(asked)
             trace["ms"]["total"] = ms(began)
             gen["trace"] = trace
-            if speaker_id in minds:
-                gen["mind"] = inner.public(minds[speaker_id], inner.profile(conn, speaker_id))
+            try:
+                if speaker_id in minds:
+                    gen["mind"] = inner.public(minds[speaker_id], inner.profile(conn, speaker_id))
+            except Exception as e:
+                logging.getLogger(__name__).warning("mood not kept: %s", e)
             message_id = chat.add_child(
                 conn, story_id, parent_id, "assistant", text, speaker_id, skip, gen
             )
-            if minds:
-                inner.save(conn, minds, message_id)
+            try:
+                if minds:
+                    inner.save(conn, minds, message_id)
+            except Exception as e:
+                logging.getLogger(__name__).warning("mind not saved: %s", e)
         context.finish_log(conn, log_id, message_id, done)
         if prompt_tokens := (done.get("usage") or {}).get("prompt_tokens"):
             chars = sum(len(m["content"]) for m in built.messages)
@@ -422,7 +435,7 @@ async def _generate(
                 "date": clock.date(now, story["epoch_offset_min"], moments),
                 "usage": done.get("usage"),
                 "expression": face,
-                "mood": (json.loads(chat.get_message(conn, message_id)["gen"]) or {}).get("mind"),
+                "mood": gen.get("mind"),
             },
         )
 

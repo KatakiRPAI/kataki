@@ -36,13 +36,43 @@ DEFAULT = {  # research note 22 §1; the profile editor fills the rest later
 }
 
 
+STYLES = ("express", "suppress", "reappraise", "avoid")
+
+
+def _num(x) -> bool:
+    return isinstance(x, (int, float)) and not isinstance(x, bool)
+
+
+def _ok(key: str, value, default) -> bool:
+    """Whether a profile value can stand in for the default without breaking the maths."""
+    if key == "style":
+        return value in STYLES
+    return _num(value) if _num(default) else isinstance(value, type(default))
+
+
 def shape(own: dict) -> dict:
-    """The defaults with a character's own values laid over them, one level deep."""
+    """The defaults with a character's own values laid over them, one level deep. A value the
+    maths can't use (wrong type, bad shape) is dropped, so a hand-edited profile never breaks
+    a turn."""
     prof = copy.deepcopy(DEFAULT)
-    for key, value in own.items():
-        if isinstance(prof.get(key), dict) and isinstance(value, dict):
-            prof[key] = {**prof[key], **value}
-        else:
+    for key, value in (own if isinstance(own, dict) else {}).items():
+        if key == "axes" and isinstance(value, dict):
+            prof[key] |= {
+                k: v
+                for k, v in value.items()
+                if isinstance(v, list) and len(v) == 2 and all(map(_num, v))
+            }
+        elif key == "baseline":
+            if isinstance(value, list) and len(value) == 3 and all(map(_num, value)):
+                prof[key] = value
+        elif key not in prof:
+            prof[key] = value
+        elif isinstance(prof[key], dict):
+            if isinstance(value, dict):
+                prof[key] |= {
+                    k: v for k, v in value.items() if k not in prof[key] or _ok(k, v, prof[key][k])
+                }
+        elif _ok(key, value, prof[key]):
             prof[key] = value
     return prof
 

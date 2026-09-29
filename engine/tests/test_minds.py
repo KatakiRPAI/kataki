@@ -67,7 +67,7 @@ async def test_a_new_take_does_not_feel_it_twice(conn, story, backend):
     assert a["emotions"] == b["emotions"]
 
 
-async def test_switched_off_the_prompt_is_as_it_was(conn, story, backend):
+async def test_switched_off_no_mood_reaches_the_tail(conn, story, backend):
     conn.execute("INSERT INTO settings(key, value) VALUES('features.mind.affect', 'false')")
     backend.say("Fine.")
     await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
@@ -106,3 +106,28 @@ async def test_the_mind_graph_draws_the_mood_it_replied_with(conn, story, backen
     graph = mind.mind(conn, chat.active_path(conn, story)[-1]["id"])
     node = next(n for n in graph["nodes"] if n["kind"] == "mood")
     assert node["text"] == "very hurt · showing calm"
+
+
+@pytest.mark.parametrize("bad", [{"regulation": "suppress", "axes": {"warmth": 70}}, "junk"])
+async def test_a_malformed_mind_profile_never_breaks_a_turn(conn, story, backend, bad):
+    library.update_item(conn, conn.execute(
+        "SELECT lib_item_id FROM entities WHERE name='Mira'").fetchone()[0], data={"mind": bad})  # fmt: skip
+    backend.say("Fine.")
+    events = await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
+    assert events[-1][0] == "done" and chat.active_path(conn, story)[-1]["text"] == "Fine."
+    row = conn.execute("SELECT * FROM stories WHERE id=?", (story,)).fetchone()
+    assert {p["name"] for p in people.people(conn, row)} >= {"Mira", "Tobin"}
+
+
+async def test_a_failing_mind_step_still_keeps_the_reply(conn, story, backend, monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("kataki.inner.react", boom)
+    backend.say("Fine.")
+    events = await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
+    assert events[-1][0] == "done" and events[-1][1]["mood"] is None
+    assert "[Inside" not in tail(backend.requests[0])
+    monkeypatch.setattr("kataki.inner.public", boom)  # and Peek without a mood
+    row = conn.execute("SELECT * FROM stories WHERE id=?", (story,)).fetchone()
+    assert all(p["mood"] is None for p in people.people(conn, row))

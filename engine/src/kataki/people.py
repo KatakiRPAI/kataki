@@ -5,6 +5,7 @@ ponytail: every call walks each character's whole memory (`retrieve.inspect`); a
 once per story they are in. Cache per story version if a library ever holds hundreds of stories.
 """
 
+import logging
 import sqlite3
 
 from kataki import chat, clock, db, features, inner, retrieve
@@ -113,9 +114,13 @@ def _relationships(
 
 def _mood(conn: sqlite3.Connection, entity_id: int, path: list, now: int) -> dict | None:
     """How they feel now, faded to the present (Peek; spec §8.2)."""
-    prof = inner.profile(conn, entity_id)
-    state = inner.current(conn, entity_id, path, prof)
-    return state and inner.public(inner.tick(state, now, prof), prof)
+    try:
+        prof = inner.profile(conn, entity_id)
+        state = inner.current(conn, entity_id, path, prof)
+        return state and inner.public(inner.tick(state, now, prof), prof)
+    except Exception as e:  # a bad profile costs the mood line, not the whole Peek
+        logging.getLogger(__name__).warning("mood unavailable for %s: %s", entity_id, e)
+        return None
 
 
 def people(conn: sqlite3.Connection, story: sqlite3.Row) -> list[dict]:

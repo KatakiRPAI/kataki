@@ -184,3 +184,35 @@ def test_react_hurts_whoever_heard_it_and_save_anchors_it(local_model):
     kept = inner.current(conn, ids["Tobin"], path, inner.profile(conn, ids["Tobin"]))
     assert kept["emotions"][0]["cause"] == 'Aren said "Tobin, you\'re useless."'
     assert inner.current(conn, ids["Tobin"], path[:-1], inner.shape({})) is None  # other branch
+
+
+BAD = [
+    {"regulation": "suppress"},
+    {"regulation": {"style": "shout", "capacity": "high"}},
+    {"axes": {"warmth": 70}},
+    {"axes": {"warmth": [70]}},
+    {"inertia_h": "6"},
+    {"inertia_h": True},
+    {"anxiety": None},
+    {"baseline": [0.1]},
+    {"baseline": "calm"},
+    {"attachment": []},
+]
+
+
+@pytest.mark.parametrize("own", BAD)
+def test_a_malformed_profile_shapes_to_usable_values(own):
+    prof = inner.shape(own)
+    assert prof["regulation"] == P["regulation"] and prof["axes"] == P["axes"]
+    assert prof["inertia_h"] == 6 and prof["anxiety"] == 0.2
+    state = inner.feel(inner.fresh(prof, 0), "hurt", 0.8, "cruel", prof)
+    assert inner.tick(state, 30, prof) and inner.mean(prof, "warmth") == 50
+    assert set(inner.baseline(prof)) == {"v", "a", "d"}
+
+
+def test_good_values_and_unknown_keys_survive_shaping():
+    prof = inner.shape(
+        {"axes": {"warmth": [80, 5]}, "inertia_h": 2.5, "baseline": [0.1, 0, -0.2], "extra": 1}
+    )
+    assert prof["axes"]["warmth"] == [80, 5] and prof["inertia_h"] == 2.5
+    assert prof["baseline"] == [0.1, 0, -0.2] and prof["extra"] == 1
