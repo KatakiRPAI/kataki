@@ -196,3 +196,30 @@ async def test_the_narrator_and_lite_are_never_asked(conn, story, backend):
     conn.execute("INSERT INTO settings(key, value) VALUES('mind.level', '\"lite\"')")
     await play(turns.turn(conn, backend.llm, story, "Mira?"))
     assert all("thinks:" not in json.dumps(r["messages"]) for r in backend.requests)
+
+
+@pytest.mark.anyio
+async def test_a_reply_that_says_its_thought_aloud_is_written_again_once(conn, story, backend):
+    header = "<think>\nMira thinks: I promised myself I wouldn't ask about the ring.\n</think>\n"
+    backend.say(
+        header + "I promised myself I wouldn't ask. So I won't.",
+        header + "I promised myself I wouldn't ask, okay?",  # the retake echoes too: kept
+    )
+    events = await play(turns.turn(conn, backend.llm, story, "Mira?"))
+    assert len(backend.requests) == 2  # one retake, never two
+    retake = backend.requests[1]["messages"][-1]["content"].split("[Directive]")[1]
+    assert thought.STRONGER.format(name="Mira") in retake and "Mira thinks:" in retake
+    assert "So I won't" not in shown(events)
+    text, gen = leaf(conn, story)
+    assert gen["trace"]["echo"] == {"hit": "i promised myself i wouldn't", "resampled": True}
+    assert "check" not in gen["trace"] and text == "I promised myself I wouldn't ask, okay?"
+
+
+@pytest.mark.anyio
+async def test_an_echo_after_the_first_sentence_is_noted_not_retaken(conn, story, backend):
+    header = "<think>\nMira thinks: I promised myself I wouldn't ask about the ring.\n</think>\n"
+    backend.say(header + "Hm. Fine. I promised myself I wouldn't, so.")
+    await play(turns.turn(conn, backend.llm, story, "Mira?"))
+    _, gen = leaf(conn, story)
+    assert len(backend.requests) == 1
+    assert gen["trace"]["echo"] == {"hit": "i promised myself i wouldn't", "resampled": False}

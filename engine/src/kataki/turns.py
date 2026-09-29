@@ -157,10 +157,20 @@ LEAD = re.compile(r"^(?:\W*?\*[^*\n]{0,80}\*)?\W*")  # what bonds.OPENERS skips 
 
 class _Opener:
     """Holds a reply's first sentence back while the check is armed (bonds.armed), so an
-    agreeing, apologising or assistant-style opening is caught before anyone sees it."""
+    agreeing, apologising or assistant-style opening is caught before anyone sees it; and,
+    when a thought came first (`watch`), an opening that says the thought aloud."""
 
     def __init__(self, armed: bool):
         self.armed, self.held, self.hit, self.dropped = armed, "", None, ""
+        self.opening, self.thinks, self.echo, self.watched = armed, None, None, False
+
+    def watch(self, early: dict | None) -> None:
+        """Called once, just before the first visible word, with the thought written before it.
+        ponytail: holding the first sentence for the echo check adds its time to the first
+        word; if the latency probe fails the 2 s gate, watch only when `bonds.armed` is."""
+        self.watched = True
+        if early and early["thinks"] and not self.hit:
+            self.thinks, self.armed = early["thinks"], True
 
     def feed(self, text: str) -> str:
         if self.hit:
@@ -178,7 +188,9 @@ class _Opener:
             return ""
         self.armed = False
         held, self.held = self.held, ""
-        self.hit = bonds.opener(held)
+        self.hit = bonds.opener(held) if self.opening else None
+        if not self.hit and (echo := thought.echoed(self.thinks, held)):
+            self.hit = self.echo = echo
         if self.hit:
             self.dropped = held  # kept aside, in case the second take fails
             return ""
@@ -450,6 +462,8 @@ async def _generate(
                         first_token = first_token or time.monotonic()
                         before = len(thoughts) if before is None else before
                         value = prefix.feed(header.feed(value))
+                        if value and voice == "inline" and not attempt and not opener.watched:
+                            opener.watch(_early(thoughts, header, name, ep.think_tags))
                         if value := opener.feed(value):
                             parts.append(value)
                             yield ("token", value)
@@ -458,6 +472,8 @@ async def _generate(
                     else:
                         done = value
             rest = "" if opener.hit else prefix.feed(header.flush()) + prefix.flush()
+            if rest and voice == "inline" and not attempt and not opener.watched:
+                opener.watch(_early(thoughts, header, name, ep.think_tags))
             if not opener.hit and (rest := opener.feed(rest) + opener.flush()):
                 parts.append(rest)
                 yield ("token", rest)
@@ -465,7 +481,12 @@ async def _generate(
                 break
             # ponytail: the dropped take's thoughts were already streamed (no words were)
             dropped = opener.dropped
-            trace["check"] = {"hit": opener.hit, "resampled": True}
+            if opener.echo:  # it said its thought aloud: the same one retake, told to keep it in
+                trace["echo"] = {"hit": opener.echo, "resampled": True}
+                stronger = thought.STRONGER.format(name=name)
+            else:
+                trace["check"] = {"hit": opener.hit, "resampled": True}
+                stronger = bonds.STRONGER.format(name=name)
             try:  # a failed stronger prompt costs the check, not the turn: keep the first take's
                 retake = context.build(
                     conn,
@@ -475,9 +496,7 @@ async def _generate(
                     built_recalled,
                     leaf_id=parent_id,
                     inside=inside,
-                    directive=" ".join(
-                        p for p in (decide, bonds.STRONGER.format(name=name), header_ask) if p
-                    ),
+                    directive=" ".join(p for p in (decide, stronger, header_ask) if p),
                 )
                 context.finish_log(conn, log_id, None, {})  # the dropped take's row is closed
                 log_id, built = context.log(conn, story_id, None, speaker_id, retake), retake
@@ -514,6 +533,8 @@ async def _generate(
             if seen := thought.parse(heard, name or ""):  # Peek's thought; did it come first?
                 early = _early(thoughts[:before], header, name or "", ep.think_tags)
                 gen["thought"] = {**seen, "from": "before" if early else "after"}
+                if "echo" not in trace and (echo := thought.echoed(seen["thinks"], text)):
+                    trace["echo"] = {"hit": echo, "resampled": False}  # past the first sentence
             if first_thought:  # stopped mid-thought: the thinking ran until now
                 spent = round(1000 * ((first_token or time.monotonic()) - first_thought))
                 if gen["reasoning"]:
