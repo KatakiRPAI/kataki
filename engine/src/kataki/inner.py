@@ -9,6 +9,7 @@ ponytail: every constant here is an estimate from the research (note 11 §9); tu
 probes (evals/probes.py), not by feel.
 """
 
+import copy
 import re
 import sqlite3
 
@@ -36,7 +37,7 @@ DEFAULT = {  # research note 22 §1; the profile editor fills the rest later
 
 def shape(own: dict) -> dict:
     """The defaults with a character's own values laid over them, one level deep."""
-    prof = {k: dict(v) if isinstance(v, dict) else v for k, v in DEFAULT.items()}
+    prof = copy.deepcopy(DEFAULT)
     for key, value in own.items():
         if isinstance(prof.get(key), dict) and isinstance(value, dict):
             prof[key] = {**prof[key], **value}
@@ -121,13 +122,15 @@ def tick(state: dict, now: int, prof: dict) -> dict:
     if not dt:
         return state
     fade = 0.5 ** (dt / EMOTION_HALF_MIN)
-    settle = 0.5 ** (dt / (prof["inertia_h"] * 60))
+    settle = 0.5 ** (dt / (max(prof["inertia_h"], 0.1) * 60))
     base = baseline(prof)
+    emotions = [
+        {**e, "i": round(e["i"] * fade, 3)} for e in state["emotions"] if e["i"] * fade >= FLOOR
+    ]
     return {
         **state,
-        "emotions": [
-            {**e, "i": round(e["i"] * fade, 3)} for e in state["emotions"] if e["i"] * fade >= FLOOR
-        ],
+        "emotions": emotions,
+        "shown": state["shown"] if emotions else None,
         "mood": {c: round(base[c] + (state["mood"][c] - base[c]) * settle, 3) for c in "vad"},
         "reg_load": round(state["reg_load"] * 0.5 ** (dt / LOAD_HALF_MIN), 3),
         "t": now,

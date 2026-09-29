@@ -116,3 +116,17 @@ class Meaning:
 def test_meaning_catches_what_the_word_list_misses():
     assert inner.sense("You're dirt to me.", Meaning()) == ("insult", 1.0)
     assert inner.sense("The tide is out.", Meaning()) is None
+
+
+def test_a_faded_feeling_is_no_longer_shown():
+    assert inner.tick(inner.regulate(hurt(), P), 300, P)["shown"] is None
+
+
+def test_a_profile_with_no_inertia_still_ticks():
+    p = inner.shape({"inertia_h": 0})
+    assert inner.tick(hurt(p), 10, p)["t"] == 10
+
+
+def test_shaping_a_profile_never_edits_the_defaults():
+    inner.shape({})["axes"]["dominance"][0] = 99
+    assert inner.DEFAULT["axes"]["dominance"][0] == 50
