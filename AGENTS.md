@@ -18,18 +18,19 @@ apply to every agent and every human.
 
 ## How a change lands
 
-Until the GitHub repo exists (Phase 1 of the infrastructure plan) there is no remote: do each
-change on a local branch from `main`, merge it back with `git merge --ff-only` once
-`pnpm check` passes, and never push. After it:
+The repo is `KatakiRPAI/kataki`. `main` accepts nothing but pull requests. Agents push and open
+PRs as the bot account, through `bash .github/as-bot.sh git …` / `bash .github/as-bot.sh gh …`,
+so the owner can review and approve them.
 
-1. Branch from `main`: `feat/…`, `fix/…`, `docs/…`, `chore/…` (agents may prefix their tool,
+1. Branch from an up-to-date `main`: `feat/…`, `fix/…`, `docs/…`, `chore/…` (agents may prefix their tool,
    e.g. `claude/…`). One change per branch; keep it small enough to review in one sitting.
 2. Commit in Conventional Commits (`feat(app): …`, `fix(engine): …`, `docs: …`); release-please
    builds versions and the changelog from them. Mark breaking changes with `!`.
 3. `pnpm check` passes locally before you open a PR. A UI change also gets a look in the real
    app (see the README's Development section).
-4. Open a PR with the template filled in: what changed, how you checked it, the risk. Merge
-   only when required checks are green; squash merge.
+4. Push the branch and open a PR as the bot, with the template filled in: what changed, how
+   you checked it, the risk. Merge only when required checks are green; squash merge, with a
+   Conventional Commits PR title (it becomes the commit on `main`).
 5. Changes to `.github/`, `AGENTS.md`, `CLAUDE.md`, release, signing or deploy config, schema
    migrations (`engine/src/kataki/db.py` and the website's database), billing code and
    dependency majors wait for the user's approval (CODEOWNERS). Everything else may merge when

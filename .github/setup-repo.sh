@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Creates the public GitHub repo and applies Phase 1 of docs/specs/2026-09-29-repo-infrastructure.md.
-# Run once, from the repo root, as an org owner:   bash .github/setup-repo.sh <org>
+# Run once, from the repo root, as an org owner:   bash .github/setup-repo.sh <org> [bot]
 # Safe to re-run: every step checks or overwrites instead of duplicating.
 set -euo pipefail
-org=${1:?usage: setup-repo.sh <org>}
+org=${1:?usage: setup-repo.sh <org> [bot]}
+bot=${2:-}
 repo="$org/kataki"
 
 git diff --quiet && git diff --cached --quiet || { echo "commit or stash first"; exit 1; }
@@ -41,6 +42,9 @@ if [ -n "$id" ]; then
 else
   gh api -X POST "repos/$repo/rulesets" --input .github/rulesets/main.json --silent
 fi
+
+# the agents' bot writes branches and opens PRs; it is never an admin, so it can't bypass the ruleset
+[ -n "$bot" ] && gh api -X PUT "repos/$repo/collaborators/$bot" -f permission=push --silent
 
 for l in "bug:d73a4a" "idea:a2eeef" "beta-feedback:7057ff" "agent-ready:0e8a16" "needs-human:fbca04"; do
   gh label create "${l%%:*}" --color "${l##*:}" --repo "$repo" --force >/dev/null

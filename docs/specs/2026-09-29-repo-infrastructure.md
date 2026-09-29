@@ -49,8 +49,10 @@ Decisions made (2026-09-29):
 
 Still open:
 
-1. **[user] Bot account for agents.** Agents open PRs as a separate account (`kataki-bot`) and
-   the user approves them. Default: a machine user plus a fine-grained token (Phase 1).
+1. **[user] Bot token.** The org is `KatakiRPAI` and the bot account `QaisBOT` is a member
+   (2026-09-29). Left: the owner logs the bot into gh once (`gh auth login` as QaisBOT, then
+   `gh auth switch --user QaisZAK`), after which `.github/as-bot.sh` works; and 2FA on for both
+   accounts, then "Require two-factor authentication" in the org's security settings.
 2. **[user] Domain** for the website and project pages. Default: none until the user buys one;
    staging uses the host's default address.
 3. **[user] Payment processor.** The user owns the legal and payment-provider side (minds spec,
@@ -175,7 +177,7 @@ Everything below except the **[user]** items is written and waits in the repo:
 `bash .github/setup-repo.sh <org>` creates the public repo, pushes `main`, and applies the
 settings, the ruleset and the labels. Run it as soon as the org exists.
 
-- [ ] **[user]** Create the org (2FA required for all members), then run the script above.
+- [x] Org `KatakiRPAI` created by the user; the script run on 2026-09-29.
 - [x] Repo files: `SECURITY.md`, `CONTRIBUTING.md`, issue templates (bug, idea, beta
       feedback; security goes to private reporting), PR template (what changed, how it was
       checked, risk), `.github/CODEOWNERS`.
@@ -187,10 +189,10 @@ settings, the ruleset and the labels. Run it as soon as the org exists.
 - [x] Settings in the script: secret scanning + push protection, Dependabot alerts and
       security PRs, private vulnerability reporting, squash-only with the PR title as the
       commit, delete branch on merge, auto-merge allowed.
-- [ ] **[user]** Bot account `kataki-bot` (open decision 1): a machine user added to the org
-      with write access, 2FA on, and a fine-grained token limited to this repo (contents,
-      pull requests, issues). Agents' `git` and `gh` use that token, so their PRs are authored
-      by the bot and the user can approve them. The token lives in the OS keychain.
+- [x] Bot account `QaisBOT` in the org; `setup-repo.sh` gives it write access (never admin, so
+      it can't bypass the ruleset). Agents run git and gh as the bot through
+      `.github/as-bot.sh`, which borrows the bot's gh login for one command.
+- [ ] **[user]** Log the bot into gh once; turn on 2FA for QaisBOT and require it org-wide.
 
 Done when a direct `git push origin main` is rejected and a PR shows the required checks.
 
