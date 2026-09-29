@@ -1,5 +1,8 @@
 # Kataki RPAI
 
+[![ci](https://github.com/KatakiRPAI/kataki/actions/workflows/ci.yml/badge.svg)](https://github.com/KatakiRPAI/kataki/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/KatakiRPAI/kataki/badge)](https://scorecard.dev/viewer/?uri=github.com/KatakiRPAI/kataki)
+
 An open-source AI roleplay **harness framework + desktop app**. No models are baked in: connect local models (llama.cpp server, Ollama, LM Studio, KoboldCpp), HuggingFace Inference Providers, or any OpenAI-compatible API, and pick a model per task.
 
 What makes it different:
