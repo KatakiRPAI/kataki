@@ -180,6 +180,10 @@ def mind(conn: sqlite3.Connection, message_id: int) -> dict | None:
             inside.append((fid, felt))
         if len(shown) > FEELS:
             more["feeling"] = len(shown) - FEELS
+        if felt := gen.get("mind"):  # the mood the reply was written with (minds spec §8.2)
+            text = f"{felt['feels']} · showing {felt['shows']}"
+            mood = node("mood", "inside", "mood", "Mood", text, None, True, felt)
+            inside.append((mood, True))
 
         card = conn.execute("SELECT description FROM entities WHERE id=?", (who,)).fetchone()
         if card and card["description"]:

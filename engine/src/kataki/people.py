@@ -7,7 +7,7 @@ once per story they are in. Cache per story version if a library ever holds hund
 
 import sqlite3
 
-from kataki import chat, clock, db, retrieve
+from kataki import chat, clock, db, features, inner, retrieve
 
 TIERS = ("sharp", "hazy", "forgotten")
 
@@ -111,6 +111,13 @@ def _relationships(
     return list(out.values())
 
 
+def _mood(conn: sqlite3.Connection, entity_id: int, path: list, now: int) -> dict | None:
+    """How they feel now, faded to the present (Peek; spec §8.2)."""
+    prof = inner.profile(conn, entity_id)
+    state = inner.current(conn, entity_id, path, prof)
+    return state and inner.public(inner.tick(state, now, prof), prof)
+
+
 def people(conn: sqlite3.Connection, story: sqlite3.Row) -> list[dict]:
     """One entry per AI character: where they are, what they hold, what is on their mind, what
     they know about you, and how they stand towards everyone."""
@@ -133,6 +140,7 @@ def people(conn: sqlite3.Connection, story: sqlite3.Row) -> list[dict]:
     yours = _yours(conn, story_id, persona_id)
     names = dict(conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)))
     live = db.live_runs(conn, story_id)
+    feeling = features.enabled(conn, "mind.affect")
 
     out = []
     for e in conn.execute(
@@ -163,6 +171,7 @@ def people(conn: sqlite3.Connection, story: sqlite3.Row) -> list[dict]:
                 "remembers": len(known),
                 "relationships": _relationships(conn, e["id"], names, persona_id, epoch, live),
                 "secret": e["private"],
+                "mood": _mood(conn, e["id"], path, now) if feeling else None,
             }
         )
     return out

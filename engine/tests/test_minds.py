@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from kataki import chat, library, turns
+from kataki import chat, library, people, turns
 
 pytestmark = pytest.mark.anyio
 
@@ -84,3 +84,25 @@ async def test_the_lite_level_picks_the_face_without_a_call(conn, story, backend
     leaf = chat.active_path(conn, story)[-1]
     assert leaf["expression"] == "wary"  # Tobin expresses: hurt shows as wary
     assert len(backend.requests) == 1
+
+
+async def test_peek_sees_the_feeling_and_the_mask(conn, story, backend):
+    backend.say("...")
+    await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
+    row = conn.execute("SELECT * FROM stories WHERE id=?", (story,)).fetchone()
+    mira = next(p for p in people.people(conn, row) if p["name"] == "Mira")
+    assert (mira["mood"]["label"], mira["mood"]["shows"]) == ("hurt", "calm")
+    tobin = next(p for p in people.people(conn, row) if p["name"] == "Tobin")
+    # he heard it too, and appraisal doesn't know yet who a line is about; he expresses, so
+    # what he shows is what he feels. slice 2: only the one it is about is insulted
+    assert (tobin["mood"]["label"], tobin["mood"]["shows"]) == ("hurt", "hurt")
+
+
+async def test_the_mind_graph_draws_the_mood_it_replied_with(conn, story, backend):
+    from kataki import mind
+
+    backend.say("...")
+    await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
+    graph = mind.mind(conn, chat.active_path(conn, story)[-1]["id"])
+    node = next(n for n in graph["nodes"] if n["kind"] == "mood")
+    assert node["text"] == "very hurt · showing calm"
