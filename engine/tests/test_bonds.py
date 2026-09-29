@@ -392,3 +392,74 @@ def test_a_merge_carries_the_ledger_and_the_mind(local_model):
     assert count("SELECT COUNT(*) FROM opinions WHERE src_id=? AND dst_id=?", keep, keep) == 2
     assert count("SELECT COUNT(*) FROM opinions WHERE src_id=? OR dst_id=?", drop, drop) == 0
     assert count("SELECT COUNT(*) FROM mind_states WHERE entity_id=?", keep) == 1
+
+
+# --- holding their ground ---------------------------------------------------------------------
+
+
+def test_nothing_at_stake_no_decision():
+    assert bonds.stance(inner.fresh(P, 0), P, "realistic", False, "Aren", 1, 0) == ""
+    assert bonds.stance(None, P, "realistic", False, "Aren", 1, 0) == ""
+
+
+@pytest.mark.parametrize(
+    "dial, words",
+    [
+        ("soft", "You can come round when Aren makes a fair point."),
+        ("realistic", "Change your position only if Aren gives a new reason that matters to you"),
+        ("stubborn", "never because Aren is upset or insists."),
+        ("nonsense", "Change your position only if Aren gives a new reason"),
+    ],
+)
+def test_a_grudge_brings_the_dials_yield_rule(dial, words):
+    assert words in bonds.stance(None, P, dial, True, "Aren", 1, 0)
+
+
+def test_a_position_binds_her_for_a_day():
+    st = bonds.took(inner.fresh(P, 0), {"text": "won't go", "firm": 3}, False, 1, 0)
+    assert bonds.stance(st, P, "realistic", False, "Aren", 1, 60).startswith(
+        'You have taken a position: "won\'t go". Change your position only if Aren'
+    )
+    assert bonds.stance(st, P, "realistic", False, "Aren", 1, 2 * DAY) == ""
+
+
+def test_giving_way_spends_the_scenes_budget():
+    st = bonds.took(inner.fresh(P, 0), {"text": "won't go", "firm": 1}, False, 1, 0)
+    assert bonds.HOLD_LINE not in bonds.stance(st, P, "realistic", False, "Aren", 1, 5)
+    gave = bonds.took(st, {"text": "one drink, then home", "firm": 1}, True, 1, 5)
+    assert gave["conceded"] == {"scene": 1, "n": 1}
+    assert bonds.HOLD_LINE in bonds.stance(gave, P, "realistic", False, "Aren", 1, 6)
+    assert bonds.HOLD_LINE not in bonds.stance(gave, P, "realistic", False, "Aren", 2, 6)
+    again = bonds.took(gave, None, True, 2, 7)  # a new scene starts the count again
+    assert again["conceded"] == {"scene": 2, "n": 1} and again["position"] is None
+
+
+def test_the_budget_follows_the_dial_and_the_temperament():
+    assert bonds.budget("stubborn", P) == 0 and bonds.budget("realistic", P) == 1
+    assert bonds.budget("soft", inner.shape({"axes": {"yielding": [80, 10]}})) == 4
+    assert bonds.budget("realistic", inner.shape({"axes": {"yielding": [20, 10]}})) == 0
+    assert bonds.HOLD_LINE not in bonds.stance(None, P, "stubborn", True, "Aren", 1, 0)
+
+
+def test_the_opening_is_checked_when_she_is_cold_holding_or_blunt():
+    calm = inner.fresh(P, 0)
+    assert not bonds.armed(calm, P, False, 0)
+    assert bonds.armed(calm, P, True, 0)  # a grudge
+    assert bonds.armed(inner.feel(calm, "hurt", 0.6, "cruel", P), P, False, 0)
+    assert bonds.armed(bonds.took(calm, {"text": "no", "firm": 2}, False, 1, 0), P, False, 0)
+    assert bonds.armed(None, inner.shape({"axes": {"candor": [85, 5]}}), False, 0)
+
+
+@pytest.mark.parametrize(
+    "reply, hit",
+    [
+        ("You're right. I'm useless.", "you're right"),
+        ("*sighs* I'm sorry, you're right.", "i'm sorry"),
+        ("As an AI, I can't feel that.", "as an ai"),
+        ("What a lovely poem!", "what a lovely"),
+        ("No. Go home, Aren.", None),
+        ("I'm not going.", None),
+    ],
+)
+def test_assistant_openings(reply, hit):
+    assert bonds.opener(reply) == hit
