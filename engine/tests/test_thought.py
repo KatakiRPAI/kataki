@@ -78,3 +78,30 @@ def test_an_ordinary_reply_passes_at_once():
 def test_a_stream_that_ends_on_a_header_line_shows_nothing():
     h = thought.Header(True, "Mira", TAGS)
     assert feed(h, "Mira thinks: tired") == "" and h.caught == ["Mira thinks: tired"]
+
+
+def test_a_header_in_markdown_dress_is_still_a_header():
+    lines = ["**Mira thinks**: he saw it.", "*Mira wants*: out", "Mira thinks — sunk."]
+    assert thought.parse(lines[:2], "Mira") == {"thinks": "he saw it.", "wants": "out"}
+    assert thought.parse(lines[2:], "Mira") == {"thinks": "sunk.", "wants": None}
+    rest, found = thought.split("\n".join([*lines, "", "No."]), "Mira", TAGS)
+    assert rest == "No." and len(found) == 3
+    h = thought.Header(True, "Mira", TAGS)
+    assert feed(h, "**Mira thi", "nks**: x\nMira wants — y\nNo.").strip() == "No."
+    assert len(h.caught) == 2
+
+
+def test_ordinary_lines_stay_and_trailing_headers_go():
+    assert feed(thought.Header(True, "Mira", TAGS), "Mira sighs.") == "Mira sighs."
+    keep = "Mira sighs.\nWants: a drink.\nMore."  # a real dialogue line, mid-reply
+    assert thought.split(keep, "Mira", TAGS) == (keep, [])
+    rest, found = thought.split("Ok.\n\n**Mira thinks**: hm\nWants: out", "Mira", TAGS)
+    assert rest == "Ok." and len(found) == 2
+
+
+def test_an_accented_echo_is_caught():
+    thinks = "il était très fatigué ce soir-là"
+    assert thought.echoed(thinks, "Oui, il était très fatigué ce soir, dis") == (
+        "il était très fatigué ce"
+    )
+    assert thought.echoed(thinks, "Il etait tres fatigue ce soir") is None

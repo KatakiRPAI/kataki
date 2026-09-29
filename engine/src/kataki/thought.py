@@ -45,29 +45,50 @@ def ask(name: str, tags: tuple[str, str]) -> str:
     return ASK.format(name=name, open=tags[0], close=tags[1])
 
 
+def _head_re(name: str, bare: bool = True) -> re.Pattern:
+    """A header line's start, in any dress: "Mira thinks:", "**Mira thinks**:", "> mira wants —",
+    and (bare=True) the name-less "thinks:"."""
+    who = "|".join(re.escape(n) for n in dict.fromkeys([name, *name.split()[:1]]) if n)
+    named = rf"(?:(?:{who})\s+)" if who else ""
+    return re.compile(
+        rf"^[\s*_>]*{named}{'?' if bare else ''}(thinks|wants)[\s*_]*(?::|—|–)[\s*_]*", re.I
+    )
+
+
 def heads(name: str) -> tuple[str, ...]:
-    """How a header line may start, lower-cased: "mira thinks:", "thinks:", ..."""
+    """The plain forms a header line may start with, lower-cased: "mira thinks:", "thinks:"..."""
     who = [n.lower() for n in dict.fromkeys([name, *name.split()[:1]]) if n]
     return tuple(f"{n} {w}:" for n in who for w in WORDS) + tuple(f"{w}:" for w in WORDS)
 
 
-def _bare(line: str) -> str:
-    return line.lstrip(" \t*_>").lower()  # "**Mira thinks:**", "> Mira thinks:" count too
+def is_head(line: str, name: str, bare: bool = True) -> bool:
+    return _head_re(name, bare).match(line) is not None
 
 
-def is_head(line: str, name: str) -> bool:
-    return _bare(line).startswith(heads(name))
+def _could_be_head(line: str, name: str) -> bool:
+    """Is this unfinished line still a possible start of a header line?"""
+    cut = re.sub(r"[*_>]", "", line).lstrip().lower()
+    return any(f"{h[:-1]}{t}".startswith(cut) for h in heads(name) for t in (":", "—", "–"))
 
 
 def split(text: str, name: str, tags: tuple[str, str]) -> tuple[str, list[str]]:
-    """Text without its header lines and stray tags, and the header lines it had."""
+    """Text without its header lines and stray tags, and the header lines it had. Lines that
+    name the character go wherever they are; the name-less "Wants: ..." only in the header
+    block at the start or end of the text."""
     for tag in tags:
         text = text.replace(tag, "")
-    kept, found = [], []
-    for line in text.split("\n"):
-        (found if is_head(line, name) else kept).append(line)
-    rest = re.sub(r"\n{3,}", "\n\n", "\n".join(kept)).strip()
-    return rest, [line.strip() for line in found]
+    lines = text.split("\n")
+    drop = {i for i, ln in enumerate(lines) if is_head(ln, name, bare=False)}
+    for order in (range(len(lines)), range(len(lines) - 1, -1, -1)):
+        for i in order:
+            if not lines[i].strip():
+                continue
+            if not is_head(lines[i], name):
+                break
+            drop.add(i)
+    kept = [ln for i, ln in enumerate(lines) if i not in drop]
+    found = [lines[i].strip() for i in sorted(drop)]
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(kept)).strip(), found
 
 
 def parse(lines: list[str], name: str) -> dict | None:
@@ -75,19 +96,18 @@ def parse(lines: list[str], name: str) -> dict | None:
     None when there is neither."""
     got: dict[str, str] = {}
     for line in lines:
-        bare = line.lstrip(" \t*_>")
-        head = next((h for h in heads(name) if bare.lower().startswith(h)), None)
-        if head is None:
+        m = _head_re(name).match(line)
+        if m is None:
             continue
-        key = "wants" if head.endswith("wants:") else "thinks"
-        value = " ".join(bare[len(head) :].strip(' *_"“”').split()[: WORDS[key]])
+        key = m.group(1).lower()
+        value = " ".join(line[m.end() :].strip(' *_"“”').split()[: WORDS[key]])
         if value and key not in got:
             got[key] = value
     return {"thinks": got.get("thinks"), "wants": got.get("wants")} if got else None
 
 
 def _words(text: str) -> list[str]:
-    return re.findall(r"[a-z0-9']+", text.lower().replace("’", "'"))
+    return re.findall(r"[\w']+", text.lower().replace("’", "'"))
 
 
 def echoed(thinks: str | None, reply: str) -> str | None:
@@ -111,11 +131,10 @@ class Header:
 
     def _maybe(self, line: str) -> bool:
         """Could this unfinished first line still turn out to be a header line or a tag?"""
-        bare, tag = _bare(line), line.strip()
         return (
             is_head(line, self.name)
-            or any(h.startswith(bare) for h in heads(self.name))
-            or any(t.startswith(tag) for t in self.tags)
+            or _could_be_head(line, self.name)
+            or any(t.startswith(line.strip()) for t in self.tags)
         )
 
     def feed(self, text: str) -> str:
