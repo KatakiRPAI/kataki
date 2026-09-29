@@ -93,9 +93,7 @@ async def test_peek_sees_the_feeling_and_the_mask(conn, story, backend):
     mira = next(p for p in people.people(conn, row) if p["name"] == "Mira")
     assert (mira["mood"]["label"], mira["mood"]["shows"]) == ("hurt", "calm")
     tobin = next(p for p in people.people(conn, row) if p["name"] == "Tobin")
-    # he heard it too, and appraisal doesn't know yet who a line is about; he expresses, so
-    # what he shows is what he feels. slice 2: only the one it is about is insulted
-    assert (tobin["mood"]["label"], tobin["mood"]["shows"]) == ("hurt", "hurt")
+    assert tobin["mood"] is None  # he heard it, but it was aimed at Mira
 
 
 async def test_the_mind_graph_draws_the_mood_it_replied_with(conn, story, backend):

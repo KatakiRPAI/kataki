@@ -6,6 +6,7 @@ switching leaf is free.
 """
 
 import json
+import re
 import sqlite3
 
 from kataki import db, knobs
@@ -72,6 +73,23 @@ def present_entities(conn: sqlite3.Connection, scene_id: int | None, path: list)
 def audience_of(message) -> list[int] | None:
     """Who a line was for: None = everyone present, a list = a whisper, [] = a thought."""
     return None if message["audience"] is None else json.loads(message["audience"])
+
+
+def named(conn: sqlite3.Connection, text: str, ids: list[int]) -> list[int]:
+    """The people a line names (by any alias), in the order it first names them; at the same
+    spot, the longer alias wins ("Mira Vale" over "Mira")."""
+    if not ids:
+        return []
+    rows = conn.execute(
+        f"SELECT entity_id, alias FROM aliases WHERE entity_id IN ({','.join('?' * len(ids))})",
+        ids,
+    )
+    first: dict[int, tuple[int, int]] = {}
+    for r in rows:
+        if m := re.search(rf"(?<!\w){re.escape(r['alias'])}(?!\w)", text, re.IGNORECASE):
+            at = (m.start(), -len(r["alias"]))
+            first[r["entity_id"]] = min(first.get(r["entity_id"], at), at)
+    return sorted(first, key=lambda e: (first[e], e))
 
 
 def hearing(conn: sqlite3.Connection, path: list, entity_id: int) -> dict[int, str]:

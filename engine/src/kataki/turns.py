@@ -55,16 +55,7 @@ def _cast(conn: sqlite3.Connection, story_id: int, path: list) -> list:
 
 def _addressed(conn: sqlite3.Connection, text: str, ids: list[int]) -> int | None:
     """The character named first in the text (by any alias), if any."""
-    rows = conn.execute(
-        f"SELECT entity_id, alias FROM aliases WHERE entity_id IN ({','.join('?' * len(ids))})",
-        ids,
-    )
-    hits = [
-        (m.start(), -len(r["alias"]), r["entity_id"])
-        for r in rows
-        if (m := re.search(rf"(?<!\w){re.escape(r['alias'])}(?!\w)", text, re.IGNORECASE))
-    ]
-    return min(hits)[2] if hits else None
+    return next(iter(chat.named(conn, text, ids)), None)
 
 
 def select_speaker(conn: sqlite3.Connection, story_id: int, requested=None) -> int | None:
