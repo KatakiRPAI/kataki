@@ -69,9 +69,10 @@ async def test_a_new_take_does_not_feel_it_twice(conn, story, backend):
 
 async def test_switched_off_no_mood_reaches_the_tail(conn, story, backend):
     conn.execute("INSERT INTO settings(key, value) VALUES('features.mind.affect', 'false')")
+    conn.execute("INSERT INTO settings(key, value) VALUES('features.mind.bonds', 'false')")
     backend.say("Fine.")
     await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
-    assert "[Inside" not in tail(backend.requests[0])
+    assert "Feeling:" not in tail(backend.requests[0])  # the ledger's rows may still be there
     assert conn.execute("SELECT COUNT(*) FROM mind_states").fetchone()[0] == 0
 
 
@@ -93,9 +94,7 @@ async def test_peek_sees_the_feeling_and_the_mask(conn, story, backend):
     mira = next(p for p in people.people(conn, row) if p["name"] == "Mira")
     assert (mira["mood"]["label"], mira["mood"]["shows"]) == ("hurt", "calm")
     tobin = next(p for p in people.people(conn, row) if p["name"] == "Tobin")
-    # he heard it too, and appraisal doesn't know yet who a line is about; he expresses, so
-    # what he shows is what he feels. slice 2: only the one it is about is insulted
-    assert (tobin["mood"]["label"], tobin["mood"]["shows"]) == ("hurt", "hurt")
+    assert tobin["mood"] is None  # he heard it, but it was aimed at Mira
 
 
 async def test_the_mind_graph_draws_the_mood_it_replied_with(conn, story, backend):
@@ -127,7 +126,7 @@ async def test_a_failing_mind_step_still_keeps_the_reply(conn, story, backend, m
     backend.say("Fine.")
     events = await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
     assert events[-1][0] == "done" and events[-1][1]["mood"] is None
-    assert "[Inside" not in tail(backend.requests[0])
+    assert "Feeling:" not in tail(backend.requests[0])  # the ledger's rows may still be there
     monkeypatch.setattr("kataki.inner.public", boom)  # and Peek without a mood
     row = conn.execute("SELECT * FROM stories WHERE id=?", (story,)).fetchone()
     assert all(p["mood"] is None for p in people.people(conn, row))

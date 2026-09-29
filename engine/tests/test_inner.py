@@ -216,3 +216,55 @@ def test_good_values_and_unknown_keys_survive_shaping():
     )
     assert prof["axes"]["warmth"] == [80, 5] and prof["inertia_h"] == 2.5
     assert prof["baseline"] == [0.1, 0, -0.2] and prof["extra"] == 1
+
+
+def _cast(conn):
+    mira = library.create_item(conn, "character", "Mira")
+    tobin = library.create_item(conn, "character", "Tobin")
+    aren = library.create_item(conn, "character", "Aren")
+    story = library.create_story(conn, "s", character_ids=[mira, tobin], persona_id=aren)
+    ids = dict(conn.execute("SELECT name, id FROM entities WHERE story_id=?", (story,)).fetchall())
+    return story, ids
+
+
+def test_a_line_is_aimed_at_who_it_names_else_who_spoke_last(local_model):
+    from kataki import chat, turns
+
+    conn = local_model
+    story, ids = _cast(conn)
+    both = [ids["Mira"], ids["Tobin"]]
+    turns.say(conn, story, "Tobin, you're useless.")
+    assert inner.targets(conn, chat.active_path(conn, story), both) == {ids["Tobin"]}
+    chat.append_message(conn, story, "assistant", "Easy.", ids["Mira"])
+    turns.say(conn, story, "You're useless.")
+    path = chat.active_path(conn, story)
+    assert inner.targets(conn, path, both) == {ids["Mira"]}  # she is the one being answered
+    assert inner.targets(conn, path, []) == set()
+
+
+def test_only_the_one_it_is_aimed_at_takes_it_personally(local_model):
+    from kataki import chat, turns
+
+    conn = local_model
+    story, ids = _cast(conn)
+    turns.say(conn, story, "Mira, you're useless.")
+    states = inner.react(conn, story, chat.active_path(conn, story))
+    assert states[ids["Mira"]]["emotions"][0]["label"] == "hurt"
+    assert states[ids["Tobin"]]["emotions"] == []  # he heard it; it wasn't about him
+
+
+def test_a_line_names_people_in_the_order_it_names_them(local_model):
+    from kataki import chat
+
+    conn = local_model
+    story, ids = _cast(conn)
+    both = [ids["Mira"], ids["Tobin"]]
+    assert chat.named(conn, "Tobin and Mira, listen.", both) == [ids["Tobin"], ids["Mira"]]
+    assert chat.named(conn, "Nobody here.", both) == []
+    assert chat.named(conn, "Mira!", []) == []
+
+
+def test_social_traits_default_and_refuse_junk():
+    assert P["social"] == {"forgiveness": 0.5, "trust_propensity": 0.5}
+    prof = inner.shape({"social": {"forgiveness": 0.9, "trust_propensity": "lots"}})
+    assert prof["social"] == {"forgiveness": 0.9, "trust_propensity": 0.5}

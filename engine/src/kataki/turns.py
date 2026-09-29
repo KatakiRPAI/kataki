@@ -18,6 +18,7 @@ from contextlib import aclosing
 from typing import Any
 
 from kataki import (
+    bonds,
     chat,
     clock,
     context,
@@ -55,16 +56,7 @@ def _cast(conn: sqlite3.Connection, story_id: int, path: list) -> list:
 
 def _addressed(conn: sqlite3.Connection, text: str, ids: list[int]) -> int | None:
     """The character named first in the text (by any alias), if any."""
-    rows = conn.execute(
-        f"SELECT entity_id, alias FROM aliases WHERE entity_id IN ({','.join('?' * len(ids))})",
-        ids,
-    )
-    hits = [
-        (m.start(), -len(r["alias"]), r["entity_id"])
-        for r in rows
-        if (m := re.search(rf"(?<!\w){re.escape(r['alias'])}(?!\w)", text, re.IGNORECASE))
-    ]
-    return min(hits)[2] if hits else None
+    return next(iter(chat.named(conn, text, ids)), None)
 
 
 def select_speaker(conn: sqlite3.Connection, story_id: int, requested=None) -> int | None:
@@ -252,17 +244,42 @@ async def _generate(
         conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)).fetchall()
     )
     minds: dict[int, dict] = {}  # everyone here, as they feel after the latest line
-    inside = ""
+    felt: list[str] = []  # the speaker's feeling rows of the mind block
+    pending: dict[int, list[dict]] = {}  # ledger rows the latest line adds, kept with the reply
+    ties: list[str] = []  # the speaker's relationship rows of the mind block
+    stood: list[dict] = []  # the same, as the app shows them (gen.bonds, the Mind graph)
     try:  # the mind adds to a turn, it never stops one
         if features.enabled(conn, "mind.affect"):
             minds = inner.react(conn, story_id, path, await asyncio.to_thread(embed.builtin))
         if speaker_id in minds:
-            inside = inner.render(
-                minds[speaker_id], inner.profile(conn, speaker_id), names[speaker_id]
-            )
+            felt = inner.lines(minds[speaker_id], inner.profile(conn, speaker_id))
     except Exception as e:
         logging.getLogger(__name__).warning("mind skipped for story %s: %s", story_id, e)
-        minds, inside = {}, ""
+        minds, felt = {}, []
+    try:
+        bonds_on = features.enabled(conn, "mind.bonds")
+    except Exception as e:
+        logging.getLogger(__name__).warning("bonds setting unreadable: %s", e)
+        bonds_on = False
+    if bonds_on:
+        try:
+            pending = bonds.react(conn, story_id, path, await asyncio.to_thread(embed.builtin))
+        except Exception as e:
+            logging.getLogger(__name__).warning("bonds skipped for story %s: %s", story_id, e)
+        if speaker_id is not None:
+            try:  # a failed render costs the prompt lines, not the events (they are still saved)
+                ties, stood = bonds.render(
+                    conn, story_id, speaker_id, path, pending.get(speaker_id, [])
+                )
+            except Exception as e:
+                logging.getLogger(__name__).warning("bonds not shown for story %s: %s", story_id, e)
+    try:
+        inside = (
+            inner.block(names.get(speaker_id, ""), ties + felt) if speaker_id is not None else ""
+        )
+    except Exception as e:
+        logging.getLogger(__name__).warning("mind block skipped: %s", e)
+        inside = ""
 
     trace: dict = {"why": why, "ms": {}}
     at = time.monotonic()
@@ -386,6 +403,8 @@ async def _generate(
                     gen["mind"] = inner.public(minds[speaker_id], inner.profile(conn, speaker_id))
             except Exception as e:
                 logging.getLogger(__name__).warning("mood not kept: %s", e)
+            if stood:
+                gen["bonds"] = stood
             message_id = chat.add_child(
                 conn, story_id, parent_id, "assistant", text, speaker_id, skip, gen
             )
@@ -394,6 +413,11 @@ async def _generate(
                     inner.save(conn, minds, message_id)
             except Exception as e:
                 logging.getLogger(__name__).warning("mind not saved: %s", e)
+            try:
+                if pending:
+                    bonds.save(conn, story_id, pending, message_id)
+            except Exception as e:
+                logging.getLogger(__name__).warning("bonds not saved: %s", e)
         context.finish_log(conn, log_id, message_id, done)
         if prompt_tokens := (done.get("usage") or {}).get("prompt_tokens"):
             chars = sum(len(m["content"]) for m in built.messages)

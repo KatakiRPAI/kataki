@@ -18,6 +18,16 @@ def setting(conn: sqlite3.Connection, key: str, default):
     return json.loads(row["value"]) if row else default
 
 
+def dial(conn: sqlite3.Connection, entity_id: int | None, name: str, default: str) -> str:
+    """A Realism dial (minds spec §6: pushback, memory, relationships, texting): the character's
+    own `data.realism.<name>` wins; absent or "inherit" means the setting `realism.<name>`."""
+    mine = own(conn, entity_id).get("realism")
+    value = mine.get(name) if isinstance(mine, dict) else None
+    if value in (None, "inherit"):
+        value = setting(conn, f"realism.{name}", default)
+    return value
+
+
 def own(conn: sqlite3.Connection, entity_id: int | None) -> dict:
     """The character's library profile, if this story's person came from one."""
     if entity_id is None:

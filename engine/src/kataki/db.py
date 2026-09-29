@@ -4,7 +4,7 @@ import sqlite3
 from importlib.resources import files
 from pathlib import Path
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 # version -> the SQL that brings a library up from the version before it; schema.sql is v1
 MIGRATIONS = {
     2: "ALTER TABLE entities ADD COLUMN examples TEXT NOT NULL DEFAULT ''",  # example dialogue
@@ -64,6 +64,24 @@ MIGRATIONS = {
         " completion_tokens INTEGER NOT NULL DEFAULT 0,"
         " at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);"
         "CREATE INDEX ix_usage_story ON usage_log(story_id);"
+    ),
+    11: (  # minds slice 2: how each character stands with each person, one row per thing that
+        # moved it, anchored like mind_states (docs/specs/2026-09-29-minds.md §3, note 22 §1)
+        "CREATE TABLE opinions("
+        " id INTEGER PRIMARY KEY,"
+        " story_id INTEGER NOT NULL REFERENCES stories ON DELETE CASCADE,"
+        " src_id INTEGER NOT NULL REFERENCES entities ON DELETE CASCADE,"
+        " dst_id INTEGER NOT NULL REFERENCES entities ON DELETE CASCADE,"
+        " dim TEXT NOT NULL CHECK(dim IN('closeness','trust','respect','attraction','dominance',"
+        "'familiarity','disclosed_in','disclosed_out')),"
+        " value REAL NOT NULL,"
+        " kind TEXT NOT NULL CHECK(kind IN('decay','sticky','permanent')),"
+        " half_life_min INTEGER, event TEXT, cause TEXT,"
+        " resolves_id INTEGER REFERENCES opinions ON DELETE CASCADE,"
+        " witnesses TEXT, story_time INTEGER NOT NULL,"
+        " message_id INTEGER REFERENCES messages ON DELETE CASCADE,"
+        " run_id INTEGER REFERENCES extraction_runs ON DELETE CASCADE);"
+        "CREATE INDEX ix_opinions ON opinions(src_id, dst_id);"
     ),
 }
 

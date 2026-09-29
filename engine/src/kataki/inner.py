@@ -33,6 +33,7 @@ DEFAULT = {  # research note 22 §1; the profile editor fills the rest later
     "regulation": {"style": "express", "capacity": 0.5},  # express|suppress|reappraise|avoid
     "inertia_h": 6,  # mood half-life, story hours
     "susceptibility": 0.4,
+    "social": {"forgiveness": 0.5, "trust_propensity": 0.5},  # 0-1; bonds.py reads them
 }
 
 
@@ -322,19 +323,33 @@ def public(state: dict, prof: dict) -> dict | None:
     }
 
 
-def render(state: dict, prof: dict, name: str) -> str:
-    """The mind block for the prompt's tail: words, never numbers; empty at rest."""
+HEADER = "[Inside {name} right now: show it, never say it]"
+
+
+def lines(state: dict, prof: dict) -> list[str]:
+    """How they feel, as rows of the mind block: words, never numbers; none at rest."""
     if (p := public(state, prof)) is None:
-        return ""
-    lines = [f"[Inside {name} right now: show it, never say it]"]
+        return []
+    rows = []
     if p["label"]:
-        lines.append(f"Feeling: {p['feels']}" + (f" ({p['why']})." if p["why"] else "."))
+        rows.append(f"Feeling: {p['feels']}" + (f" ({p['why']})." if p["why"] else "."))
         if p["shows"] != p["label"]:
             hiding = f"Showing: {p['shows']}. Hiding the {NOUN.get(p['label'], p['label'])}"
-            lines.append(hiding + (f"; it slips out as {p['tell']}." if p["tell"] else "."))
+            rows.append(hiding + (f"; it slips out as {p['tell']}." if p["tell"] else "."))
     if p["word"]:
-        lines.append(f"Mood: {p['word']}.")
-    return "\n".join(lines)
+        rows.append(f"Mood: {p['word']}.")
+    return rows
+
+
+def block(name: str, rows: list[str]) -> str:
+    """The one mind block for the prompt's tail (note 22 §4): its rows under one header, or
+    nothing when there is nothing to say."""
+    return "\n".join([HEADER.format(name=name), *rows]) if rows else ""
+
+
+def render(state: dict, prof: dict, name: str) -> str:
+    """The mind block with only how they feel in it; empty at rest."""
+    return block(name, lines(state, prof))
 
 
 def face(state: dict) -> str:
@@ -346,6 +361,37 @@ def face(state: dict) -> str:
 def _quote(text: str, n: int = 60) -> str:
     text = " ".join(text.split())
     return text if len(text) <= n else text[: n - 1].rstrip() + "…"
+
+
+def said(name: str, text: str) -> str:
+    """Why a feeling or a grudge is there, when a line caused it: 'Aren said "…"'."""
+    return f'{name} said "{_quote(text)}"'
+
+
+def targets(conn: sqlite3.Connection, path: list, hearers: list[int]) -> set[int]:
+    """Who the latest line is aimed at, of those who heard it: everyone it names; else whoever of
+    them spoke last (the one being answered); else all of them. Only they take it personally.
+    ponytail: "Mira, Tobin is useless" aims at both; a name alone can't tell who is spoken to
+    from who is spoken about."""
+    if not hearers or not path:
+        return set()
+    story = [
+        r[0]
+        for r in conn.execute(
+            "SELECT id FROM entities WHERE story_id=? AND kind='character'", (path[-1]["story_id"],)
+        )
+    ]
+    if named := chat.named(conn, path[-1]["text"], story):
+        return {n for n in named if n in hearers}  # named, but away: nobody here takes it
+    last = next(
+        (
+            m["speaker_id"]
+            for m in reversed(path[:-1])
+            if m["role"] == "assistant" and m["speaker_id"] in hearers
+        ),
+        None,
+    )
+    return {last} if last is not None else set(hearers)
 
 
 def current(conn: sqlite3.Connection, entity_id: int, path: list, prof: dict) -> dict | None:
@@ -362,7 +408,8 @@ def current(conn: sqlite3.Connection, entity_id: int, path: list, prof: dict) ->
 
 def react(conn: sqlite3.Connection, story_id: int, path: list, model=None) -> dict[int, dict]:
     """Everyone here after the latest line, as they are now: faded to the present, stirred by
-    that line if they heard it and it meant something, regulated. Nothing is written; the same
+    that line if it was aimed at them and meant something (the others only overheard it),
+    regulated. Nothing is written; the same
     path always gives the same answer, so a new take never feels it twice."""
     if not path:
         return {}
@@ -375,12 +422,14 @@ def react(conn: sqlite3.Connection, story_id: int, path: list, model=None) -> di
     ]
     names = dict(conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)))
     hit = sense(last["text"], model) if last["role"] == "user" else None
+    heard = [e["id"] for e in cast if last["id"] in chat.heard_by(conn, path, e["id"])]
+    aimed = targets(conn, path, heard) if hit else set()
     out = {}
     for e in cast:
         prof = profile(conn, e["id"])
         state = tick(current(conn, e["id"], path, prof) or fresh(prof, now), now, prof)
-        if hit and last["id"] in chat.heard_by(conn, path, e["id"]):
-            cause = f'{names.get(last["speaker_id"], "Someone")} said "{_quote(last["text"])}"'
+        if e["id"] in aimed:
+            cause = said(names.get(last["speaker_id"], "Someone"), last["text"])
             for label, intensity in appraise(*hit, prof, state):
                 state = feel(state, label, intensity, cause, prof)
         out[e["id"]] = regulate(state, prof)

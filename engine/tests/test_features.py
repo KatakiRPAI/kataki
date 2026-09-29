@@ -50,4 +50,5 @@ def test_the_api_lists_features(conn):
     client = TestClient(create_app(conn, "t"), headers={"Authorization": "Bearer t"})
     body = client.get("/features").json()
     assert body["features"]["mind.affect"]["stage"] == "alpha"
+    assert body["features"]["mind.bonds"]["stage"] == "alpha"
     assert client.get("/health").json()["host"] == "desktop"
