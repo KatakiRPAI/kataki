@@ -166,11 +166,12 @@ class _Opener:
 
     def watch(self, early: dict | None) -> None:
         """Called once, just before the first visible word, with the thought written before it.
-        ponytail: holding the first sentence for the echo check adds its time to the first
-        word; if the latency probe fails the 2 s gate, watch only when `bonds.armed` is."""
+        The echo check rides on the opener check: the first sentence is held only when that one
+        is already armed (holding it for the echo alone cost the first word ~3 s, slice 3
+        latency probe); otherwise it streams at once and an echo is only recorded, no retake."""
         self.watched = True
         if early and early["thinks"] and not self.hit:
-            self.thinks, self.armed = early["thinks"], True
+            self.thinks = early["thinks"]
 
     def feed(self, text: str) -> str:
         if self.hit:

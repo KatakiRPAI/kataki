@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from kataki import after, chat, library, mind, people, thought, turns
+from kataki import after, bonds, chat, library, mind, people, thought, turns
 from kataki.llm import Endpoint
 
 TAGS = ("<think>", "</think>")
@@ -199,7 +199,10 @@ async def test_the_narrator_and_lite_are_never_asked(conn, story, backend):
 
 
 @pytest.mark.anyio
-async def test_a_reply_that_says_its_thought_aloud_is_written_again_once(conn, story, backend):
+async def test_a_reply_that_says_its_thought_aloud_is_written_again_once(
+    conn, story, backend, monkeypatch
+):
+    monkeypatch.setattr(bonds, "armed", lambda *a: True)  # the echo is held only when armed
     header = "<think>\nMira thinks: I promised myself I wouldn't ask about the ring.\n</think>\n"
     backend.say(
         header + "I promised myself I wouldn't ask. So I won't.",
@@ -367,3 +370,16 @@ async def test_a_plain_text_header_is_timed_too(conn, story, backend):
     _, gen = leaf(conn, story)
     assert gen["thought"]["from"] == "before"
     assert isinstance(gen["trace"]["ms"]["thought"], int)
+
+
+@pytest.mark.anyio
+async def test_unarmed_the_first_sentence_streams_at_once_and_an_echo_is_only_noted(
+    conn, story, backend
+):
+    header = "<think>\nMira thinks: I promised myself I wouldn't ask about the ring.\n</think>\n"
+    backend.say(header + "I promised myself I wouldn't ask. So I won't.")
+    events = await play(turns.turn(conn, backend.llm, story, "Mira?"))
+    assert len(backend.requests) == 1  # no retake
+    assert shown(events) == "I promised myself I wouldn't ask. So I won't."
+    _, gen = leaf(conn, story)
+    assert gen["trace"]["echo"] == {"hit": "i promised myself i wouldn't", "resampled": False}
