@@ -1,5 +1,6 @@
 """The affect core: pure functions, story minutes, no model."""
 
+import numpy as np
 import pytest
 
 from kataki import inner, library
@@ -94,3 +95,24 @@ def test_good_feelings_are_never_masked():
     p = inner.shape({"regulation": {"style": "suppress", "capacity": 0.5}})
     glad = inner.feel(inner.fresh(p, 0), "glad", 0.6, "good news", p)
     assert inner.regulate(glad, p)["shown"]["label"] == "glad"
+
+
+def test_words_say_what_a_line_was():
+    assert inner.sense("Honestly, you're useless.") == ("insult", 1.0)
+    assert inner.sense("I'm sorry, my dog died this morning.") == ("bad_news", 1.0)
+    assert inner.sense("I'm sorry, I was wrong.") == ("apology", 1.0)
+    assert inner.sense("The tide is out.") is None
+
+
+class Meaning:
+    """A stand-in for the built-in model: 'dirt' means an insult, nothing else means anything."""
+
+    def encode(self, texts):
+        return np.array(
+            [[1.0, 0.0] if t in inner.SEEDS["insult"] or "dirt" in t else [0.0, 0.0] for t in texts]
+        )
+
+
+def test_meaning_catches_what_the_word_list_misses():
+    assert inner.sense("You're dirt to me.", Meaning()) == ("insult", 1.0)
+    assert inner.sense("The tide is out.", Meaning()) is None

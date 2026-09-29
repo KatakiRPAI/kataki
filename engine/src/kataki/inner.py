@@ -9,7 +9,10 @@ ponytail: every constant here is an estimate from the research (note 11 §9); tu
 probes (evals/probes.py), not by feel.
 """
 
+import re
 import sqlite3
+
+import numpy as np
 
 from kataki import knobs
 
@@ -193,3 +196,56 @@ def regulate(state: dict, prof: dict) -> dict:
                 tell = "changing the subject"
             shown = {"label": "calm", "i": 0.3, "tell": tell}
     return {**state, "shown": shown, "reg_load": load}
+
+
+EVENTS = ("threat", "insult", "bad_news", "apology", "good_news", "praise")  # first match wins
+WORDS = {
+    "threat": r"\b(i'?ll|i will|gonna) (kill|hurt|end) you\b|\bor else\b|\byou'?ll regret\b",
+    "insult": r"\b(idiot|stupid|useless|pathetic|worthless|loser|moron|shut up|hate you"
+    r"|disgusting|liar)\b",
+    "bad_news": r"\b(died|passed away|got fired|lost my|broke up|bad news|in (the )?hospital)\b",
+    "apology": r"\b(i'?m sorry|i apologi[sz]e|forgive me|my fault|i was wrong)\b",
+    "good_news": r"\b(got the job|got in|we won|good news|i passed|engaged|promoted)\b",
+    "praise": r"\b(thank you|thanks|proud of you|amazing|brilliant|beautiful|love you|well done"
+    r"|you'?re the best)\b",
+}
+PATTERNS = {event: re.compile(words, re.IGNORECASE) for event, words in WORDS.items()}
+SEEDS = {  # a few lines per event; their mean vector is what "means that" looks like
+    "threat": ["I'll make you regret this.", "Do it or you'll get hurt.", "Watch your back."],
+    "insult": ["You're worthless.", "Nobody could stand you.", "You're a joke."],
+    "bad_news": ["Something terrible happened.", "We lost everything.", "She's gone."],
+    "apology": ["I shouldn't have said that.", "That was unfair of me.", "Can you forgive me?"],
+    "good_news": ["It worked out!", "They said yes!", "Guess what, we did it."],
+    "praise": ["You did so well.", "I really admire you.", "You're wonderful."],
+}
+SENSE_MIN = 0.5  # cosine to an event's centre before it counts
+_centres: dict[int, tuple[list[str], np.ndarray]] = {}
+
+
+def _centre(model) -> tuple[list[str], np.ndarray]:
+    key = id(model)  # ponytail: one entry per loaded model object; there is one per process
+    if key not in _centres:
+        names = list(SEEDS)
+        m = np.stack([np.asarray(model.encode(SEEDS[n]), dtype=float).mean(axis=0) for n in names])
+        norms = np.linalg.norm(m, axis=1, keepdims=True)
+        _centres[key] = names, np.divide(m, norms, out=np.zeros_like(m), where=norms > 0)
+    return _centres[key]
+
+
+def sense(text: str, model=None) -> tuple[str, float] | None:
+    """What a line was, to the one who heard it: (event, strength 0-1), or None. A word list
+    first (precise); then, with an embedding model, closeness in meaning (catches rewordings).
+    ponytail: no negation handling ("you're not stupid" reads as an insult); slice 2's side call
+    labels events on the standard level."""
+    for event in EVENTS:
+        if PATTERNS[event].search(text):
+            return event, 1.0
+    if model is None or not text.strip():
+        return None
+    names, centres = _centre(model)
+    vec = np.asarray(model.encode([text]), dtype=float)[0]
+    if not (norm := np.linalg.norm(vec)):
+        return None
+    sims = centres @ (vec / norm)
+    best = int(np.argmax(sims))
+    return (names[best], round(float(sims[best]), 3)) if sims[best] >= SENSE_MIN else None
