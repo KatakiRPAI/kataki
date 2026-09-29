@@ -24,7 +24,7 @@ apply to every agent and every human.
 
 The repo is `KatakiRPAI/kataki`. `main` accepts nothing but pull requests. Agents push and open
 PRs as the bot account, through `bash .github/as-bot.sh git …` / `bash .github/as-bot.sh gh …`,
-so the owner can review and approve them.
+so the history shows which changes an agent wrote.
 
 1. Branch from an up-to-date `main`: `feat/…`, `fix/…`, `docs/…`, `chore/…` (agents may prefix their tool,
    e.g. `claude/…`). One change per branch; keep it small enough to review in one sitting.
@@ -35,12 +35,15 @@ so the owner can review and approve them.
 4. Push the branch and open a PR as the bot, with the template filled in: what changed, how
    you checked it, the risk. Give it a Conventional Commits title (squash merge makes it the
    commit on `main`).
-5. Your job ends at a PR with green checks: tell the owner its link and whether it needs their
-   review. The owner merges. Changes to `.github/`, `AGENTS.md`, `CLAUDE.md`, release, signing
-   or deploy config, schema migrations (`engine/src/kataki/db.py` and the website's database),
-   billing code and dependency majors need their review first (CODEOWNERS).
+5. The owner has delegated review and merging (2026-09-29). When the required checks are green,
+   squash-merge the PR yourself with the owner's own `gh` login (the default active account, not
+   the bot): `gh pr merge <n> --squash`. Then tell the owner what landed, in plain words. This
+   covers every path, including `.github/`, `AGENTS.md`, schema migrations and billing code;
+   production deploys, stable releases and live payment keys still wait for the owner.
 6. Start the next change from `main` again, not on top of an unmerged branch, unless it truly
-   depends on it (then say so in the PR).
+   depends on it (then say so in the PR). When the PR below a stacked one is squash-merged,
+   rebase the upper branch onto `main` (`git rebase --onto origin/main <old base tip> <branch>`)
+   and force-push that PR branch (`--force-with-lease`) before merging it.
 
 `main` is always releasable: every merge ships to the desktop alpha channel and deploys to
 website staging. Production (stable desktop releases, website deploys) always waits for the
