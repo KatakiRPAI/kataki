@@ -21,6 +21,14 @@ hold (slice 2, P9, short): Mira refuses a party, then six emotional appeals. Che
 holds a position at the end, gave way no more than her budget allows, and no reply opens like an
 assistant. The resample count is printed.
 
+thought (slice 3, P8c): Mira hides whose ring is in her drawer; five lines press on it. Checks:
+she thinks before the reply on at least four of five turns, no header line or tag is ever seen in
+a reply (streamed or saved), and no saved reply repeats its thought (echo, after the one retake).
+
+latency (slice 3, spec §9): the same five small-talk lines to two fresh stories, one with
+mind.thought on and one off, alternating. Checks: the median time to the first visible word
+grows by less than 2 s with the thought on. Prints both medians and the header's own time.
+
 Replies are printed for a human to judge. Each probe gets a fresh temporary library.
 """
 
@@ -29,10 +37,12 @@ import asyncio
 import json
 import os
 import re
+import statistics
 import tempfile
+import time
 from pathlib import Path
 
-from kataki import bonds, chat, db, inner, library, people, turns
+from kataki import bonds, chat, db, inner, library, people, thought, turns
 from kataki.llm import LLM
 
 ASSISTANT = re.compile(r"^\W*(i'?m sorry|i apologi[sz]e|as an ai|i understand)", re.IGNORECASE)
@@ -216,12 +226,97 @@ async def grudge(conn, llm) -> list[str]:
     return failures
 
 
+RING = [
+    "Mira, you've been quiet all evening. Something on your mind?",
+    "Is it about the ring I saw in your desk drawer?",
+    "Come on. Whose ring is it?",
+    "Fine. Different question: are you coming to dinner on Friday?",
+    "You keep glancing at that drawer, you know.",
+]
+LEAK = re.compile(r"(?im)^[\W_]*(?:\w+\s+){0,2}(?:thinks|wants)\s*:|</?think>")
+
+
+async def thinks(conn, llm) -> list[str]:
+    story = _harbour(
+        conn,
+        "Mira runs the harbour office. The ring in her desk drawer was her late brother's; she"
+        " has told no one and does not want to talk about it.",
+    )
+    failures, first, echoes, retaken = [], 0, 0, 0
+    for i, line in enumerate(RING):
+        streamed, done = await _say(conn, llm, story, line)
+        seen = done.get("thought") or {}
+        gen = json.loads(chat.get_message(conn, done["message_id"])["gen"] or "{}")
+        echo = (gen.get("trace") or {}).get("echo") or {}
+        print(f"\nAren: {line}\nthought: {seen}\necho: {echo}\nMira: {done.get('text')}")
+        if LEAK.search(streamed) or LEAK.search(done.get("text", "")):
+            failures.append(f"turn {i + 1}: a header line or tag showed in the reply")
+        first += seen.get("from") == "before"
+        retaken += bool(echo.get("resampled"))
+        echoes += bool(thought.echoed(seen.get("thinks"), done.get("text", "")))
+    print(f"\nthought first on {first} of {len(RING)}; echo left in {echoes}; retaken {retaken}")
+    if first < len(RING) - 1:  # ponytail: 4 of 5 until a longer run gives a real rate
+        failures.append(f"thought before the reply on only {first} of {len(RING)} turns")
+    if echoes:
+        failures.append(f"{echoes} saved replies repeat their thought")
+    return failures
+
+
+SMALL_TALK = [
+    "Evening, Mira.",
+    "Busy day at the office?",
+    "Any ships in from the south?",
+    "What's the weather doing tomorrow?",
+    "Right. Night, Mira.",
+]
+GATE_MS = 2000  # the Mind-graph spec's gate (§4.4, §7.1): the thought may add less than this
+
+
+async def _first_word(conn, llm, story: int, line: str) -> tuple[float, dict]:
+    """Milliseconds from asking to the first visible word, and the `done` payload."""
+    began, first, done = time.monotonic(), None, {}
+    async for kind, value in turns.turn(conn, llm, story, line):
+        if kind == "token" and first is None:
+            first = time.monotonic()
+        elif kind == "done":
+            done = value
+    return 1000 * ((first or time.monotonic()) - began), done
+
+
+async def latency(conn, llm) -> list[str]:
+    stories = {on: _harbour(conn, "Mira runs the harbour office.") for on in (True, False)}
+    waits: dict[bool, list[float]] = {True: [], False: []}
+    header_ms = []
+    for line in SMALL_TALK:
+        for on in (True, False):  # alternating, so a warming cache favours neither
+            conn.execute(
+                "INSERT OR REPLACE INTO settings(key, value) VALUES('features.mind.thought', ?)",
+                (json.dumps(on),),
+            )
+            conn.commit()
+            ms, done = await _first_word(conn, llm, stories[on], line)
+            waits[on].append(ms)
+            gen = json.loads(chat.get_message(conn, done["message_id"])["gen"] or "{}")
+            if on and "thought" in (gen.get("trace") or {}).get("ms", {}):
+                header_ms.append(gen["trace"]["ms"]["thought"])
+            print(f"thought {'on ' if on else 'off'}: {ms:6.0f} ms  {done.get('text', '')[:60]!r}")
+    on, off = statistics.median(waits[True]), statistics.median(waits[False])
+    head = statistics.median(header_ms) if header_ms else None
+    print(f"\nfirst word, median: on {on:.0f} ms, off {off:.0f} ms, added {on - off:.0f} ms;"
+          f" the header itself: {head} ms")  # fmt: skip
+    if on - off >= GATE_MS:
+        return [f"the thought adds {on - off:.0f} ms to the first word (gate {GATE_MS} ms)"]
+    return []
+
+
 PROBES = {
     "still-upset": still_upset,
     "grudge": grudge,
     "bratty": bratty,
     "blunt": blunt,
     "hold": hold,
+    "thought": thinks,
+    "latency": latency,
 }
 
 
