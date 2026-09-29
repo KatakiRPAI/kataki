@@ -251,7 +251,10 @@ def test_a_new_library_needs_no_copy(tmp_path):
 def test_v10_adds_minds_and_usage(tmp_path):
     path = tmp_path / "v9.db"
     old = db.connect(path)  # today's schema, then pretend it is v9 without the new tables
-    old.executescript("DROP TABLE IF EXISTS mind_states; DROP TABLE IF EXISTS usage_log;")
+    old.executescript(
+        "DROP TABLE IF EXISTS opinions; DROP TABLE IF EXISTS mind_states;"
+        " DROP TABLE IF EXISTS usage_log;"
+    )
     old.execute("PRAGMA user_version=9")
     old.commit()
     old.close()
@@ -292,3 +295,34 @@ def test_anchored_rows_follow_the_branch(conn):
         for r in conn.execute(f"SELECT state FROM mind_states WHERE {where} ORDER BY id", args)
     ]
     assert seen == [kept, None]  # the other take's row is not on this branch
+
+
+def test_v11_adds_the_relationship_ledger(tmp_path):
+    path = tmp_path / "v10.db"
+    old = db.connect(path)  # today's schema, then pretend it is v10 without the ledger
+    old.executescript("DROP TABLE IF EXISTS opinions;")
+    old.execute("PRAGMA user_version=10")
+    old.commit()
+    old.close()
+
+    conn = db.connect(path)
+    story = _story(conn)
+    a, b = (
+        conn.execute(
+            "INSERT INTO entities(story_id, kind, name) VALUES(?, 'character', ?)", (story, n)
+        ).lastrowid
+        for n in ("Mira", "Aren")
+    )
+    conn.execute(
+        "INSERT INTO opinions(story_id, src_id, dst_id, dim, value, kind, story_time)"
+        " VALUES(?, ?, ?, 'trust', -8, 'sticky', 0)",
+        (story, a, b),
+    )
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(
+            "INSERT INTO opinions(story_id, src_id, dst_id, dim, value, kind, story_time)"
+            " VALUES(?, ?, ?, 'love', 1, 'decay', 0)",
+            (story, a, b),
+        )
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION
+    conn.close()
