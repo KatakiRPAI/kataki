@@ -253,3 +253,79 @@ async def test_a_reasoning_model_gets_an_afterthought_from_the_side_call(
     _, gen = leaf(conn, story)
     assert gen["thought"] == after_ and events[-1][1]["thought"] == after_
     assert gen["reasoning"] == "She weighs it."  # its own reasoning stays where it was
+
+
+def script(monkeypatch, backend, *events, then=None):
+    """Replace the stream with these (kind, value) events, then optionally raise `then`."""
+    llm = backend.llm
+
+    async def stream(*a, **k):
+        for e in events:
+            yield e
+        if then:
+            raise then
+
+    monkeypatch.setattr(llm, "chat_stream", stream)
+    return llm
+
+
+async def stop_after(stream, n_kind, n):
+    seen = []
+    async for kind, value in stream:
+        seen.append((kind, value))
+        if sum(k == n_kind for k, _ in seen) == n:
+            break
+    await stream.aclose()
+    return seen
+
+
+@pytest.mark.anyio
+async def test_a_stop_mid_thought_saves_no_reply_and_leaks_no_thought(
+    conn, story, backend, monkeypatch
+):
+    llm = script(monkeypatch, backend, ("thought", "<think>\nMira thi"), ("thought", "nks: he"))
+    seen = await stop_after(turns.turn(conn, llm, story, "Mira?"), "thought", 1)
+    assert all(m["role"] != "assistant" for m in chat.active_path(conn, story))
+    assert not any(k == "token" for k, _ in seen)
+
+
+@pytest.mark.anyio
+async def test_an_error_mid_thought_saves_no_reply(conn, story, backend, monkeypatch):
+    from kataki.llm import LLMError
+
+    llm = script(monkeypatch, backend, ("thought", "<think>\nMira thi"), then=LLMError("boom"))
+    events = await play(turns.turn(conn, llm, story, "Mira?"))
+    assert events[-1][0] == "error"
+    assert all(m["role"] != "assistant" for m in chat.active_path(conn, story))
+
+
+@pytest.mark.anyio
+async def test_a_stop_mid_reply_keeps_it_clean(conn, story, backend):
+    backend.say(HEADER + "Nothing. Just tired, that is all.")
+    await stop_after(turns.turn(conn, backend.llm, story, "Mira?"), "token", 1)
+    text, gen = leaf(conn, story)
+    assert text and "thinks" not in text and "think>" not in text
+    assert "Nothing. Just tired, that is all.".startswith(text) and gen["finish"] == "stopped"
+
+
+@pytest.mark.anyio
+async def test_a_stop_while_the_header_holds_a_tail_keeps_it_in_order(
+    conn, story, backend, monkeypatch
+):
+    llm = script(monkeypatch, backend, ("token", "Mira th"), ("thought", "x"))
+    await stop_after(turns.turn(conn, llm, story, "Mira?"), "thought", 1)
+    assert leaf(conn, story)[0] == "Mira th"
+
+
+@pytest.mark.anyio
+async def test_a_failure_in_reading_the_thought_never_loses_the_reply(
+    conn, story, backend, monkeypatch
+):
+    def boom(*a, **k):
+        raise RuntimeError("bad")
+
+    monkeypatch.setattr(thought, "parse", boom)
+    backend.say(HEADER + "Nothing. Just tired.")
+    events = await play(turns.turn(conn, backend.llm, story, "Mira?"))
+    text, gen = leaf(conn, story)
+    assert events[-1][0] == "done" and text == "Nothing. Just tired." and "thought" not in gen

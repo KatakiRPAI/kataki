@@ -202,6 +202,15 @@ def _early(thoughts: list[str], header: thought.Header, name: str, tags) -> dict
     return thought.parse(thought.split("".join(thoughts), name, tags)[1] + header.caught, name)
 
 
+def _watch(opener: "_Opener", thoughts: list[str], header: thought.Header, name: str, tags) -> None:
+    """opener.watch(_early(...)), guarded: a failure costs only the echo check."""
+    try:
+        opener.watch(_early(thoughts, header, name, tags))
+    except Exception as e:
+        logging.getLogger(__name__).warning("echo check skipped: %s", e)
+        opener.watched = True
+
+
 async def _read_past_before_skip(
     conn: sqlite3.Connection, llm: LLM, story_id: int, get_key: Callable[[str], str | None]
 ) -> None:
@@ -352,10 +361,10 @@ async def _generate(
         decide, check, hold = "", False, False
     try:
         voice = thought.mode(conn, ep, speaker_id)
+        header_ask = thought.ask(name, ep.think_tags) if voice == "inline" else ""
     except Exception as e:
         logging.getLogger(__name__).warning("thought skipped for story %s: %s", story_id, e)
-        voice = None
-    header_ask = thought.ask(name, ep.think_tags) if voice == "inline" else ""
+        voice, header_ask = None, ""
     first = " ".join(p for p in (decide, header_ask) if p)
 
     trace: dict = {"why": why, "ms": {}}
@@ -447,6 +456,7 @@ async def _generate(
     try:
         for attempt in range(2):  # a second take only when the first opened like an assistant
             parts, thoughts, before = [], [], None  # before: thought pieces before the 1st word
+            first_thought = first_token = None  # a retake times its own take
             prefix, opener = _Prefix(name or "Narrator"), _Opener(hold and not attempt)
             header = thought.Header(voice == "inline", name or "", ep.think_tags)
             stream = llm.chat_stream(
@@ -463,7 +473,7 @@ async def _generate(
                         before = len(thoughts) if before is None else before
                         value = prefix.feed(header.feed(value))
                         if value and voice == "inline" and not attempt and not opener.watched:
-                            opener.watch(_early(thoughts, header, name, ep.think_tags))
+                            _watch(opener, thoughts, header, name, ep.think_tags)
                         if value := opener.feed(value):
                             parts.append(value)
                             yield ("token", value)
@@ -473,7 +483,7 @@ async def _generate(
                         done = value
             rest = "" if opener.hit else prefix.feed(header.flush()) + prefix.flush()
             if rest and voice == "inline" and not attempt and not opener.watched:
-                opener.watch(_early(thoughts, header, name, ep.think_tags))
+                _watch(opener, thoughts, header, name, ep.think_tags)
             if not opener.hit and (rest := opener.feed(rest) + opener.flush()):
                 parts.append(rest)
                 yield ("token", rest)
@@ -506,17 +516,24 @@ async def _generate(
     except LLMError as e:
         finish, error = "error", str(e)
     finally:  # runs on finish, on error, and when the client stops the stream
-        held = opener.held + prefix.flush() + header.flush()  # stopped while held: keep it
-        text = ("".join(parts) + held).strip()
+        # stopped while held: keep it, in the order it was written (header, prefix, opener)
+        tail = prefix.feed(header.flush()) + prefix.flush()
+        text = ("".join(parts) + opener.held + tail).strip()
         if not text and dropped:  # the second take failed or came back empty: keep the first
             text = dropped.strip()
         reasoning, heard = "".join(thoughts), []
         if voice == "inline":  # the header is the thought: never the reasoning, never the reply
-            reasoning, heard = thought.split(reasoning, name, ep.think_tags)
-            text, late = thought.split(text, name, ep.think_tags)  # written after the reply
-            heard += header.caught + late
-            if not text:  # a tag never closed: the reply was written inside it
-                text, reasoning = reasoning, ""
+            try:
+                r, heard = thought.split(reasoning, name, ep.think_tags)
+                t, late = thought.split(text, name, ep.think_tags)  # written after the reply
+                heard += header.caught + late
+                if not t and finish == "stop":  # a tag never closed: the reply was inside it
+                    t, r = r, ""
+                # a stop or an error mid-thought keeps nothing: no thought fragment as the reply
+                reasoning, text = r, t
+            except Exception as e:  # no thought; the reply stays as streamed
+                logging.getLogger(__name__).warning("thought not read: %s", e)
+                heard = []
         text = _unsign(text, name or "Narrator")
         if text:
             if check and not hold and (hit := bonds.opener(text)):
@@ -530,11 +547,15 @@ async def _generate(
                 "reasoning": reasoning or None,
                 "usage": done.get("usage"),
             }
-            if seen := thought.parse(heard, name or ""):  # Peek's thought; did it come first?
-                early = _early(thoughts[:before], header, name or "", ep.think_tags)
-                gen["thought"] = {**seen, "from": "before" if early else "after"}
-                if "echo" not in trace and (echo := thought.echoed(seen["thinks"], text)):
-                    trace["echo"] = {"hit": echo, "resampled": False}  # past the first sentence
+            try:
+                if seen := thought.parse(heard, name or ""):  # Peek's thought; came first?
+                    early = _early(thoughts[:before], header, name or "", ep.think_tags)
+                    gen["thought"] = {**seen, "from": "before" if early else "after"}
+                    if "echo" not in trace and (echo := thought.echoed(seen["thinks"], text)):
+                        trace["echo"] = {"hit": echo, "resampled": False}  # past the 1st sentence
+            except Exception as e:
+                gen.pop("thought", None)
+                logging.getLogger(__name__).warning("thought not kept: %s", e)
             if first_thought:  # stopped mid-thought: the thinking ran until now
                 spent = round(1000 * ((first_token or time.monotonic()) - first_thought))
                 if gen["reasoning"]:
