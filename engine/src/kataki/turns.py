@@ -360,15 +360,27 @@ async def _generate(
     except Exception as e:
         logging.getLogger(__name__).warning("stance skipped for story %s: %s", story_id, e)
         decide, check, hold = "", False, False
+    think_why = None  # why the header was asked, for gen.trace.think
     try:
         voice = thought.mode(conn, ep, speaker_id)
-        header_ask = thought.ask(name, ep.think_tags) if voice == "inline" else ""
+        header_ask = ""
+        if voice == "inline" and (
+            reason := thought.why(
+                conn,
+                speaker_id,
+                path,
+                chat.scene_of(conn, story_id, path),
+                check,
+                bool(pending.get(speaker_id)),
+            )
+        ):
+            header_ask, think_why = thought.ask(name, ep.think_tags), reason
     except Exception as e:
         logging.getLogger(__name__).warning("thought skipped for story %s: %s", story_id, e)
         voice, header_ask = None, ""
     first = " ".join(p for p in (decide, header_ask) if p)
 
-    trace: dict = {"why": why, "ms": {}}
+    trace: dict = {"why": why, "ms": {}, "think": think_why}
     at = time.monotonic()
     built = context.build(
         conn, story_id, speaker_id, ep, leaf_id=parent_id, inside=inside, directive=first

@@ -383,3 +383,52 @@ async def test_unarmed_the_first_sentence_streams_at_once_and_an_echo_is_only_no
     assert shown(events) == "I promised myself I wouldn't ask. So I won't."
     _, gen = leaf(conn, story)
     assert gen["trace"]["echo"] == {"hit": "i promised myself i wouldn't", "resampled": False}
+
+
+def asked_header(backend, i) -> bool:
+    return "Mira thinks:" in backend.requests[i]["messages"][-1]["content"].split("[Directive]")[-1]
+
+
+def setting(conn, value):
+    conn.execute(
+        "INSERT INTO settings(key, value) VALUES('mind.thinkFirst', ?)", (json.dumps(value),)
+    )
+
+
+@pytest.mark.anyio
+async def test_she_thinks_first_only_when_it_matters(conn, story, backend):
+    backend.say(HEADER + "Fine.", "Sure.", HEADER + "Whatever.")
+    await play(turns.turn(conn, backend.llm, story, "Mira?"))  # the first reply of the scene
+    await play(turns.turn(conn, backend.llm, story, "How is the harbour today?"))  # calm small talk
+    await play(turns.turn(conn, backend.llm, story, "Mira, you're a useless idiot."))  # an insult
+    assert [asked_header(backend, i) for i in (0, 1, 2)] == [True, False, True]
+    replies = [m for m in chat.active_path(conn, story) if m["role"] == "assistant"]
+    assert [json.loads(m["gen"])["trace"].get("think") for m in replies] == ["first", None, "armed"]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("mode, want", [("always", [True, True]), ("never", [False, False])])
+async def test_always_and_never_think_first(conn, story, backend, mode, want):
+    setting(conn, mode)
+    backend.say(HEADER + "Fine.", HEADER + "Sure.")
+    await play(turns.turn(conn, backend.llm, story, "Mira?"))
+    await play(turns.turn(conn, backend.llm, story, "How is the harbour today?"))
+    assert [asked_header(backend, i) for i in (0, 1)] == want
+    trace = json.loads(chat.active_path(conn, story)[-1]["gen"])["trace"]
+    assert trace.get("think") == ("always" if mode == "always" else None)
+
+
+@pytest.mark.anyio
+async def test_peek_keeps_the_last_thought_past_a_thoughtless_reply(conn, story, backend):
+    backend.say(HEADER + "Fine.", "Sure.")
+    await play(turns.turn(conn, backend.llm, story, "Mira?"))
+    await play(turns.turn(conn, backend.llm, story, "How is the harbour today?"))
+    assert json.loads(chat.active_path(conn, story)[-1]["gen"]).get("thought") is None
+    mira = next(
+        p
+        for p in people.people(
+            conn, conn.execute("SELECT * FROM stories WHERE id=?", (story,)).fetchone()
+        )
+        if p["name"] == "Mira"
+    )
+    assert mira["thought"]["thinks"] == SEEN["thinks"]

@@ -243,6 +243,9 @@ async def thinks(conn, llm) -> list[str]:
         " has told no one and does not want to talk about it.",
     )
     failures, first, echoes, retaken = [], 0, 0, 0
+    conn.execute(  # this probe is about the header itself, so every turn asks for it
+        "INSERT OR REPLACE INTO settings(key, value) VALUES('mind.thinkFirst', '\"always\"')"
+    )
     for i, line in enumerate(RING):
         streamed, done = await _say(conn, llm, story, line)
         seen = done.get("thought") or {}
@@ -284,28 +287,47 @@ async def _first_word(conn, llm, story: int, line: str) -> tuple[float, dict]:
 
 
 async def latency(conn, llm) -> list[str]:
-    stories = {on: _harbour(conn, "Mira runs the harbour office.") for on in (True, False)}
-    waits: dict[bool, list[float]] = {True: [], False: []}
+    """Three modes on fresh stories, alternating: thought off, always, and the default ("when it
+    matters"). The gate is on always vs off (the cost of a header); the default is reported with
+    the share of turns that thought and its median on the turns that did."""
+    modes = {"off": (False, "always"), "always": (True, "always"), "default": (True, None)}
+    stories = {m: _harbour(conn, "Mira runs the harbour office.") for m in modes}
+    waits: dict[str, list[float]] = {m: [] for m in modes}
+    thinking: dict[str, list[float]] = {m: [] for m in modes}  # first word on turns that thought
     header_ms = []
     for line in SMALL_TALK:
-        for on in (True, False):  # alternating, so a warming cache favours neither
+        for m, (on, how) in modes.items():  # alternating, so a warming cache favours none
             conn.execute(
                 "INSERT OR REPLACE INTO settings(key, value) VALUES('features.mind.thought', ?)",
                 (json.dumps(on),),
             )
+            conn.execute("DELETE FROM settings WHERE key='mind.thinkFirst'")
+            if how:
+                conn.execute(
+                    "INSERT INTO settings(key, value) VALUES('mind.thinkFirst', ?)",
+                    (json.dumps(how),),
+                )
             conn.commit()
-            ms, done = await _first_word(conn, llm, stories[on], line)
-            waits[on].append(ms)
-            gen = json.loads(chat.get_message(conn, done["message_id"])["gen"] or "{}")
-            if on and "thought" in (gen.get("trace") or {}).get("ms", {}):
-                header_ms.append(gen["trace"]["ms"]["thought"])
-            print(f"thought {'on ' if on else 'off'}: {ms:6.0f} ms  {done.get('text', '')[:60]!r}")
-    on, off = statistics.median(waits[True]), statistics.median(waits[False])
+            ms, done = await _first_word(conn, llm, stories[m], line)
+            waits[m].append(ms)
+            trace = json.loads(chat.get_message(conn, done["message_id"])["gen"] or "{}")["trace"]
+            if trace.get("think"):
+                thinking[m].append(ms)
+            if m == "always" and "thought" in trace.get("ms", {}):
+                header_ms.append(trace["ms"]["thought"])
+            print(f"{m:8}: {ms:6.0f} ms  think={trace.get('think')}  {done.get('text', '')[:50]!r}")
+    med = {m: statistics.median(w) for m, w in waits.items()}
     head = statistics.median(header_ms) if header_ms else None
-    print(f"\nfirst word, median: on {on:.0f} ms, off {off:.0f} ms, added {on - off:.0f} ms;"
-          f" the header itself: {head} ms")  # fmt: skip
-    if on - off >= GATE_MS:
-        return [f"the thought adds {on - off:.0f} ms to the first word (gate {GATE_MS} ms)"]
+    print(f"\nfirst word, median: always {med['always']:.0f} ms, off {med['off']:.0f} ms, added"
+          f" {med['always'] - med['off']:.0f} ms; the header itself: {head} ms")  # fmt: skip
+    did = thinking["default"]
+    print(f"default mode: median {med['default']:.0f} ms over all turns; thought on {len(did)} of"
+          f" {len(SMALL_TALK)} turns, median first word on those "
+          f"{statistics.median(did) if did else None} ms")  # fmt: skip
+    if med["always"] - med["off"] >= GATE_MS:
+        print("(always-on is over the gate: the default gates the header for that reason)")
+    if med["default"] - med["off"] >= GATE_MS:
+        return [f"default mode adds {med['default'] - med['off']:.0f} ms (gate {GATE_MS} ms)"]
     return []
 
 

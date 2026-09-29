@@ -140,13 +140,13 @@ def _bonds(conn, entity_id: int, path: list, names: dict, persona_id, epoch: int
 
 
 def _thought(path: list, entity_id: int) -> dict | None:
-    """The thought behind their latest line on this branch (Peek; spec §8.3), or None when
-    that line had none: an older thought would be about another moment."""
+    """Their latest thought on this branch (Peek; spec §8.3). Replies written without one (the
+    thought is asked only when it matters) look back to the last that had one."""
     try:
         for m in reversed(path):
             if m["role"] == "assistant" and m["speaker_id"] == entity_id:
-                said = json.loads(m["gen"] or "{}").get("thought")
-                return {**said, "message_id": m["id"]} if said else None
+                if said := json.loads(m["gen"] or "{}").get("thought"):
+                    return {**said, "message_id": m["id"]}
         return None
     except Exception as e:  # a bad row costs the thought, not the whole Peek
         logging.getLogger(__name__).warning("thought unavailable for %s: %s", entity_id, e)
