@@ -38,7 +38,11 @@ def serve(db_path: Path, parent_watch: bool, port: int = 0, web: Path | None = N
     # load (on first run, download) the built-in embedding model now, not on the first turn
     threading.Thread(target=embed.builtin, daemon=True).start()
     backups.apply_pending(db_path)  # a restore asked for last time happens before the library opens
-    conn = db.connect(db_path)
+    try:
+        conn = db.connect(db_path)
+    except db.LibraryTooNew as e:  # the shell reads this second line and says it
+        print(json.dumps({"error": {"code": "LIBRARY_TOO_NEW", "message": str(e)}}), flush=True)
+        sys.exit(3)
     config = uvicorn.Config(
         create_app(conn, token, web_dir=web, db_path=db_path), log_level="warning"
     )

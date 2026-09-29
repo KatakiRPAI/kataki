@@ -44,6 +44,7 @@ def test_a_configured_role_resolves_to_its_own_endpoint(lib):
         model="big-rp",
         api_key="sk-cloud",
         params={"body": {"min_p": 0.05}},
+        role="rp",
     )
 
 

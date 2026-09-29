@@ -88,6 +88,8 @@ def resolve(
         api_key=get_key(provider["name"]),
         reasoning=kind == "reasoning",
         params=params,
+        role=role,
+        story_id=story_id,
     )
 
 

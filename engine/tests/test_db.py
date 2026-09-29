@@ -1,3 +1,4 @@
+import json
 import sqlite3
 
 import pytest
@@ -206,3 +207,88 @@ def test_a_library_gains_books_chapters_and_links(tmp_path):
     conn.commit()
     assert conn.execute("SELECT count(*) FROM chapters").fetchone()[0] == 0
     assert conn.execute("SELECT count(*) FROM story_links").fetchone()[0] == 0
+
+
+def test_a_library_from_a_newer_kataki_is_refused_and_left_alone(tmp_path):
+    path = tmp_path / "new.db"
+    newer = sqlite3.connect(path)
+    newer.execute(f"PRAGMA user_version={db.SCHEMA_VERSION + 1}")
+    newer.commit()
+    newer.close()
+
+    with pytest.raises(db.LibraryTooNew):
+        db.connect(path)
+
+    check = sqlite3.connect(path)
+    assert check.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION + 1
+    check.close()
+
+
+def test_an_older_library_is_copied_before_it_is_migrated(tmp_path):
+    path = tmp_path / "old.db"
+    old = sqlite3.connect(path)
+    old.executescript((db.files("kataki") / "schema.sql").read_text(encoding="utf-8"))
+    old.execute("PRAGMA user_version=1")
+    old.execute("INSERT INTO stories(title) VALUES('kept')")
+    old.commit()
+    old.close()
+
+    db.connect(path).close()
+
+    [copy] = (tmp_path / "backups").glob("library-before-*.db")
+    assert copy.name == f"library-before-v{db.SCHEMA_VERSION}-from-v1.db"
+    saved = sqlite3.connect(copy)
+    assert saved.execute("PRAGMA user_version").fetchone()[0] == 1
+    assert saved.execute("SELECT title FROM stories").fetchone()[0] == "kept"
+    saved.close()
+
+
+def test_a_new_library_needs_no_copy(tmp_path):
+    db.connect(tmp_path / "fresh.db").close()
+    assert not (tmp_path / "backups").exists()
+
+
+def test_v10_adds_minds_and_usage(tmp_path):
+    path = tmp_path / "v9.db"
+    old = db.connect(path)  # today's schema, then pretend it is v9 without the new tables
+    old.executescript("DROP TABLE IF EXISTS mind_states; DROP TABLE IF EXISTS usage_log;")
+    old.execute("PRAGMA user_version=9")
+    old.commit()
+    old.close()
+
+    conn = db.connect(path)
+    tables = {t["name"] for t in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    assert {"mind_states", "usage_log"} <= tables
+    conn.close()
+
+
+def _msg(conn, story_id, parent_id, text):
+    return conn.execute(
+        "INSERT INTO messages(story_id, parent_id, role, text, story_time) VALUES(?, ?, 'user', ?, 0)",
+        (story_id, parent_id, text),
+    ).lastrowid
+
+
+def test_anchored_rows_follow_the_branch(conn):
+    story = _story(conn)
+    root = _msg(conn, story, None, "root")
+    kept = _msg(conn, story, root, "this take")
+    other = _msg(conn, story, root, "another take")
+    conn.execute("UPDATE stories SET active_leaf_id=? WHERE id=?", (kept, story))
+    entity = conn.execute(
+        "INSERT INTO entities(story_id, kind, name) VALUES(?, 'character', 'Mira')", (story,)
+    ).lastrowid
+    for anchor in (kept, other, None):
+        conn.execute(
+            "INSERT INTO mind_states(entity_id, story_time, state, message_id) VALUES(?, 0, ?, ?)",
+            (entity, json.dumps({"anchor": anchor}), anchor),
+        )
+
+    live = db.live_messages(conn, story)
+    assert live == {root, kept}
+    where, args = db.anchor_filter(set(), live)
+    seen = [
+        json.loads(r["state"])["anchor"]
+        for r in conn.execute(f"SELECT state FROM mind_states WHERE {where} ORDER BY id", args)
+    ]
+    assert seen == [kept, None]  # the other take's row is not on this branch

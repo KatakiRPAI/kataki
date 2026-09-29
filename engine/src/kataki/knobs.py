@@ -18,7 +18,7 @@ def setting(conn: sqlite3.Connection, key: str, default):
     return json.loads(row["value"]) if row else default
 
 
-def _own(conn: sqlite3.Connection, entity_id: int | None) -> dict:
+def own(conn: sqlite3.Connection, entity_id: int | None) -> dict:
     """The character's library profile, if this story's person came from one."""
     if entity_id is None:
         return {}
@@ -31,15 +31,15 @@ def _own(conn: sqlite3.Connection, entity_id: int | None) -> dict:
 
 def decay(conn: sqlite3.Connection, entity_id: int | None) -> float:
     """How fast this character's memories fade: the d of the activation maths."""
-    fade = _own(conn, entity_id).get("fade")
+    fade = own(conn, entity_id).get("fade")
     if fade in (None, "inherit"):
         fade = setting(conn, "memory.fade", "lifelike")
     return FADE.get(fade, activation.DECAY)
 
 
 def can_doubt(conn: sqlite3.Connection, entity_id: int | None) -> bool:
-    own = _own(conn, entity_id).get("doubt")
-    return bool(setting(conn, "memory.canDoubt", True) if own is None else own)
+    doubt = own(conn, entity_id).get("doubt")
+    return bool(setting(conn, "memory.canDoubt", True) if doubt is None else doubt)
 
 
 def hear_all(conn: sqlite3.Connection) -> bool:
@@ -63,12 +63,12 @@ def thinking(conn: sqlite3.Connection, ep):
 def character_model(conn: sqlite3.Connection, entity_id: int | None, ep, get_key):
     """Which model plays this character (F2), if their profile names one: `data.model` =
     {provider_id, model}. Otherwise the endpoint the story's roles chose."""
-    own = _own(conn, entity_id).get("model") or {}
-    if not own.get("model") or not own.get("provider_id"):
+    mine = own(conn, entity_id).get("model") or {}
+    if not mine.get("model") or not mine.get("provider_id"):
         return ep
-    provider = conn.execute("SELECT * FROM providers WHERE id=?", (own["provider_id"],)).fetchone()
+    provider = conn.execute("SELECT * FROM providers WHERE id=?", (mine["provider_id"],)).fetchone()
     if provider is None:  # the connection was removed: the default speaks for them
         return ep
     return replace(
-        ep, base_url=provider["base_url"], model=own["model"], api_key=get_key(provider["name"])
+        ep, base_url=provider["base_url"], model=mine["model"], api_key=get_key(provider["name"])
     )
