@@ -8,7 +8,7 @@ once per story they are in. Cache per story version if a library ever holds hund
 import logging
 import sqlite3
 
-from kataki import chat, clock, db, features, inner, retrieve
+from kataki import bonds, chat, clock, db, features, inner, retrieve
 
 TIERS = ("sharp", "hazy", "forgotten")
 
@@ -123,6 +123,21 @@ def _mood(conn: sqlite3.Connection, entity_id: int, path: list, now: int) -> dic
         return None
 
 
+def _bonds(conn, entity_id: int, path: list, names: dict, persona_id, epoch: int) -> list[dict]:
+    """How they stand with each person the ledger has something on (Peek; spec §8.3)."""
+    try:
+        rows = bonds.ledger(conn, entity_id, path)
+        now = path[-1]["story_time"] if path else 0
+        stands = bonds.toward(rows, sorted({r["dst_id"] for r in rows}), now)
+        return [
+            bonds.public(st, d, names.get(d, "someone"), d == persona_id, epoch)
+            for d, st in stands.items()
+        ]
+    except Exception as e:  # a bad row costs the bonds, not the whole Peek
+        logging.getLogger(__name__).warning("bonds unavailable for %s: %s", entity_id, e)
+        return []
+
+
 def people(conn: sqlite3.Connection, story: sqlite3.Row) -> list[dict]:
     """One entry per AI character: where they are, what they hold, what is on their mind, what
     they know about you, and how they stand towards everyone."""
@@ -146,6 +161,7 @@ def people(conn: sqlite3.Connection, story: sqlite3.Row) -> list[dict]:
     names = dict(conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)))
     live = db.live_runs(conn, story_id)
     feeling = features.enabled(conn, "mind.affect")
+    tied = features.enabled(conn, "mind.bonds")
 
     out = []
     for e in conn.execute(
@@ -177,6 +193,7 @@ def people(conn: sqlite3.Connection, story: sqlite3.Row) -> list[dict]:
                 "relationships": _relationships(conn, e["id"], names, persona_id, epoch, live),
                 "secret": e["private"],
                 "mood": _mood(conn, e["id"], path, now) if feeling else None,
+                "bonds": _bonds(conn, e["id"], path, names, persona_id, epoch) if tied else [],
             }
         )
     return out

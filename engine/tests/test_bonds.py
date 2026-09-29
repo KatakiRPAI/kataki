@@ -1,10 +1,11 @@
 """The relationship ledger: pure maths on story minutes, then the turn, Peek and the graph."""
 
+import json
 import re
 
 import pytest
 
-from kataki import bonds, chat, clock, inner, library, turns
+from kataki import bonds, chat, clock, inner, library, mind, people, turns
 
 P = inner.shape({})
 DAY = clock.DAY
@@ -276,3 +277,23 @@ async def test_a_failing_ledger_still_keeps_the_reply(conn, story, backend, monk
     events = await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
     assert events[-1][0] == "done" and chat.active_path(conn, story)[-1]["text"] == "Fine."
     assert "Toward Aren" not in tail(backend.requests[0])
+
+
+@pytest.mark.anyio
+async def test_peek_and_the_mind_graph_show_the_ledger(conn, story, backend):
+    backend.say("Mm.")
+    await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
+    row = conn.execute("SELECT * FROM stories WHERE id=?", (story,)).fetchone()
+    cast = {p["name"]: p for p in people.people(conn, row)}
+    [bond] = cast["Mira"]["bonds"]
+    assert (bond["other"], bond["you"], bond["grudge"]["event"]) == ("Aren", True, "insult")
+    assert bond["respect"] < 0
+    assert cast["Tobin"]["bonds"] == []  # he heard it; it wasn't aimed at him
+
+    leaf = chat.active_path(conn, story)[-1]
+    graph = mind.mind(conn, leaf["id"])
+    node = next(n for n in graph["nodes"] if n["id"] == f"o{eid(conn, 'Aren')}")
+    assert node["kind"] == "feeling" and node["gold"] is True
+    assert node["text"] == "Toward you: further · respects less · holds a grudge"
+    assert node["detail"]["source"] == "ledger"
+    assert json.loads(leaf["gen"])["bonds"][0]["other"] == "Aren"

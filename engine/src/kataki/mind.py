@@ -184,6 +184,14 @@ def mind(conn: sqlite3.Connection, message_id: int) -> dict | None:
             text = f"{felt['feels']} · showing {felt['shows']}"
             mood = node("mood", "inside", "mood", "Mood", text, None, True, felt)
             inside.append((mood, True))
+        for b in gen.get("bonds") or []:  # the ledger the reply was written with (§8.3)
+            other = "you" if b["you"] else b["other"]
+            detail = {"source": "ledger", **b}
+            text = f"Toward {other}: {b['words']}"
+            tie = node(
+                f"o{b['other_id']}", "inside", "feeling", "Feeling", text, None, True, detail
+            )
+            inside.append((tie, True))
 
         card = conn.execute("SELECT description FROM entities WHERE id=?", (who,)).fetchone()
         if card and card["description"]:
