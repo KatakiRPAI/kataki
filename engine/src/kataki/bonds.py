@@ -262,6 +262,16 @@ def save(conn: sqlite3.Connection, story_id: int, rows: dict[int, list], message
             _insert(conn, story_id, src, new, message_id)
 
 
+def replace(
+    conn: sqlite3.Connection, story_id: int, src: int, message_id: int, rows: list[dict]
+) -> None:
+    """The side call's reading of what was done to `src` takes the place of the rules' reading
+    of the same line (both anchored on the reply), in one step."""
+    with conn:
+        conn.execute("DELETE FROM opinions WHERE src_id=? AND message_id=?", (src, message_id))
+        _insert(conn, story_id, src, rows, message_id)
+
+
 NOTICE, STRONG = 5, 15  # ponytail: a move this big is worth a word; this big, "much"
 
 
@@ -375,3 +385,94 @@ def render(
         you = d == story["persona_entity_id"]
         shown.append(public(stands[d], d, names.get(d, "someone"), you, story["epoch_offset_min"]))
     return rows, shown
+
+
+# --- holding their ground (note 12 §5; note 22 §2 steps 7c and 11) -----------------------------
+
+YIELD = {  # Realism › Pushback: when they may change their mind
+    "soft": "You can come round when {user} makes a fair point.",
+    "realistic": (
+        "Change your position only if {user} gives a new reason that matters to you;"
+        " otherwise hold it, deflect or get colder."
+    ),
+    "stubborn": (
+        "Hold your position. Give way only to a reason you could not have thought of yourself,"
+        " never because {user} is upset or insists."
+    ),
+}
+BUDGET = {"soft": 3, "realistic": 1, "stubborn": 0}  # ponytail: times they give way per scene
+POSITION_MIN = clock.DAY  # ponytail: a stance they took binds them this long (story minutes)
+BLUNT = 70  # ponytail: candor from which a sugar-coated opening is checked too
+HOLD_LINE = "You have already given way in this scene; hold the line."
+STRONGER = (
+    "Do not open by agreeing, apologising or praising; answer the way {name} would right now."
+)
+OPENERS = re.compile(  # ponytail: openings only; an assistant-ism mid-reply is not caught
+    r"^\W*(?:\*[^*\n]{0,80}\*\W*)?"  # an action first ("*sighs*") is still the opening
+    r"(you['’]?re (?:absolutely |totally |so )?right|you have a point|fair (?:point|enough)"
+    r"|i understand|i(?:['’]?m| am) (?:so |really )?sorry|i apologi[sz]e|as an ai"
+    r"|great question|of course[,!]|absolutely[,!]|certainly[,!]"
+    r"|what a (?:lovely|beautiful|great|wonderful)|i love (?:it|this|that))",
+    re.IGNORECASE,
+)
+
+
+def budget(dial: str, prof: dict) -> int:
+    """How many times they may give way in one scene: the dial's number, one more if yielding
+    by nature, one fewer if stubborn by nature."""
+    y = inner.mean(prof, "yielding")
+    return max(0, BUDGET.get(dial, 1) + (1 if y >= 70 else -1 if y <= 30 else 0))
+
+
+def holding(state: dict | None, now: int) -> dict | None:
+    """The position they took, while it still binds them."""
+    p = (state or {}).get("position")
+    return p if p and now - p["t"] < POSITION_MIN else None
+
+
+def _gave(state: dict | None, scene_id) -> int:
+    c = (state or {}).get("conceded") or {}
+    return c.get("n", 0) if c.get("scene") == scene_id else 0
+
+
+def stance(
+    state: dict | None, prof: dict, dial: str, grudge: bool, user: str, scene_id, now: int
+) -> str:
+    """The yield decision for [Directive]: nothing when nothing is at stake; else the position
+    they hold, the dial's rule for changing it, and, once they have given way as often as this
+    scene allows, to hold the line. Code decides; the model only voices it."""
+    pos = holding(state, now)
+    if not pos and not grudge:
+        return ""
+    out = [f'You have taken a position: "{pos["text"]}".'] if pos else []
+    out.append(YIELD.get(dial, YIELD["realistic"]).format(user=user))
+    if (n := _gave(state, scene_id)) and n >= budget(dial, prof):
+        out.append(HOLD_LINE)
+    return " ".join(out)
+
+
+def armed(state: dict | None, prof: dict, grudge: bool, now: int) -> bool:
+    """Whether to check how the reply opens: they are cold (a bad feeling on top, or a grudge),
+    holding a position, or blunt by nature."""
+    top = (state or {}).get("emotions") or []
+    cold = bool(top) and top[0]["label"] in inner.NEGATIVE
+    return bool(grudge or cold or holding(state, now) or inner.mean(prof, "candor") >= BLUNT)
+
+
+def opener(text: str) -> str | None:
+    """An agreeing, apologising, praising or assistant-style opening, lower-cased, or None."""
+    m = OPENERS.search(text)
+    return m.group(1).lower() if m else None
+
+
+def took(state: dict, position: dict | None, yielded: bool, scene_id, now: int) -> dict:
+    """What the side call saw them do with their ground: giving way spends this scene's budget
+    and drops the old position; a position taken (or kept) binds them from now.
+    ponytail: kept in the mind_states JSON until slice 5 brings `position` seeds."""
+    out = dict(state)
+    if yielded:
+        out["conceded"] = {"scene": scene_id, "n": _gave(state, scene_id) + 1}
+        out["position"] = None
+    if position:
+        out["position"] = {**position, "t": now}
+    return out

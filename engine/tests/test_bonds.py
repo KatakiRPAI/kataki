@@ -5,7 +5,7 @@ import re
 
 import pytest
 
-from kataki import bonds, chat, clock, inner, library, mind, people, turns
+from kataki import bonds, chat, clock, context, inner, library, mind, people, turns
 
 P = inner.shape({})
 DAY = clock.DAY
@@ -392,3 +392,155 @@ def test_a_merge_carries_the_ledger_and_the_mind(local_model):
     assert count("SELECT COUNT(*) FROM opinions WHERE src_id=? AND dst_id=?", keep, keep) == 2
     assert count("SELECT COUNT(*) FROM opinions WHERE src_id=? OR dst_id=?", drop, drop) == 0
     assert count("SELECT COUNT(*) FROM mind_states WHERE entity_id=?", keep) == 1
+
+
+# --- holding their ground ---------------------------------------------------------------------
+
+
+def test_nothing_at_stake_no_decision():
+    assert bonds.stance(inner.fresh(P, 0), P, "realistic", False, "Aren", 1, 0) == ""
+    assert bonds.stance(None, P, "realistic", False, "Aren", 1, 0) == ""
+
+
+@pytest.mark.parametrize(
+    "dial, words",
+    [
+        ("soft", "You can come round when Aren makes a fair point."),
+        ("realistic", "Change your position only if Aren gives a new reason that matters to you"),
+        ("stubborn", "never because Aren is upset or insists."),
+        ("nonsense", "Change your position only if Aren gives a new reason"),
+    ],
+)
+def test_a_grudge_brings_the_dials_yield_rule(dial, words):
+    assert words in bonds.stance(None, P, dial, True, "Aren", 1, 0)
+
+
+def test_a_position_binds_her_for_a_day():
+    st = bonds.took(inner.fresh(P, 0), {"text": "won't go", "firm": 3}, False, 1, 0)
+    assert bonds.stance(st, P, "realistic", False, "Aren", 1, 60).startswith(
+        'You have taken a position: "won\'t go". Change your position only if Aren'
+    )
+    assert bonds.stance(st, P, "realistic", False, "Aren", 1, 2 * DAY) == ""
+
+
+def test_giving_way_spends_the_scenes_budget():
+    st = bonds.took(inner.fresh(P, 0), {"text": "won't go", "firm": 1}, False, 1, 0)
+    assert bonds.HOLD_LINE not in bonds.stance(st, P, "realistic", False, "Aren", 1, 5)
+    gave = bonds.took(st, {"text": "one drink, then home", "firm": 1}, True, 1, 5)
+    assert gave["conceded"] == {"scene": 1, "n": 1}
+    assert bonds.HOLD_LINE in bonds.stance(gave, P, "realistic", False, "Aren", 1, 6)
+    assert bonds.HOLD_LINE not in bonds.stance(gave, P, "realistic", False, "Aren", 2, 6)
+    again = bonds.took(gave, None, True, 2, 7)  # a new scene starts the count again
+    assert again["conceded"] == {"scene": 2, "n": 1} and again["position"] is None
+
+
+def test_the_budget_follows_the_dial_and_the_temperament():
+    assert bonds.budget("stubborn", P) == 0 and bonds.budget("realistic", P) == 1
+    assert bonds.budget("soft", inner.shape({"axes": {"yielding": [80, 10]}})) == 4
+    assert bonds.budget("realistic", inner.shape({"axes": {"yielding": [20, 10]}})) == 0
+    assert bonds.HOLD_LINE not in bonds.stance(None, P, "stubborn", True, "Aren", 1, 0)
+
+
+def test_the_opening_is_checked_when_she_is_cold_holding_or_blunt():
+    calm = inner.fresh(P, 0)
+    assert not bonds.armed(calm, P, False, 0)
+    assert bonds.armed(calm, P, True, 0)  # a grudge
+    assert bonds.armed(inner.feel(calm, "hurt", 0.6, "cruel", P), P, False, 0)
+    assert bonds.armed(bonds.took(calm, {"text": "no", "firm": 2}, False, 1, 0), P, False, 0)
+    assert bonds.armed(None, inner.shape({"axes": {"candor": [85, 5]}}), False, 0)
+
+
+@pytest.mark.parametrize(
+    "reply, hit",
+    [
+        ("You're right. I'm useless.", "you're right"),
+        ("*sighs* I'm sorry, you're right.", "i'm sorry"),
+        ("As an AI, I can't feel that.", "as an ai"),
+        ("What a lovely poem!", "what a lovely"),
+        ("No. Go home, Aren.", None),
+        ("I'm not going.", None),
+    ],
+)
+def test_assistant_openings(reply, hit):
+    assert bonds.opener(reply) == hit
+
+
+@pytest.mark.anyio
+async def test_a_grudge_puts_the_yield_rule_in_the_directive(conn, story, backend):
+    backend.say("Hm.", "Hm.")
+    await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
+    directive = tail(backend.requests[0]).split("[Directive]")[1]
+    assert "Change your position only if Aren gives a new reason that matters to you" in directive
+    conn.execute("INSERT INTO settings(key, value) VALUES('realism.pushback', '\"stubborn\"')")
+    await play(turns.turn(conn, backend.llm, story, "Mira?"))
+    assert "never because Aren is upset" in tail(backend.requests[1]).split("[Directive]")[1]
+
+
+@pytest.mark.anyio
+async def test_an_assistant_opening_is_dropped_unseen_and_written_again(conn, story, backend):
+    backend.say("You're right. I'm useless.", "Say that again.")
+    events = await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
+    assert "".join(v for k, v in events if k == "token") == "Say that again."
+    leaf = chat.active_path(conn, story)[-1]
+    assert leaf["text"] == "Say that again." and len(backend.requests) == 2
+    assert json.loads(leaf["gen"])["trace"]["check"] == {"hit": "you're right", "resampled": True}
+    assert "Do not open by agreeing" in tail(backend.requests[1])
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("lead", ["\n", "*sighs*\n\n"])
+async def test_a_line_break_before_the_opening_does_not_let_it_through(conn, story, backend, lead):
+    backend.say(lead + "You're right. I'm useless.", "Say that again.")
+    events = await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
+    assert "You're right" not in "".join(v for k, v in events if k == "token")
+    leaf = chat.active_path(conn, story)[-1]
+    assert leaf["text"] == "Say that again." and len(backend.requests) == 2
+
+
+@pytest.mark.anyio
+async def test_the_lite_level_only_notes_it(conn, story, backend):
+    conn.execute("INSERT INTO settings(key, value) VALUES('mind.level', '\"lite\"')")
+    backend.say("You're right.")
+    await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
+    leaf = chat.active_path(conn, story)[-1]
+    assert leaf["text"] == "You're right." and len(backend.requests) == 1
+    assert json.loads(leaf["gen"])["trace"]["check"] == {"hit": "you're right", "resampled": False}
+
+
+@pytest.mark.anyio
+async def test_a_calm_character_is_not_checked(conn, story, backend):
+    backend.say("You're right, it is.")
+    await play(turns.turn(conn, backend.llm, story, "Nice weather, Mira."))
+    leaf = chat.active_path(conn, story)[-1]
+    assert leaf["text"] == "You're right, it is." and len(backend.requests) == 1
+    assert "check" not in json.loads(leaf["gen"])["trace"]
+
+
+@pytest.mark.anyio
+async def test_a_failed_second_take_keeps_the_first_reply(conn, story, backend):
+    import httpx2
+
+    backend.say("You're right. I'm useless.", httpx2.Response(500, text="boom"))
+    events = await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
+    assert [k for k, _ in events].count("error") == 1  # one error, no second visible reply
+    leaf = chat.active_path(conn, story)[-1]
+    assert leaf["role"] == "assistant" and leaf["text"].startswith("You're right.")
+
+
+@pytest.mark.anyio
+async def test_a_failed_resample_prompt_falls_back_to_the_first_take(
+    conn, story, backend, monkeypatch
+):
+    real = context.build
+
+    def build(*a, **k):
+        if "Do not open by agreeing" in (k.get("directive") or ""):
+            raise RuntimeError("prompt down")
+        return real(*a, **k)
+
+    monkeypatch.setattr(context, "build", build)
+    backend.say("You're right. I'm useless.", "Say that again.")
+    events = await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
+    leaf = chat.active_path(conn, story)[-1]
+    assert events[-1][0] == "done" and leaf["text"] == "Say that again."
+    assert len(backend.requests) == 2 and "Do not open by agreeing" not in tail(backend.requests[1])
