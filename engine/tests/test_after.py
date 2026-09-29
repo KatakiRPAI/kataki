@@ -204,3 +204,57 @@ async def test_a_position_she_took_binds_her_next_reply(conn, story, backend, si
     directive = tail(backend.requests[2]).split("[Directive]")[1]
     assert 'You have taken a position: "won\'t go to the party".' in directive
     assert "Change your position only if Aren gives a new reason" in directive
+
+
+def hurt(conn, story, name="Mira"):
+    path = chat.active_path(conn, story)
+    state = inner.current(conn, eid(conn, name), path, inner.profile(conn, eid(conn, name)))
+    return next((e["i"] for e in state["emotions"] if e["label"] == "hurt"), 0)
+
+
+@pytest.mark.anyio
+async def test_a_side_call_echo_of_the_mood_changes_nothing(conn, story, backend, side_call):
+    aren = f"E{eid(conn, 'Aren')}"
+    insult = {"target": aren, "type": "insult", "intensity": 2}
+    felt = {"label": "hurt", "intensity": 3, "about": aren, "cause": "called me useless"}
+    backend.say("Hm.", said(felt=felt, events=[insult]))
+    await play(turns.turn(conn, backend.llm, story, "Mira, you're useless at this job."))
+    first, rows = hurt(conn, story), conn.execute("SELECT COUNT(*) FROM opinions").fetchone()[0]
+    assert first > 0
+    backend.say("The shipment? Not yet.", said(felt=felt, events=[insult]))
+    await play(turns.turn(conn, backend.llm, story, "Mira, did the shipment come in?"))
+    assert conn.execute("SELECT COUNT(*) FROM opinions").fetchone()[0] == rows
+    assert hurt(conn, story) <= first  # it fades as if there were no side call
+
+
+@pytest.mark.anyio
+async def test_the_same_event_twice_in_one_reply_is_one_row(conn, story, backend, side_call):
+    aren = f"E{eid(conn, 'Aren')}"
+    tease = {"target": aren, "type": "teasing_ok", "intensity": 1}
+    felt = {"label": "amused", "intensity": 2, "about": aren, "cause": "he teased her"}
+    backend.say("Ha.", said(felt=felt, events=[tease, tease, tease]))
+    await play(turns.turn(conn, backend.llm, story, "Mira, hello."))
+    n = conn.execute("SELECT COUNT(*) FROM opinions WHERE event='teasing_ok'").fetchone()[0]
+    assert n == 1
+
+
+@pytest.mark.anyio
+async def test_a_reply_to_a_reply_is_not_an_appraisal(conn, story, backend, side_call):
+    aren = f"E{eid(conn, 'Aren')}"
+    backend.say(
+        "Hm.",
+        said(),
+        "Tobin nods.",
+        said(),
+        "Still here.",
+        said(
+            felt={"label": "hurt", "intensity": 3, "about": aren, "cause": "x"},
+            events=[{"target": aren, "type": "insult", "intensity": 3}],
+        ),
+    )
+    await play(turns.turn(conn, backend.llm, story, "Mira, hello."))
+    async for _ in turns.turn(conn, backend.llm, story, None, speaker=eid(conn, "Tobin")):
+        pass
+    async for _ in turns.turn(conn, backend.llm, story, None, speaker=eid(conn, "Mira")):
+        pass
+    assert conn.execute("SELECT COUNT(*) FROM opinions").fetchone()[0] == 0

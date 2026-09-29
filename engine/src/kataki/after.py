@@ -20,16 +20,20 @@ from kataki.llm import LLM
 PROMPT = """\
 You label one exchange from a roleplay for the app that keeps the character's mind. Use only \
 the values the schema allows.
-- felt: what the character feels right after their reply. intensity: 1 a little, 2 clearly, \
-3 very. about: the handle of the person it is about, or null. cause: at most 12 words.
-- events: at most 3 things another person did to the character in this exchange: that \
-person's handle (target), what it was (type) and how much (intensity 1-3). An apology is \
-apology_sincere only if it owns what was done; otherwise apology_hollow. Leave it empty when \
-nothing happened.
+- felt: how the line the character answered made them feel (not how they felt already, and \
+not a feeling that only carries on from before). intensity: 1 a little, 2 clearly, 3 very. \
+about: the handle of the person it is about, or null. cause: at most 12 words.
+- events: at most 3 things another person did to the character in that line only, never in \
+earlier ones: that person's handle (target), what it was (type) and how much (intensity \
+1-3). An apology is apology_sincere only if it owns what was done; otherwise apology_hollow. \
+Leave it empty when the line did nothing new.
 - position: a stance the character took or kept in the reply (at most 12 words; firm 1-3), \
 or null.
 - yielded: true only if the character gave in on a position, or to what someone pushed for.
 - face: the character's facial expression while saying the reply."""
+REPEAT_MIN = (
+    60  # ponytail: the same event toward the same person within this many story minutes is an echo
+)
 FELT = {1: 0.3, 2: 0.6, 3: 0.9}  # ponytail: intensity words -> the affect core's 0-1
 
 
@@ -150,7 +154,7 @@ def _scene(conn: sqlite3.Connection, story_id: int, path: list, speaker_id: int)
 
 
 async def _ask(
-    conn, llm: LLM, story_id: int, speaker_id: int, reply: str, inside: str, seen: dict, get_key
+    conn, llm: LLM, story_id: int, speaker_id: int, reply: str, seen: dict, get_key
 ) -> dict | None:
     if (ep := roles.resolve(conn, "utility", story_id, get_key)) is None:
         return None
@@ -170,8 +174,8 @@ async def _ask(
         {
             "role": "user",
             "content": f"The character: {name}. People here: {people or 'no one else'}.\n\n"
-            f"[What {name} felt before replying]\n{inside or '(nothing notable)'}\n\n"
-            f"[The line {name} answered]\n{line}\n\n[{name}'s reply]\n{reply[-1500:]}",
+            f"[The line {name} answered: judge what THIS line did]\n{line}\n\n"
+            f"[{name}'s reply]\n{reply[-1500:]}",
         },
     ]
     return await llm.complete_json(
@@ -186,30 +190,47 @@ def _apply(
     held or gave into their state, and the events into the ledger in place of the rules'."""
     now = path[-1]["story_time"] if path else 0
     prof, felt = inner.profile(conn, speaker_id), got["felt"]
-    if state is not None:  # moods are on
-        cause = felt["cause"] or "that exchange"
-        st = inner.regulate(
-            inner.feel(state, felt["label"], FELT[felt["intensity"]], cause, prof), prof
-        )
-        st = bonds.took(st, got["position"], got["yielded"], seen["scene_id"], now)
-        inner.save(conn, {speaker_id: st}, message_id)  # the latest row for this reply wins
-    rows, new = bonds.ledger(conn, speaker_id, path), []
+    last = seen["last"]
+    # Only a user line is something that just happened; the model's label of the character's
+    # own reply otherwise echoes the mood the reply was written from (spec §3, note 22 C8).
+    fresh = last is not None and last["role"] == "user"
+    rows, new, taken, seen_ev = bonds.ledger(conn, speaker_id, path), [], 0, set()
     dial = knobs.dial(conn, speaker_id, "relationships", "realistic")
     if dial not in bonds.HARSH:  # a stray value must never break a turn
         dial = "realistic"
-    last = seen["last"]
-    for e in got["events"]:
+    for e in got["events"] if fresh else []:
         dst = int(e["target"][1:])
+        if (dst, e["type"]) in seen_ev or any(
+            r["dst_id"] == dst and r["event"] == e["type"] and now - r["story_time"] < REPEAT_MIN
+            for r in rows
+        ):
+            continue  # said twice, or already held from a moment ago: the echo of an old line
+        seen_ev.add((dst, e["type"]))
+        taken += 1
         if felt["about"] == e["target"] and felt["cause"]:
             cause = felt["cause"]
-        elif last is not None and last["speaker_id"] == dst:
+        elif last["speaker_id"] == dst:
             cause = inner.said(seen["names"][dst], last["text"])
         else:
             cause = e["type"].replace("_", " ")
         new += bonds.apply(
             rows + new, dst, e["type"], e["intensity"], cause, now, seen["scene_id"], prof, dial
         )
-    bonds.replace(conn, story_id, speaker_id, message_id, new)
+    ruled = conn.execute(
+        "SELECT COUNT(*) FROM opinions WHERE src_id=? AND message_id=?", (speaker_id, message_id)
+    ).fetchone()[0]
+    felt_now = fresh and (taken or ruled)  # a feeling with no event behind it is the echo
+    if state is not None and (felt_now or got["position"] or got["yielded"]):  # moods are on
+        st = state
+        if felt_now:
+            cause = felt["cause"] or "that exchange"
+            st = inner.regulate(
+                inner.feel(st, felt["label"], FELT[felt["intensity"]], cause, prof), prof
+            )
+        st = bonds.took(st, got["position"], got["yielded"], seen["scene_id"], now)
+        inner.save(conn, {speaker_id: st}, message_id)  # the latest row for this reply wins
+    if taken:  # else the rules' rows for this line (if any) stay
+        bonds.replace(conn, story_id, speaker_id, message_id, new)
 
 
 async def run(
@@ -220,7 +241,6 @@ async def run(
     speaker_id: int,
     message_id: int,  # the reply
     reply: str,
-    inside: str,  # the mind block the reply was written with
     state: dict | None,  # the speaker's state before the reply (None: moods are off)
     get_key: Callable[[str], str | None],
 ) -> dict | None:
@@ -230,7 +250,7 @@ async def run(
     at, got = time.monotonic(), None
     try:
         seen = _scene(conn, story_id, path, speaker_id)
-        got = await _ask(conn, llm, story_id, speaker_id, reply, inside, seen, get_key)
+        got = await _ask(conn, llm, story_id, speaker_id, reply, seen, get_key)
         if got is not None:
             _apply(conn, story_id, path, speaker_id, message_id, got, state, seen)
     except Exception as e:  # never a turn's undoing: the rules' reading stays

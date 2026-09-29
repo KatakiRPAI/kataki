@@ -537,7 +537,6 @@ async def _generate(
                     speaker_id,
                     message_id,
                     text,
-                    inside,
                     minds.get(speaker_id),
                     get_key,
                 )
