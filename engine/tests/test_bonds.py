@@ -297,3 +297,43 @@ async def test_peek_and_the_mind_graph_show_the_ledger(conn, story, backend):
     assert node["text"] == "Toward you: further · respects less · holds a grudge"
     assert node["detail"]["source"] == "ledger"
     assert json.loads(leaf["gen"])["bonds"][0]["other"] == "Aren"
+
+
+@pytest.mark.anyio
+async def test_a_failing_render_still_saves_the_events(conn, story, backend, monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("kataki.bonds.render", boom)
+    backend.say("Fine.")
+    events = await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
+    assert events[-1][0] == "done"
+    assert "Toward Aren" not in tail(backend.requests[0])
+    assert conn.execute("SELECT COUNT(*) FROM opinions").fetchone()[0] == 3
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("bad", [{"bonds": 5}, {"bonds": [{}]}, {"mind": 5}])
+async def test_a_malformed_stored_ledger_does_not_break_the_graph(conn, story, backend, bad):
+    backend.say("Fine.")
+    await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
+    leaf = chat.active_path(conn, story)[-1]
+    conn.execute("UPDATE messages SET gen=? WHERE id=?", (json.dumps(bad), leaf["id"]))
+    assert mind.mind(conn, leaf["id"])["nodes"]
+
+
+@pytest.mark.anyio
+async def test_peek_survives_a_failing_ledger_and_a_switch(conn, story, backend, monkeypatch):
+    backend.say("Fine.")
+    await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
+    row = conn.execute("SELECT * FROM stories WHERE id=?", (story,)).fetchone()
+
+    def boom(*a, **k):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("kataki.bonds.ledger", boom)
+    assert all(p["bonds"] == [] for p in people.people(conn, row))
+    monkeypatch.undo()
+    assert people.people(conn, row)[0]["bonds"] or people.people(conn, row)[1]["bonds"]
+    conn.execute("INSERT INTO settings(key, value) VALUES('features.mind.bonds', 'false')")
+    assert all(p["bonds"] == [] for p in people.people(conn, row))

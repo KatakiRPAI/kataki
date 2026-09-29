@@ -9,6 +9,7 @@ when they replied: only memory reads that had finished by then count.
 """
 
 import json
+import logging
 import math
 import sqlite3
 
@@ -180,18 +181,24 @@ def mind(conn: sqlite3.Connection, message_id: int) -> dict | None:
             inside.append((fid, felt))
         if len(shown) > FEELS:
             more["feeling"] = len(shown) - FEELS
-        if felt := gen.get("mind"):  # the mood the reply was written with (minds spec §8.2)
-            text = f"{felt['feels']} · showing {felt['shows']}"
-            mood = node("mood", "inside", "mood", "Mood", text, None, True, felt)
-            inside.append((mood, True))
-        for b in gen.get("bonds") or []:  # the ledger the reply was written with (§8.3)
-            other = "you" if b["you"] else b["other"]
-            detail = {"source": "ledger", **b}
-            text = f"Toward {other}: {b['words']}"
-            tie = node(
-                f"o{b['other_id']}", "inside", "feeling", "Feeling", text, None, True, detail
-            )
-            inside.append((tie, True))
+        try:  # what the reply was written with; stored JSON, so a bad shape costs only itself
+            if felt := gen.get("mind"):  # the mood (minds spec §8.2)
+                text = f"{felt['feels']} · showing {felt['shows']}"
+                mood = node("mood", "inside", "mood", "Mood", text, None, True, felt)
+                inside.append((mood, True))
+        except Exception as e:
+            logging.getLogger(__name__).warning("mood not shown: %s", e)
+        try:
+            for b in gen.get("bonds") or []:  # the ledger (§8.3)
+                other = "you" if b["you"] else b["other"]
+                detail = {"source": "ledger", **b}
+                text = f"Toward {other}: {b['words']}"
+                tie = node(
+                    f"o{b['other_id']}", "inside", "feeling", "Feeling", text, None, True, detail
+                )
+                inside.append((tie, True))
+        except Exception as e:
+            logging.getLogger(__name__).warning("ledger not shown: %s", e)
 
         card = conn.execute("SELECT description FROM entities WHERE id=?", (who,)).fetchone()
         if card and card["description"]:

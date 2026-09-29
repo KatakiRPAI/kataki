@@ -256,16 +256,25 @@ async def _generate(
     except Exception as e:
         logging.getLogger(__name__).warning("mind skipped for story %s: %s", story_id, e)
         minds, felt = {}, []
-    try:
-        if features.enabled(conn, "mind.bonds"):
+    if features.enabled(conn, "mind.bonds"):
+        try:
             pending = bonds.react(conn, story_id, path, await asyncio.to_thread(embed.builtin))
-            if speaker_id is not None:
-                mine = pending.get(speaker_id, [])
-                ties, stood = bonds.render(conn, story_id, speaker_id, path, mine)
+        except Exception as e:
+            logging.getLogger(__name__).warning("bonds skipped for story %s: %s", story_id, e)
+        if speaker_id is not None:
+            try:  # a failed render costs the prompt lines, not the events (they are still saved)
+                ties, stood = bonds.render(
+                    conn, story_id, speaker_id, path, pending.get(speaker_id, [])
+                )
+            except Exception as e:
+                logging.getLogger(__name__).warning("bonds not shown for story %s: %s", story_id, e)
+    try:
+        inside = (
+            inner.block(names.get(speaker_id, ""), ties + felt) if speaker_id is not None else ""
+        )
     except Exception as e:
-        logging.getLogger(__name__).warning("bonds skipped for story %s: %s", story_id, e)
-        pending, ties, stood = {}, [], []
-    inside = inner.block(names.get(speaker_id, ""), felt + ties) if speaker_id is not None else ""
+        logging.getLogger(__name__).warning("mind block skipped: %s", e)
+        inside = ""
 
     trace: dict = {"why": why, "ms": {}}
     at = time.monotonic()
