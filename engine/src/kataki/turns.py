@@ -18,6 +18,7 @@ from contextlib import aclosing
 from typing import Any
 
 from kataki import (
+    after,
     bonds,
     chat,
     clock,
@@ -523,6 +524,25 @@ async def _generate(
             if knobs.setting(conn, "mind.level", "standard") == "lite" and speaker_id in minds:
                 if _has_pack(conn, speaker_id):  # lite: the face is what they show, no call
                     face = inner.face(minds[speaker_id])
+                    with conn:
+                        conn.execute(
+                            "UPDATE messages SET expression=? WHERE id=?", (face, message_id)
+                        )
+            elif after.wanted(conn):  # standard: one side call reads the exchange, face and all
+                got = await after.run(
+                    conn,
+                    llm,
+                    story_id,
+                    path,
+                    speaker_id,
+                    message_id,
+                    text,
+                    inside,
+                    minds.get(speaker_id),
+                    get_key,
+                )
+                if got and _has_pack(conn, speaker_id):
+                    face = got["face"]
                     with conn:
                         conn.execute(
                             "UPDATE messages SET expression=? WHERE id=?", (face, message_id)

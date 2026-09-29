@@ -8,9 +8,14 @@ Standard and premium only; lite reads all of it by rules. Anything that goes wro
 this call: the turn keeps what the rules read (`gen.after = "skipped"`).
 """
 
+import json
+import logging
 import sqlite3
+import time
+from collections.abc import Callable
 
-from kataki import bonds, features, images, inner, knobs
+from kataki import bonds, chat, features, images, inner, knobs, roles
+from kataki.llm import LLM
 
 PROMPT = """\
 You label one exchange from a roleplay for the app that keeps the character's mind. Use only \
@@ -128,3 +133,116 @@ def read(data: dict, handles: list[str]) -> dict:
         "yielded": data.get("yielded") is True,
         "face": data["face"],
     }
+
+
+def _scene(conn: sqlite3.Connection, story_id: int, path: list, speaker_id: int) -> dict:
+    """Who the call may name, and the line the speaker answered (only if it reached them)."""
+    names = dict(conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)))
+    persona = conn.execute(
+        "SELECT persona_entity_id FROM stories WHERE id=?", (story_id,)
+    ).fetchone()[0]
+    scene_id = chat.scene_of(conn, story_id, path)
+    here = [e["id"] for e in chat.present_entities(conn, scene_id, path) if e["id"] != speaker_id]
+    last = path[-1] if path and path[-1]["speaker_id"] != speaker_id else None
+    if last is not None and last["id"] not in chat.heard_by(conn, path, speaker_id):
+        last = None  # a whisper to someone else, or a thought: not something done to them
+    return {"names": names, "persona": persona, "scene_id": scene_id, "here": here, "last": last}
+
+
+async def _ask(
+    conn, llm: LLM, story_id: int, speaker_id: int, reply: str, inside: str, seen: dict, get_key
+) -> dict | None:
+    if (ep := roles.resolve(conn, "utility", story_id, get_key)) is None:
+        return None
+    names, last = seen["names"], seen["last"]
+    handles = [f"E{i}" for i in seen["here"]]
+    people = "; ".join(
+        f"E{i} = {names[i]}" + (" (the user)" if i == seen["persona"] else "") for i in seen["here"]
+    )
+    name = names[speaker_id]
+    line = (
+        f"{names.get(last['speaker_id'], 'Narration')}: {last['text'][-1200:]}"
+        if last is not None
+        else "(nothing new)"
+    )
+    ask = [
+        {"role": "system", "content": PROMPT},
+        {
+            "role": "user",
+            "content": f"The character: {name}. People here: {people or 'no one else'}.\n\n"
+            f"[What {name} felt before replying]\n{inside or '(nothing notable)'}\n\n"
+            f"[The line {name} answered]\n{line}\n\n[{name}'s reply]\n{reply[-1500:]}",
+        },
+    ]
+    return await llm.complete_json(
+        ep, ask, schema(handles), lambda d: read(d, handles), name="after"
+    )
+
+
+def _apply(
+    conn, story_id: int, path: list, speaker_id: int, message_id: int, got: dict, state, seen
+) -> None:
+    """What the labels do, decided by code: the feeling into the affect core, the ground they
+    held or gave into their state, and the events into the ledger in place of the rules'."""
+    now = path[-1]["story_time"] if path else 0
+    prof, felt = inner.profile(conn, speaker_id), got["felt"]
+    if state is not None:  # moods are on
+        cause = felt["cause"] or "that exchange"
+        st = inner.regulate(
+            inner.feel(state, felt["label"], FELT[felt["intensity"]], cause, prof), prof
+        )
+        st = bonds.took(st, got["position"], got["yielded"], seen["scene_id"], now)
+        inner.save(conn, {speaker_id: st}, message_id)  # the latest row for this reply wins
+    rows, new = bonds.ledger(conn, speaker_id, path), []
+    dial = knobs.dial(conn, speaker_id, "relationships", "realistic")
+    if dial not in bonds.HARSH:  # a stray value must never break a turn
+        dial = "realistic"
+    last = seen["last"]
+    for e in got["events"]:
+        dst = int(e["target"][1:])
+        if felt["about"] == e["target"] and felt["cause"]:
+            cause = felt["cause"]
+        elif last is not None and last["speaker_id"] == dst:
+            cause = inner.said(seen["names"][dst], last["text"])
+        else:
+            cause = e["type"].replace("_", " ")
+        new += bonds.apply(
+            rows + new, dst, e["type"], e["intensity"], cause, now, seen["scene_id"], prof, dial
+        )
+    bonds.replace(conn, story_id, speaker_id, message_id, new)
+
+
+async def run(
+    conn: sqlite3.Connection,
+    llm: LLM,
+    story_id: int,
+    path: list,  # the branch up to the line that was answered (not the reply)
+    speaker_id: int,
+    message_id: int,  # the reply
+    reply: str,
+    inside: str,  # the mind block the reply was written with
+    state: dict | None,  # the speaker's state before the reply (None: moods are off)
+    get_key: Callable[[str], str | None],
+) -> dict | None:
+    """The side call for one reply, applied. -> the labels, or None when it was skipped.
+    ponytail: inline after the reply, before `done`, as the face call ran; move it to a
+    preemptible worker if `done` arriving 1-3 s after the last token shows in the metrics."""
+    at, got = time.monotonic(), None
+    try:
+        seen = _scene(conn, story_id, path, speaker_id)
+        got = await _ask(conn, llm, story_id, speaker_id, reply, inside, seen, get_key)
+        if got is not None:
+            _apply(conn, story_id, path, speaker_id, message_id, got, state, seen)
+    except Exception as e:  # never a turn's undoing: the rules' reading stays
+        logging.getLogger(__name__).warning("side call skipped for story %s: %s", story_id, e)
+        got = None
+    try:
+        with conn:
+            conn.execute(
+                "UPDATE messages SET gen=json_set(gen, '$.after', json(?), '$.trace.ms.after', ?)"
+                " WHERE id=?",
+                (json.dumps(got or "skipped"), round(1000 * (time.monotonic() - at)), message_id),
+            )
+    except Exception as e:
+        logging.getLogger(__name__).warning("side call not recorded: %s", e)
+    return got

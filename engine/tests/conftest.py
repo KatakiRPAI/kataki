@@ -5,7 +5,7 @@ import keyring
 import keyring.backend
 import pytest
 
-from kataki import db, embed
+from kataki import after, db, embed
 from kataki.llm import LLM
 
 
@@ -37,6 +37,21 @@ def memory_keyring():
 def no_builtin_embedder(monkeypatch):
     """Tests never download the built-in embedding model; the ones about it bring a fake."""
     monkeypatch.setattr(embed, "builtin", lambda: None)
+
+
+_WANTED = after.wanted
+
+
+@pytest.fixture(autouse=True)
+def no_side_call(monkeypatch):
+    """Scripted replies predate the minds side call (slice 2b): a turn makes no call after the
+    reply but the old face call, unless the test asks for `side_call`."""
+    monkeypatch.setattr(after, "wanted", lambda conn: False)
+
+
+@pytest.fixture
+def side_call(monkeypatch, no_side_call):
+    monkeypatch.setattr(after, "wanted", _WANTED)
 
 
 @pytest.fixture

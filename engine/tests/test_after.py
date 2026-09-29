@@ -1,8 +1,10 @@
 """The side call (minds slice 2b): its schema, its parser, and the turn it runs in."""
 
+import json
+
 import pytest
 
-from kataki import after, images, inner
+from kataki import after, bonds, chat, images, inner, library, turns
 
 HANDLES = ["E3", "E4"]
 
@@ -57,3 +59,148 @@ def test_good_labels_are_read_and_bad_events_dropped():
 def test_unusable_labels_are_refused(bad):
     with pytest.raises(ValueError):
         after.read(bad, HANDLES)
+
+
+# --- in the turn ------------------------------------------------------------------------------
+
+
+@pytest.fixture
+def story(local_model):
+    conn = local_model
+    ids = {n: library.create_item(conn, "character", n) for n in ("Mira", "Tobin", "Aren")}
+    return library.create_story(
+        conn, "Low Tide", character_ids=[ids["Mira"], ids["Tobin"]], persona_id=ids["Aren"]
+    )
+
+
+def eid(conn, name):
+    return conn.execute("SELECT id FROM entities WHERE name=?", (name,)).fetchone()["id"]
+
+
+async def play(stream):
+    return [e async for e in stream]
+
+
+def tail(request):
+    return request["messages"][-1]["content"]
+
+
+def said(**over) -> str:
+    return json.dumps(labels(**over))
+
+
+def events_of(conn, name):
+    rows = conn.execute("SELECT event FROM opinions WHERE src_id=?", (eid(conn, name),))
+    return {r[0] for r in rows}
+
+
+def test_lite_never_asks(conn, side_call):
+    assert after.wanted(conn)
+    conn.execute("INSERT INTO settings(key, value) VALUES('mind.level', '\"lite\"')")
+    assert not after.wanted(conn)
+
+
+@pytest.mark.anyio
+async def test_the_side_call_is_the_face_call_now(conn, story, backend, side_call):
+    lib = conn.execute("SELECT lib_item_id FROM entities WHERE name='Mira'").fetchone()[0]
+    library.update_item(conn, lib, data={"pack": {"neutral": 1, "smiling": 2}})
+    backend.say("*grins* Hi.", said(face="smiling"))
+    events = await play(turns.turn(conn, backend.llm, story, "Hi, Mira."))
+    assert events[-1][1]["expression"] == "smiling" and len(backend.requests) == 2
+    asked = backend.requests[1]
+    assert asked["response_format"]["json_schema"]["name"] == "after"
+    assert "*grins* Hi." in asked["messages"][-1]["content"]
+    assert f"E{eid(conn, 'Aren')} = Aren (the user)" in asked["messages"][-1]["content"]
+
+
+@pytest.mark.anyio
+async def test_without_sprites_it_still_reads_but_sets_no_face(conn, story, backend, side_call):
+    backend.say("Hi.", said(face="smiling"))
+    events = await play(turns.turn(conn, backend.llm, story, "Hi, Mira."))
+    assert events[-1][1]["expression"] is None and len(backend.requests) == 2
+    leaf = chat.active_path(conn, story)[-1]
+    assert json.loads(leaf["gen"])["after"]["face"] == "smiling"
+
+
+@pytest.mark.anyio
+async def test_what_she_felt_and_who_did_what_come_from_the_side_call(
+    conn, story, backend, side_call
+):
+    aren, mira = eid(conn, "Aren"), eid(conn, "Mira")
+    backend.say(
+        "Ha. Cute.",
+        said(
+            felt={"label": "amused", "intensity": 2, "about": f"E{aren}", "cause": "he teased her"},
+            events=[{"target": f"E{aren}", "type": "teasing_ok", "intensity": 1}],
+        ),
+    )
+    await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
+    assert events_of(conn, "Mira") == {"teasing_ok"}  # in place of the rules' insult
+    cause = conn.execute("SELECT cause FROM opinions WHERE src_id=?", (mira,)).fetchone()[0]
+    assert cause == "he teased her"
+    path = chat.active_path(conn, story)
+    state = inner.current(conn, mira, path, inner.profile(conn, mira))
+    assert any(e["label"] == "amused" for e in state["emotions"])
+    assert json.loads(path[-1]["gen"])["after"]["events"][0]["type"] == "teasing_ok"
+
+
+@pytest.mark.anyio
+async def test_a_bad_side_call_keeps_the_rules_reading(conn, story, backend, side_call):
+    backend.say("Fine.", "not json", "still not json")
+    events = await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
+    assert events[-1][0] == "done" and events[-1][1]["expression"] is None
+    leaf = chat.active_path(conn, story)[-1]
+    assert leaf["text"] == "Fine." and json.loads(leaf["gen"])["after"] == "skipped"
+    assert events_of(conn, "Mira") == {"insult"}
+
+
+@pytest.mark.anyio
+async def test_a_broken_apply_keeps_the_reply_and_the_rules(
+    conn, story, backend, side_call, monkeypatch
+):
+    def boom(*a, **k):
+        raise RuntimeError("ledger down")
+
+    monkeypatch.setattr(bonds, "replace", boom)
+    kind = {"target": f"E{eid(conn, 'Aren')}", "type": "kindness", "intensity": 1}
+    backend.say("Fine.", said(events=[kind]))
+    events = await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
+    leaf = chat.active_path(conn, story)[-1]
+    assert events[-1][0] == "done" and json.loads(leaf["gen"])["after"] == "skipped"
+    assert events_of(conn, "Mira") == {"insult"}
+
+
+@pytest.mark.anyio
+async def test_the_side_call_is_metered_like_any_call(conn, story, backend, side_call):
+    seen = []
+    llm = backend.llm
+    llm.on_usage = lambda ep, used: seen.append(ep.role)
+    backend.say("Hi.", said())
+    await play(turns.turn(conn, llm, story, "Hi, Mira."))
+    assert seen == ["rp", "utility"]
+
+
+@pytest.mark.anyio
+async def test_lite_keeps_the_rules_events_and_the_lite_face(conn, story, backend, side_call):
+    conn.execute("INSERT INTO settings(key, value) VALUES('mind.level', '\"lite\"')")
+    lib = conn.execute("SELECT lib_item_id FROM entities WHERE name='Mira'").fetchone()[0]
+    library.update_item(conn, lib, data={"pack": {"neutral": 1, "hurt": 2}})
+    backend.say("Fine.")
+    events = await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
+    assert len(backend.requests) == 1 and events[-1][1]["expression"] is not None
+    assert events_of(conn, "Mira") == {"insult"}
+
+
+@pytest.mark.anyio
+async def test_a_position_she_took_binds_her_next_reply(conn, story, backend, side_call):
+    backend.say(
+        "I'm not going.",
+        said(position={"text": "won't go to the party", "firm": 3}),
+        "No.",
+        said(),
+    )
+    await play(turns.turn(conn, backend.llm, story, "Mira, come to the party."))
+    await play(turns.turn(conn, backend.llm, story, "Mira, please?"))
+    directive = tail(backend.requests[2]).split("[Directive]")[1]
+    assert 'You have taken a position: "won\'t go to the party".' in directive
+    assert "Change your position only if Aren gives a new reason" in directive

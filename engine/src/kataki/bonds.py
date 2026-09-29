@@ -262,6 +262,16 @@ def save(conn: sqlite3.Connection, story_id: int, rows: dict[int, list], message
             _insert(conn, story_id, src, new, message_id)
 
 
+def replace(
+    conn: sqlite3.Connection, story_id: int, src: int, message_id: int, rows: list[dict]
+) -> None:
+    """The side call's reading of what was done to `src` takes the place of the rules' reading
+    of the same line (both anchored on the reply), in one step."""
+    with conn:
+        conn.execute("DELETE FROM opinions WHERE src_id=? AND message_id=?", (src, message_id))
+        _insert(conn, story_id, src, rows, message_id)
+
+
 NOTICE, STRONG = 5, 15  # ponytail: a move this big is worth a word; this big, "much"
 
 
