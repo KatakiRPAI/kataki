@@ -226,6 +226,20 @@ async def _ask(
     )
 
 
+def _grudges(conn, speaker_id: int, message_id: int, got: dict) -> list[dict]:
+    """The rules' unforgiven-kind rows for this line that the model's events do not answer: a
+    grudge (promise_broken, ...) survives a label that merely says something else, and goes only
+    when the model names the same event or one that mends it (any event that adds something)."""
+    named = {(int(e["target"][1:]), e["type"]) for e in got["events"]}
+    if any(v > 0 for e in got["events"] for v in bonds.EVENTS[e["type"]][0].values()):
+        return []
+    rows = conn.execute(
+        "SELECT * FROM opinions WHERE src_id=? AND message_id=? AND kind='sticky' AND value<0",
+        (speaker_id, message_id),
+    )
+    return [dict(r) for r in rows if (r["dst_id"], r["event"]) not in named]
+
+
 def _apply(
     conn, story_id: int, path: list, speaker_id: int, message_id: int, got: dict, state, seen
 ) -> None:
@@ -264,7 +278,13 @@ def _apply(
     ).fetchone()[0]
     felt_now = fresh and (taken or ruled)  # a feeling with no event behind it is the echo
     if taken:  # else the rules' rows for this line (if any) stay; first, so a failure leaves all
-        bonds.replace(conn, story_id, speaker_id, message_id, new)
+        bonds.replace(
+            conn,
+            story_id,
+            speaker_id,
+            message_id,
+            new + _grudges(conn, speaker_id, message_id, got),
+        )
     if state is not None and (felt_now or got["position"] or got["yielded"]):  # moods are on
         st = state
         if felt_now:  # re-read the line from before the rules appraised it: felt once, not twice
