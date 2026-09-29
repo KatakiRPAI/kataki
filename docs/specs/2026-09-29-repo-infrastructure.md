@@ -22,6 +22,15 @@ Update this list as phases land (date · phase · what changed · anything left)
 - 2026-09-29 · plan written; `AGENTS.md` added, `CLAUDE.md` now imports it. Nothing pushed yet.
 - 2026-09-29 · user's answers folded in: new org, history rewritten to the noreply address,
   public from day one, a hosted pay-as-you-go website, free SignPath signing.
+- 2026-09-29 · Phase 0 done. Leftover docs committed (`docs/images/`, research moved under
+  `docs/research/`); `docs/design/` and the old design screenshots stay on disk, ignored. The
+  stranded fix `e3813bb` (a failed re-read keeps its memories) cherry-picked; the engine was
+  failing its own lint (59 long lines, 11 unformatted files), so ruff now leaves line length
+  to the formatter and `pnpm check` is green (536 tests). gitleaks: no leaks in 160 commits.
+  `main` holds everything; `m0-scaffold` and the old worktree branch are gone. History
+  rewritten twice with git filter-repo: authors → the noreply address, and the old address
+  scrubbed from file contents; quoted hashes in the specs remapped. Pre-rewrite backup:
+  `D:\kataki-before-rewrite.bundle` (delete it after the first push).
 
 Decisions made (2026-09-29):
 
@@ -136,18 +145,18 @@ Each phase ends in something checkable. Do them in order.
 
 ### Phase 0: clean up before anything is public (local only)
 
-- [ ] Whoever owns the ~200 uncommitted changes and untracked files on `m0-scaffold` commits
+- [x] Whoever owns the ~200 uncommitted changes and untracked files on `m0-scaffold` commits
       or discards them (parallel sessions left them; commit nothing you did not write).
-- [ ] Keep the old designs out of git: `docs/design/` (98 MB) and
+- [x] Keep the old designs out of git: `docs/design/` (98 MB) and
       `docs/kataki-design/**/screens/png/` (39 MB) go in `.gitignore`, or into a release asset
       if they must be shared. The handoff (`docs/handoff/`) is the source of truth.
-- [ ] Move root `reports/` and `research_notes/` into `docs/research/`.
-- [ ] Settle branch `claude/bold-fermi-0b6972` (commit `e3813bb`, not on `m0-scaffold`): merge
+- [x] Move root `reports/` and `research_notes/` into `docs/research/`.
+- [x] Settle branch `claude/bold-fermi-0b6972` (commit `e3813bb`, not on `m0-scaffold`): merge
       or delete it; prune its dead worktree (`git worktree prune`).
-- [ ] Run `gitleaks detect` over full history. (A pattern scan on 2026-09-29 for HF, OpenAI,
+- [x] Run `gitleaks detect` over full history. (A pattern scan on 2026-09-29 for HF, OpenAI,
       GitHub and AWS keys found nothing; `.env` has always been ignored.)
-- [ ] Fast-forward `main` to `m0-scaffold` (`main` is its ancestor), then delete `m0-scaffold`.
-- [ ] Rewrite authorship (needs a clean tree and no other session mid-work; tell the user
+- [x] Fast-forward `main` to `m0-scaffold` (`main` is its ancestor), then delete `m0-scaffold`.
+- [x] Rewrite authorship (needs a clean tree and no other session mid-work; tell the user
       first, since every hash changes):
       `git filter-repo --mailmap <file>` with the line
       `QaisZAK <70582355+QaisZAK@users.noreply.github.com> <OLD-EMAIL>`, then

@@ -18,8 +18,9 @@ apply to every agent and every human.
 
 ## How a change lands
 
-Until Phase 1 of the infrastructure plan is done there is no remote: commit on `m0-scaffold`
-and never push. After it:
+Until the GitHub repo exists (Phase 1 of the infrastructure plan) there is no remote: do each
+change on a local branch from `main`, merge it back with `git merge --ff-only` once
+`pnpm check` passes, and never push. After it:
 
 1. Branch from `main`: `feat/…`, `fix/…`, `docs/…`, `chore/…` (agents may prefix their tool,
    e.g. `claude/…`). One change per branch; keep it small enough to review in one sitting.
