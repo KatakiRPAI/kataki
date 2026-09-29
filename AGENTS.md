@@ -10,6 +10,10 @@ apply to every agent and every human.
 
 - Each feature has a spec in `docs/specs/`; its **Progress** list says what is done and owed.
   Read the spec before working on its area; add a Progress line when you land something.
+- The engine's direction (how characters think, feel, remember and change) is
+  `docs/specs/2026-09-29-minds.md`, built from the research in
+  `docs/research/reports/Human like minds for Kataki.md`; where it conflicts with an older spec,
+  it wins. Engine work starts from its roadmap and Progress.
 - The UI's source of truth is the handoff in `docs/handoff/` (plan:
   `docs/specs/2026-09-28-handoff-3.md`). `docs/design/` and `docs/kataki-design/` are history.
 - Repo infrastructure (GitHub, CI, releases, security): `docs/specs/2026-09-29-repo-infrastructure.md`.
@@ -29,12 +33,14 @@ so the owner can review and approve them.
 3. `pnpm check` passes locally before you open a PR. A UI change also gets a look in the real
    app (see the README's Development section).
 4. Push the branch and open a PR as the bot, with the template filled in: what changed, how
-   you checked it, the risk. Merge only when required checks are green; squash merge, with a
-   Conventional Commits PR title (it becomes the commit on `main`).
-5. Changes to `.github/`, `AGENTS.md`, `CLAUDE.md`, release, signing or deploy config, schema
-   migrations (`engine/src/kataki/db.py` and the website's database), billing code and
-   dependency majors wait for the user's approval (CODEOWNERS). Everything else may merge when
-   green.
+   you checked it, the risk. Give it a Conventional Commits title (squash merge makes it the
+   commit on `main`).
+5. Your job ends at a PR with green checks: tell the owner its link and whether it needs their
+   review. The owner merges. Changes to `.github/`, `AGENTS.md`, `CLAUDE.md`, release, signing
+   or deploy config, schema migrations (`engine/src/kataki/db.py` and the website's database),
+   billing code and dependency majors need their review first (CODEOWNERS).
+6. Start the next change from `main` again, not on top of an unmerged branch, unless it truly
+   depends on it (then say so in the PR).
 
 `main` is always releasable: every merge ships to the desktop alpha channel and deploys to
 website staging. Production (stable desktop releases, website deploys) always waits for the
