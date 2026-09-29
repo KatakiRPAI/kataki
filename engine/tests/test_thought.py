@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from kataki import after, chat, library, thought, turns
+from kataki import after, chat, library, mind, people, thought, turns
 from kataki.llm import Endpoint
 
 TAGS = ("<think>", "</think>")
@@ -329,3 +329,30 @@ async def test_a_failure_in_reading_the_thought_never_loses_the_reply(
     events = await play(turns.turn(conn, backend.llm, story, "Mira?"))
     text, gen = leaf(conn, story)
     assert events[-1][0] == "done" and text == "Nothing. Just tired." and "thought" not in gen
+
+
+@pytest.mark.anyio
+async def test_peek_and_the_mind_graph_show_the_latest_thought(conn, story, backend):
+    backend.say(HEADER + "Nothing.")
+    await play(turns.turn(conn, backend.llm, story, "Mira?"))
+    row = conn.execute("SELECT * FROM stories WHERE id=?", (story,)).fetchone()
+    cast = {p["name"]: p for p in people.people(conn, row)}
+    reply = chat.active_path(conn, story)[-1]["id"]
+    assert cast["Mira"]["thought"] == SEEN | {"message_id": reply}
+    assert cast["Tobin"]["thought"] is None
+    graph = mind.mind(conn, reply)
+    nodes = {n["id"]: n for n in graph["nodes"]}
+    assert nodes["thought"]["text"] == "Don't look at the ring." and nodes["thought"]["gold"]
+    assert (nodes["intent"]["column"], nodes["intent"]["text"]) == ("decide", "him to drop it")
+    assert {"from": "thought", "to": "intent", "gold": True} in graph["links"]
+    assert {"from": "intent", "to": "spoke", "gold": True} in graph["links"]
+
+
+@pytest.mark.anyio
+async def test_switched_off_nothing_is_asked_or_shown(conn, story, backend):
+    conn.execute("INSERT INTO settings(key, value) VALUES('features.mind.thought', 'false')")
+    backend.say(HEADER + "Nothing.")
+    await play(turns.turn(conn, backend.llm, story, "Mira?"))
+    assert "thinks:" not in backend.requests[0]["messages"][-1]["content"]
+    row = conn.execute("SELECT * FROM stories WHERE id=?", (story,)).fetchone()
+    assert all(p["thought"] is None for p in people.people(conn, row))
