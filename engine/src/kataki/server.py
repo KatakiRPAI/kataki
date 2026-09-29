@@ -8,6 +8,7 @@ if this ever serves many).
 
 import asyncio
 import contextlib
+import functools
 import hmac
 import json
 import shutil
@@ -35,6 +36,7 @@ from kataki import (
     clock,
     draft,
     extract,
+    features,
     images,
     intake,
     library,
@@ -47,6 +49,7 @@ from kataki import (
     roles,
     signals,
     turns,
+    usage,
 )
 from kataki.llm import LLM, LLMError
 
@@ -301,6 +304,8 @@ def create_app(
     db_path: Path | None = None,  # the library's file: backups live beside it
 ) -> FastAPI:
     llm = llm or LLM()
+    if llm.on_usage is None:  # the host may bring its own meter (Kataki online)
+        llm.on_usage = functools.partial(usage.record, conn)
     worker = extract.Worker(conn, llm, get_key, delay=worker_delay)
     extract.recover(conn)
 
@@ -437,7 +442,17 @@ def create_app(
     @app.get("/health")
     async def health():
         schema = conn.execute("PRAGMA user_version").fetchone()[0]
-        return {"status": "ok", "version": __version__, "schema": schema}
+        return {
+            "status": "ok",
+            "version": __version__,
+            "schema": schema,
+            "channel": features.channel(),
+            "host": "desktop",
+        }
+
+    @app.get("/features")
+    async def list_features():
+        return features.listing(conn)
 
     @app.get("/search")
     async def search(q: str, limit: int = Query(50, ge=1, le=500)):

@@ -43,18 +43,27 @@ def describe(p: Path) -> dict:
     }
 
 
+def _newest_first(db_path: Path) -> list[Path]:
+    """By age, not name: `library-before-v10-from-v9.db` sorts above every dated name."""
+
+    def age(p: Path) -> tuple[float, str]:
+        return (p.stat().st_mtime, p.name)  # the name only breaks ties
+
+    return sorted(folder(db_path).glob("library-*.db"), key=age, reverse=True)
+
+
 def listing(db_path: Path) -> list[dict]:
     """Newest first."""
     if not folder(db_path).exists():
         return []
-    return [describe(p) for p in sorted(folder(db_path).glob("library-*.db"), reverse=True)]
+    return [describe(p) for p in _newest_first(db_path)]
 
 
 def prune(db_path: Path, keep: str) -> None:
     limit = KEEP.get(keep, 7)
     if limit is None:
         return
-    for p in sorted(folder(db_path).glob("library-*.db"), reverse=True)[limit:]:
+    for p in _newest_first(db_path)[limit:]:
         p.unlink(missing_ok=True)
 
 
