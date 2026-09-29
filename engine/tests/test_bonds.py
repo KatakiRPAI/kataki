@@ -5,7 +5,7 @@ import re
 
 import pytest
 
-from kataki import bonds, chat, clock, inner, library, mind, people, turns
+from kataki import bonds, chat, clock, context, inner, library, mind, people, turns
 
 P = inner.shape({})
 DAY = clock.DAY
@@ -515,3 +515,22 @@ async def test_a_failed_second_take_keeps_the_first_reply(conn, story, backend):
     assert [k for k, _ in events].count("error") == 1  # one error, no second visible reply
     leaf = chat.active_path(conn, story)[-1]
     assert leaf["role"] == "assistant" and leaf["text"].startswith("You're right.")
+
+
+@pytest.mark.anyio
+async def test_a_failed_resample_prompt_falls_back_to_the_first_take(
+    conn, story, backend, monkeypatch
+):
+    real = context.build
+
+    def build(*a, **k):
+        if "Do not open by agreeing" in (k.get("directive") or ""):
+            raise RuntimeError("prompt down")
+        return real(*a, **k)
+
+    monkeypatch.setattr(context, "build", build)
+    backend.say("You're right. I'm useless.", "Say that again.")
+    events = await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
+    leaf = chat.active_path(conn, story)[-1]
+    assert events[-1][0] == "done" and leaf["text"] == "Say that again."
+    assert len(backend.requests) == 2 and "Do not open by agreeing" not in tail(backend.requests[1])

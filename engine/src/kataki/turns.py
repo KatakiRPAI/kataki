@@ -445,17 +445,20 @@ async def _generate(
             # ponytail: the dropped take's thoughts were already streamed (no words were)
             dropped = opener.dropped
             trace["check"] = {"hit": opener.hit, "resampled": True}
-            built = context.build(
-                conn,
-                story_id,
-                speaker_id,
-                ep,
-                built_recalled,
-                leaf_id=parent_id,
-                inside=inside,
-                directive=f"{decide} {bonds.STRONGER.format(name=name)}".strip(),
-            )
-            log_id = context.log(conn, story_id, None, speaker_id, built)
+            try:  # a failed stronger prompt costs the check, not the turn: keep the first take's
+                retake = context.build(
+                    conn,
+                    story_id,
+                    speaker_id,
+                    ep,
+                    built_recalled,
+                    leaf_id=parent_id,
+                    inside=inside,
+                    directive=f"{decide} {bonds.STRONGER.format(name=name)}".strip(),
+                )
+                log_id, built = context.log(conn, story_id, None, speaker_id, retake), retake
+            except Exception as e:
+                logging.getLogger(__name__).warning("resample prompt skipped: %s", e)
         finish = "stop"
     except LLMError as e:
         finish, error = "error", str(e)
