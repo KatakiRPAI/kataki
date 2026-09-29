@@ -19,9 +19,8 @@ def test_the_schema_closes_every_list():
     s = after.schema(HANDLES)["properties"]
     assert s["felt"]["properties"]["label"]["enum"] == list(inner.FEEL)
     assert s["events"]["items"]["properties"]["target"]["enum"] == HANDLES
-    assert s["events"]["maxItems"] == 3
+    assert "maxItems" not in s["events"]  # a strict host may reject it; read() caps at 3
     assert s["face"]["enum"] == list(images.EXPRESSIONS)
-    assert after.schema([])["properties"]["events"]["maxItems"] == 0
 
 
 def test_good_labels_are_read_and_bad_events_dropped():
@@ -111,6 +110,8 @@ async def test_the_side_call_is_the_face_call_now(conn, story, backend, side_cal
     assert asked["response_format"]["json_schema"]["name"] == "after"
     assert "*grins* Hi." in asked["messages"][-1]["content"]
     assert f"E{eid(conn, 'Aren')} = Aren (the user)" in asked["messages"][-1]["content"]
+    ms = json.loads(chat.active_path(conn, story)[-1]["gen"])["trace"]["ms"]
+    assert "after" in ms and "face" not in ms  # the side call's time is not counted twice
 
 
 @pytest.mark.anyio
@@ -168,6 +169,7 @@ async def test_a_broken_apply_keeps_the_reply_and_the_rules(
     leaf = chat.active_path(conn, story)[-1]
     assert events[-1][0] == "done" and json.loads(leaf["gen"])["after"] == "skipped"
     assert events_of(conn, "Mira") == {"insult"}
+    assert events[-1][1]["mood"] == json.loads(leaf["gen"])["mind"]  # nothing half-applied
 
 
 @pytest.mark.anyio

@@ -151,6 +151,7 @@ class _Prefix:
 
 HOLD = 160  # ponytail: characters held back at most while the opening is checked
 SENTENCE_END = re.compile(r"[.!?…]\s|\n")
+LEAD = re.compile(r"^(?:\W*?\*[^*\n]{0,80}\*)?\W*")  # what bonds.OPENERS skips before the opening
 
 
 class _Opener:
@@ -166,7 +167,8 @@ class _Opener:
         if not self.armed:
             return text
         self.held += text
-        if len(self.held) < HOLD and not SENTENCE_END.search(self.held):
+        body = self.held[LEAD.match(self.held).end() :]
+        if len(self.held) < HOLD and not SENTENCE_END.search(body):
             return ""
         return self.flush()
 
@@ -457,6 +459,7 @@ async def _generate(
                     inside=inside,
                     directive=f"{decide} {bonds.STRONGER.format(name=name)}".strip(),
                 )
+                context.finish_log(conn, log_id, None, {})  # the dropped take's row is closed
                 log_id, built = context.log(conn, story_id, None, speaker_id, retake), retake
             except Exception as e:
                 logging.getLogger(__name__).warning("resample prompt skipped: %s", e)
@@ -518,7 +521,7 @@ async def _generate(
         yield ("error", {"message": "The model returned an empty reply."})
     else:
         now = chat.get_message(conn, message_id)["story_time"]
-        face = None  # the reply is already on screen; its face follows a moment later
+        face, side_face = None, False  # the reply is already on screen; its face follows later
         if speaker_id is not None:
             at = time.monotonic()
             if knobs.setting(conn, "mind.level", "standard") == "lite" and speaker_id in minds:
@@ -540,10 +543,10 @@ async def _generate(
                     minds.get(speaker_id),
                     get_key,
                 )
-                if got:  # the side call may have replaced the mood the reply was saved with
-                    gen["mind"] = json.loads(chat.get_message(conn, message_id)["gen"]).get("mind")
+                # the side call may have replaced the mood the reply was saved with
+                gen["mind"] = json.loads(chat.get_message(conn, message_id)["gen"]).get("mind")
                 if got and _has_pack(conn, speaker_id):
-                    face = got["face"]
+                    face, side_face = got["face"], True
                     with conn:
                         conn.execute(
                             "UPDATE messages SET expression=? WHERE id=?", (face, message_id)
@@ -552,7 +555,7 @@ async def _generate(
                 face = await _expression(
                     conn, llm, story_id, speaker_id, message_id, name, text, get_key
                 )
-            if face:  # the face's time joins the trace
+            if face and not side_face:  # the face time joins the trace
                 with conn:
                     conn.execute(
                         "UPDATE messages SET gen=json_set(gen, '$.trace.ms.face', ?) WHERE id=?",

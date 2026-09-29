@@ -67,7 +67,6 @@ def schema(handles: list[str]) -> dict:
             },
             "events": {
                 "type": "array",
-                "maxItems": 3 if handles else 0,
                 "items": {
                     "type": "object",
                     "properties": {
@@ -237,6 +236,8 @@ def _apply(
         "SELECT COUNT(*) FROM opinions WHERE src_id=? AND message_id=?", (speaker_id, message_id)
     ).fetchone()[0]
     felt_now = fresh and (taken or ruled)  # a feeling with no event behind it is the echo
+    if taken:  # else the rules' rows for this line (if any) stay; first, so a failure leaves all
+        bonds.replace(conn, story_id, speaker_id, message_id, new)
     if state is not None and (felt_now or got["position"] or got["yielded"]):  # moods are on
         st = state
         if felt_now:  # re-read the line from before the rules appraised it: felt once, not twice
@@ -257,8 +258,6 @@ def _apply(
                 "UPDATE messages SET gen=json_set(gen, '$.mind', json(?)) WHERE id=?",
                 (json.dumps(inner.public(st, prof)), message_id),
             )
-    if taken:  # else the rules' rows for this line (if any) stay
-        bonds.replace(conn, story_id, speaker_id, message_id, new)
 
 
 async def run(

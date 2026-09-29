@@ -488,6 +488,16 @@ async def test_an_assistant_opening_is_dropped_unseen_and_written_again(conn, st
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("lead", ["\n", "*sighs*\n\n"])
+async def test_a_line_break_before_the_opening_does_not_let_it_through(conn, story, backend, lead):
+    backend.say(lead + "You're right. I'm useless.", "Say that again.")
+    events = await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
+    assert "You're right" not in "".join(v for k, v in events if k == "token")
+    leaf = chat.active_path(conn, story)[-1]
+    assert leaf["text"] == "Say that again." and len(backend.requests) == 2
+
+
+@pytest.mark.anyio
 async def test_the_lite_level_only_notes_it(conn, story, backend):
     conn.execute("INSERT INTO settings(key, value) VALUES('mind.level', '\"lite\"')")
     backend.say("You're right.")
