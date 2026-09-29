@@ -56,3 +56,25 @@ def test_who_gets_a_thought(conn):
     conn.execute("UPDATE settings SET value='\"premium\"' WHERE key='mind.level'")
     conn.execute("INSERT INTO settings(key, value) VALUES('features.mind.thought', 'false')")
     assert thought.mode(conn, EP, 3) is None
+
+
+def feed(header: thought.Header, *chunks: str) -> str:
+    return "".join(header.feed(c) for c in chunks) + header.flush()
+
+
+def test_a_plain_words_header_never_reaches_the_reply():
+    h = thought.Header(True, "Mira", TAGS)
+    shown = feed(h, "Mi", "ra thi", "nks: don't look.\nMira wa", "nts: out\n</thi", "nk>\n\nNo.")
+    assert shown.strip() == "No." and h.caught == ["Mira thinks: don't look.", "Mira wants: out"]
+
+
+def test_an_ordinary_reply_passes_at_once():
+    h = thought.Header(True, "Mira", TAGS)
+    assert h.feed("Th") == ""  # could still be "thinks:"
+    assert h.feed("e tide.") == "The tide."
+    assert h.feed(" More.") == " More." and h.caught == []
+
+
+def test_a_stream_that_ends_on_a_header_line_shows_nothing():
+    h = thought.Header(True, "Mira", TAGS)
+    assert feed(h, "Mira thinks: tired") == "" and h.caught == ["Mira thinks: tired"]

@@ -98,3 +98,44 @@ def echoed(thinks: str | None, reply: str) -> str | None:
         if tuple(a[i : i + ECHO_WORDS]) in said:
             return " ".join(a[i : i + ECHO_WORDS])
     return None
+
+
+class Header:
+    """Keeps a header the model wrote as plain words ("Mira thinks: …" lines, or a stray
+    </think>) out of the start of the visible reply. What it caught is in `caught`.
+    ponytail: only the start is held; a header written after the reply is removed from the
+    saved text (`split`), but its words were already streamed."""
+
+    def __init__(self, on: bool, name: str, tags: tuple[str, str]):
+        self.on, self.name, self.tags, self.held, self.caught = on, name, tags, "", []
+
+    def _maybe(self, line: str) -> bool:
+        """Could this unfinished first line still turn out to be a header line or a tag?"""
+        bare, tag = _bare(line), line.strip()
+        return (
+            is_head(line, self.name)
+            or any(h.startswith(bare) for h in heads(self.name))
+            or any(t.startswith(tag) for t in self.tags)
+        )
+
+    def feed(self, text: str) -> str:
+        if not self.on:
+            return text
+        self.held += text
+        while True:
+            line, nl, rest = self.held.lstrip().partition("\n")
+            if not nl:
+                return "" if self._maybe(line) else self.flush()
+            if is_head(line, self.name):
+                self.caught.append(line.strip())
+            elif line.strip() not in self.tags:
+                return self.flush()
+            self.held = rest
+
+    def flush(self) -> str:
+        self.on = False
+        held, self.held = self.held.lstrip(), ""  # the reply's start: no blank line before it
+        if is_head(held.strip(), self.name):  # the stream ended on a header line
+            self.caught.append(held.strip())
+            return ""
+        return "" if held.strip() in self.tags else held
