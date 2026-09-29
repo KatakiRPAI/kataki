@@ -63,3 +63,34 @@ def test_storage_says_where_the_library_lives(tmp_path, backend):
     assert places["pictures"]["bytes"] == len(png)
     assert places["backups"]["bytes"] == 0 and 0 < got["free"] <= got["total"] and got["drive"]
     conn.close()
+
+
+def test_backups_rotate_by_age_whatever_their_names(tmp_path):
+    import os
+    import time
+
+    db_path = tmp_path / "library.db"
+    folder = backups.folder(db_path)
+    folder.mkdir()
+    now = time.time()
+    for name, age_days in [
+        ("library-before-v10-from-v9.db", 10),
+        ("library-20260101-000000.db", 1),
+        ("library-20250101-000000.db", 5),
+    ]:
+        f = folder / name
+        f.write_bytes(b"x")
+        os.utime(f, (now - age_days * 86_400,) * 2)
+    assert backups.listing(db_path)[0]["name"] == "library-20260101-000000.db"
+    assert not backups.due(db_path, "weekly")  # judged by the 1-day-old dated one
+    backups.prune(db_path, "7")
+    assert len(backups.listing(db_path)) == 3
+    backups.KEEP["2"] = 2
+    try:
+        backups.prune(db_path, "2")
+    finally:
+        del backups.KEEP["2"]
+    assert [b["name"] for b in backups.listing(db_path)] == [
+        "library-20260101-000000.db",
+        "library-20250101-000000.db",
+    ]
