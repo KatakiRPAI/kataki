@@ -229,15 +229,21 @@ async def _ask(
 def _grudges(conn, speaker_id: int, message_id: int, got: dict) -> list[dict]:
     """The rules' unforgiven-kind rows for this line that the model's events do not answer: a
     grudge (promise_broken, ...) survives a label that merely says something else, and goes only
-    when the model names the same event or one that mends it (any event that adds something)."""
+    when the model names, toward that same person, a grudge of its own or an event that adds something."""
+    mends = {  # per person: the model named a grudge of its own or an event that adds something
+        int(e["target"][1:])
+        for e in got["events"]
+        if bonds.EVENTS[e["type"]][1] == "sticky"
+        or any(v > 0 for v in bonds.EVENTS[e["type"]][0].values())
+    }
     named = {(int(e["target"][1:]), e["type"]) for e in got["events"]}
-    if any(v > 0 for e in got["events"] for v in bonds.EVENTS[e["type"]][0].values()):
-        return []
     rows = conn.execute(
         "SELECT * FROM opinions WHERE src_id=? AND message_id=? AND kind='sticky' AND value<0",
         (speaker_id, message_id),
     )
-    return [dict(r) for r in rows if (r["dst_id"], r["event"]) not in named]
+    return [
+        dict(r) for r in rows if r["dst_id"] not in mends and (r["dst_id"], r["event"]) not in named
+    ]
 
 
 def _apply(

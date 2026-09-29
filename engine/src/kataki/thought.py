@@ -60,8 +60,10 @@ def why(conn: sqlite3.Connection, speaker_id: int, path: list, scene_id, armed: 
         return "armed"
     if event:
         return "event"
-    for m in path:  # one thought in this scene is enough until something else matters
-        if m["role"] == "assistant" and m["speaker_id"] == speaker_id and m["scene_id"] == scene_id:
+    for m in reversed(path):  # one thought in this scene is enough until something else matters
+        if m["scene_id"] != scene_id:
+            break
+        if m["role"] == "assistant" and m["speaker_id"] == speaker_id:
             if json.loads(m["gen"] or "{}").get("thought"):
                 return None
     return "first"
@@ -183,5 +185,9 @@ class Header:
         held, self.held = self.held.lstrip(), ""  # the reply's start: no blank line before it
         if is_head(held.strip(), self.name):  # the stream ended on a header line
             self.caught.append(held.strip())
+            return ""
+        # A lone "Mira th" with nothing caught yet stays (it could be "Mira throws"); after a
+        # caught header line a partial head is the header's own cut-off tail, so it goes.
+        if self.caught and _could_be_head(held.strip(), self.name):
             return ""
         return "" if held.strip() in self.tags else held

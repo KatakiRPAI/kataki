@@ -344,3 +344,23 @@ async def test_a_sincere_apology_label_does_replace_the_rules_grudge(
     )
     await play(turns.turn(conn, backend.llm, story, "Mira, I forgot. I didn't come last night."))
     assert events_of(conn, "Mira") == {"apology_sincere"}
+
+
+@pytest.mark.anyio
+async def test_a_relabel_to_another_grudge_charges_one_not_two(conn, story, backend, side_call):
+    aren = eid(conn, "Aren")
+    backend.say(
+        "Hm.", said(events=[{"target": f"E{aren}", "type": "boundary_crossed", "intensity": 2}])
+    )
+    await play(turns.turn(conn, backend.llm, story, "Mira, I forgot. I didn't come last night."))
+    assert events_of(conn, "Mira") == {"boundary_crossed"}
+
+
+@pytest.mark.anyio
+async def test_a_kindness_to_someone_else_does_not_wipe_the_grudge_toward_him(
+    conn, story, backend, side_call
+):
+    tobin = eid(conn, "Tobin")
+    backend.say("Hm.", said(events=[{"target": f"E{tobin}", "type": "kindness", "intensity": 1}]))
+    await play(turns.turn(conn, backend.llm, story, "Mira, I forgot. I didn't come last night."))
+    assert {"promise_broken", "kindness"} <= events_of(conn, "Mira")

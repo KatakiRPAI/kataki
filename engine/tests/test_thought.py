@@ -432,3 +432,54 @@ async def test_peek_keeps_the_last_thought_past_a_thoughtless_reply(conn, story,
         if p["name"] == "Mira"
     )
     assert mira["thought"]["thinks"] == SEEN["thinks"]
+
+
+def test_a_stop_after_a_caught_line_drops_a_half_written_second_head():
+    h = thought.Header(True, "Mira", TAGS)
+    shown = "".join(h.feed(c) for c in ("Mira thinks: he saw.\nMira wa",)) + h.flush()
+    assert shown == "" and h.caught == ["Mira thinks: he saw."]
+
+
+@pytest.mark.anyio
+async def test_a_stop_after_a_header_line_and_a_partial_head_saves_no_fragment(
+    conn, story, backend, monkeypatch
+):
+    llm = script(monkeypatch, backend, ("token", "Mira thinks: he saw.\nMira wa"), ("thought", "x"))
+    await stop_after(turns.turn(conn, llm, story, "Mira?"), "thought", 1)
+    assert all("Mira wa" not in m["text"] for m in chat.active_path(conn, story))
+
+
+@pytest.mark.anyio
+async def test_a_line_with_an_event_asks_for_the_header_when_she_is_calm(conn, story, backend):
+    backend.say(HEADER + "Fine.", "Sure.")
+    await play(turns.turn(conn, backend.llm, story, "Mira?"))
+    await play(turns.turn(conn, backend.llm, story, "Mira, you saved my life. Thank you."))
+    trace = json.loads(chat.active_path(conn, story)[-1]["gen"])["trace"]
+    assert trace["think"] == "event"
+
+
+@pytest.mark.anyio
+async def test_her_own_setting_beats_the_global_one(conn, story, backend):
+    setting(conn, "never")
+    lib = conn.execute("SELECT lib_item_id FROM entities WHERE name='Mira'").fetchone()[0]
+    library.update_item(conn, lib, data={"mind": {"thinkFirst": "always"}})
+    backend.say(HEADER + "Fine.")
+    await play(turns.turn(conn, backend.llm, story, "Mira?"))
+    assert asked_header(backend, 0)
+    assert json.loads(chat.active_path(conn, story)[-1]["gen"])["trace"]["think"] == "always"
+
+
+@pytest.mark.anyio
+async def test_the_opener_and_an_echo_on_one_sentence_make_one_retake(
+    conn, story, backend, monkeypatch
+):
+    monkeypatch.setattr(bonds, "armed", lambda *a: True)
+    header = "<think>\nMira thinks: I promised myself I wouldn't ask about the ring.\n</think>\n"
+    backend.say(
+        header + "You're right, I promised myself I wouldn't ask.",
+        header + "You're right, I promised myself I wouldn't ask.",
+    )
+    await play(turns.turn(conn, backend.llm, story, "Mira?"))
+    assert len(backend.requests) == 2
+    trace = leaf(conn, story)[1]["trace"]
+    assert "check" in trace

@@ -212,8 +212,7 @@ def mind(conn: sqlite3.Connection, message_id: int) -> dict | None:
                 )
                 if th:
                     link(th, want, caused)
-                if caused:
-                    link(want, "spoke", True)
+                link(want, "spoke", caused)
             elif th:
                 inside.append((th, caused))
         except Exception as e:

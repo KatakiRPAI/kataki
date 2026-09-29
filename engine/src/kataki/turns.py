@@ -162,7 +162,7 @@ class _Opener:
 
     def __init__(self, armed: bool):
         self.armed, self.held, self.hit, self.dropped = armed, "", None, ""
-        self.opening, self.thinks, self.echo, self.watched = armed, None, None, False
+        self.thinks, self.echo, self.watched = None, None, False
 
     def watch(self, early: dict | None) -> None:
         """Called once, just before the first visible word, with the thought written before it.
@@ -189,7 +189,7 @@ class _Opener:
             return ""
         self.armed = False
         held, self.held = self.held, ""
-        self.hit = bonds.opener(held) if self.opening else None
+        self.hit = bonds.opener(held)
         if not self.hit and (echo := thought.echoed(self.thinks, held)):
             self.hit = self.echo = echo
         if self.hit:
