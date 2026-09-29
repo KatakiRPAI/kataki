@@ -25,9 +25,10 @@ thought (slice 3, P8c): Mira hides whose ring is in her drawer; five lines press
 she thinks before the reply on at least four of five turns, no header line or tag is ever seen in
 a reply (streamed or saved), and no saved reply repeats its thought (echo, after the one retake).
 
-latency (slice 3, spec §9): the same five small-talk lines to two fresh stories, one with
-mind.thought on and one off, alternating. Checks: the median time to the first visible word
-grows by less than 2 s with the thought on. Prints both medians and the header's own time.
+latency (slice 3, spec §9): the same five small-talk lines to fresh stories in three modes,
+alternating: thought off, always on, and the default ("when it matters"). Checks: the median time
+to the first visible word grows by less than 2 s in the default mode. Prints all medians, the
+header's own time, and how many turns thought in the default.
 
 Replies are printed for a human to judge. Each probe gets a fresh temporary library.
 """
