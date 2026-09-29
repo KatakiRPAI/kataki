@@ -20,13 +20,18 @@ from kataki.llm import LLM
 PROMPT = """\
 You label one exchange from a roleplay for the app that keeps the character's mind. Use only \
 the values the schema allows.
-- felt: how the line the character answered made them feel (not how they felt already, and \
-not a feeling that only carries on from before). intensity: 1 a little, 2 clearly, 3 very. \
-about: the handle of the person it is about, or null. cause: at most 12 words.
+Judge felt and events from THE LINE ONLY (the one marked as the line to judge); the lines \
+before it are context, and the character's reply is NOT evidence for either. Ordinary talk, \
+greetings, questions and small talk do nothing: for those return events [] and felt as calm, \
+intensity 1. Only label an event the line itself clearly does.
+- felt: how that line made the character feel (not how they felt already, and not a feeling \
+that only carries on from before). intensity: 1 a little, 2 clearly, 3 very. about: the \
+handle of the person it is about, or null. cause: at most 12 words.
 - events: at most 3 things another person did to the character in that line only, never in \
 earlier ones: that person's handle (target), what it was (type) and how much (intensity \
 1-3). An apology is apology_sincere only if it owns what was done; otherwise apology_hollow. \
 Leave it empty when the line did nothing new.
+From the character's reply only (not for felt or events):
 - position: a stance the character took or kept in the reply (at most 12 words; firm 1-3), \
 or null.
 - yielded: true only if the character gave in on a position, or to what someone pushed for.
@@ -150,7 +155,15 @@ def _scene(conn: sqlite3.Connection, story_id: int, path: list, speaker_id: int)
     last = path[-1] if path and path[-1]["speaker_id"] != speaker_id else None
     if last is not None and last["id"] not in chat.heard_by(conn, path, speaker_id):
         last = None  # a whisper to someone else, or a thought: not something done to them
-    return {"names": names, "persona": persona, "scene_id": scene_id, "here": here, "last": last}
+    before = path[-3:-1] if last is not None else []  # context only: at most 2 lines before it
+    return {
+        "names": names,
+        "persona": persona,
+        "scene_id": scene_id,
+        "here": here,
+        "last": last,
+        "before": before,
+    }
 
 
 async def _ask(
@@ -169,13 +182,17 @@ async def _ask(
         if last is not None
         else "(nothing new)"
     )
+    context = "".join(
+        f"{names.get(m['speaker_id'], 'Narration')}: {m['text'][-400:]}\n" for m in seen["before"]
+    )
     ask = [
         {"role": "system", "content": PROMPT},
         {
             "role": "user",
             "content": f"The character: {name}. People here: {people or 'no one else'}.\n\n"
-            f"[The line {name} answered: judge what THIS line did]\n{line}\n\n"
-            f"[{name}'s reply]\n{reply[-1500:]}",
+            + (f"[Earlier lines, context only]\n{context}\n" if context else "")
+            + f"[The line to judge: what did THIS line do to {name}?]\n{line}\n\n"
+            f"[{name}'s reply: for position, yielded and face only]\n{reply[-1500:]}",
         },
     ]
     return await llm.complete_json(

@@ -302,3 +302,15 @@ async def test_the_mood_a_reply_shows_is_the_one_the_side_call_saved(
     saved = inner.public(inner.current(conn, mira, path, prof), prof)
     assert saved["label"] == "sad"
     assert events[-1][1]["mood"] == saved == json.loads(path[-1]["gen"])["mind"]
+
+
+@pytest.mark.anyio
+async def test_the_side_call_judges_the_line_not_the_reply(conn, story, backend, side_call):
+    backend.say("Wounded silence, quiet fury, Zorblax.", said())
+    await play(turns.turn(conn, backend.llm, story, "Morning. Everything alright?"))
+    ask = backend.requests[1]["messages"]
+    body = ask[-1]["content"]
+    judged, reply = body.split("[Mira's reply: for position, yielded and face only]")
+    assert "Morning. Everything alright?" in judged and "Zorblax" not in judged
+    assert "Zorblax" in reply
+    assert "NOT evidence" in ask[0]["content"] and "small talk do nothing" in ask[0]["content"]
