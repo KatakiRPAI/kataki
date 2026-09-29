@@ -18,6 +18,7 @@ from contextlib import aclosing
 from typing import Any
 
 from kataki import (
+    bonds,
     chat,
     clock,
     context,
@@ -243,17 +244,28 @@ async def _generate(
         conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)).fetchall()
     )
     minds: dict[int, dict] = {}  # everyone here, as they feel after the latest line
-    inside = ""
+    felt: list[str] = []  # the speaker's feeling rows of the mind block
+    pending: dict[int, list[dict]] = {}  # ledger rows the latest line adds, kept with the reply
+    ties: list[str] = []  # the speaker's relationship rows of the mind block
+    stood: list[dict] = []  # the same, as the app shows them (gen.bonds, the Mind graph)
     try:  # the mind adds to a turn, it never stops one
         if features.enabled(conn, "mind.affect"):
             minds = inner.react(conn, story_id, path, await asyncio.to_thread(embed.builtin))
         if speaker_id in minds:
-            inside = inner.render(
-                minds[speaker_id], inner.profile(conn, speaker_id), names[speaker_id]
-            )
+            felt = inner.lines(minds[speaker_id], inner.profile(conn, speaker_id))
     except Exception as e:
         logging.getLogger(__name__).warning("mind skipped for story %s: %s", story_id, e)
-        minds, inside = {}, ""
+        minds, felt = {}, []
+    try:
+        if features.enabled(conn, "mind.bonds"):
+            pending = bonds.react(conn, story_id, path, await asyncio.to_thread(embed.builtin))
+            if speaker_id is not None:
+                mine = pending.get(speaker_id, [])
+                ties, stood = bonds.render(conn, story_id, speaker_id, path, mine)
+    except Exception as e:
+        logging.getLogger(__name__).warning("bonds skipped for story %s: %s", story_id, e)
+        pending, ties, stood = {}, [], []
+    inside = inner.block(names.get(speaker_id, ""), felt + ties) if speaker_id is not None else ""
 
     trace: dict = {"why": why, "ms": {}}
     at = time.monotonic()
@@ -377,6 +389,8 @@ async def _generate(
                     gen["mind"] = inner.public(minds[speaker_id], inner.profile(conn, speaker_id))
             except Exception as e:
                 logging.getLogger(__name__).warning("mood not kept: %s", e)
+            if stood:
+                gen["bonds"] = stood
             message_id = chat.add_child(
                 conn, story_id, parent_id, "assistant", text, speaker_id, skip, gen
             )
@@ -385,6 +399,11 @@ async def _generate(
                     inner.save(conn, minds, message_id)
             except Exception as e:
                 logging.getLogger(__name__).warning("mind not saved: %s", e)
+            try:
+                if pending:
+                    bonds.save(conn, story_id, pending, message_id)
+            except Exception as e:
+                logging.getLogger(__name__).warning("bonds not saved: %s", e)
         context.finish_log(conn, log_id, message_id, done)
         if prompt_tokens := (done.get("usage") or {}).get("prompt_tokens"):
             chars = sum(len(m["content"]) for m in built.messages)

@@ -200,3 +200,79 @@ def test_render_answers_first_adds_one_other_and_merges_pending(local_model):
     assert rows[0].startswith("Toward Aren:") and "Toward Cara:" in text
     assert "Tobin" not in text and [s["other"] for s in shown] == ["Aren", "Cara"]
     assert shown[0]["you"] is True and not re.search(r"\d", text)
+
+
+# --- in the turn ------------------------------------------------------------------------------
+
+
+@pytest.fixture
+def story(local_model):
+    conn = local_model
+    ids = {n: library.create_item(conn, "character", n) for n in ("Mira", "Tobin", "Aren")}
+    return library.create_story(
+        conn, "Low Tide", character_ids=[ids["Mira"], ids["Tobin"]], persona_id=ids["Aren"]
+    )
+
+
+def eid(conn, name):
+    return conn.execute("SELECT id FROM entities WHERE name=?", (name,)).fetchone()["id"]
+
+
+async def play(stream):
+    return [e async for e in stream]
+
+
+def tail(request):
+    return request["messages"][-1]["content"]
+
+
+@pytest.mark.anyio
+async def test_she_holds_it_for_twenty_turns_a_hollow_sorry_fails_a_real_one_lands(
+    conn, story, backend
+):
+    backend.say(*["Mm."] * 23)
+    await play(turns.turn(conn, backend.llm, story, "Mira, I forgot. I didn't come last night."))
+    assert "You have not forgiven Aren" in tail(backend.requests[0])
+    for _ in range(20):
+        await play(turns.turn(conn, backend.llm, story, "Nice weather, Mira."))
+    assert "You have not forgiven Aren" in tail(backend.requests[-1])
+    await play(turns.turn(conn, backend.llm, story, "Mira, I'm sorry."))
+    assert "You have not forgiven Aren" in tail(backend.requests[-1])
+    await play(
+        turns.turn(conn, backend.llm, story, "Mira, I'm sorry I broke my promise. My fault.")
+    )
+    block = tail(backend.requests[-1])
+    assert "You have forgiven Aren, but trust comes back slowly." in block
+    assert "you trust them much less than before" in block
+
+
+@pytest.mark.anyio
+async def test_a_new_take_does_not_count_it_twice(conn, story, backend):
+    backend.say("First.", "Second.")
+    await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
+    await play(turns.regenerate(conn, backend.llm, story))
+    live = bonds.ledger(conn, eid(conn, "Mira"), chat.active_path(conn, story))
+    assert len(live) == 3  # the insult once, on this take
+    assert conn.execute("SELECT COUNT(*) FROM opinions").fetchone()[0] == 6  # both takes kept
+    assert tail(backend.requests[0]) == tail(backend.requests[1])
+
+
+@pytest.mark.anyio
+async def test_switched_off_there_is_no_ledger(conn, story, backend):
+    conn.execute("INSERT INTO settings(key, value) VALUES('features.mind.bonds', 'false')")
+    backend.say("Fine.")
+    await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
+    assert "Toward Aren" not in tail(backend.requests[0])
+    assert conn.execute("SELECT COUNT(*) FROM opinions").fetchone()[0] == 0
+
+
+@pytest.mark.anyio
+async def test_a_failing_ledger_still_keeps_the_reply(conn, story, backend, monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("kataki.bonds.react", boom)
+    backend.say("Fine.")
+    events = await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
+    assert events[-1][0] == "done" and chat.active_path(conn, story)[-1]["text"] == "Fine."
+    assert "Toward Aren" not in tail(backend.requests[0])
