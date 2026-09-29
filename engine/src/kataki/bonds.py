@@ -11,7 +11,10 @@ ponytail: every constant here is an estimate from the research (note 16 §9.3); 
 probes (evals/probes.py), not by feel.
 """
 
-from kataki import clock
+import re
+import sqlite3
+
+from kataki import chat, clock, db, inner, knobs
 
 DIMS = ("closeness", "trust", "respect", "familiarity")  # the dimensions events move so far
 SHOWN = ("trust", "closeness", "respect")  # the ones worth a word
@@ -159,3 +162,100 @@ def apply(
                 new.append(_row(dst, g["dim"], 0.0, "decay", half_life, event, cause, g["id"],
                                 now, scene_id))  # fmt: skip
     return new
+
+
+# what a line did, read by rules: the lite level, and the fallback when the side call can't run
+BROKEN = re.compile(
+    r"\b(i forgot|i didn'?t (come|show up|make it|call)|couldn'?t make it"
+    r"|broke (my|the|a|our) promise|stood you up)\b",
+    re.IGNORECASE,
+)
+OWNED = re.compile(  # an apology that owns the wrong
+    r"\b(i was wrong|my fault|i shouldn'?t have|that was (wrong|unfair|cruel)|i broke"
+    r"|i let you down|i'?ll make it up|i hurt you)\b",
+    re.IGNORECASE,
+)
+RULED = {  # inner.sense's events, as the ledger names them
+    "insult": "insult",
+    "threat": "boundary_crossed",
+    "praise": "compliment",
+    "good_news": "shared_joy",
+    "bad_news": "vulnerable_disclosure",
+}
+
+
+def rule_events(text: str, hit: tuple[str, float] | None) -> list[tuple[str, int]]:
+    """What a line did to the one it was aimed at, by rules: [(event, intensity 1-3)]. An apology
+    is sincere only when it owns the wrong, and one that names the wrong is not that wrong again.
+    ponytail: keywords only (inner.sense's list plus two of our own); the side call reads the
+    rest on the standard level."""
+    if hit and hit[0] == "apology":
+        return [("apology_sincere" if OWNED.search(text) else "apology_hollow", 2)]
+    out = [("promise_broken", 2)] if BROKEN.search(text) else []
+    if hit:
+        out.append((RULED[hit[0]], 2 if hit[1] >= 0.9 else 1))
+    return out
+
+
+def ledger(conn: sqlite3.Connection, src: int, path: list) -> list[dict]:
+    """Every live row of `src`'s ledger, oldest first: written on this branch (or by the user),
+    each with the scene it was written in."""
+    scene = {m["id"]: m["scene_id"] for m in path}
+    where, args = db.anchor_filter(set(), set(scene))
+    rows = conn.execute(
+        f"SELECT * FROM opinions WHERE src_id=? AND {where} ORDER BY story_time, id", [src, *args]
+    )
+    return [{**dict(r), "scene_id": scene.get(r["message_id"])} for r in rows]
+
+
+def react(conn: sqlite3.Connection, story_id: int, path: list, model=None) -> dict[int, list]:
+    """What the latest user line adds to the ledger of each character it was aimed at, not yet
+    saved: {character id: [rows]}. Like inner.react, the same path always gives the same rows,
+    so a new take never counts it twice."""
+    if not path or path[-1]["role"] != "user" or path[-1]["speaker_id"] is None:
+        return {}
+    last, now = path[-1], path[-1]["story_time"]
+    events = rule_events(last["text"], inner.sense(last["text"], model))
+    if not events:
+        return {}
+    scene_id = chat.scene_of(conn, story_id, path)
+    cast = [
+        e["id"]
+        for e in chat.present_entities(conn, scene_id, path)
+        if e["is_ai"] and e["kind"] == "character"
+    ]
+    heard = [e for e in cast if last["id"] in chat.heard_by(conn, path, e)]
+    who = conn.execute("SELECT name FROM entities WHERE id=?", (last["speaker_id"],)).fetchone()
+    cause = inner.said(who["name"] if who else "Someone", last["text"])
+    out = {}
+    for src in inner.targets(conn, path, heard):
+        rows, new = ledger(conn, src, path), []
+        prof, dial = inner.profile(conn, src), knobs.dial(conn, src, "relationships", "realistic")
+        if dial not in HARSH:  # a stray value must never break a turn
+            dial = "realistic"
+        for event, intensity in events:
+            new += apply(
+                rows + new, last["speaker_id"], event, intensity, cause, now, scene_id, prof, dial
+            )
+        if new:
+            out[src] = new
+    return out
+
+
+COLUMNS = ("dst_id", "dim", "value", "kind", "half_life_min", "event", "cause", "resolves_id",
+           "story_time")  # fmt: skip
+
+
+def _insert(conn, story_id: int, src: int, rows: list[dict], message_id: int) -> None:
+    conn.executemany(
+        f"INSERT INTO opinions(story_id, src_id, {', '.join(COLUMNS)}, message_id)"
+        f" VALUES({', '.join('?' * (len(COLUMNS) + 3))})",
+        [(story_id, src, *(r[c] for c in COLUMNS), message_id) for r in rows],
+    )
+
+
+def save(conn: sqlite3.Connection, story_id: int, rows: dict[int, list], message_id: int) -> None:
+    """Anchored on the reply they were read before: a new take or another branch has its own."""
+    with conn:
+        for src, new in rows.items():
+            _insert(conn, story_id, src, new, message_id)

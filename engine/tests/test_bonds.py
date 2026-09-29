@@ -2,7 +2,7 @@
 
 import pytest
 
-from kataki import bonds, clock, inner
+from kataki import bonds, chat, clock, inner, library, turns
 
 P = inner.shape({})
 DAY = clock.DAY
@@ -80,3 +80,40 @@ def test_rows_are_about_one_person_at_a_time():
     rows = saved(breach())
     other = bonds.standing(rows, 8, 0)
     assert other["trust"] == 0 and other["grudge"] is None and other["causes"] == []
+
+
+@pytest.mark.parametrize(
+    "line, events",
+    [
+        ("I forgot. I didn't come last night.", [("promise_broken", 2)]),
+        ("You're useless.", [("insult", 2)]),
+        ("I'm sorry.", [("apology_hollow", 2)]),
+        ("I'm sorry I broke my promise. It was my fault.", [("apology_sincere", 2)]),
+        ("You did so well, thank you.", [("compliment", 2)]),
+        ("Nice weather.", []),
+    ],
+)
+def test_rules_read_what_a_line_did(line, events):
+    assert bonds.rule_events(line, inner.sense(line)) == events
+
+
+def test_only_the_one_it_was_aimed_at_writes_it_down_on_this_branch(local_model):
+    conn = local_model
+    ids = {n: library.create_item(conn, "character", n) for n in ("Mira", "Tobin", "Aren")}
+    story = library.create_story(
+        conn, "s", character_ids=[ids["Mira"], ids["Tobin"]], persona_id=ids["Aren"]
+    )
+    who = dict(conn.execute("SELECT name, id FROM entities WHERE story_id=?", (story,)).fetchall())
+    turns.say(conn, story, "Tobin, you're useless.")
+    path = chat.active_path(conn, story)
+
+    pending = bonds.react(conn, story, path)
+    assert set(pending) == {who["Tobin"]}
+    assert {r["dst_id"] for r in pending[who["Tobin"]]} == {who["Aren"]}
+    assert {r["event"] for r in pending[who["Tobin"]]} == {"insult"}
+
+    bonds.save(conn, story, pending, path[-1]["id"])
+    kept = bonds.ledger(conn, who["Tobin"], path)
+    assert len(kept) == 3 and all(r["id"] and r["scene_id"] for r in kept)
+    assert bonds.ledger(conn, who["Tobin"], path[:-1]) == []  # another branch never had it
+    assert bonds.react(conn, story, path[:-1]) == {}  # nothing new was said there
