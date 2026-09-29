@@ -33,3 +33,7 @@ Thumbs.db
 
 # design handoff archive (the unpacked folder is committed)
 docs/*.zip
+
+# superseded designs kept on disk only (the handoff in docs/handoff/ is the source of truth)
+docs/design/
+docs/kataki-design/kataki-design/screens/png/

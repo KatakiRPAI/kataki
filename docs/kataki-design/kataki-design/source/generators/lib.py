@@ -1,22 +1,31 @@
+# Asset map. Keys are the old slot names so the screen generators keep working;
+# the art is the new cast: Liv, Mike, Theo, Jae, Nico, Cas, and three places.
+LIV='/_blob/0257952de929cbe75593ee4823cc1d4d'
+MIKE='/_blob/b46de24970224b00a88bf14b4609ea7b'
+THEO='/_blob/95626198a6424b39eff632f60604f9a1'
+JAE='/_blob/f72fa63130cb8b10441e48ef74c4a493'
+NICO='/_blob/c106e0dd5a453e07a361cd105282f636'
+CAS='/_blob/017a32ebf750bb401d649cc54a63a087'
+CAFE='/_blob/a65a256ab595122301173c846498d0d9'
+PALACE='/_blob/072e4558a8200744a5eec153ad17dd58'
+FLAT='/_blob/a27ecb89be8c40fc71d29e1e9362027f'
+DANI='/_blob/6df02b229e655a013e4f0e90f703fd0e'
 A = {
- 'aren':'/_blob/dfc72a064c6df5086e971ea4669d6de6','clouds':'/_blob/249dcec7fe41970ab9704b8b690e72c3',
- 'ilsa':'/_blob/1185e0e92e6feec7812b9daf57d8beb6','mira-doubtful':'/_blob/38bf1ff9e45b43236a196dd3c03f22e1',
- 'mira':'/_blob/088b9ac3e27c78ab33a87f355abe41f9','mira-smile':'/_blob/5fcd2c718325cbafb54317fcce4e6802',
- 'mira-thinking':'/_blob/2c7a9d4450bc4d091a028e67d38c96e0','mira-wary':'/_blob/d66c76f581ea48c1e295844c3d75f26d',
- 'oren':'/_blob/9683627804cdcd5ad2041c72459eb1d3','sable':'/_blob/0d405ba12c7d1a511a27b077ccc045ba',
- 'gull-dusk':'/_blob/c05a0cbff28ca8161a0a8c3de8293eac','gull-night':'/_blob/8474f457c7c53a4769b007dbc711457f',
- 'lighthouse':'/_blob/d4b99f18f7097b6cc740f99adfd1efea','market':'/_blob/a53cc0fb54d821e1b74b55913e100810',
- 'table-dusk':'/_blob/921f64103931a5221af856c164be6813','table-night':'/_blob/d87272acca7b327a27d9e3f737253357',
- 'tobin':'/_blob/59fcec19316640e100c939bbe691814c','tobin-sour':'/_blob/8eb2d6d30a13ec9144c96b28943c30cb',
- 'wren':'/_blob/55a12ebcc8ff24567fca531ecf093318',
+ 'mira':MIKE,'mira-smile':MIKE,'mira-wary':MIKE,'mira-thinking':MIKE,'mira-doubtful':MIKE,
+ 'tobin':THEO,'tobin-sour':THEO,'ilsa':NICO,'oren':JAE,'wren':DANI,'aren':LIV,'sable':CAS,
+ 'gull-dusk':CAFE,'gull-night':PALACE,'lighthouse':PALACE,'market':FLAT,
+ 'table-dusk':CAFE,'table-night':PALACE,
+ 'clouds':'/_blob/249dcec7fe41970ab9704b8b690e72c3',
 }
+# Where each portrait's face sits, for circular crops and cover fills
+FOCUS = {'mira':'50% 26%','tobin':'50% 30%','ilsa':'52% 30%','oren':'50% 32%','wren':'50% 36%','aren':'52% 24%','sable':'50% 20%'}
 BG = {
- 'mira':'linear-gradient(160deg,#c4ece4,#6fb7c9)','tobin':'linear-gradient(160deg,#ffe3bf,#f2a468)',
- 'ilsa':'linear-gradient(160deg,#f8d8ec,#c3a0ea)','oren':'linear-gradient(160deg,#dbf2d4,#8cc79a)',
- 'wren':'linear-gradient(160deg,#fff3bf,#f4c35a)','aren':'linear-gradient(160deg,#d3e3ff,#7ea4f0)',
- 'sable':'linear-gradient(160deg,#f6ccd2,#c77886)',
+ 'mira':'linear-gradient(160deg,#ecdcb0,#b08a52)','tobin':'linear-gradient(160deg,#ffe2c0,#c98a62)',
+ 'ilsa':'linear-gradient(160deg,#ffd9c8,#d0785a)','oren':'linear-gradient(160deg,#ded8f8,#8878c4)',
+ 'wren':'linear-gradient(160deg,#dbe6f5,#9fb0c8)','aren':'linear-gradient(160deg,#ffd9c0,#e07a4a)',
+ 'sable':'linear-gradient(160deg,#dfe3c8,#7f8456)',
 }
-NAME={'mira':'Mira','tobin':'Tobin','ilsa':'Ilsa','oren':'Master Oren','wren':'Wren','aren':'Aren','sable':'Sable'}
+NAME={'mira':'Mike','tobin':'Theo','ilsa':'Nico','oren':'Jae','wren':'Dani','aren':'Liv','sable':'Cas'}
 
 FONTS='<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chewy&amp;family=Figtree:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400;1,6..72,500&amp;display=swap">'
 
@@ -66,6 +75,7 @@ I = {
  'map':'<path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15"/><path d="M15 6v15"/>',
  'bell':'<path d="M6 16v-5a6 6 0 0112 0v5l2 2H4z"/><path d="M10 20a2 2 0 004 0"/>',
  'user':'<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>',
+ 'cog':'<circle cx="12" cy="12" r="3.1"/><path d="M19.5 14.3a1.5 1.5 0 00.3 1.66l.05.05a1.9 1.9 0 11-2.69 2.69l-.05-.05a1.5 1.5 0 00-1.66-.3 1.5 1.5 0 00-.91 1.38V20a1.9 1.9 0 11-3.8 0v-.1a1.5 1.5 0 00-.98-1.38 1.5 1.5 0 00-1.66.3l-.05.05a1.9 1.9 0 11-2.69-2.69l.05-.05a1.5 1.5 0 00.3-1.66 1.5 1.5 0 00-1.38-.91H4a1.9 1.9 0 110-3.8h.1a1.5 1.5 0 001.38-.98 1.5 1.5 0 00-.3-1.66l-.05-.05a1.9 1.9 0 112.69-2.69l.05.05a1.5 1.5 0 001.66.3h.07a1.5 1.5 0 00.91-1.38V4a1.9 1.9 0 113.8 0v.1a1.5 1.5 0 00.91 1.38 1.5 1.5 0 001.66-.3l.05-.05a1.9 1.9 0 112.69 2.69l-.05.05a1.5 1.5 0 00-.3 1.66v.07a1.5 1.5 0 001.38.91H20a1.9 1.9 0 110 3.8h-.1a1.5 1.5 0 00-1.38.91z"/>',
  'settings':'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>',
  'search':'<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
  'plus':'<path d="M12 5v14M5 12h14"/>',
@@ -128,14 +138,18 @@ def icon(name,size=18,color='currentColor',sw=1.8,extra=''):
     return f'<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="{sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0;{extra}">{I[name]}</svg>'
 
 def face(who, s, extra_style='', img=None, ring=None, bg=True, fstyle=''):
-    """circular avatar crop of a portrait"""
+    """Circular crop of a portrait, centred on the face."""
     key = img or who
-    W = s*2.05; H = W*1.125
-    left = s/2 - W/2; top = s/2 - 0.305*H
+    base = key.split('-')[0]
     ringcss = f'box-shadow: {ring};' if ring else ''
-    b = f'background: {BG[who]};' if bg else ''
+    b = f'background: {BG.get(base, "#dfe7f7")};' if bg else ''
     return (f'<div style="width: {s}px; height: {s}px; border-radius: 50%; overflow: hidden; position: relative; flex-shrink: 0; {b}{ringcss}{extra_style}">'
-            f'<img src="{A[key]}" alt="" style="position: absolute; width: {W:.1f}px; height: {H:.1f}px; left: {left:.1f}px; top: {top:.1f}px; {fstyle}"></div>')
+            f'<img src="{A[key]}" alt="" style="width: 100%; height: 100%; object-fit: cover; object-position: {FOCUS.get(base, "50% 30%")}; {fstyle}"></div>')
+
+def cover(key, extra='', pos=None, alt=''):
+    """A portrait or place filling its box."""
+    base = key.split('-')[0]
+    return f'<img src="{A[key]}" alt="{alt}" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: {pos or FOCUS.get(base, "50% 30%")}; {extra}">'
 
 def orb(s=56, extra=''):
     return (f'<div style="width: {s}px; height: {s}px; border-radius: 50%; flex-shrink: 0; position: relative; background: radial-gradient(circle at 34% 28%, #e8f1ff 0%, #8fb2ff 12%, #3d63f2 34%, #13238a 66%, #050b33 100%); '

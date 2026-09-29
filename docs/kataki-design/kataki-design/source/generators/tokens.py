@@ -119,6 +119,37 @@ T['story-time']={"format":"12-hour in the UI, 24-hour on hover","date-order":["t
 T['backstage']['prompt-parts']={"rules":"#6aa8ff","cards":"#8cc3ff","mind":"#ffd08a","examples":"#a9e0c8","history":"#c7b8ff","tail":"#f4a595"}
 T['backstage']['win']={"value":"#ffd08a","use":"The winning path in the Mind graph"}
 
+# ---- the Sky at night (dark mode). Same layout, same shapes; only the surfaces change.
+T['sky']['card']={"value":"#ffffff","use":"Solid surfaces: menus, inputs, the selected row, the active nav pill"}
+T['sky']['primary']={"value":"#14264d","use":"The main action on a screen (the dark pill)"}
+T['sky']['primary-ink']={"value":"#ffffff"}
+T['sky-dark'] = {
+ "bg": {"value": "linear-gradient(165deg, #0d1330 0%, #141c42 38%, #1b2352 70%, #241f52 100%)", "use": "Night above the clouds"},
+ "bg-solid": {"value": "#141c42"},
+ "stars": {"value": "150 dots, r 0.8–1.8, opacity .25–.9, over the top 80% of the page"},
+ "moonlight": {"value": "radial-gradient(760px 520px at 88% -6%, rgba(196,212,255,.20), transparent 70%)"},
+ "cloud-filter": {"value": "brightness(.42) saturate(.55) contrast(1.05)", "use": "The same cloud art, moonlit"},
+ "ink": {"value": "#e9eeff"},
+ "muted": {"value": "#a9bce0"},
+ "accent": {"value": "#82a8ff"},
+ "accent-hover": {"value": "#b9cdff"},
+ "card": {"value": "#1c2450"},
+ "glass": {"value": "rgba(255,255,255,.07)"},
+ "glass-strong": {"value": "rgba(20,27,58,.86)"},
+ "glass-border": {"value": "rgba(158,186,255,.18)"},
+ "glass-shadow": {"value": "0 14px 34px rgba(0,0,0,.45)"},
+ "hairline": {"value": "rgba(158,186,255,.14)"},
+ "input-border": {"value": "rgba(158,186,255,.22)"},
+ "primary": {"value": "linear-gradient(160deg, #6f96ff, #3a62f0)", "use": "The main action: a filled blue pill, because the dark ink pill disappears at night"},
+ "primary-shadow": {"value": "0 10px 22px rgba(20,40,110,.5)"},
+ "success-ink": {"value": "#8fe6b8"}, "warning-ink": {"value": "#ffd08a"}, "danger": {"value": "#ff8ea0"},
+ "event-memory": {"value": "#ffc86a"}, "event-feeling": {"value": "#ff7fa0"},
+ "event-belief": {"value": "#a98bff"}, "event-time": {"value": "#6fc0ff"},
+ "notes": ["Candy icon tiles, character backdrops and the orb keep their colours: they are the light in the room.",
+           "Portraits and place art are unchanged; only the surfaces around them change.",
+           "Shadows go from blue-grey to black at 45%."]
+}
+
 json.dump(T, open(f'{O}/tokens.json','w'), indent=1, ensure_ascii=False)
 
 # CSS variables
@@ -143,7 +174,17 @@ for k,v in T['space'].items(): L.append(f"  --k-space-{k}: {v}px;")
 for k,v in T['motion']['duration'].items(): L.append(f"  --k-dur-{k}: {v};")
 for k,v in T['motion']['ease'].items(): L.append(f"  --k-ease-{k}: {v};")
 L.append("  --k-hit-min: 44px;")
+L.append("  --k-sky-card: #ffffff;")
+L.append("  --k-sky-primary: #14264d;")
+L.append("  --k-sky-primary-shadow: 0 10px 22px rgba(20,38,77,.28);")
 L.append("}")
+D=[':root[data-theme="dark"] {']
+for k,v in T['sky-dark'].items():
+    if isinstance(v,dict) and 'value' in v and k not in ('stars',):
+        D.append(f"  --k-sky-{k}: {v['value']};")
+D.append("  --k-sky-glass-blur: 16px;")
+D.append("}")
+L += [""] + D
 L.append("@media (prefers-reduced-motion: reduce) { :root { --k-dur-quick: 0ms; --k-dur-base: 0ms; --k-dur-slow: 0ms; --k-ease-bounce: linear; } }")
 open(f'{O}/tokens.css','w').write("/* Kataki RPAI design tokens. Generated from tokens.json. */\n"+"\n".join(L)+"\n")
 

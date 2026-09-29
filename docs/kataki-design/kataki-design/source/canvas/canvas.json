@@ -3,165 +3,501 @@
  "attachments": {},
  "boards": {
   "Main.dc.html": {
+   "h": 900,
+   "title": "Scene \u00b7 the chat and its widgets",
+   "w": 1440,
    "x": 0,
-   "y": 0,
-   "w": 1440,
-   "h": 900,
-   "title": "Scene · the chat and its widgets"
-  },
-  "Scene-AfterSkip.dc.html": {
-   "x": 3040,
-   "y": 2040,
-   "w": 1440,
-   "h": 900,
-   "title": "Six years after the storm"
-  },
-  "Scene-Backstage.dc.html": {
-   "x": 1520,
-   "y": 3060,
-   "w": 1440,
-   "h": 900,
-   "title": "Backstage · the mind"
-  },
-  "Scene-Group-Joins.dc.html": {
-   "x": 4560,
-   "y": 0,
-   "w": 1440,
-   "h": 900,
-   "title": "Tobin joins"
-  },
-  "Scene-Group-Secret.dc.html": {
-   "x": 0,
-   "y": 1020,
-   "w": 1440,
-   "h": 900,
-   "title": "The secret · feelings, not hearing"
-  },
-  "Scene-Peek.dc.html": {
-   "x": 0,
-   "y": 3060,
-   "w": 1440,
-   "h": 900,
-   "title": "Mira’s card"
-  },
-  "Scene-TimeSkip.dc.html": {
-   "x": 1520,
-   "y": 2040,
-   "w": 1440,
-   "h": 900,
-   "title": "Time skip · transition"
-  },
-  "Sky-Activity.dc.html": {
-   "x": 3040,
-   "y": 6040,
-   "w": 1440,
-   "h": 900,
-   "title": "Activity"
-  },
-  "Sky-Chats.dc.html": {
-   "x": 4560,
-   "y": 4420,
-   "w": 1440,
-   "h": 900,
-   "title": "Chats"
-  },
-  "Sky-FirstRun.dc.html": {
-   "x": 4560,
-   "y": 6040,
-   "w": 1440,
-   "h": 900,
-   "title": "First run"
-  },
-  "Sky-Home.dc.html": {
-   "x": 0,
-   "y": 4420,
-   "w": 1440,
-   "h": 1190,
-   "title": "Home"
-  },
-  "Sky-Models.dc.html": {
-   "x": 0,
-   "y": 7660,
-   "w": 1440,
-   "h": 1000,
-   "title": "Models (Settings)"
-  },
-  "Sky-Profile-Mira.dc.html": {
-   "x": 1520,
-   "y": 4420,
-   "w": 1440,
-   "h": 1500,
-   "title": "Mira’s profile"
-  },
-  "Sky-You.dc.html": {
-   "x": 1520,
-   "y": 6040,
-   "w": 1440,
-   "h": 900,
-   "title": "Persona switcher + your profile"
-  },
-  "Scene-Menu.dc.html": {
-   "x": 1520,
-   "y": 0,
-   "w": 1440,
-   "h": 900,
-   "title": "Story menu · Edit widgets"
-  },
-  "Scene-EditWidgets.dc.html": {
-   "x": 3040,
-   "y": 0,
-   "w": 1440,
-   "h": 900,
-   "title": "Editing widgets"
+   "y": 0
   },
   "Scene-Advanced.dc.html": {
+   "h": 900,
+   "title": "Advanced composer",
+   "w": 1440,
    "x": 1520,
-   "y": 1020,
-   "w": 1440,
-   "h": 900,
-   "title": "Advanced composer"
+   "y": 1020
   },
-  "Scene-ModePicker.dc.html": {
-   "x": 3040,
-   "y": 1020,
-   "w": 1440,
+  "Scene-AfterSkip.dc.html": {
    "h": 900,
-   "title": "Auto and the mode picker"
+   "title": "Three weeks later \u00b7 the gala",
+   "w": 1440,
+   "x": 3040,
+   "y": 2040
+  },
+  "Scene-Backstage.dc.html": {
+   "h": 900,
+   "title": "Backstage \u00b7 the mind",
+   "w": 1440,
+   "x": 1520,
+   "y": 3060
   },
   "Scene-EditLine.dc.html": {
+   "h": 900,
+   "title": "Edit, or edit and regenerate",
+   "w": 1440,
    "x": 4560,
-   "y": 1020,
-   "w": 1440,
-   "h": 900,
-   "title": "Edit, or edit and regenerate"
+   "y": 1020
   },
-  "Scene-Reply.dc.html": {
-   "x": 0,
-   "y": 2040,
-   "w": 1440,
+  "Scene-EditWidgets.dc.html": {
    "h": 900,
-   "title": "A reply arriving"
+   "title": "Editing widgets",
+   "w": 1440,
+   "x": 3040,
+   "y": 0
+  },
+  "Scene-Group-Joins.dc.html": {
+   "h": 900,
+   "title": "Theo joins",
+   "w": 1440,
+   "x": 4560,
+   "y": 0
+  },
+  "Scene-Group-Secret.dc.html": {
+   "h": 900,
+   "title": "The secret \u00b7 feelings, not hearing",
+   "w": 1440,
+   "x": 0,
+   "y": 1020
+  },
+  "Scene-Menu.dc.html": {
+   "h": 900,
+   "title": "Story menu \u00b7 Edit widgets",
+   "w": 1440,
+   "x": 1520,
+   "y": 0
+  },
+  "Scene-ModePicker.dc.html": {
+   "h": 900,
+   "title": "Auto and the mode picker",
+   "w": 1440,
+   "x": 3040,
+   "y": 1020
   },
   "Scene-MusicPicker.dc.html": {
-   "x": 4560,
-   "y": 2040,
-   "w": 1440,
    "h": 900,
-   "title": "Choosing music"
+   "title": "Choosing music",
+   "w": 1440,
+   "x": 4560,
+   "y": 2040
+  },
+  "Scene-Peek.dc.html": {
+   "h": 900,
+   "title": "Mike\u2019s card",
+   "w": 1440,
+   "x": 0,
+   "y": 3060
+  },
+  "Scene-Reply.dc.html": {
+   "h": 900,
+   "title": "A reply arriving",
+   "w": 1440,
+   "x": 0,
+   "y": 2040
+  },
+  "Scene-TimeSkip.dc.html": {
+   "h": 900,
+   "title": "Time skip \u00b7 transition",
+   "w": 1440,
+   "x": 1520,
+   "y": 2040
+  },
+  "Sky-Activity.dc.html": {
+   "h": 900,
+   "title": "Activity",
+   "w": 1440,
+   "x": 3040,
+   "y": 6040
   },
   "Sky-AddCharacter.dc.html": {
-   "x": 3040,
-   "y": 4420,
-   "w": 1440,
    "h": 900,
-   "title": "Add a character"
+   "title": "Add a character",
+   "w": 1440,
+   "x": 3040,
+   "y": 4420
+  },
+  "Sky-Chats-Dark.dc.html": {
+   "h": 900,
+   "title": "Chats \u00b7 dark",
+   "w": 1440,
+   "x": 3040,
+   "y": 7862
+  },
+  "Sky-Chats.dc.html": {
+   "h": 900,
+   "title": "Chats",
+   "w": 1440,
+   "x": 4560,
+   "y": 4420
+  },
+  "Sky-FirstRun.dc.html": {
+   "h": 900,
+   "title": "First run",
+   "w": 1440,
+   "x": 4560,
+   "y": 6040
+  },
+  "Sky-Home-Dark.dc.html": {
+   "h": 1190,
+   "title": "Home \u00b7 dark",
+   "w": 1440,
+   "x": -163,
+   "y": 7862
+  },
+  "Sky-Home.dc.html": {
+   "h": 1190,
+   "title": "Home",
+   "w": 1440,
+   "x": -12,
+   "y": 4428
+  },
+  "Sky-Library-Dark.dc.html": {
+   "h": 1400,
+   "title": "Places and Plots \u00b7 dark",
+   "w": 1440,
+   "x": 4560,
+   "y": 7862
   },
   "Sky-Library.dc.html": {
-   "x": 0,
-   "y": 6040,
-   "w": 1440,
    "h": 1400,
-   "title": "Places and Plots"
+   "title": "Places and Plots",
+   "w": 1440,
+   "x": -12,
+   "y": 6040
+  },
+  "Sky-Models.dc.html": {
+   "h": 1000,
+   "title": "Models (Settings)",
+   "w": 1440,
+   "x": -1837,
+   "y": 6040
+  },
+  "Sky-Profile-Mike-Dark.dc.html": {
+   "h": 1500,
+   "title": "Mike\u2019s profile \u00b7 dark",
+   "w": 1440,
+   "x": 1520,
+   "y": 7862
+  },
+  "Sky-Profile-Mike.dc.html": {
+   "h": 1500,
+   "title": "Mike\u2019s profile",
+   "w": 1440,
+   "x": 1520,
+   "y": 4420
+  },
+  "Sky-You.dc.html": {
+   "h": 900,
+   "title": "Persona switcher + your profile",
+   "w": 1440,
+   "x": 1520,
+   "y": 6040
+  },
+  "Sky2-AddCharacter.dc.html": {
+   "h": 1120,
+   "title": "Sky v2 \u00b7 New character",
+   "w": 1440,
+   "x": 3040,
+   "y": 18900
+  },
+  "Sky2-Characters.dc.html": {
+   "h": 1120,
+   "title": "Sky v2 \u00b7 Characters",
+   "w": 1440,
+   "x": 0,
+   "y": 18900
+  },
+  "Sky2-Empty.dc.html": {
+   "h": 1000,
+   "title": "Sky v2 \u00b7 Empty \u00b7 day one",
+   "w": 1440,
+   "x": 4560,
+   "y": 20320
+  },
+  "Sky2-Error.dc.html": {
+   "h": 1000,
+   "title": "Sky v2 \u00b7 The model server went away",
+   "w": 1440,
+   "x": 6080,
+   "y": 20320
+  },
+  "Sky2-Feedback.dc.html": {
+   "h": 1000,
+   "title": "Sky v2 \u00b7 Feedback and bug report",
+   "w": 1440,
+   "x": 0,
+   "y": 21740
+  },
+  "Sky2-FirstRun.dc.html": {
+   "h": 900,
+   "title": "Sky v2 \u00b7 First run \u00b7 step 1",
+   "w": 1440,
+   "x": 6080,
+   "y": 17300
+  },
+  "Sky2-FirstRun2.dc.html": {
+   "h": 900,
+   "title": "Sky v2 \u00b7 First run \u00b7 step 2",
+   "w": 1440,
+   "x": 6080,
+   "y": 18900
+  },
+  "Sky2-Home.dc.html": {
+   "h": 1310,
+   "title": "Sky v2 \u00b7 Home",
+   "w": 1440,
+   "x": 0,
+   "y": 17300
+  },
+  "Sky2-Loading.dc.html": {
+   "h": 900,
+   "title": "Sky v2 \u00b7 Opening",
+   "w": 1440,
+   "x": 1520,
+   "y": 21740
+  },
+  "Sky2-Menus.dc.html": {
+   "h": 1120,
+   "title": "Sky v2 \u00b7 Every menu",
+   "w": 1440,
+   "x": 3040,
+   "y": 20320
+  },
+  "Sky2-NewStory.dc.html": {
+   "h": 1020,
+   "title": "Sky v2 \u00b7 New story",
+   "w": 1440,
+   "x": 4560,
+   "y": 18900
+  },
+  "Sky2-Palette.dc.html": {
+   "h": 1000,
+   "title": "Sky v2 \u00b7 Command palette",
+   "w": 1440,
+   "x": 0,
+   "y": 20320
+  },
+  "Sky2-Profile.dc.html": {
+   "h": 1300,
+   "title": "Sky v2 \u00b7 Mike\u2019s profile",
+   "w": 1440,
+   "x": 1520,
+   "y": 17300
+  },
+  "Sky2-Search.dc.html": {
+   "h": 1020,
+   "title": "Sky v2 \u00b7 Search results",
+   "w": 1440,
+   "x": 1520,
+   "y": 20320
+  },
+  "Sky2-Set-About.dc.html": {
+   "h": 1020,
+   "title": "Sky v2 \u00b7 Settings \u00b7 About and feedback",
+   "w": 1440,
+   "x": 6080,
+   "y": 23060
+  },
+  "Sky2-Set-Appearance.dc.html": {
+   "h": 1020,
+   "title": "Sky v2 \u00b7 Settings \u00b7 Appearance",
+   "w": 1440,
+   "x": 4560,
+   "y": 21740
+  },
+  "Sky2-Set-Data.dc.html": {
+   "h": 1060,
+   "title": "Sky v2 \u00b7 Settings \u00b7 Data and privacy",
+   "w": 1440,
+   "x": 3040,
+   "y": 23060
+  },
+  "Sky2-Set-General.dc.html": {
+   "h": 1020,
+   "title": "Sky v2 \u00b7 Settings \u00b7 General",
+   "w": 1440,
+   "x": 3040,
+   "y": 21740
+  },
+  "Sky2-Set-Language.dc.html": {
+   "h": 1020,
+   "title": "Sky v2 \u00b7 Settings \u00b7 Language",
+   "w": 1440,
+   "x": 6080,
+   "y": 21740
+  },
+  "Sky2-Set-Memory.dc.html": {
+   "h": 1060,
+   "title": "Sky v2 \u00b7 Settings \u00b7 Memory and thinking",
+   "w": 1440,
+   "x": 1520,
+   "y": 23060
+  },
+  "Sky2-Set-Models.dc.html": {
+   "h": 1120,
+   "title": "Sky v2 \u00b7 Settings \u00b7 Models",
+   "w": 1440,
+   "x": 0,
+   "y": 23060
+  },
+  "Sky2-Set-Shortcuts.dc.html": {
+   "h": 1240,
+   "title": "Sky v2 \u00b7 Settings \u00b7 Shortcuts",
+   "w": 1440,
+   "x": 4560,
+   "y": 23060
+  },
+  "Sky2-Stories.dc.html": {
+   "h": 1100,
+   "title": "Sky v2 \u00b7 Stories",
+   "w": 1440,
+   "x": 3040,
+   "y": 17300
+  },
+  "Sky2-World.dc.html": {
+   "h": 950,
+   "title": "Sky v2 \u00b7 World \u00b7 places and plots",
+   "w": 1440,
+   "x": 4560,
+   "y": 17300
+  },
+  "Sky2-You.dc.html": {
+   "h": 1040,
+   "title": "Sky v2 \u00b7 You \u00b7 personas",
+   "w": 1440,
+   "x": 1520,
+   "y": 18900
+  },
+  "Style-A-FirstRun.dc.html": {
+   "h": 900,
+   "title": "A \u00b7 Paper & Ink \u00b7 First run",
+   "w": 1440,
+   "x": 3040,
+   "y": 10122
+  },
+  "Style-A-Home.dc.html": {
+   "h": 1160,
+   "title": "A \u00b7 Paper & Ink \u00b7 Home",
+   "w": 1440,
+   "x": 0,
+   "y": 10122
+  },
+  "Style-A-Profile.dc.html": {
+   "h": 1160,
+   "title": "A \u00b7 Paper & Ink \u00b7 Mike\u2019s profile",
+   "w": 1440,
+   "x": 1520,
+   "y": 10122
+  },
+  "Style-B-FirstRun.dc.html": {
+   "h": 900,
+   "title": "B \u00b7 Night Theatre \u00b7 First run",
+   "w": 1440,
+   "x": 3040,
+   "y": 11522
+  },
+  "Style-B-Home.dc.html": {
+   "h": 1160,
+   "title": "B \u00b7 Night Theatre \u00b7 Home",
+   "w": 1440,
+   "x": 0,
+   "y": 11522
+  },
+  "Style-B-Profile.dc.html": {
+   "h": 1160,
+   "title": "B \u00b7 Night Theatre \u00b7 Mike\u2019s profile",
+   "w": 1440,
+   "x": 1520,
+   "y": 11522
+  },
+  "Style-C-FirstRun.dc.html": {
+   "h": 900,
+   "title": "C \u00b7 Daylight \u00b7 First run",
+   "w": 1440,
+   "x": 3040,
+   "y": 12922
+  },
+  "Style-C-Home.dc.html": {
+   "h": 1160,
+   "title": "C \u00b7 Daylight \u00b7 Home",
+   "w": 1440,
+   "x": 0,
+   "y": 12922
+  },
+  "Style-C-Profile.dc.html": {
+   "h": 1160,
+   "title": "C \u00b7 Daylight \u00b7 Mike\u2019s profile",
+   "w": 1440,
+   "x": 1520,
+   "y": 12922
+  },
+  "Style-D-FirstRun.dc.html": {
+   "h": 900,
+   "title": "D \u00b7 Storybook \u00b7 First run",
+   "w": 1440,
+   "x": 3040,
+   "y": 14322
+  },
+  "Style-D-Home.dc.html": {
+   "h": 1160,
+   "title": "D \u00b7 Storybook \u00b7 Home",
+   "w": 1440,
+   "x": 0,
+   "y": 14322
+  },
+  "Style-D-Profile.dc.html": {
+   "h": 1160,
+   "title": "D \u00b7 Storybook \u00b7 Mike\u2019s profile",
+   "w": 1440,
+   "x": 1520,
+   "y": 14322
+  },
+  "Style-E-FirstRun.dc.html": {
+   "h": 900,
+   "title": "E \u00b7 Night Storybook \u00b7 First run",
+   "w": 1440,
+   "x": 3040,
+   "y": 15722
+  },
+  "Style-E-Home.dc.html": {
+   "h": 1160,
+   "title": "E \u00b7 Night Storybook \u00b7 Home",
+   "w": 1440,
+   "x": 0,
+   "y": 15722
+  },
+  "Style-E-Profile.dc.html": {
+   "h": 1160,
+   "title": "E \u00b7 Night Storybook \u00b7 Mike\u2019s profile",
+   "w": 1440,
+   "x": 1520,
+   "y": 15722
+  },
+  "Sky2-Access.dc.html": {
+   "h": 1740,
+   "title": "v2.1 \u00b7 Accessibility, measured",
+   "w": 1440,
+   "x": 4144,
+   "y": 24500
+  },
+  "Sky2-Home-Day.dc.html": {
+   "h": 1310,
+   "title": "v2.1 \u00b7 Home in Day",
+   "w": 1440,
+   "x": 0,
+   "y": 24500
+  },
+  "Sky2-Home-Compact.dc.html": {
+   "h": 1310,
+   "title": "v2.1 \u00b7 Home at 1024 wide",
+   "w": 1024,
+   "x": 1520,
+   "y": 24500
+  },
+  "Sky2-Home-Arabic.dc.html": {
+   "h": 1310,
+   "title": "v2.1 \u00b7 Home in Arabic, right to left",
+   "w": 1440,
+   "x": 2624,
+   "y": 24500
   }
  },
  "createdOnFiles": {
@@ -176,7 +512,7 @@
   "scene": {
    "kind": "title1",
    "maxW": 5960,
-   "text": "The Scene · inside a story",
+   "text": "The Scene \u00b7 inside a story \u2014 v2.1: on the Sky\u2019s navy surfaces, translucent over the painted places.",
    "w": 240,
    "x": 0,
    "y": -320
@@ -184,10 +520,122 @@
   "sky": {
    "kind": "title1",
    "maxW": 5960,
-   "text": "The Sky · outside a story",
+   "text": "The Sky \u00b7 original \u2014 superseded by Sky v2 below. Copy here predates the no-LLM rule; don\u2019t lift strings from it.",
    "w": 240,
    "x": 0,
    "y": 4100
+  },
+  "sky2": {
+   "kind": "title1",
+   "maxW": 7480,
+   "text": "The Sky \u00b7 dark, rebuilt \u2014 29 screens, v2.1. The sky shows, story names are set in Newsreader, the primary button is flat, every text colour passes AA. This is the live direction; the style studies above are reference.",
+   "w": 240,
+   "x": 35,
+   "y": 16915
+  },
+  "sky2r0": {
+   "kind": "title1",
+   "maxW": 7480,
+   "text": "The Sky \u00b7 the five core screens",
+   "w": 240,
+   "x": -12,
+   "y": 17059
+  },
+  "sky2r1": {
+   "kind": "title1",
+   "maxW": 7480,
+   "text": "Making things \u2014 characters, stories, and the second half of first run",
+   "w": 240,
+   "x": 0,
+   "y": 18631
+  },
+  "sky2r2": {
+   "kind": "title1",
+   "maxW": 7480,
+   "text": "Finding things, and every menu in the app",
+   "w": 240,
+   "x": -8,
+   "y": 20115
+  },
+  "sky2r3": {
+   "kind": "title1",
+   "maxW": 7480,
+   "text": "Feedback, opening, and the start of Settings",
+   "w": 240,
+   "x": 0,
+   "y": 21485
+  },
+  "sky2r4": {
+   "kind": "title1",
+   "maxW": 7480,
+   "text": "Settings \u00b7 the rest",
+   "w": 240,
+   "x": -12,
+   "y": 22816
+  },
+  "skydark": {
+   "kind": "title1",
+   "maxW": 5960,
+   "text": "The Sky \u00b7 original dark \u2014 superseded by Sky v2 below.",
+   "w": 240,
+   "x": 0,
+   "y": 6840
+  },
+  "styleA": {
+   "kind": "title1",
+   "maxW": 4460,
+   "text": "A \u00b7 Paper & Ink \u2014 Editorial. Warm paper, ink rules, a serif that behaves like a book.",
+   "w": 240,
+   "x": 0,
+   "y": 10030
+  },
+  "styleB": {
+   "kind": "title1",
+   "maxW": 4460,
+   "text": "B \u00b7 Night Theatre \u2014 Dark-first. The art is the only light in the room.",
+   "w": 240,
+   "x": 0,
+   "y": 11430
+  },
+  "styleC": {
+   "kind": "title1",
+   "maxW": 4460,
+   "text": "C \u00b7 Daylight \u2014 Calm modern. The current Sky, fixed: opaque surfaces, one accent, real hierarchy.",
+   "w": 240,
+   "x": 0,
+   "y": 12830
+  },
+  "styleD": {
+   "kind": "title1",
+   "maxW": 4460,
+   "text": "D \u00b7 Storybook \u2014 Illustrated. Painted card stock, hand-set labels, a deck you can hold.",
+   "w": 240,
+   "x": 0,
+   "y": 14230
+  },
+  "styleE": {
+   "kind": "title1",
+   "maxW": 4460,
+   "text": "E \u00b7 Night Storybook \u2014 the old night sky, with a deck of lit cards laid on it. Lamplight for the accent.",
+   "w": 240,
+   "x": 0,
+   "y": 15630
+  },
+  "styles": {
+   "kind": "title1",
+   "maxW": 4460,
+   "text": "Five style studies \u00b7 reference only. Copy here predates the no-LLM rule.",
+   "w": 240,
+   "x": 0,
+   "y": 9802
+  },
+  "sky21": {
+   "kind": "title1",
+   "maxW": 7480,
+   "text": "v2.1 \u00b7 the 10/10 pass \u2014 proof boards. Day theme, 1024 wide, Arabic right to left, and accessibility measured: 2,354 text runs audited across 43 boards, 0 below WCAG AA.",
+   "w": 240,
+   "x": 0,
+   "y": 24260
   }
  },
  "order": [
@@ -206,14 +654,62 @@
   "Scene-Peek.dc.html",
   "Scene-Backstage.dc.html",
   "Sky-Home.dc.html",
-  "Sky-Profile-Mira.dc.html",
+  "Sky-Profile-Mike.dc.html",
   "Sky-AddCharacter.dc.html",
   "Sky-Chats.dc.html",
   "Sky-Library.dc.html",
   "Sky-You.dc.html",
   "Sky-Activity.dc.html",
   "Sky-FirstRun.dc.html",
-  "Sky-Models.dc.html"
+  "Sky-Models.dc.html",
+  "Sky-Home-Dark.dc.html",
+  "Sky-Profile-Mike-Dark.dc.html",
+  "Sky-Chats-Dark.dc.html",
+  "Sky-Library-Dark.dc.html",
+  "Style-A-Home.dc.html",
+  "Style-A-Profile.dc.html",
+  "Style-A-FirstRun.dc.html",
+  "Style-B-Home.dc.html",
+  "Style-B-Profile.dc.html",
+  "Style-B-FirstRun.dc.html",
+  "Style-C-Home.dc.html",
+  "Style-C-Profile.dc.html",
+  "Style-C-FirstRun.dc.html",
+  "Style-D-Home.dc.html",
+  "Style-D-Profile.dc.html",
+  "Style-D-FirstRun.dc.html",
+  "Style-E-Home.dc.html",
+  "Style-E-Profile.dc.html",
+  "Style-E-FirstRun.dc.html",
+  "Sky2-Home.dc.html",
+  "Sky2-Profile.dc.html",
+  "Sky2-Stories.dc.html",
+  "Sky2-World.dc.html",
+  "Sky2-FirstRun.dc.html",
+  "Sky2-Characters.dc.html",
+  "Sky2-You.dc.html",
+  "Sky2-AddCharacter.dc.html",
+  "Sky2-NewStory.dc.html",
+  "Sky2-FirstRun2.dc.html",
+  "Sky2-Palette.dc.html",
+  "Sky2-Search.dc.html",
+  "Sky2-Menus.dc.html",
+  "Sky2-Empty.dc.html",
+  "Sky2-Error.dc.html",
+  "Sky2-Feedback.dc.html",
+  "Sky2-Loading.dc.html",
+  "Sky2-Set-General.dc.html",
+  "Sky2-Set-Appearance.dc.html",
+  "Sky2-Set-Language.dc.html",
+  "Sky2-Set-Models.dc.html",
+  "Sky2-Set-Memory.dc.html",
+  "Sky2-Set-Data.dc.html",
+  "Sky2-Set-Shortcuts.dc.html",
+  "Sky2-Set-About.dc.html",
+  "Sky2-Home-Day.dc.html",
+  "Sky2-Home-Compact.dc.html",
+  "Sky2-Home-Arabic.dc.html",
+  "Sky2-Access.dc.html"
  ],
  "pages": [],
  "title": "Kataki RPAI"
