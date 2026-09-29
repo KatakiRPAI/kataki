@@ -252,3 +252,61 @@ def sense(text: str, model=None) -> tuple[str, float] | None:
     sims = centres @ (vec / norm)
     best = int(np.argmax(sims))
     return (names[best], round(float(sims[best]), 3)) if sims[best] >= SENSE_MIN else None
+
+
+NOUN = {"angry": "anger", "afraid": "fear", "anxious": "worry", "sad": "sadness",
+        "ashamed": "shame", "annoyed": "annoyance", "bored": "boredom"}  # fmt: skip
+
+
+def _strength(i: float) -> str:
+    return "a little " if i < 0.3 else "very " if i >= 0.6 else ""
+
+
+def mood_word(state: dict, prof: dict) -> str:
+    base = baseline(prof)
+    dv = state["mood"]["v"] - base["v"]
+    da = state["mood"]["a"] - base["a"]
+    if dv <= -MOOD_SHOWS:
+        return "on edge" if da > AROUSED else "low"
+    if dv >= MOOD_SHOWS:
+        return "buzzing" if da > AROUSED else "in a good mood"
+    return ""
+
+
+def public(state: dict, prof: dict) -> dict | None:
+    """The mood as the app shows it (spec §8.2); None at rest. `feels` is private (Peek);
+    `shows` and `tell` are what anyone in the room could see."""
+    emotions, word = state["emotions"], mood_word(state, prof)
+    if not emotions and not word:
+        return None
+    top = emotions[0] if emotions else None
+    shown = state.get("shown")
+    return {
+        "label": top and top["label"],
+        "feels": ", and ".join(f"{_strength(e['i'])}{e['label']}" for e in emotions[:2]) or word,
+        "shows": shown["label"] if shown else "calm",
+        "tell": shown and shown["tell"],
+        "word": word,
+        "why": top and top["cause"],
+    }
+
+
+def render(state: dict, prof: dict, name: str) -> str:
+    """The mind block for the prompt's tail: words, never numbers; empty at rest."""
+    if (p := public(state, prof)) is None:
+        return ""
+    lines = [f"[Inside {name} right now: show it, never say it]"]
+    if p["label"]:
+        lines.append(f"Feeling: {p['feels']}" + (f" ({p['why']})." if p["why"] else "."))
+        if p["shows"] != p["label"]:
+            hiding = f"Showing: {p['shows']}. Hiding the {NOUN.get(p['label'], p['label'])}"
+            lines.append(hiding + (f"; it slips out as {p['tell']}." if p["tell"] else "."))
+    if p["word"]:
+        lines.append(f"Mood: {p['word']}.")
+    return "\n".join(lines)
+
+
+def face(state: dict) -> str:
+    """The sprite for what they show (the lite level's face, no model call)."""
+    shown = state.get("shown")
+    return FEEL[shown["label"]][1] if shown else "neutral"

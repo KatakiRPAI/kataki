@@ -367,3 +367,13 @@ def test_the_rules_keep_notes_out_of_the_story_and_the_story_in_english(conn, st
     say(conn, story, "Aren", "Hello.")
     system = context.build(conn, story, eid(conn, "Mira"), EP).messages[0]["content"]
     assert "English" in system and "never mention" in system.lower()
+
+
+def test_the_inside_block_sits_before_the_directive_and_is_capped(conn, story):
+    inside = "[Inside Mira right now: show it, never say it]\nFeeling: hurt."
+    built = context.build(conn, story, eid(conn, "Mira"), EP, inside=inside)
+    tail = built.messages[-1]["content"]
+    assert tail.index("[Inside Mira") < tail.index("[Directive]")
+    mind = next(s for s in built.sections if s["name"] == "mind")
+    assert 0 < mind["tokens"] <= mind["cap"]
+    assert "never state it" in built.messages[0]["content"]  # the one RULES line

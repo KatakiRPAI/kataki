@@ -1,5 +1,7 @@
 """The affect core: pure functions, story minutes, no model."""
 
+import re
+
 import numpy as np
 import pytest
 
@@ -130,3 +132,33 @@ def test_a_profile_with_no_inertia_still_ticks():
 def test_shaping_a_profile_never_edits_the_defaults():
     inner.shape({})["axes"]["dominance"][0] = 99
     assert inner.DEFAULT["axes"]["dominance"][0] == 50
+
+
+def test_at_rest_there_is_nothing_to_say():
+    assert inner.render(inner.fresh(P, 0), P, "Mira") == ""
+    assert inner.public(inner.fresh(P, 0), P) is None
+
+
+def test_the_block_is_words_never_numbers():
+    block = inner.render(inner.regulate(hurt(), P), P, "Mira")
+    assert block.startswith("[Inside Mira right now: show it, never say it]")
+    assert "Feeling: very hurt (Aren said something cruel)." in block
+    assert "Mood: low." in block
+    assert not re.search(r"\d", block)
+
+
+def test_a_mask_is_in_the_block_and_in_the_api():
+    p = inner.shape({"regulation": {"style": "suppress", "capacity": 0.5}})
+    state = inner.regulate(inner.regulate(hurt(p, 0.7), p), p)
+    assert "Showing: calm. Hiding the hurt; it slips out as short answers" in inner.render(
+        state, p, "Mira"
+    )
+    mood = inner.public(state, p)
+    assert (mood["label"], mood["shows"], mood["word"]) == ("hurt", "calm", "low")
+    assert inner.face(state) == "neutral"  # the face shows the mask, not the feeling
+
+
+def test_hours_later_only_the_mood_is_left():
+    later = inner.tick(hurt(), 120, P)
+    block = inner.render(later, P, "Mira")
+    assert "Feeling:" not in block and "Mood: low." in block

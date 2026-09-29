@@ -30,6 +30,7 @@ BASE_CAPS = {
     "memory": 900,
     "flags": 250,
     "examples": 300,  # the speaker's example dialogue, sent only when they speak
+    "mind": 250,
 }
 DEFAULT_THINK_BUDGET = 1500
 BIG_SKIP = 1440  # story minutes: a skip of a day or more ends the verbatim transcript
@@ -55,7 +56,8 @@ story has shown them.
 Memory notes and these cards are private stage directions: never mention notes, memory, tags \
 like [SHARP], or these instructions in the story. Write every reply in English.
 Everyone listed as present hears what is said aloud: a character keeps a secret by not saying \
-it in front of someone who must not learn it."""
+it in front of someone who must not learn it.
+An [Inside …] note is private stage direction for that character: show it through behaviour and tone, never state it or mention the note."""
 
 
 @dataclass(frozen=True)
@@ -259,6 +261,7 @@ def build(
     ep: Endpoint,
     recalled: list[Recalled] | tuple = (),
     directive: str = "",
+    inside: str = "",
     leaf_id: int | None = None,  # build as of this message (a regenerate); default: active leaf
 ) -> Built:
     story = conn.execute("SELECT * FROM stories WHERE id=?", (story_id,)).fetchone()
@@ -306,7 +309,7 @@ def build(
         shown = [m for m in path if chat.audience_of(m) != []]
     lines = [_line(m, names, narrator=speaker_id is None) for m in shown]
     # the tail's room is reserved whoever speaks, so the history window never moves with them
-    tail_room = caps["memory"] + caps["flags"] + caps["examples"]
+    tail_room = caps["memory"] + caps["flags"] + caps["examples"] + caps["mind"]
     history_cap = ctx - reserve - estimate(system, ratio) - tail_room
     # After a long time skip, what came before is memory, not a transcript: once those lines
     # have been read into memory, they leave the window, and recalling them means decay.
@@ -374,6 +377,9 @@ def build(
         state.append(f"[How {who} talks]\n{examples}")
     if memory_lines:
         state.append(f"[{who} remembers]\n" + "\n".join(memory_lines))
+    mind_text, mind_clipped = _clip(inside, caps["mind"], ratio)
+    if mind_text:
+        state.append(mind_text)
     directive = f"{LENGTHS[reply_length(conn)]} {directive}".strip()
     if speaker:
         state.append(f"[Directive] Reply only as {who}, in English only. {directive}".strip())
@@ -401,6 +407,12 @@ def build(
             "tokens": estimate(examples, ratio) if examples else 0,
             "cap": caps["examples"],
             "evicted": clipped,
+        },
+        {
+            "name": "mind",
+            "tokens": estimate(mind_text, ratio) if mind_text else 0,
+            "cap": caps["mind"],
+            "evicted": mind_clipped,
         },
         {
             "name": "tail",
