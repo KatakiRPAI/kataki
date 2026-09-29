@@ -258,3 +258,30 @@ async def test_a_reply_to_a_reply_is_not_an_appraisal(conn, story, backend, side
     async for _ in turns.turn(conn, backend.llm, story, None, speaker=eid(conn, "Mira")):
         pass
     assert conn.execute("SELECT COUNT(*) FROM opinions").fetchone()[0] == 0
+
+
+@pytest.mark.anyio
+async def test_the_side_call_re_reads_the_line_instead_of_feeling_it_twice(
+    conn, story, backend, side_call
+):
+    mira = eid(conn, "Mira")
+    lib = conn.execute("SELECT lib_item_id FROM entities WHERE id=?", (mira,)).fetchone()[0]
+    mind = {"regulation": {"style": "suppress", "capacity": 0.5}}
+    library.update_item(conn, lib, data={"mind": mind})
+    prof = inner.profile(conn, mira)
+    aren = f"E{eid(conn, 'Aren')}"
+    felt = {"label": "hurt", "intensity": 3, "about": aren, "cause": "called me useless"}
+    backend.say("Hm.", said(felt=felt, events=[{"target": aren, "type": "insult", "intensity": 2}]))
+    await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
+    path = chat.active_path(conn, story)
+    rows = conn.execute("SELECT COUNT(*) FROM mind_states WHERE entity_id=? AND message_id=?",
+                        (mira, path[-1]["id"])).fetchone()[0]  # fmt: skip
+    st = inner.current(conn, mira, path, prof)
+    once = inner.regulate(
+        inner.feel(inner.fresh(prof, st["t"]), "hurt", after.FELT[3], "c", prof), prof
+    )
+    assert rows == 1
+    assert st["emotions"][0]["i"] == once["emotions"][0]["i"] == after.FELT[3]
+    assert st["reg_load"] == once["reg_load"] and st["mood"] == once["mood"]
+    later = inner.tick(st, st["t"] + 120, prof)
+    assert inner.mood_word(later, prof) == "low"

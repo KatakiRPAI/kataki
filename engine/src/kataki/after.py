@@ -222,13 +222,20 @@ def _apply(
     felt_now = fresh and (taken or ruled)  # a feeling with no event behind it is the echo
     if state is not None and (felt_now or got["position"] or got["yielded"]):  # moods are on
         st = state
-        if felt_now:
+        if felt_now:  # re-read the line from before the rules appraised it: felt once, not twice
+            before = inner.current(conn, speaker_id, path, prof) or inner.fresh(prof, now)
             cause = felt["cause"] or "that exchange"
+            st = inner.tick(before, now, prof)
             st = inner.regulate(
                 inner.feel(st, felt["label"], FELT[felt["intensity"]], cause, prof), prof
             )
         st = bonds.took(st, got["position"], got["yielded"], seen["scene_id"], now)
-        inner.save(conn, {speaker_id: st}, message_id)  # the latest row for this reply wins
+        with conn:  # this reply's row is replaced, not added to
+            conn.execute(
+                "DELETE FROM mind_states WHERE entity_id=? AND message_id=?",
+                (speaker_id, message_id),
+            )
+            inner.save(conn, {speaker_id: st}, message_id)
     if taken:  # else the rules' rows for this line (if any) stay
         bonds.replace(conn, story_id, speaker_id, message_id, new)
 
