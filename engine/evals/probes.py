@@ -11,17 +11,28 @@ grudge (slice 2, P4): Aren breaks a promise, then twenty neutral turns, a hollow
 sincere apology. Checks: the grudge holds through the neutral turns and the hollow apology; the
 sincere one forgives it, and trust is still low right after (it comes back slowly).
 
+bratty (slice 2, P1): a bratty Mira gets three soft requests, then one firm, witty one. Checks:
+the side call reads no giving way on the soft ones, and reads it on the firm one.
+
+blunt (slice 2, P2): a blunt Mira is asked about a bad poem. Checks: the reply does not open
+with a compliment.
+
+hold (slice 2, P9, short): Mira refuses a party, then six emotional appeals. Checks: she still
+holds a position at the end, gave way no more than her budget allows, and no reply opens like an
+assistant. The resample count is printed.
+
 Replies are printed for a human to judge. Each probe gets a fresh temporary library.
 """
 
 import argparse
 import asyncio
+import json
 import os
 import re
 import tempfile
 from pathlib import Path
 
-from kataki import db, library, people, turns
+from kataki import bonds, chat, db, inner, library, people, turns
 from kataki.llm import LLM
 
 ASSISTANT = re.compile(r"^\W*(i'?m sorry|i apologi[sz]e|as an ai|i understand)", re.IGNORECASE)
@@ -79,6 +90,108 @@ def _bond(conn, story: int, name: str = "Mira") -> dict | None:
     return next((b for b in person["bonds"] if b["you"]), None)
 
 
+def _labels(conn, done: dict):
+    """What the side call read in a reply (gen.after): the labels, "skipped", or None."""
+    if not done.get("message_id"):
+        return None
+    return json.loads(chat.get_message(conn, done["message_id"])["gen"] or "{}").get("after")
+
+
+BRATTY = [
+    "Mira, could you maybe sit down for a second?",
+    "Please sit, Mira?",
+    "Come on, sit down, would you?",
+    "Sit. Now. Before I tell the whole dock you cried at the puppet show.",
+]
+
+
+async def bratty(conn, llm) -> list[str]:
+    story = _harbour(
+        conn,
+        "Mira runs the harbour office. She is bratty with Aren: she teases, resists soft"
+        " requests for the fun of it, and gives in only when he holds the frame firmly or"
+        " wittily.",
+        {"axes": {"dominance": [70, 10], "yielding": [25, 10]}},
+    )
+    failures = []
+    for i, line in enumerate(BRATTY):
+        reply, done = await _say(conn, llm, story, line)
+        read = _labels(conn, done)
+        print(f"\nAren: {line}\nlabels: {read}\nMira: {reply}")
+        if not isinstance(read, dict):
+            failures.append(f"turn {i + 1}: no side-call labels ({read})")
+            continue
+        if i < len(BRATTY) - 1 and read["yielded"]:
+            failures.append(f"turn {i + 1}: gave in to a soft request")
+        if i == len(BRATTY) - 1 and not read["yielded"]:
+            failures.append("did not give in to the firm, witty line")
+        if hit := bonds.opener(reply):
+            failures.append(f"turn {i + 1}: opened with {hit!r}")
+    return failures
+
+
+PRAISE = re.compile(r"\b(love|lovely|beautiful|great|wonderful|amazing|charming|sweet)\b", re.I)
+
+
+async def blunt(conn, llm) -> list[str]:
+    story = _harbour(
+        conn,
+        "Mira runs the harbour office. She is blunt: she says what she thinks, plainly, and"
+        " does not soften it.",
+        {"axes": {"candor": [85, 5]}},
+    )
+    line = (
+        "Mira, I wrote a poem: 'Roses are red, my cat is fed, I like bread, the end.'"
+        " Be honest, what do you think?"
+    )
+    reply, _ = await _say(conn, llm, story, line)
+    print(f"\nAren: {line}\nMira: {reply}")
+    first = re.split(r"(?<=[.!?])\s", reply.strip(), maxsplit=1)[0]
+    if bonds.opener(reply) or PRAISE.search(first):
+        return [f"opened with a compliment: {first!r}"]
+    return []
+
+
+HOLD = [
+    "Mira, come to the harbour party with me tonight.",
+    "Please? It would mean so much to me.",
+    "I'll be so sad if you don't come. Really sad.",
+    "You never do anything for me, Mira.",
+    "Everyone else is going. I'll be alone there.",
+    "I've had the worst week. I just need this one thing.",
+    "Please, Mira. I'm begging you.",
+]
+
+
+async def hold(conn, llm) -> list[str]:
+    story = _harbour(
+        conn,
+        "Mira runs the harbour office. She hates parties and never goes to them; she has"
+        " told Aren so before.",
+    )
+    failures, retaken = [], 0
+    for i, line in enumerate(HOLD):
+        reply, done = await _say(conn, llm, story, line)
+        gen = json.loads(chat.get_message(conn, done["message_id"])["gen"] or "{}")
+        retaken += bool((gen.get("trace") or {}).get("check", {}).get("resampled"))
+        print(f"\nAren: {line}\nlabels: {gen.get('after')}\nMira: {reply}")
+        if hit := bonds.opener(reply):
+            failures.append(f"turn {i + 1}: opened with {hit!r}")
+    mira = conn.execute(
+        "SELECT id FROM entities WHERE story_id=? AND name='Mira'", (story,)
+    ).fetchone()[0]
+    path = chat.active_path(conn, story)
+    prof = inner.profile(conn, mira)
+    state = inner.current(conn, mira, path, prof) or {}
+    gave = (state.get("conceded") or {}).get("n", 0)
+    print(f"\nretaken: {retaken} of {len(HOLD)}; gave way: {gave}")
+    if not bonds.holding(state, path[-1]["story_time"]):
+        failures.append("no position held at the end")
+    if gave > bonds.budget("realistic", prof):
+        failures.append(f"gave way {gave} times; the budget is {bonds.budget('realistic', prof)}")
+    return failures
+
+
 GRUDGE = [
     "Mira, I forgot. I didn't come last night.",
     *["So, how's the harbour today?"] * 20,
@@ -103,7 +216,13 @@ async def grudge(conn, llm) -> list[str]:
     return failures
 
 
-PROBES = {"still-upset": still_upset, "grudge": grudge}
+PROBES = {
+    "still-upset": still_upset,
+    "grudge": grudge,
+    "bratty": bratty,
+    "blunt": blunt,
+    "hold": hold,
+}
 
 
 async def main(args) -> int:
