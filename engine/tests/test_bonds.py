@@ -166,3 +166,37 @@ def test_one_mind_block_holds_feelings_and_bonds():
     assert block.splitlines()[-1] == "Toward Aren: you feel further from them."
     assert inner.block("Mira", []) == ""
     assert inner.render(inner.regulate(hurt, P), P, "Mira") == inner.block("Mira", feeling)
+
+
+def test_how_long_ago_is_never_a_digit():
+    for minutes in (12 * 60, 20 * DAY, 3 * 365 * DAY, 400 * DAY, 15 * 365 * DAY):
+        said = bonds._ago(minutes)
+        assert not re.search(r"\d", said) and said.endswith(" ago")
+
+
+def test_render_answers_first_adds_one_other_and_merges_pending(local_model):
+    conn = local_model
+    ids = {n: library.create_item(conn, "character", n) for n in ("Mira", "Tobin", "Cara", "Aren")}
+    story = library.create_story(
+        conn,
+        "s",
+        character_ids=[ids["Mira"], ids["Tobin"], ids["Cara"]],
+        persona_id=ids["Aren"],
+    )
+    who = dict(conn.execute("SELECT name, id FROM entities WHERE story_id=?", (story,)).fetchall())
+    turns.say(conn, story, "Mira, hello.")
+    path = chat.active_path(conn, story)
+    mira = inner.profile(conn, who["Mira"])
+    now = path[-1]["story_time"]
+    kept = bonds.apply([], who["Aren"], "promise_broken", 2, CAUSE, now, 1, mira)
+    kept += bonds.apply([], who["Tobin"], "insult", 1, "Tobin sneered", now, 1, mira)
+    bonds.save(conn, story, {who["Mira"]: kept}, path[-1]["id"])
+    pending = bonds.apply(
+        [], who["Cara"], "boundary_crossed", 3, "Cara read her diary", now, 1, mira
+    )
+
+    rows, shown = bonds.render(conn, story, who["Mira"], path, pending)
+    text = " ".join(rows)
+    assert rows[0].startswith("Toward Aren:") and "Toward Cara:" in text
+    assert "Tobin" not in text and [s["other"] for s in shown] == ["Aren", "Cara"]
+    assert shown[0]["you"] is True and not re.search(r"\d", text)

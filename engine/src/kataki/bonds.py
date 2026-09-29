@@ -271,7 +271,13 @@ def _how(x: float, up: str, down: str) -> str:
 
 
 def _ago(minutes: int) -> str:
-    return "just now" if minutes < 60 else f"{clock.spell(minutes).lower()} ago"
+    """How long ago, in words only: clock.spell turns to digits from eleven units up."""
+    if minutes < 60:
+        return "just now"
+    said = clock.spell(minutes).lower()
+    if re.search(r"\d", said):
+        said = "most of a day" if minutes < clock.DAY else "many " + said.split()[-1]
+    return f"{said} ago"
 
 
 def sentences(st: dict, name: str, now: int) -> list[str]:
