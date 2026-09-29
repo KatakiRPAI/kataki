@@ -375,8 +375,14 @@ def targets(conn: sqlite3.Connection, path: list, hearers: list[int]) -> set[int
     from who is spoken about."""
     if not hearers or not path:
         return set()
-    if named := chat.named(conn, path[-1]["text"], hearers):
-        return set(named)
+    story = [
+        r[0]
+        for r in conn.execute(
+            "SELECT id FROM entities WHERE story_id=? AND kind='character'", (path[-1]["story_id"],)
+        )
+    ]
+    if named := chat.named(conn, path[-1]["text"], story):
+        return {n for n in named if n in hearers}  # named, but away: nobody here takes it
     last = next(
         (
             m["speaker_id"]

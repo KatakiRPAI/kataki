@@ -256,7 +256,12 @@ async def _generate(
     except Exception as e:
         logging.getLogger(__name__).warning("mind skipped for story %s: %s", story_id, e)
         minds, felt = {}, []
-    if features.enabled(conn, "mind.bonds"):
+    try:
+        bonds_on = features.enabled(conn, "mind.bonds")
+    except Exception as e:
+        logging.getLogger(__name__).warning("bonds setting unreadable: %s", e)
+        bonds_on = False
+    if bonds_on:
         try:
             pending = bonds.react(conn, story_id, path, await asyncio.to_thread(embed.builtin))
         except Exception as e:

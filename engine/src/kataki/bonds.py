@@ -128,7 +128,7 @@ def apply(
     comes slower the closer they are, one scene can only raise it so far, and a repair forgives
     every open grudge toward `dst` (a forgiving owner forgives faster)."""
     deltas, kind, half_days = EVENTS[event]
-    social = prof["social"]
+    social = {k: min(1.0, max(0.0, v)) for k, v in prof["social"].items()}
     before = standing(rows, dst, now)
     new = []
     for dim, per in deltas.items():
@@ -166,8 +166,9 @@ def apply(
 
 # what a line did, read by rules: the lite level, and the fallback when the side call can't run
 BROKEN = re.compile(
-    r"\b(i forgot|i didn'?t (come|show up|make it|call)|couldn'?t make it"
-    r"|broke (my|the|a|our) promise|stood you up)\b",
+    r"\b(i forgot (about (us|you|tonight|it)|to (come|call|meet|write))"
+    r"|i didn'?t (come|show up|make it|call)(?! (here|up|out|back|in|it up)\b)"
+    r"|couldn'?t make it|broke (my|the|a|our) promise|stood you up)\b",
     re.IGNORECASE,
 )
 OWNED = re.compile(  # an apology that owns the wrong
@@ -293,7 +294,7 @@ def sentences(st: dict, name: str, now: int) -> list[str]:
     moved = [m for m in moved if m]
     if not moved and not st["grudge"]:
         return []
-    why = "; ".join(f"{c['cause']}, {_ago(now - c['t'])}" for c in st["causes"])
+    why = "; ".join(f"{c['cause']}, {_ago(now - c['t'])}" for c in st["causes"][:1])
     rows = [
         f"Toward {name}: " + ("; ".join(moved) or "something is unresolved")
         + (f" ({why})." if why else ".")

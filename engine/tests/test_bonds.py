@@ -94,6 +94,9 @@ def test_rows_are_about_one_person_at_a_time():
         ("I'm sorry I broke my promise. It was my fault.", [("apology_sincere", 2)]),
         ("You did so well, thank you.", [("compliment", 2)]),
         ("Nice weather.", []),
+        ("I didn't come here to fight.", []),
+        ("I forgot how pretty the harbour is.", []),
+        ("I didn't make it up, I swear.", []),
     ],
 )
 def test_rules_read_what_a_line_did(line, events):
@@ -337,3 +340,55 @@ async def test_peek_survives_a_failing_ledger_and_a_switch(conn, story, backend,
     assert people.people(conn, row)[0]["bonds"] or people.people(conn, row)[1]["bonds"]
     conn.execute("INSERT INTO settings(key, value) VALUES('features.mind.bonds', 'false')")
     assert all(p["bonds"] == [] for p in people.people(conn, row))
+
+
+def test_a_person_named_but_away_is_not_insulted_by_who_is_left(local_model):
+    conn = local_model
+    ids = {n: library.create_item(conn, "character", n) for n in ("Mira", "Tobin", "Aren")}
+    story = library.create_story(
+        conn, "s", character_ids=[ids["Mira"], ids["Tobin"]], persona_id=ids["Aren"]
+    )
+    who = dict(conn.execute("SELECT name, id FROM entities WHERE story_id=?", (story,)).fetchall())
+    chat.set_presence(conn, story, who["Tobin"], False)
+    turns.say(conn, story, "Tobin is useless.")
+    path = chat.active_path(conn, story)
+    assert inner.targets(conn, path, [who["Mira"]]) == set()
+    assert bonds.react(conn, story, path) == {}
+
+
+def test_a_hostile_temperament_never_breaks_the_ledger():
+    odd = inner.shape({"social": {"forgiveness": -0.5, "trust_propensity": -1}})
+    zero = inner.shape({"social": {"forgiveness": 0.0, "trust_propensity": 0.0}})
+    args = (7, "apology_sincere", 2, "sorry", DAY, 2)
+    assert bonds.apply(saved(breach(odd)), *args, odd) == bonds.apply(
+        saved(breach(zero)), *args, zero
+    )
+    args = (7, "support_given", 2, "helped", 0, 1)
+    assert bonds.apply([], *args, odd) == bonds.apply([], *args, zero)
+
+
+def test_a_merge_carries_the_ledger_and_the_mind(local_model):
+    conn = local_model
+    a = library.create_item(conn, "character", "Mira")
+    b = library.create_item(conn, "character", "Mirabel")
+    story = library.create_story(conn, "s", character_ids=[a, b])
+    keep, drop = (
+        conn.execute("SELECT id FROM entities WHERE story_id=? AND name=?", (story, n)).fetchone()[
+            0
+        ]
+        for n in ("Mira", "Mirabel")
+    )
+    conn.execute(
+        "INSERT INTO opinions(story_id, src_id, dst_id, dim, value, kind, story_time)"
+        " VALUES(?, ?, ?, 'trust', -5, 'sticky', 0), (?, ?, ?, 'trust', 3, 'decay', 0)",
+        (story, drop, keep, story, keep, drop),
+    )
+    conn.execute(
+        "INSERT INTO mind_states(entity_id, story_time, state) VALUES(?, 0, '{}')", (drop,)
+    )
+    conn.commit()
+    library.merge_entities(conn, keep, drop)
+    count = lambda sql, *a: conn.execute(sql, a).fetchone()[0]  # noqa: E731
+    assert count("SELECT COUNT(*) FROM opinions WHERE src_id=? AND dst_id=?", keep, keep) == 2
+    assert count("SELECT COUNT(*) FROM opinions WHERE src_id=? OR dst_id=?", drop, drop) == 0
+    assert count("SELECT COUNT(*) FROM mind_states WHERE entity_id=?", keep) == 1

@@ -290,6 +290,9 @@ def merge_entities(conn: sqlite3.Connection, keep: int, drop: int) -> None:
         ("messages", "speaker_id"),
         ("scenes", "place_id"),
         ("stories", "persona_entity_id"),
+        ("opinions", "src_id"),
+        ("opinions", "dst_id"),
+        ("mind_states", "entity_id"),
     ]
     with conn:
         for table, column in moves:
