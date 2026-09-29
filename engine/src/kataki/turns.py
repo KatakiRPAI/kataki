@@ -598,9 +598,11 @@ async def _generate(
                     text,
                     minds.get(speaker_id),
                     get_key,
+                    afterthought=voice == "after",
                 )
-                # the side call may have replaced the mood the reply was saved with
-                gen["mind"] = json.loads(chat.get_message(conn, message_id)["gen"]).get("mind")
+                # the side call may have replaced the mood, and written an afterthought
+                saved = json.loads(chat.get_message(conn, message_id)["gen"])
+                gen["mind"], gen["thought"] = saved.get("mind"), saved.get("thought")
                 if got and _has_pack(conn, speaker_id):
                     face, side_face = got["face"], True
                     with conn:

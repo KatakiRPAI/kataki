@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from kataki import chat, library, thought, turns
+from kataki import after, chat, library, thought, turns
 from kataki.llm import Endpoint
 
 TAGS = ("<think>", "</think>")
@@ -223,3 +223,33 @@ async def test_an_echo_after_the_first_sentence_is_noted_not_retaken(conn, story
     _, gen = leaf(conn, story)
     assert len(backend.requests) == 1
     assert gen["trace"]["echo"] == {"hit": "i promised myself i wouldn't", "resampled": False}
+
+
+def test_the_side_call_asks_for_an_afterthought_only_when_told():
+    assert "thought" not in after.schema(["E1"])["properties"]
+    s = after.schema(["E1"], afterthought=True)
+    assert s["properties"]["thought"] == {"type": ["string", "null"]}
+    assert "thought" in s["required"]
+    base = {"felt": {"label": "calm", "intensity": 1, "about": None, "cause": ""},
+            "events": [], "position": None, "yielded": False, "face": "neutral"}  # fmt: skip
+    assert "thought" not in after.read(base | {"thought": None}, ["E1"])
+    assert "thought" not in after.read(base | {"thought": 7}, ["E1"])
+    assert after.read(base | {"thought": " Tired of him. "}, ["E1"])["thought"] == "Tired of him."
+
+
+@pytest.mark.anyio
+async def test_a_reasoning_model_gets_an_afterthought_from_the_side_call(
+    conn, story, backend, side_call
+):
+    conn.execute("INSERT INTO settings(key, value) VALUES('memory.thinking', '\"lot\"')")
+    labels = {"felt": {"label": "calm", "intensity": 1, "about": None, "cause": ""},
+              "events": [], "position": None, "yielded": False, "face": "neutral",
+              "thought": "He'll never let this go."}  # fmt: skip
+    backend.say({"reasoning_content": "She weighs it.", "content": "Fine."}, json.dumps(labels))
+    events = await play(turns.turn(conn, backend.llm, story, "Mira?"))
+    assert "thinks:" not in json.dumps(backend.requests[0]["messages"])  # no header asked
+    assert "thought" in backend.requests[1]["response_format"]["json_schema"]["schema"]["required"]
+    after_ = {"thinks": "He'll never let this go.", "wants": None, "from": "after"}
+    _, gen = leaf(conn, story)
+    assert gen["thought"] == after_ and events[-1][1]["thought"] == after_
+    assert gen["reasoning"] == "She weighs it."  # its own reasoning stays where it was
