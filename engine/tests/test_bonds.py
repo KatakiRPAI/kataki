@@ -1,5 +1,7 @@
 """The relationship ledger: pure maths on story minutes, then the turn, Peek and the graph."""
 
+import re
+
 import pytest
 
 from kataki import bonds, chat, clock, inner, library, turns
@@ -117,3 +119,50 @@ def test_only_the_one_it_was_aimed_at_writes_it_down_on_this_branch(local_model)
     assert len(kept) == 3 and all(r["id"] and r["scene_id"] for r in kept)
     assert bonds.ledger(conn, who["Tobin"], path[:-1]) == []  # another branch never had it
     assert bonds.react(conn, story, path[:-1]) == {}  # nothing new was said there
+
+
+def test_the_block_says_it_in_words_never_numbers():
+    rows = saved(breach())
+    text = "\n".join(bonds.sentences(bonds.standing(rows, 7, 120), "Aren", 120))
+    assert text.startswith(
+        "Toward Aren: you trust them much less than before; you feel further from them"
+        ' (Aren said "I forgot", two hours ago).'
+    )
+    assert (
+        'You have not forgiven Aren (Aren said "I forgot"). Stay civil; do not warm up unless'
+        " Aren owns it." in text
+    )
+    assert not re.search(r"\d", text)
+
+
+def test_forgiven_but_not_yet_trusted():
+    rows = saved(breach())
+    rows += bonds.apply(rows, 7, "apology_sincere", 2, "sorry", 60, 1, P)
+    text = "\n".join(bonds.sentences(bonds.standing(rows, 7, 60), "Aren", 60))
+    assert "You have forgiven Aren, but trust comes back slowly." in text
+    assert "not forgiven" not in text
+
+
+def test_nothing_happened_nothing_to_say():
+    assert bonds.sentences(bonds.standing([], 7, 0), "Aren", 0) == []
+    assert bonds.toward([], [7], 0) == {}
+
+
+def test_the_app_gets_words_and_numbers():
+    st = bonds.standing(saved(breach()), 7, 0)
+    shown = bonds.public(st, 7, "Aren", True, 480)
+    assert shown["words"] == "trusts much less · further · holds a grudge"
+    assert shown["trust"] == pytest.approx(-17.6) and shown["you"] is True
+    assert shown["grudge"] == {"event": "promise_broken", "cause": CAUSE, "since": "Day 1, 08:00",
+                               "kind": "sticky", "forgiven": False}  # fmt: skip
+    assert [c["event"] for c in shown["causes"]] == ["promise_broken"]
+
+
+def test_one_mind_block_holds_feelings_and_bonds():
+    hurt = inner.feel(inner.fresh(P, 0), "hurt", 0.8, "cruel", P)
+    feeling = inner.lines(inner.regulate(hurt, P), P)
+    block = inner.block("Mira", [*feeling, "Toward Aren: you feel further from them."])
+    assert block.splitlines()[0] == "[Inside Mira right now: show it, never say it]"
+    assert block.splitlines()[-1] == "Toward Aren: you feel further from them."
+    assert inner.block("Mira", []) == ""
+    assert inner.render(inner.regulate(hurt, P), P, "Mira") == inner.block("Mira", feeling)

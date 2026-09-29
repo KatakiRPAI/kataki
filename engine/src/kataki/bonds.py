@@ -259,3 +259,112 @@ def save(conn: sqlite3.Connection, story_id: int, rows: dict[int, list], message
     with conn:
         for src, new in rows.items():
             _insert(conn, story_id, src, new, message_id)
+
+
+NOTICE, STRONG = 5, 15  # ponytail: a move this big is worth a word; this big, "much"
+
+
+def _how(x: float, up: str, down: str) -> str:
+    if abs(x) < NOTICE:
+        return ""
+    return (up if x > 0 else down).format(much="much " if abs(x) >= STRONG else "")
+
+
+def _ago(minutes: int) -> str:
+    return "just now" if minutes < 60 else f"{clock.spell(minutes).lower()} ago"
+
+
+def sentences(st: dict, name: str, now: int) -> list[str]:
+    """Where they stand with `name`, as rows of the mind block (note 22 §4 row 3): how it has
+    moved, why (the strongest causes, with their age), and what an open grudge means for this
+    reply. Words, never numbers."""
+    moved = [
+        _how(st["trust"], "you trust them {much}more than before",
+             "you trust them {much}less than before"),
+        _how(st["closeness"], "you feel {much}closer to them", "you feel {much}further from them"),
+        _how(st["respect"], "you respect them {much}more", "you respect them {much}less"),
+    ]  # fmt: skip
+    moved = [m for m in moved if m]
+    if not moved and not st["grudge"]:
+        return []
+    why = "; ".join(f"{c['cause']}, {_ago(now - c['t'])}" for c in st["causes"])
+    rows = [
+        f"Toward {name}: " + ("; ".join(moved) or "something is unresolved")
+        + (f" ({why})." if why else ".")
+    ]  # fmt: skip
+    if g := st["grudge"]:
+        rows.append(
+            f"You have not forgiven {name} ({g['cause']}). Stay civil; do not warm up unless"
+            f" {name} owns it."
+        )
+    elif st["forgiven"] and st["trust"] <= -NOTICE:
+        rows.append(f"You have forgiven {name}, but trust comes back slowly.")
+    return rows
+
+
+def summary(st: dict) -> str:
+    """The same standing in a few words for the app."""
+    parts = [
+        _how(st["trust"], "trusts {much}more", "trusts {much}less"),
+        _how(st["closeness"], "{much}closer", "{much}further"),
+        _how(st["respect"], "respects {much}more", "respects {much}less"),
+        "holds a grudge" if st["grudge"] else "has forgiven" if st["forgiven"] else "",
+    ]
+    return " · ".join(p for p in parts if p)
+
+
+def public(st: dict, other_id: int, other: str, you: bool, epoch: int) -> dict:
+    """One bond as the app shows it (spec §8.3): numbers for a soft bar, words for the rest."""
+
+    def cause(c: dict) -> dict:
+        return {"event": c["event"], "cause": c["cause"], "since": clock.label(c["t"], epoch),
+                "kind": c["kind"], "forgiven": c["forgiven"]}  # fmt: skip
+
+    return {
+        "other_id": other_id,
+        "other": other,
+        "you": you,
+        **{d: st[d] for d in SHOWN},
+        "words": summary(st),
+        "grudge": cause(st["grudge"]) if st["grudge"] else None,
+        "causes": [cause(c) for c in st["causes"]],
+    }
+
+
+def _size(st: dict) -> float:
+    return sum(abs(st[d]) for d in SHOWN) + (100 if st["grudge"] else 0)
+
+
+def toward(rows: list[dict], others: list[int], now: int) -> dict[int, dict]:
+    """Standings worth a word, for each of `others` the ledger has something on."""
+    out = {}
+    for dst in others:
+        st = standing(rows, dst, now)
+        if st["grudge"] or any(abs(st[d]) >= NOTICE for d in SHOWN):
+            out[dst] = st
+    return out
+
+
+def render(
+    conn: sqlite3.Connection, story_id: int, src: int, path: list, pending: list[dict]
+) -> tuple[list[str], list[dict]]:
+    """The speaker's relationship rows for the mind block, and the same for the app: toward
+    whoever they are answering, and the one other person here they feel most about."""
+    story = conn.execute(
+        "SELECT persona_entity_id, epoch_offset_min FROM stories WHERE id=?", (story_id,)
+    ).fetchone()
+    now = path[-1]["story_time"] if path else 0
+    scene_id = chat.scene_of(conn, story_id, path)
+    here = [e["id"] for e in chat.present_entities(conn, scene_id, path) if e["id"] != src]
+    stands = toward(ledger(conn, src, path) + pending, here, now)
+    last = path[-1]["speaker_id"] if path else None
+    answering = last if last not in (None, src) else story["persona_entity_id"]
+    rest = sorted((d for d in stands if d != answering), key=lambda d: -_size(stands[d]))
+    picked = ([answering] if answering in stands else []) + rest[:1]
+    names = dict(conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)))
+    rows, shown = [], []
+    for d in picked:
+        rows += sentences(stands[d], names.get(d, "them"), now)
+        you = d == story["persona_entity_id"]
+        shown.append(public(stands[d], d, names.get(d, "someone"), you, story["epoch_offset_min"]))
+    return rows, shown

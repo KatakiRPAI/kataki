@@ -323,19 +323,33 @@ def public(state: dict, prof: dict) -> dict | None:
     }
 
 
-def render(state: dict, prof: dict, name: str) -> str:
-    """The mind block for the prompt's tail: words, never numbers; empty at rest."""
+HEADER = "[Inside {name} right now: show it, never say it]"
+
+
+def lines(state: dict, prof: dict) -> list[str]:
+    """How they feel, as rows of the mind block: words, never numbers; none at rest."""
     if (p := public(state, prof)) is None:
-        return ""
-    lines = [f"[Inside {name} right now: show it, never say it]"]
+        return []
+    rows = []
     if p["label"]:
-        lines.append(f"Feeling: {p['feels']}" + (f" ({p['why']})." if p["why"] else "."))
+        rows.append(f"Feeling: {p['feels']}" + (f" ({p['why']})." if p["why"] else "."))
         if p["shows"] != p["label"]:
             hiding = f"Showing: {p['shows']}. Hiding the {NOUN.get(p['label'], p['label'])}"
-            lines.append(hiding + (f"; it slips out as {p['tell']}." if p["tell"] else "."))
+            rows.append(hiding + (f"; it slips out as {p['tell']}." if p["tell"] else "."))
     if p["word"]:
-        lines.append(f"Mood: {p['word']}.")
-    return "\n".join(lines)
+        rows.append(f"Mood: {p['word']}.")
+    return rows
+
+
+def block(name: str, rows: list[str]) -> str:
+    """The one mind block for the prompt's tail (note 22 §4): its rows under one header, or
+    nothing when there is nothing to say."""
+    return "\n".join([HEADER.format(name=name), *rows]) if rows else ""
+
+
+def render(state: dict, prof: dict, name: str) -> str:
+    """The mind block with only how they feel in it; empty at rest."""
+    return block(name, lines(state, prof))
 
 
 def face(state: dict) -> str:
