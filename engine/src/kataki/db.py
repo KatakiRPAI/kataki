@@ -50,6 +50,23 @@ MIGRATIONS = {
 }
 
 
+class LibraryTooNew(Exception):
+    """The library was written by a newer Kataki. Opening it here could undo a migration it
+    already has, so it is left exactly as it is."""
+
+
+def _copy_before_migrating(conn: sqlite3.Connection, path: Path, version: int) -> None:
+    """A copy of the library as it was, beside it, before any migration touches it. It lands in
+    the backups folder, so Settings › Backups lists it and can restore it."""
+    folder = Path(path).parent / "backups"
+    folder.mkdir(parents=True, exist_ok=True)
+    dest = sqlite3.connect(folder / f"library-before-v{SCHEMA_VERSION}-from-v{version}.db")
+    try:
+        conn.backup(dest)
+    finally:
+        dest.close()
+
+
 def connect(path: str | Path) -> sqlite3.Connection:
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     # ponytail: one shared connection; per-thread connections if lock contention ever shows up
@@ -59,9 +76,16 @@ def connect(path: str | Path) -> sqlite3.Connection:
         conn.execute("PRAGMA journal_mode=WAL")  # the first read of the file, and so the first
         conn.execute("PRAGMA foreign_keys=ON")  # per-connection, not just per migration
         version = conn.execute("PRAGMA user_version").fetchone()[0]
+        if version > SCHEMA_VERSION:
+            raise LibraryTooNew(
+                f"This library is from a newer Kataki (schema {version}; this one reads up to"
+                f" {SCHEMA_VERSION}). Update Kataki to open it."
+            )
         if version == 0:
             conn.executescript(files("kataki").joinpath("schema.sql").read_text(encoding="utf-8"))
             version = 1
+        elif version < SCHEMA_VERSION:
+            _copy_before_migrating(conn, Path(path), version)
         for target in range(version + 1, SCHEMA_VERSION + 1):
             conn.executescript(MIGRATIONS[target])
         conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")

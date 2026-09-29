@@ -206,3 +206,42 @@ def test_a_library_gains_books_chapters_and_links(tmp_path):
     conn.commit()
     assert conn.execute("SELECT count(*) FROM chapters").fetchone()[0] == 0
     assert conn.execute("SELECT count(*) FROM story_links").fetchone()[0] == 0
+
+
+def test_a_library_from_a_newer_kataki_is_refused_and_left_alone(tmp_path):
+    path = tmp_path / "new.db"
+    newer = sqlite3.connect(path)
+    newer.execute(f"PRAGMA user_version={db.SCHEMA_VERSION + 1}")
+    newer.commit()
+    newer.close()
+
+    with pytest.raises(db.LibraryTooNew):
+        db.connect(path)
+
+    check = sqlite3.connect(path)
+    assert check.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION + 1
+    check.close()
+
+
+def test_an_older_library_is_copied_before_it_is_migrated(tmp_path):
+    path = tmp_path / "old.db"
+    old = sqlite3.connect(path)
+    old.executescript((db.files("kataki") / "schema.sql").read_text(encoding="utf-8"))
+    old.execute("PRAGMA user_version=1")
+    old.execute("INSERT INTO stories(title) VALUES('kept')")
+    old.commit()
+    old.close()
+
+    db.connect(path).close()
+
+    [copy] = (tmp_path / "backups").glob("library-before-*.db")
+    assert copy.name == f"library-before-v{db.SCHEMA_VERSION}-from-v1.db"
+    saved = sqlite3.connect(copy)
+    assert saved.execute("PRAGMA user_version").fetchone()[0] == 1
+    assert saved.execute("SELECT title FROM stories").fetchone()[0] == "kept"
+    saved.close()
+
+
+def test_a_new_library_needs_no_copy(tmp_path):
+    db.connect(tmp_path / "fresh.db").close()
+    assert not (tmp_path / "backups").exists()
