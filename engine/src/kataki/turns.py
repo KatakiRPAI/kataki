@@ -148,6 +148,39 @@ class _Prefix:
         return held
 
 
+HOLD = 160  # ponytail: characters held back at most while the opening is checked
+SENTENCE_END = re.compile(r"[.!?…]\s|\n")
+
+
+class _Opener:
+    """Holds a reply's first sentence back while the check is armed (bonds.armed), so an
+    agreeing, apologising or assistant-style opening is caught before anyone sees it."""
+
+    def __init__(self, armed: bool):
+        self.armed, self.held, self.hit, self.dropped = armed, "", None, ""
+
+    def feed(self, text: str) -> str:
+        if self.hit:
+            return ""
+        if not self.armed:
+            return text
+        self.held += text
+        if len(self.held) < HOLD and not SENTENCE_END.search(self.held):
+            return ""
+        return self.flush()
+
+    def flush(self) -> str:
+        if self.hit or not self.armed:
+            return ""
+        self.armed = False
+        held, self.held = self.held, ""
+        self.hit = bonds.opener(held)
+        if self.hit:
+            self.dropped = held  # kept aside, in case the second take fails
+            return ""
+        return held
+
+
 async def _read_past_before_skip(
     conn: sqlite3.Connection, llm: LLM, story_id: int, get_key: Callable[[str], str | None]
 ) -> None:
@@ -280,10 +313,27 @@ async def _generate(
     except Exception as e:
         logging.getLogger(__name__).warning("mind block skipped: %s", e)
         inside = ""
+    decide, check, hold = "", False, False  # the yield decision; check the opening; hold it back
+    try:
+        if speaker_id is not None and bonds_on:
+            prof, state = inner.profile(conn, speaker_id), minds.get(speaker_id)
+            now = path[-1]["story_time"] if path else 0
+            grudge = any(b["grudge"] and b["you"] for b in stood)  # held against the user
+            user = names.get(story["persona_entity_id"]) or "the other person"
+            dial = knobs.dial(conn, speaker_id, "pushback", "realistic")
+            scene_id = chat.scene_of(conn, story_id, path)
+            decide = bonds.stance(state, prof, dial, grudge, user, scene_id, now)
+            check = bonds.armed(state, prof, grudge, now)
+            hold = check and knobs.setting(conn, "mind.level", "standard") != "lite"
+    except Exception as e:
+        logging.getLogger(__name__).warning("stance skipped for story %s: %s", story_id, e)
+        decide, check, hold = "", False, False
 
     trace: dict = {"why": why, "ms": {}}
     at = time.monotonic()
-    built = context.build(conn, story_id, speaker_id, ep, leaf_id=parent_id, inside=inside)
+    built = context.build(
+        conn, story_id, speaker_id, ep, leaf_id=parent_id, inside=inside, directive=decide
+    )
     trace["ms"]["prompt"] = ms(at)
     built_recalled: list = []
     if speaker_id is not None:
@@ -310,7 +360,14 @@ async def _generate(
         if recalled:
             at = time.monotonic()
             built = context.build(
-                conn, story_id, speaker_id, ep, recalled, leaf_id=parent_id, inside=inside
+                conn,
+                story_id,
+                speaker_id,
+                ep,
+                recalled,
+                leaf_id=parent_id,
+                inside=inside,
+                directive=decide,
             )
             trace["ms"]["prompt"] += ms(at)
             built_recalled = list(recalled)
@@ -354,34 +411,62 @@ async def _generate(
     stops = [f"\n{names[i]}:" for i in who_else][:MAX_STOPS]
 
     parts, thoughts, done = [], [], {}
-    prefix = _Prefix(name or "Narrator")
+    prefix, opener, dropped = _Prefix(name or "Narrator"), _Opener(False), ""
     finish, error, message_id, text, skip = "stopped", None, None, "", 0
     first_thought = first_token = None  # for think_ms: from the first thought to the first word
     asked = time.monotonic()
     try:
-        stream = llm.chat_stream(ep, built.messages, stop=stops, max_tokens=built.response_reserve)
-        async with aclosing(stream) as stream:
-            async for kind, value in stream:
-                if kind == "thought":
-                    first_thought = first_thought or time.monotonic()
-                    thoughts.append(value)
-                    yield ("thought", value)
-                elif kind == "token":
-                    first_token = first_token or time.monotonic()
-                    if value := prefix.feed(value):
-                        parts.append(value)
-                        yield ("token", value)
-                else:
-                    done = value
-        if rest := prefix.flush():
-            parts.append(rest)
-            yield ("token", rest)
+        for attempt in range(2):  # a second take only when the first opened like an assistant
+            parts, thoughts = [], []
+            prefix, opener = _Prefix(name or "Narrator"), _Opener(hold and not attempt)
+            stream = llm.chat_stream(
+                ep, built.messages, stop=stops, max_tokens=built.response_reserve
+            )
+            async with aclosing(stream) as stream:
+                async for kind, value in stream:
+                    if kind == "thought":
+                        first_thought = first_thought or time.monotonic()
+                        thoughts.append(value)
+                        yield ("thought", value)
+                    elif kind == "token":
+                        first_token = first_token or time.monotonic()
+                        if value := opener.feed(prefix.feed(value)):
+                            parts.append(value)
+                            yield ("token", value)
+                        if opener.hit:
+                            break  # closing the stream stops the model
+                    else:
+                        done = value
+            if not opener.hit and (rest := opener.feed(prefix.flush()) + opener.flush()):
+                parts.append(rest)
+                yield ("token", rest)
+            if not opener.hit:
+                break
+            # ponytail: the dropped take's thoughts were already streamed (no words were)
+            dropped = opener.dropped
+            trace["check"] = {"hit": opener.hit, "resampled": True}
+            built = context.build(
+                conn,
+                story_id,
+                speaker_id,
+                ep,
+                built_recalled,
+                leaf_id=parent_id,
+                inside=inside,
+                directive=f"{decide} {bonds.STRONGER.format(name=name)}".strip(),
+            )
+            log_id = context.log(conn, story_id, None, speaker_id, built)
         finish = "stop"
     except LLMError as e:
         finish, error = "error", str(e)
     finally:  # runs on finish, on error, and when the client stops the stream
-        text = _unsign(("".join(parts) + prefix.flush()).strip(), name or "Narrator")
+        held = opener.held + prefix.flush()  # stopped while the opening was held: keep it
+        text = _unsign(("".join(parts) + held).strip(), name or "Narrator")
+        if not text and dropped:  # the second take failed or came back empty: keep the first
+            text = _unsign(dropped.strip(), name or "Narrator")
         if text:
+            if check and not hold and (hit := bonds.opener(text)):
+                trace["check"] = {"hit": hit, "resampled": False}  # lite: noted, not retaken
             parent_time = chat.get_message(conn, parent_id)["story_time"] if parent_id else 0
             skip = clock.parse_skip(text, _minute_of_day(story, parent_time))
             gen = {

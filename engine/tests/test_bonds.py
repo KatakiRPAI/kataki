@@ -463,3 +463,55 @@ def test_the_opening_is_checked_when_she_is_cold_holding_or_blunt():
 )
 def test_assistant_openings(reply, hit):
     assert bonds.opener(reply) == hit
+
+
+@pytest.mark.anyio
+async def test_a_grudge_puts_the_yield_rule_in_the_directive(conn, story, backend):
+    backend.say("Hm.", "Hm.")
+    await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
+    directive = tail(backend.requests[0]).split("[Directive]")[1]
+    assert "Change your position only if Aren gives a new reason that matters to you" in directive
+    conn.execute("INSERT INTO settings(key, value) VALUES('realism.pushback', '\"stubborn\"')")
+    await play(turns.turn(conn, backend.llm, story, "Mira?"))
+    assert "never because Aren is upset" in tail(backend.requests[1]).split("[Directive]")[1]
+
+
+@pytest.mark.anyio
+async def test_an_assistant_opening_is_dropped_unseen_and_written_again(conn, story, backend):
+    backend.say("You're right. I'm useless.", "Say that again.")
+    events = await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
+    assert "".join(v for k, v in events if k == "token") == "Say that again."
+    leaf = chat.active_path(conn, story)[-1]
+    assert leaf["text"] == "Say that again." and len(backend.requests) == 2
+    assert json.loads(leaf["gen"])["trace"]["check"] == {"hit": "you're right", "resampled": True}
+    assert "Do not open by agreeing" in tail(backend.requests[1])
+
+
+@pytest.mark.anyio
+async def test_the_lite_level_only_notes_it(conn, story, backend):
+    conn.execute("INSERT INTO settings(key, value) VALUES('mind.level', '\"lite\"')")
+    backend.say("You're right.")
+    await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
+    leaf = chat.active_path(conn, story)[-1]
+    assert leaf["text"] == "You're right." and len(backend.requests) == 1
+    assert json.loads(leaf["gen"])["trace"]["check"] == {"hit": "you're right", "resampled": False}
+
+
+@pytest.mark.anyio
+async def test_a_calm_character_is_not_checked(conn, story, backend):
+    backend.say("You're right, it is.")
+    await play(turns.turn(conn, backend.llm, story, "Nice weather, Mira."))
+    leaf = chat.active_path(conn, story)[-1]
+    assert leaf["text"] == "You're right, it is." and len(backend.requests) == 1
+    assert "check" not in json.loads(leaf["gen"])["trace"]
+
+
+@pytest.mark.anyio
+async def test_a_failed_second_take_keeps_the_first_reply(conn, story, backend):
+    import httpx2
+
+    backend.say("You're right. I'm useless.", httpx2.Response(500, text="boom"))
+    events = await play(turns.turn(conn, backend.llm, story, "Mira, you're useless."))
+    assert [k for k, _ in events].count("error") == 1  # one error, no second visible reply
+    leaf = chat.active_path(conn, story)[-1]
+    assert leaf["role"] == "assistant" and leaf["text"].startswith("You're right.")
