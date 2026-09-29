@@ -35,6 +35,13 @@ Update this list as phases land (date · phase · what changed · anything left)
   `scorecard.yml`, `dependabot.yml`, CODEOWNERS, templates, `SECURITY.md`, `CONTRIBUTING.md`,
   the `main` ruleset as JSON, and `.github/setup-repo.sh <org>`, which applies all of it.
   actionlint and zizmor pass; the app builds (`build`, `build:web`) pass locally.
+- 2026-09-29 · Phase 1 live: org `KatakiRPAI` (repo creation locked to admins), public repo
+  `KatakiRPAI/kataki`, `setup-repo.sh KatakiRPAI QaisBOT` applied every setting, the `main`
+  ruleset and the labels; QaisBOT has write access. The first CI run passed on Windows, the
+  app and the smoke test, and caught a real bug on Ubuntu (search's numbered SQL placeholders,
+  an error from Python 3.14), fixed in its own PR. Security and Scorecard passed. Dependabot
+  opened its first grouped PRs. Left for the user: log the bot into gh, 2FA on QaisBOT and
+  required org-wide.
 
 Decisions made (2026-09-29):
 
@@ -219,7 +226,7 @@ Written 2026-09-29 (`security.yml`, `scorecard.yml`, `dependabot.yml`).
 - [x] CodeQL: python, javascript-typescript, actions; weekly as well as on every change.
 - [x] `dependency-review` on PRs (fails on high-severity advisories).
 - [x] `zizmor` on every change; Scorecard weekly.
-- [ ] README badges (CI, Scorecard) once the repo URL exists.
+- [x] README badges (CI, Scorecard).
 
 Done when Scorecard publishes and the Security tab shows CodeQL results.
 
