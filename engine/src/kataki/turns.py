@@ -451,12 +451,12 @@ async def _generate(
     prefix, opener, dropped = _Prefix(name or "Narrator"), _Opener(False), ""
     header, before = thought.Header(False, "", ep.think_tags), None
     finish, error, message_id, text, skip = "stopped", None, None, "", 0
-    first_thought = first_token = None  # for think_ms: from the first thought to the first word
+    first_thought = first_token = first_word = None  # think_ms: first thought to first word
     asked = time.monotonic()
     try:
         for attempt in range(2):  # a second take only when the first opened like an assistant
             parts, thoughts, before = [], [], None  # before: thought pieces before the 1st word
-            first_thought = first_token = None  # a retake times its own take
+            first_thought = first_token = first_word = None  # a retake times its own take
             prefix, opener = _Prefix(name or "Narrator"), _Opener(hold and not attempt)
             header = thought.Header(voice == "inline", name or "", ep.think_tags)
             stream = llm.chat_stream(
@@ -472,6 +472,7 @@ async def _generate(
                         first_token = first_token or time.monotonic()
                         before = len(thoughts) if before is None else before
                         value = prefix.feed(header.feed(value))
+                        first_word = first_word or (value and time.monotonic()) or None
                         if value and voice == "inline" and not attempt and not opener.watched:
                             _watch(opener, thoughts, header, name, ep.think_tags)
                         if value := opener.feed(value):
@@ -562,6 +563,8 @@ async def _generate(
                     gen["think_ms"] = spent
                 else:  # only the header was thought: its time is the thought's, not reasoning's
                     trace["ms"]["thought"] = spent
+            elif first_word and first_token and gen.get("thought", {}).get("from") == "before":
+                trace["ms"]["thought"] = round(1000 * (first_word - first_token))  # plain header
             if first_token:
                 trace["ms"]["first_token"] = round(1000 * (first_token - asked))
             trace["ms"]["reply"] = ms(asked)

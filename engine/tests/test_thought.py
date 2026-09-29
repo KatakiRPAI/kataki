@@ -356,3 +356,14 @@ async def test_switched_off_nothing_is_asked_or_shown(conn, story, backend):
     assert "thinks:" not in backend.requests[0]["messages"][-1]["content"]
     row = conn.execute("SELECT * FROM stories WHERE id=?", (story,)).fetchone()
     assert all(p["thought"] is None for p in people.people(conn, row))
+
+
+@pytest.mark.anyio
+async def test_a_plain_text_header_is_timed_too(conn, story, backend):
+    """The probe read "the header itself: None ms": a header in the tokens (no think stream) was
+    never timed, since only thought events started the clock."""
+    backend.say("Mira thinks: Don't look at the ring.\nMira wants: him to drop it\n\nNothing.")
+    await play(turns.turn(conn, backend.llm, story, "Mira?"))
+    _, gen = leaf(conn, story)
+    assert gen["thought"]["from"] == "before"
+    assert isinstance(gen["trace"]["ms"]["thought"], int)
