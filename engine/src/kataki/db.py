@@ -4,7 +4,7 @@ import sqlite3
 from importlib.resources import files
 from pathlib import Path
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 # version -> the SQL that brings a library up from the version before it; schema.sql is v1
 MIGRATIONS = {
     2: "ALTER TABLE entities ADD COLUMN examples TEXT NOT NULL DEFAULT ''",  # example dialogue
@@ -47,6 +47,24 @@ MIGRATIONS = {
     8: "ALTER TABLE messages ADD COLUMN expression TEXT",  # the face a line is said with (M3 §7)
     # what anyone can see of someone; who they are (description) stays in their own prompt
     9: "ALTER TABLE entities ADD COLUMN looks TEXT NOT NULL DEFAULT ''",
+    10: (  # minds (docs/specs/2026-09-29-minds.md): how each character feels, anchored on the
+        # message or run that wrote it; and what every model call used, in both products
+        "CREATE TABLE mind_states("
+        " id INTEGER PRIMARY KEY,"
+        " entity_id INTEGER NOT NULL REFERENCES entities ON DELETE CASCADE,"
+        " story_time INTEGER NOT NULL, state TEXT NOT NULL,"
+        " message_id INTEGER REFERENCES messages ON DELETE CASCADE,"
+        " run_id INTEGER REFERENCES extraction_runs ON DELETE CASCADE);"
+        "CREATE INDEX ix_mind_states ON mind_states(entity_id, story_time);"
+        "CREATE TABLE usage_log("
+        " id INTEGER PRIMARY KEY,"
+        " story_id INTEGER REFERENCES stories ON DELETE SET NULL,"
+        " role TEXT NOT NULL, model TEXT NOT NULL,"
+        " prompt_tokens INTEGER NOT NULL DEFAULT 0, cached_tokens INTEGER NOT NULL DEFAULT 0,"
+        " completion_tokens INTEGER NOT NULL DEFAULT 0,"
+        " at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);"
+        "CREATE INDEX ix_usage_story ON usage_log(story_id);"
+    ),
 }
 
 
@@ -95,6 +113,20 @@ def connect(path: str | Path) -> sqlite3.Connection:
     return conn
 
 
+def _path_cte(story_id: int, leaf_id: int | None) -> tuple[str, list[int]]:
+    """A recursive CTE `up(id, parent_id)`: the branch that ends at `leaf_id` (default: the
+    story's active leaf), leaf to root."""
+    start = "SELECT id, parent_id FROM messages WHERE id=?"
+    if leaf_id is None:
+        start = "SELECT m.id, m.parent_id FROM messages m JOIN stories s ON s.active_leaf_id=m.id"
+        start += " WHERE s.id=?"
+    cte = (
+        f"WITH RECURSIVE up(id, parent_id) AS ({start}"
+        " UNION ALL SELECT m.id, m.parent_id FROM messages m JOIN up ON m.id=up.parent_id)"
+    )
+    return cte, [story_id if leaf_id is None else leaf_id]
+
+
 def live_runs(conn: sqlite3.Connection, story_id: int, leaf_id: int | None = None) -> set[int]:
     """Runs whose rows count right now: finished ok, and extracted on the branch that ends at
     `leaf_id` (default: the active leaf).
@@ -102,18 +134,33 @@ def live_runs(conn: sqlite3.Connection, story_id: int, leaf_id: int | None = Non
     Every memory query filters through `live_filter`, which is why a swipe or a branch
     switch never has to touch memory.
     """
-    start = "SELECT id, parent_id FROM messages WHERE id=?"
-    if leaf_id is None:
-        start = "SELECT m.id, m.parent_id FROM messages m JOIN stories s ON s.active_leaf_id=m.id"
-        start += " WHERE s.id=?"
+    cte, args = _path_cte(story_id, leaf_id)
     rows = conn.execute(
-        f"WITH RECURSIVE up(id, parent_id) AS ({start}"
-        " UNION ALL SELECT m.id, m.parent_id FROM messages m JOIN up ON m.id=up.parent_id)"
-        " SELECT r.id FROM extraction_runs r WHERE r.story_id=? AND r.status='ok'"
+        f"{cte} SELECT r.id FROM extraction_runs r WHERE r.story_id=? AND r.status='ok'"
         " AND r.to_message_id IN (SELECT id FROM up)",
-        (story_id if leaf_id is None else leaf_id, story_id),
+        (*args, story_id),
     )
     return {r["id"] for r in rows}
+
+
+def live_messages(conn: sqlite3.Connection, story_id: int, leaf_id: int | None = None) -> set[int]:
+    """The messages on the branch that ends at `leaf_id` (default: the active leaf)."""
+    cte, args = _path_cte(story_id, leaf_id)
+    return {r["id"] for r in conn.execute(f"{cte} SELECT id FROM up", args)}
+
+
+def anchor_filter(runs: set[int], messages: set[int]) -> tuple[str, list[int]]:
+    """SQL condition + args for rows anchored the minds way (spec §3): written by the user (no
+    anchor), by a message on this branch, or by a live run. A swipe or branch switch therefore
+    swaps the whole mind with no code of its own."""
+    parts, args = ["(message_id IS NULL AND run_id IS NULL)"], []
+    if messages:
+        parts.append(f"message_id IN ({','.join('?' * len(messages))})")
+        args += sorted(messages)
+    if runs:
+        parts.append(f"run_id IN ({','.join('?' * len(runs))})")
+        args += sorted(runs)
+    return "(" + " OR ".join(parts) + ")", args
 
 
 def live_filter(live: set[int], column: str = "run_id") -> tuple[str, list[int]]:

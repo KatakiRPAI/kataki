@@ -1,3 +1,4 @@
+import json
 import sqlite3
 
 import pytest
@@ -245,3 +246,49 @@ def test_an_older_library_is_copied_before_it_is_migrated(tmp_path):
 def test_a_new_library_needs_no_copy(tmp_path):
     db.connect(tmp_path / "fresh.db").close()
     assert not (tmp_path / "backups").exists()
+
+
+def test_v10_adds_minds_and_usage(tmp_path):
+    path = tmp_path / "v9.db"
+    old = db.connect(path)  # today's schema, then pretend it is v9 without the new tables
+    old.executescript("DROP TABLE IF EXISTS mind_states; DROP TABLE IF EXISTS usage_log;")
+    old.execute("PRAGMA user_version=9")
+    old.commit()
+    old.close()
+
+    conn = db.connect(path)
+    tables = {t["name"] for t in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    assert {"mind_states", "usage_log"} <= tables
+    conn.close()
+
+
+def _msg(conn, story_id, parent_id, text):
+    return conn.execute(
+        "INSERT INTO messages(story_id, parent_id, role, text, story_time) VALUES(?, ?, 'user', ?, 0)",
+        (story_id, parent_id, text),
+    ).lastrowid
+
+
+def test_anchored_rows_follow_the_branch(conn):
+    story = _story(conn)
+    root = _msg(conn, story, None, "root")
+    kept = _msg(conn, story, root, "this take")
+    other = _msg(conn, story, root, "another take")
+    conn.execute("UPDATE stories SET active_leaf_id=? WHERE id=?", (kept, story))
+    entity = conn.execute(
+        "INSERT INTO entities(story_id, kind, name) VALUES(?, 'character', 'Mira')", (story,)
+    ).lastrowid
+    for anchor in (kept, other, None):
+        conn.execute(
+            "INSERT INTO mind_states(entity_id, story_time, state, message_id) VALUES(?, 0, ?, ?)",
+            (entity, json.dumps({"anchor": anchor}), anchor),
+        )
+
+    live = db.live_messages(conn, story)
+    assert live == {root, kept}
+    where, args = db.anchor_filter(set(), live)
+    seen = [
+        json.loads(r["state"])["anchor"]
+        for r in conn.execute(f"SELECT state FROM mind_states WHERE {where} ORDER BY id", args)
+    ]
+    assert seen == [kept, None]  # the other take's row is not on this branch
