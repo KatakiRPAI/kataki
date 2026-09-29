@@ -8,6 +8,7 @@ if this ever serves many).
 
 import asyncio
 import contextlib
+import functools
 import hmac
 import json
 import shutil
@@ -48,6 +49,7 @@ from kataki import (
     roles,
     signals,
     turns,
+    usage,
 )
 from kataki.llm import LLM, LLMError
 
@@ -302,6 +304,8 @@ def create_app(
     db_path: Path | None = None,  # the library's file: backups live beside it
 ) -> FastAPI:
     llm = llm or LLM()
+    if llm.on_usage is None:  # the host may bring its own meter (Kataki online)
+        llm.on_usage = functools.partial(usage.record, conn)
     worker = extract.Worker(conn, llm, get_key, delay=worker_delay)
     extract.recover(conn)
 

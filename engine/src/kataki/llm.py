@@ -47,6 +47,8 @@ class Endpoint:
     # body: merged verbatim into every request (samplers, id_slot, anything the backend takes)
     # thinking: default | enabled | disabled;  reasoning_effort;  think_tags: [open, close]
     params: dict = field(default_factory=dict)
+    role: str = ""  # which job asked (rp, utility, embed…): usage rows and online billing
+    story_id: int | None = None  # the story it was for, if any
 
     @property
     def think_tags(self) -> tuple[str, str]:
@@ -117,6 +119,9 @@ class LLM:
         timeout = httpx2.Timeout(10.0, read=600.0)
         self._client = httpx2.AsyncClient(transport=transport, timeout=timeout)
         self._rejected: set[tuple[str, str, str]] = set()  # response_format types a backend refused
+        # called with (endpoint, usage) after every call that reports usage: the desktop
+        # records it in usage_log, Kataki online bills it (spec §4)
+        self.on_usage: Callable[[Endpoint, dict], None] | None = None
 
     async def aclose(self) -> None:
         await self._client.aclose()
@@ -142,6 +147,10 @@ class LLM:
         except httpx2.TransportError as e:
             raise LLMError(f"cannot reach {url}: {e}") from e
         return r
+
+    def _used(self, ep: Endpoint, usage: dict | None) -> None:
+        if usage and self.on_usage:
+            self.on_usage(ep, usage)
 
     @staticmethod
     def _check(r: httpx2.Response) -> None:
@@ -180,6 +189,9 @@ class LLM:
             raise LLMError(f"cannot reach {url}: {e}") from e
         for event in splitter.flush():
             yield event
+        # ponytail: a reply stopped mid-stream never gets the final usage chunk, so it is not
+        # recorded; Kataki online meters those from streamed length (track B3)
+        self._used(ep, usage)
         yield ("done", {"usage": usage, **({"timings": timings} if timings else {})})
 
     @contextlib.asynccontextmanager
@@ -225,12 +237,17 @@ class LLM:
             if key in self._rejected:
                 continue
             strict = bool(fmt) and fmt["type"] == "json_schema"
-            body = self._body(ep, messages if strict else told, stream=True)
+            body = self._body(
+                ep,
+                messages if strict else told,
+                stream=True,
+                stream_options={"include_usage": True},
+            )
             # JSON tasks are deterministic, whatever the role's samplers say; thinking can't be
             body["temperature"] = THINKING_TEMPERATURE if ep.thinks else 0
             if fmt:
                 body["response_format"] = fmt
-            text, finish = [], None
+            text, finish, usage = [], None, None
             try:
                 async with self._stream(url, body, ep.api_key) as r:
                     if fmt and r.status_code in (400, 422):
@@ -240,6 +257,7 @@ class LLM:
                         await r.aread()
                         self._check(r)
                     async for chunk in self._chunks(r, url):
+                        usage = chunk.get("usage") or usage
                         for choice in chunk.get("choices") or []:
                             text.append((choice.get("delta") or {}).get("content") or "")
                             finish = choice.get("finish_reason") or finish
@@ -250,6 +268,7 @@ class LLM:
                     f"the model ran out of room ({body.get('max_tokens')} tokens) before it "
                     "finished answering"
                 )
+            self._used(ep, usage)
             return "".join(text)
         raise LLMError(f"{url} rejected every request form")  # unreachable: None is never skipped
 
@@ -292,4 +311,5 @@ class LLM:
         body = {"model": ep.model, "input": texts}
         r = await self._send("POST", f"{ep.base_url.rstrip('/')}/embeddings", ep.api_key, body)
         self._check(r)
+        self._used(ep, r.json().get("usage"))
         return [d["embedding"] for d in sorted(r.json()["data"], key=lambda d: d["index"])]
