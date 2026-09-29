@@ -14,7 +14,7 @@ import sqlite3
 import time
 from collections.abc import Callable
 
-from kataki import bonds, chat, features, images, inner, knobs, roles
+from kataki import bonds, chat, features, images, inner, knobs, roles, thought
 from kataki.llm import LLM
 
 PROMPT = """\
@@ -48,10 +48,17 @@ def wanted(conn: sqlite3.Connection) -> bool:
     return features.enabled(conn, "mind.bonds") and level != "lite"
 
 
-def schema(handles: list[str]) -> dict:
-    """The labels, every list closed: feelings, events, faces, and only the people here."""
+AFTERTHOUGHT = (
+    "Also give thought: what {name} privately thought while saying the reply, in {name}'s own "
+    "voice, at most 25 words."
+)
+
+
+def schema(handles: list[str], afterthought: bool = False) -> dict:
+    """The labels, every list closed: feelings, events, faces, and only the people here; with
+    `afterthought`, also the thought a reasoning model's reply was said with (slice 3)."""
     level = {"type": "integer", "enum": [1, 2, 3]}
-    return {
+    out = {
         "type": "object",
         "properties": {
             "felt": {
@@ -95,6 +102,10 @@ def schema(handles: list[str]) -> dict:
         "required": ["felt", "events", "position", "yielded", "face"],
         "additionalProperties": False,
     }
+    if afterthought:
+        out["properties"]["thought"] = {"type": ["string", "null"]}
+        out["required"].append("thought")
+    return out
 
 
 def _level(x) -> bool:
@@ -140,7 +151,15 @@ def read(data: dict, handles: list[str]) -> dict:
         ),
         "yielded": data.get("yielded") is True,
         "face": data["face"],
-    }
+    } | _afterthought(data)
+
+
+def _afterthought(data: dict) -> dict:
+    """The optional `thought`, clipped to its cap; a missing or empty one is simply left out."""
+    said = data.get("thought")
+    if not isinstance(said, str) or not said.strip():
+        return {}
+    return {"thought": " ".join(said.split()[: thought.WORDS["thinks"]])}
 
 
 def _scene(conn: sqlite3.Connection, story_id: int, path: list, speaker_id: int) -> dict:
@@ -166,7 +185,14 @@ def _scene(conn: sqlite3.Connection, story_id: int, path: list, speaker_id: int)
 
 
 async def _ask(
-    conn, llm: LLM, story_id: int, speaker_id: int, reply: str, seen: dict, get_key
+    conn,
+    llm: LLM,
+    story_id: int,
+    speaker_id: int,
+    reply: str,
+    seen: dict,
+    get_key,
+    afterthought: bool = False,
 ) -> dict | None:
     if (ep := roles.resolve(conn, "utility", story_id, get_key)) is None:
         return None
@@ -191,12 +217,33 @@ async def _ask(
             "content": f"The character: {name}. People here: {people or 'no one else'}.\n\n"
             + (f"[Earlier lines, context only]\n{context}\n" if context else "")
             + f"[The line to judge: what did THIS line do to {name}?]\n{line}\n\n"
-            f"[{name}'s reply: for position, yielded and face only]\n{reply[-1500:]}",
+            f"[{name}'s reply: for position, yielded and face only]\n{reply[-1500:]}"
+            + (f"\n\n{AFTERTHOUGHT.format(name=name)}" if afterthought else ""),
         },
     ]
     return await llm.complete_json(
-        ep, ask, schema(handles), lambda d: read(d, handles), name="after"
+        ep, ask, schema(handles, afterthought), lambda d: read(d, handles), name="after"
     )
+
+
+def _grudges(conn, speaker_id: int, message_id: int, got: dict) -> list[dict]:
+    """The rules' unforgiven-kind rows for this line that the model's events do not answer: a
+    grudge (promise_broken, ...) survives a label that merely says something else, and goes only
+    when the model names, toward that same person, a grudge of its own or an event that adds something."""
+    mends = {  # per person: the model named a grudge of its own or an event that adds something
+        int(e["target"][1:])
+        for e in got["events"]
+        if bonds.EVENTS[e["type"]][1] == "sticky"
+        or any(v > 0 for v in bonds.EVENTS[e["type"]][0].values())
+    }
+    named = {(int(e["target"][1:]), e["type"]) for e in got["events"]}
+    rows = conn.execute(
+        "SELECT * FROM opinions WHERE src_id=? AND message_id=? AND kind='sticky' AND value<0",
+        (speaker_id, message_id),
+    )
+    return [
+        dict(r) for r in rows if r["dst_id"] not in mends and (r["dst_id"], r["event"]) not in named
+    ]
 
 
 def _apply(
@@ -237,7 +284,13 @@ def _apply(
     ).fetchone()[0]
     felt_now = fresh and (taken or ruled)  # a feeling with no event behind it is the echo
     if taken:  # else the rules' rows for this line (if any) stay; first, so a failure leaves all
-        bonds.replace(conn, story_id, speaker_id, message_id, new)
+        bonds.replace(
+            conn,
+            story_id,
+            speaker_id,
+            message_id,
+            new + _grudges(conn, speaker_id, message_id, got),
+        )
     if state is not None and (felt_now or got["position"] or got["yielded"]):  # moods are on
         st = state
         if felt_now:  # re-read the line from before the rules appraised it: felt once, not twice
@@ -270,6 +323,7 @@ async def run(
     reply: str,
     state: dict | None,  # the speaker's state before the reply (None: moods are off)
     get_key: Callable[[str], str | None],
+    afterthought: bool = False,  # a reasoning model replied: ask what they thought (slice 3)
 ) -> dict | None:
     """The side call for one reply, applied. -> the labels, or None when it was skipped.
     ponytail: inline after the reply, before `done`, as the face call ran; move it to a
@@ -277,7 +331,7 @@ async def run(
     at, got = time.monotonic(), None
     try:
         seen = _scene(conn, story_id, path, speaker_id)
-        got = await _ask(conn, llm, story_id, speaker_id, reply, seen, get_key)
+        got = await _ask(conn, llm, story_id, speaker_id, reply, seen, get_key, afterthought)
         if got is not None:
             _apply(conn, story_id, path, speaker_id, message_id, got, state, seen)
     except Exception as e:  # never a turn's undoing: the rules' reading stays
@@ -290,6 +344,12 @@ async def run(
                 " WHERE id=?",
                 (json.dumps(got or "skipped"), round(1000 * (time.monotonic() - at)), message_id),
             )
+            if afterthought and got and got.get("thought"):  # Peek's thought, labelled as after
+                said = {"thinks": got["thought"], "wants": None, "from": "after"}
+                conn.execute(
+                    "UPDATE messages SET gen=json_set(gen, '$.thought', json(?)) WHERE id=?",
+                    (json.dumps(said), message_id),
+                )
     except Exception as e:
         logging.getLogger(__name__).warning("side call not recorded: %s", e)
     return got

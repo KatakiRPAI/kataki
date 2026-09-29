@@ -15,6 +15,7 @@ STAGES = ("alpha", "beta", "stable")
 FEATURES = {
     "mind.affect": "alpha",  # slice 1: moods that last
     "mind.bonds": "alpha",  # slice 2: grudges that hold, pushback, the side call
+    "mind.thought": "alpha",  # slice 3: a private thought before the reply
 }
 
 

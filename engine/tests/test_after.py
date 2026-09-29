@@ -316,3 +316,51 @@ async def test_the_side_call_judges_the_line_not_the_reply(conn, story, backend,
     assert "Morning. Everything alright?" in judged and "Zorblax" not in judged
     assert "Zorblax" in reply
     assert "NOT evidence" in ask[0]["content"] and "small talk do nothing" in ask[0]["content"]
+
+
+@pytest.mark.anyio
+async def test_a_hollow_apology_label_does_not_wipe_a_broken_promise(
+    conn, story, backend, side_call
+):
+    """Real response (Qwen3-235B, 2026-09-30): on "I forgot. I didn't come last night." the side
+    call said apology_hollow. That must not replace the rules' promise_broken."""
+    aren = eid(conn, "Aren")
+    backend.say(
+        "Hm.",
+        said(events=[{"target": f"E{aren}", "type": "apology_hollow", "intensity": 2}]),
+    )
+    await play(turns.turn(conn, backend.llm, story, "Mira, I forgot. I didn't come last night."))
+    assert events_of(conn, "Mira") == {"promise_broken", "apology_hollow"}
+
+
+@pytest.mark.anyio
+async def test_a_sincere_apology_label_does_replace_the_rules_grudge(
+    conn, story, backend, side_call
+):
+    aren = eid(conn, "Aren")
+    backend.say(
+        "Hm.",
+        said(events=[{"target": f"E{aren}", "type": "apology_sincere", "intensity": 2}]),
+    )
+    await play(turns.turn(conn, backend.llm, story, "Mira, I forgot. I didn't come last night."))
+    assert events_of(conn, "Mira") == {"apology_sincere"}
+
+
+@pytest.mark.anyio
+async def test_a_relabel_to_another_grudge_charges_one_not_two(conn, story, backend, side_call):
+    aren = eid(conn, "Aren")
+    backend.say(
+        "Hm.", said(events=[{"target": f"E{aren}", "type": "boundary_crossed", "intensity": 2}])
+    )
+    await play(turns.turn(conn, backend.llm, story, "Mira, I forgot. I didn't come last night."))
+    assert events_of(conn, "Mira") == {"boundary_crossed"}
+
+
+@pytest.mark.anyio
+async def test_a_kindness_to_someone_else_does_not_wipe_the_grudge_toward_him(
+    conn, story, backend, side_call
+):
+    tobin = eid(conn, "Tobin")
+    backend.say("Hm.", said(events=[{"target": f"E{tobin}", "type": "kindness", "intensity": 1}]))
+    await play(turns.turn(conn, backend.llm, story, "Mira, I forgot. I didn't come last night."))
+    assert {"promise_broken", "kindness"} <= events_of(conn, "Mira")

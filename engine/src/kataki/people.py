@@ -5,6 +5,7 @@ ponytail: every call walks each character's whole memory (`retrieve.inspect`); a
 once per story they are in. Cache per story version if a library ever holds hundreds of stories.
 """
 
+import json
 import logging
 import sqlite3
 
@@ -138,6 +139,20 @@ def _bonds(conn, entity_id: int, path: list, names: dict, persona_id, epoch: int
         return []
 
 
+def _thought(path: list, entity_id: int) -> dict | None:
+    """Their latest thought on this branch (Peek; spec §8.3). Replies written without one (the
+    thought is asked only when it matters) look back to the last that had one."""
+    try:
+        for m in reversed(path):
+            if m["role"] == "assistant" and m["speaker_id"] == entity_id:
+                if said := json.loads(m["gen"] or "{}").get("thought"):
+                    return {**said, "message_id": m["id"]}
+        return None
+    except Exception as e:  # a bad row costs the thought, not the whole Peek
+        logging.getLogger(__name__).warning("thought unavailable for %s: %s", entity_id, e)
+        return None
+
+
 def people(conn: sqlite3.Connection, story: sqlite3.Row) -> list[dict]:
     """One entry per AI character: where they are, what they hold, what is on their mind, what
     they know about you, and how they stand towards everyone."""
@@ -162,6 +177,7 @@ def people(conn: sqlite3.Connection, story: sqlite3.Row) -> list[dict]:
     live = db.live_runs(conn, story_id)
     feeling = features.enabled(conn, "mind.affect")
     tied = features.enabled(conn, "mind.bonds")
+    thinking = features.enabled(conn, "mind.thought")
 
     out = []
     for e in conn.execute(
@@ -194,6 +210,7 @@ def people(conn: sqlite3.Connection, story: sqlite3.Row) -> list[dict]:
                 "secret": e["private"],
                 "mood": _mood(conn, e["id"], path, now) if feeling else None,
                 "bonds": _bonds(conn, e["id"], path, names, persona_id, epoch) if tied else [],
+                "thought": _thought(path, e["id"]) if thinking else None,
             }
         )
     return out

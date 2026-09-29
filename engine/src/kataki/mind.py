@@ -199,6 +199,24 @@ def mind(conn: sqlite3.Connection, message_id: int) -> dict | None:
                 inside.append((tie, True))
         except Exception as e:
             logging.getLogger(__name__).warning("ledger not shown: %s", e)
+        try:  # the thought the reply was written from (slice 3: Mind 5, cheaply)
+            said = gen.get("thought") or {}
+            caused = said.get("from") == "before"  # an afterthought was read off the reply
+            th = None
+            if said.get("thinks"):
+                title = "Thought" if caused else "Afterthought"
+                th = node("thought", "inside", "thought", title, said["thinks"], None, caused, said)
+            if said.get("wants"):
+                want = node(
+                    "intent", "decide", "intent", "Intent", said["wants"], None, caused, said
+                )
+                if th:
+                    link(th, want, caused)
+                link(want, "spoke", caused)
+            elif th:
+                inside.append((th, caused))
+        except Exception as e:
+            logging.getLogger(__name__).warning("thought not shown: %s", e)
 
         card = conn.execute("SELECT description FROM entities WHERE id=?", (who,)).fetchone()
         if card and card["description"]:

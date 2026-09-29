@@ -31,6 +31,7 @@ from kataki import (
     knobs,
     retrieve,
     roles,
+    thought,
 )
 from kataki.llm import LLM, LLMError
 
@@ -156,10 +157,21 @@ LEAD = re.compile(r"^(?:\W*?\*[^*\n]{0,80}\*)?\W*")  # what bonds.OPENERS skips 
 
 class _Opener:
     """Holds a reply's first sentence back while the check is armed (bonds.armed), so an
-    agreeing, apologising or assistant-style opening is caught before anyone sees it."""
+    agreeing, apologising or assistant-style opening is caught before anyone sees it; and,
+    when a thought came first (`watch`), an opening that says the thought aloud."""
 
     def __init__(self, armed: bool):
         self.armed, self.held, self.hit, self.dropped = armed, "", None, ""
+        self.thinks, self.echo, self.watched = None, None, False
+
+    def watch(self, early: dict | None) -> None:
+        """Called once, just before the first visible word, with the thought written before it.
+        The echo check rides on the opener check: the first sentence is held only when that one
+        is already armed (holding it for the echo alone cost the first word ~3 s, slice 3
+        latency probe); otherwise it streams at once and an echo is only recorded, no retake."""
+        self.watched = True
+        if early and early["thinks"] and not self.hit:
+            self.thinks = early["thinks"]
 
     def feed(self, text: str) -> str:
         if self.hit:
@@ -178,10 +190,26 @@ class _Opener:
         self.armed = False
         held, self.held = self.held, ""
         self.hit = bonds.opener(held)
+        if not self.hit and (echo := thought.echoed(self.thinks, held)):
+            self.hit = self.echo = echo
         if self.hit:
             self.dropped = held  # kept aside, in case the second take fails
             return ""
         return held
+
+
+def _early(thoughts: list[str], header: thought.Header, name: str, tags) -> dict | None:
+    """The thought written before the reply's first word: in the tags, or caught at its start."""
+    return thought.parse(thought.split("".join(thoughts), name, tags)[1] + header.caught, name)
+
+
+def _watch(opener: "_Opener", thoughts: list[str], header: thought.Header, name: str, tags) -> None:
+    """opener.watch(_early(...)), guarded: a failure costs only the echo check."""
+    try:
+        opener.watch(_early(thoughts, header, name, tags))
+    except Exception as e:
+        logging.getLogger(__name__).warning("echo check skipped: %s", e)
+        opener.watched = True
 
 
 async def _read_past_before_skip(
@@ -279,6 +307,7 @@ async def _generate(
     names = dict(
         conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)).fetchall()
     )
+    name = names.get(speaker_id)
     minds: dict[int, dict] = {}  # everyone here, as they feel after the latest line
     felt: list[str] = []  # the speaker's feeling rows of the mind block
     pending: dict[int, list[dict]] = {}  # ledger rows the latest line adds, kept with the reply
@@ -331,11 +360,30 @@ async def _generate(
     except Exception as e:
         logging.getLogger(__name__).warning("stance skipped for story %s: %s", story_id, e)
         decide, check, hold = "", False, False
+    think_why = None  # why the header was asked, for gen.trace.think
+    try:
+        voice = thought.mode(conn, ep, speaker_id)
+        header_ask = ""
+        if voice == "inline" and (
+            reason := thought.why(
+                conn,
+                speaker_id,
+                path,
+                chat.scene_of(conn, story_id, path),
+                check,
+                bool(pending.get(speaker_id)),
+            )
+        ):
+            header_ask, think_why = thought.ask(name, ep.think_tags), reason
+    except Exception as e:
+        logging.getLogger(__name__).warning("thought skipped for story %s: %s", story_id, e)
+        voice, header_ask = None, ""
+    first = " ".join(p for p in (decide, header_ask) if p)
 
-    trace: dict = {"why": why, "ms": {}}
+    trace: dict = {"why": why, "ms": {}, "think": think_why}
     at = time.monotonic()
     built = context.build(
-        conn, story_id, speaker_id, ep, leaf_id=parent_id, inside=inside, directive=decide
+        conn, story_id, speaker_id, ep, leaf_id=parent_id, inside=inside, directive=first
     )
     trace["ms"]["prompt"] = ms(at)
     built_recalled: list = []
@@ -370,13 +418,12 @@ async def _generate(
                 recalled,
                 leaf_id=parent_id,
                 inside=inside,
-                directive=decide,
+                directive=first,
             )
             trace["ms"]["prompt"] += ms(at)
             built_recalled = list(recalled)
     log_id = context.log(conn, story_id, None, speaker_id, built)
 
-    name = names.get(speaker_id)
     parent = chat.get_message(conn, parent_id) if parent_id else None
     then = parent["story_time"] if parent else 0  # the clock of the line being answered
     jump = parent["skip_minutes"] if parent else 0
@@ -415,13 +462,16 @@ async def _generate(
 
     parts, thoughts, done = [], [], {}
     prefix, opener, dropped = _Prefix(name or "Narrator"), _Opener(False), ""
+    header, before = thought.Header(False, "", ep.think_tags), None
     finish, error, message_id, text, skip = "stopped", None, None, "", 0
-    first_thought = first_token = None  # for think_ms: from the first thought to the first word
+    first_thought = first_token = first_word = None  # think_ms: first thought to first word
     asked = time.monotonic()
     try:
         for attempt in range(2):  # a second take only when the first opened like an assistant
-            parts, thoughts = [], []
+            parts, thoughts, before = [], [], None  # before: thought pieces before the 1st word
+            first_thought = first_token = first_word = None  # a retake times its own take
             prefix, opener = _Prefix(name or "Narrator"), _Opener(hold and not attempt)
+            header = thought.Header(voice == "inline", name or "", ep.think_tags)
             stream = llm.chat_stream(
                 ep, built.messages, stop=stops, max_tokens=built.response_reserve
             )
@@ -433,21 +483,34 @@ async def _generate(
                         yield ("thought", value)
                     elif kind == "token":
                         first_token = first_token or time.monotonic()
-                        if value := opener.feed(prefix.feed(value)):
+                        before = len(thoughts) if before is None else before
+                        value = prefix.feed(header.feed(value))
+                        first_word = first_word or (value and time.monotonic()) or None
+                        if value and voice == "inline" and not attempt and not opener.watched:
+                            _watch(opener, thoughts, header, name, ep.think_tags)
+                        if value := opener.feed(value):
                             parts.append(value)
                             yield ("token", value)
                         if opener.hit:
                             break  # closing the stream stops the model
                     else:
                         done = value
-            if not opener.hit and (rest := opener.feed(prefix.flush()) + opener.flush()):
+            rest = "" if opener.hit else prefix.feed(header.flush()) + prefix.flush()
+            if rest and voice == "inline" and not attempt and not opener.watched:
+                _watch(opener, thoughts, header, name, ep.think_tags)
+            if not opener.hit and (rest := opener.feed(rest) + opener.flush()):
                 parts.append(rest)
                 yield ("token", rest)
             if not opener.hit:
                 break
             # ponytail: the dropped take's thoughts were already streamed (no words were)
             dropped = opener.dropped
-            trace["check"] = {"hit": opener.hit, "resampled": True}
+            if opener.echo:  # it said its thought aloud: the same one retake, told to keep it in
+                trace["echo"] = {"hit": opener.echo, "resampled": True}
+                stronger = thought.STRONGER.format(name=name)
+            else:
+                trace["check"] = {"hit": opener.hit, "resampled": True}
+                stronger = bonds.STRONGER.format(name=name)
             try:  # a failed stronger prompt costs the check, not the turn: keep the first take's
                 retake = context.build(
                     conn,
@@ -457,7 +520,7 @@ async def _generate(
                     built_recalled,
                     leaf_id=parent_id,
                     inside=inside,
-                    directive=f"{decide} {bonds.STRONGER.format(name=name)}".strip(),
+                    directive=" ".join(p for p in (decide, stronger, header_ask) if p),
                 )
                 context.finish_log(conn, log_id, None, {})  # the dropped take's row is closed
                 log_id, built = context.log(conn, story_id, None, speaker_id, retake), retake
@@ -467,10 +530,25 @@ async def _generate(
     except LLMError as e:
         finish, error = "error", str(e)
     finally:  # runs on finish, on error, and when the client stops the stream
-        held = opener.held + prefix.flush()  # stopped while the opening was held: keep it
-        text = _unsign(("".join(parts) + held).strip(), name or "Narrator")
+        # stopped while held: keep it, in the order it was written (header, prefix, opener)
+        tail = prefix.feed(header.flush()) + prefix.flush()
+        text = ("".join(parts) + opener.held + tail).strip()
         if not text and dropped:  # the second take failed or came back empty: keep the first
-            text = _unsign(dropped.strip(), name or "Narrator")
+            text = dropped.strip()
+        reasoning, heard = "".join(thoughts), []
+        if voice == "inline":  # the header is the thought: never the reasoning, never the reply
+            try:
+                r, heard = thought.split(reasoning, name, ep.think_tags)
+                t, late = thought.split(text, name, ep.think_tags)  # written after the reply
+                heard += header.caught + late
+                if not t and finish == "stop":  # a tag never closed: the reply was inside it
+                    t, r = r, ""
+                # a stop or an error mid-thought keeps nothing: no thought fragment as the reply
+                reasoning, text = r, t
+            except Exception as e:  # no thought; the reply stays as streamed
+                logging.getLogger(__name__).warning("thought not read: %s", e)
+                heard = []
+        text = _unsign(text, name or "Narrator")
         if text:
             if check and not hold and (hit := bonds.opener(text)):
                 trace["check"] = {"hit": hit, "resampled": False}  # lite: noted, not retaken
@@ -480,11 +558,26 @@ async def _generate(
                 "role": role,
                 "model": ep.model,
                 "finish": finish,
-                "reasoning": "".join(thoughts) or None,
+                "reasoning": reasoning or None,
                 "usage": done.get("usage"),
             }
+            try:
+                if seen := thought.parse(heard, name or ""):  # Peek's thought; came first?
+                    early = _early(thoughts[:before], header, name or "", ep.think_tags)
+                    gen["thought"] = {**seen, "from": "before" if early else "after"}
+                    if "echo" not in trace and (echo := thought.echoed(seen["thinks"], text)):
+                        trace["echo"] = {"hit": echo, "resampled": False}  # past the 1st sentence
+            except Exception as e:
+                gen.pop("thought", None)
+                logging.getLogger(__name__).warning("thought not kept: %s", e)
             if first_thought:  # stopped mid-thought: the thinking ran until now
-                gen["think_ms"] = round(1000 * ((first_token or time.monotonic()) - first_thought))
+                spent = round(1000 * ((first_token or time.monotonic()) - first_thought))
+                if gen["reasoning"]:
+                    gen["think_ms"] = spent
+                else:  # only the header was thought: its time is the thought's, not reasoning's
+                    trace["ms"]["thought"] = spent
+            elif first_word and first_token and gen.get("thought", {}).get("from") == "before":
+                trace["ms"]["thought"] = round(1000 * (first_word - first_token))  # plain header
             if first_token:
                 trace["ms"]["first_token"] = round(1000 * (first_token - asked))
             trace["ms"]["reply"] = ms(asked)
@@ -542,9 +635,11 @@ async def _generate(
                     text,
                     minds.get(speaker_id),
                     get_key,
+                    afterthought=voice == "after",
                 )
-                # the side call may have replaced the mood the reply was saved with
-                gen["mind"] = json.loads(chat.get_message(conn, message_id)["gen"]).get("mind")
+                # the side call may have replaced the mood, and written an afterthought
+                saved = json.loads(chat.get_message(conn, message_id)["gen"])
+                gen["mind"], gen["thought"] = saved.get("mind"), saved.get("thought")
                 if got and _has_pack(conn, speaker_id):
                     face, side_face = got["face"], True
                     with conn:
@@ -572,6 +667,7 @@ async def _generate(
                 "usage": done.get("usage"),
                 "expression": face,
                 "mood": gen.get("mind"),
+                "thought": gen.get("thought"),
             },
         )
 
