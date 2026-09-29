@@ -97,3 +97,17 @@ def test_a_character_can_have_their_own_model(conn):
         knobs.character_model(conn, own, ep, lambda n: "k").model,
     ) == ("http://far/v1", "big")
     assert knobs.character_model(conn, gone, ep, lambda n: None) is ep
+
+
+def test_a_realism_dial_is_the_characters_own_else_the_setting(conn):
+    mira = library.create_item(conn, "character", "Mira")
+    story = library.create_story(conn, "s", character_ids=[mira])
+    who = conn.execute("SELECT id FROM entities WHERE story_id=?", (story,)).fetchone()[0]
+    assert knobs.dial(conn, who, "pushback", "realistic") == "realistic"
+    conn.execute("INSERT INTO settings(key, value) VALUES('realism.pushback', '\"soft\"')")
+    assert knobs.dial(conn, who, "pushback", "realistic") == "soft"
+    library.update_item(conn, mira, data={"realism": {"pushback": "stubborn"}})
+    assert knobs.dial(conn, who, "pushback", "realistic") == "stubborn"
+    library.update_item(conn, mira, data={"realism": {"pushback": "inherit"}})
+    assert knobs.dial(conn, who, "pushback", "realistic") == "soft"
+    assert knobs.dial(conn, None, "relationships", "realistic") == "realistic"

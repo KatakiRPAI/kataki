@@ -262,3 +262,9 @@ def test_a_line_names_people_in_the_order_it_names_them(local_model):
     assert chat.named(conn, "Tobin and Mira, listen.", both) == [ids["Tobin"], ids["Mira"]]
     assert chat.named(conn, "Nobody here.", both) == []
     assert chat.named(conn, "Mira!", []) == []
+
+
+def test_social_traits_default_and_refuse_junk():
+    assert P["social"] == {"forgiveness": 0.5, "trust_propensity": 0.5}
+    prof = inner.shape({"social": {"forgiveness": 0.9, "trust_propensity": "lots"}})
+    assert prof["social"] == {"forgiveness": 0.9, "trust_propensity": 0.5}

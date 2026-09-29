@@ -33,6 +33,7 @@ DEFAULT = {  # research note 22 §1; the profile editor fills the rest later
     "regulation": {"style": "express", "capacity": 0.5},  # express|suppress|reappraise|avoid
     "inertia_h": 6,  # mood half-life, story hours
     "susceptibility": 0.4,
+    "social": {"forgiveness": 0.5, "trust_propensity": 0.5},  # 0-1; bonds.py reads them
 }
 
 
