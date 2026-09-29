@@ -452,9 +452,9 @@ def create_app(
                 dict(r)
                 for r in conn.execute(
                     "SELECT id, kind, name, description FROM lib_items"
-                    " WHERE name LIKE ?1 ESCAPE '\\' OR description LIKE ?1 ESCAPE '\\'"
-                    " ORDER BY name LIKE ?1 ESCAPE '\\' DESC, name LIMIT ?2",
-                    (like, limit),
+                    " WHERE name LIKE :q ESCAPE '\\' OR description LIKE :q ESCAPE '\\'"
+                    " ORDER BY name LIKE :q ESCAPE '\\' DESC, name LIMIT :n",
+                    {"q": like, "n": limit},
                 )
             ],
             "books": rows("SELECT id, title FROM books WHERE title LIKE ? ESCAPE '\\' LIMIT ?"),
