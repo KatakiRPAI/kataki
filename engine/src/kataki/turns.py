@@ -7,6 +7,7 @@ Events: ("meta", {...}) first, then ("thought" | "token", text)..., then ("done"
 ("error", {"message": ...}).
 """
 
+import asyncio
 import json
 import re
 import sqlite3
@@ -15,7 +16,19 @@ from collections.abc import AsyncIterator, Callable
 from contextlib import aclosing
 from typing import Any
 
-from kataki import chat, clock, context, embed, extract, images, knobs, retrieve, roles
+from kataki import (
+    chat,
+    clock,
+    context,
+    embed,
+    extract,
+    features,
+    images,
+    inner,
+    knobs,
+    retrieve,
+    roles,
+)
 from kataki.llm import LLM, LLMError
 
 Event = tuple[str, Any]
@@ -171,6 +184,14 @@ def _face(data: dict) -> str:
     return face
 
 
+def _has_pack(conn: sqlite3.Connection, speaker_id: int) -> bool:
+    row = conn.execute(
+        "SELECT l.data FROM entities e JOIN lib_items l ON l.id = e.lib_item_id WHERE e.id=?",
+        (speaker_id,),
+    ).fetchone()
+    return bool(row and json.loads(row["data"]).get("pack"))
+
+
 async def _expression(
     conn: sqlite3.Connection,
     llm: LLM,
@@ -184,11 +205,7 @@ async def _expression(
     """Which of the speaker's sprites fits the line they just said (M3 spec §7.1): one small
     call to the memory reader's model, and only for someone who has sprites to show. A failure
     costs nothing but the face: they stay as they were."""
-    row = conn.execute(
-        "SELECT l.data FROM entities e JOIN lib_items l ON l.id = e.lib_item_id WHERE e.id=?",
-        (speaker_id,),
-    ).fetchone()
-    if not row or not json.loads(row["data"]).get("pack"):
+    if not _has_pack(conn, speaker_id):
         return None
     if (ep := roles.resolve(conn, "utility", story_id, get_key)) is None:
         return None
@@ -233,10 +250,16 @@ async def _generate(
     names = dict(
         conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)).fetchall()
     )
+    minds: dict[int, dict] = {}  # everyone here, as they feel after the latest line
+    if features.enabled(conn, "mind.affect"):
+        minds = inner.react(conn, story_id, path, await asyncio.to_thread(embed.builtin))
+    inside = ""
+    if speaker_id in minds:
+        inside = inner.render(minds[speaker_id], inner.profile(conn, speaker_id), names[speaker_id])
 
     trace: dict = {"why": why, "ms": {}}
     at = time.monotonic()
-    built = context.build(conn, story_id, speaker_id, ep, leaf_id=parent_id)
+    built = context.build(conn, story_id, speaker_id, ep, leaf_id=parent_id, inside=inside)
     trace["ms"]["prompt"] = ms(at)
     built_recalled: list = []
     if speaker_id is not None:
@@ -262,7 +285,9 @@ async def _generate(
         trace["ms"]["recall"] = ms(at)
         if recalled:
             at = time.monotonic()
-            built = context.build(conn, story_id, speaker_id, ep, recalled, leaf_id=parent_id)
+            built = context.build(
+                conn, story_id, speaker_id, ep, recalled, leaf_id=parent_id, inside=inside
+            )
             trace["ms"]["prompt"] += ms(at)
             built_recalled = list(recalled)
     log_id = context.log(conn, story_id, None, speaker_id, built)
@@ -349,9 +374,13 @@ async def _generate(
             trace["ms"]["reply"] = ms(asked)
             trace["ms"]["total"] = ms(began)
             gen["trace"] = trace
+            if speaker_id in minds:
+                gen["mind"] = inner.public(minds[speaker_id], inner.profile(conn, speaker_id))
             message_id = chat.add_child(
                 conn, story_id, parent_id, "assistant", text, speaker_id, skip, gen
             )
+            if minds:
+                inner.save(conn, minds, message_id)
         context.finish_log(conn, log_id, message_id, done)
         if prompt_tokens := (done.get("usage") or {}).get("prompt_tokens"):
             chars = sum(len(m["content"]) for m in built.messages)
@@ -366,10 +395,18 @@ async def _generate(
         face = None  # the reply is already on screen; its face follows a moment later
         if speaker_id is not None:
             at = time.monotonic()
-            face = await _expression(
-                conn, llm, story_id, speaker_id, message_id, name, text, get_key
-            )
-            if face:  # the face call's time joins the trace
+            if knobs.setting(conn, "mind.level", "standard") == "lite" and speaker_id in minds:
+                if _has_pack(conn, speaker_id):  # lite: the face is what they show, no call
+                    face = inner.face(minds[speaker_id])
+                    with conn:
+                        conn.execute(
+                            "UPDATE messages SET expression=? WHERE id=?", (face, message_id)
+                        )
+            else:
+                face = await _expression(
+                    conn, llm, story_id, speaker_id, message_id, name, text, get_key
+                )
+            if face:  # the face's time joins the trace
                 with conn:
                     conn.execute(
                         "UPDATE messages SET gen=json_set(gen, '$.trace.ms.face', ?) WHERE id=?",
@@ -385,6 +422,7 @@ async def _generate(
                 "date": clock.date(now, story["epoch_offset_min"], moments),
                 "usage": done.get("usage"),
                 "expression": face,
+                "mood": (json.loads(chat.get_message(conn, message_id)["gen"]) or {}).get("mind"),
             },
         )
 
