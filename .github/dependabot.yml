@@ -1,0 +1,26 @@
+version: 2
+updates:
+  - package-ecosystem: uv
+    directory: /engine
+    schedule: { interval: weekly }
+    groups:
+      engine-minor:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /app
+    schedule: { interval: weekly }
+    groups:
+      app-minor:
+        update-types: [minor, patch]
+    ignore:
+      # Electron is pinned on purpose (44.4.1): moving it is a reviewed PR of its own.
+      # Security updates still arrive; this only stops routine version bumps.
+      - dependency-name: electron
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+    groups:
+      actions:
+        patterns: ["*"]

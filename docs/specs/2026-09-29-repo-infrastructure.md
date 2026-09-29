@@ -31,6 +31,10 @@ Update this list as phases land (date · phase · what changed · anything left)
   rewritten twice with git filter-repo: authors → the noreply address, and the old address
   scrubbed from file contents; quoted hashes in the specs remapped. Pre-rewrite backup:
   `D:\kataki-before-rewrite.bundle` (delete it after the first push).
+- 2026-09-29 · Phases 1–3 written, waiting for the org: `ci.yml`, `security.yml`,
+  `scorecard.yml`, `dependabot.yml`, CODEOWNERS, templates, `SECURITY.md`, `CONTRIBUTING.md`,
+  the `main` ruleset as JSON, and `.github/setup-repo.sh <org>`, which applies all of it.
+  actionlint and zizmor pass; the app builds (`build`, `build:web`) pass locally.
 
 Decisions made (2026-09-29):
 
@@ -39,8 +43,9 @@ Decisions made (2026-09-29):
   the first push (Phase 0). Hashes quoted in `docs/specs/` get a mapping (below).
 - **Public from day one.**
 - **Signing:** SignPath Foundation's free OSS programme (conditions in Phase 4).
-- **Website:** hosted, pay-as-you-go online models with a margin. Its product and architecture
-  get their own spec (`docs/specs/…-kataki-online.md`, Phase 6).
+- **Website:** hosted, pay-as-you-go online models with a margin. The engine side (one engine,
+  a `Host` seam, many libraries per process, metering, credits) is track B of
+  `docs/specs/2026-09-29-minds.md` §4; this plan owns its hosting (Phase 6).
 
 Still open:
 
@@ -48,11 +53,9 @@ Still open:
    the user approves them. Default: a machine user plus a fine-grained token (Phase 1).
 2. **[user] Domain** for the website and project pages. Default: none until the user buys one;
    staging uses the host's default address.
-3. **[user] Payments and adult content.** `CONTENT_POLICY.md` says Kataki is for adults. Stripe
-   and most mainstream processors ban explicit adult content, and several countries require
-   age checks for it. The website needs one of: a content filter that keeps it within the
-   processor's rules, or a high-risk processor plus age verification. Settle it in the Kataki
-   online spec, before any payment code.
+3. **[user] Payment processor.** The user owns the legal and payment-provider side (minds spec,
+   owner decisions); agents build the ledger and checkout against the processor's test mode
+   as if green-lit.
 4. **[user] Claude in Actions** (API cost per run), Phase 5.
 
 ## Research summary (2026-09-29)
@@ -168,17 +171,22 @@ Done when `git status` is clean, `main` holds everything, and gitleaks reports n
 
 ### Phase 1: the repo and its rules
 
-- [ ] **[user]** Create the org (2FA required for all members) and a public repo `kataki`;
-      `git remote add origin`, push `main`.
-- [ ] Repo files: `SECURITY.md` (private vulnerability reporting on), `CONTRIBUTING.md`
-      (points to `AGENTS.md`; humans and agents follow the same rules), issue templates
-      (bug, feature, beta feedback), PR template (what changed, how it was checked, risk),
-      `.github/CODEOWNERS`.
-- [ ] Ruleset on `main`: PR required, required checks (Phase 2's jobs), linear history
-      (squash only), no force-push, no deletion, no bypass for anyone including admins. Tag
-      ruleset: only the release workflow creates `v*` tags.
-- [ ] Settings: secret scanning + push protection, Dependabot alerts, private vulnerability
-      reporting, delete branch on merge, auto-merge allowed.
+Everything below except the **[user]** items is written and waits in the repo:
+`bash .github/setup-repo.sh <org>` creates the public repo, pushes `main`, and applies the
+settings, the ruleset and the labels. Run it as soon as the org exists.
+
+- [ ] **[user]** Create the org (2FA required for all members), then run the script above.
+- [x] Repo files: `SECURITY.md`, `CONTRIBUTING.md`, issue templates (bug, idea, beta
+      feedback; security goes to private reporting), PR template (what changed, how it was
+      checked, risk), `.github/CODEOWNERS`.
+- [x] Ruleset on `main` as code (`.github/rulesets/main.json`): PR required, the four CI checks
+      required and up to date, linear history (squash only), no force-push, no deletion,
+      code-owner review for the paths in CODEOWNERS. Org admins may merge a PR past a missing
+      review (so the user can merge their own PRs until the bot exists) but can't push
+      directly. Tag ruleset: Phase 4, with the release workflow.
+- [x] Settings in the script: secret scanning + push protection, Dependabot alerts and
+      security PRs, private vulnerability reporting, squash-only with the PR title as the
+      commit, delete branch on merge, auto-merge allowed.
 - [ ] **[user]** Bot account `kataki-bot` (open decision 1): a machine user added to the org
       with write access, 2FA on, and a fine-grained token limited to this repo (contents,
       pull requests, issues). Agents' `git` and `gh` use that token, so their PRs are authored
@@ -188,23 +196,28 @@ Done when a direct `git push origin main` is rejected and a PR shows the require
 
 ### Phase 2: CI (`.github/workflows/ci.yml`)
 
-- [ ] `engine`: `uv sync`, ruff check + format check, pytest; Windows and Ubuntu.
-- [ ] `app`: pnpm install (frozen lockfile), `typecheck`, `build` (runs `checks/copy.mjs`),
-      `build:web`.
-- [ ] `smoke`: `pnpm smoke` on Windows (Electron end to end).
-- [ ] Runs on `pull_request`, `push` to `main`, and `merge_group`. Top-level
-      `permissions: {}`, actions pinned by SHA, `concurrency` cancels superseded runs.
-- [ ] PR preview: upload the unsigned installer and `dist-web` as artifacts (7-day retention).
+Written 2026-09-29, checked with actionlint and zizmor; first real run on the first push.
+
+- [x] `engine`: `uv sync --locked`, ruff check + format check, pytest; Windows and Ubuntu.
+- [x] `app`: pnpm install (frozen lockfile), `typecheck`, `build` (runs `checks/copy.mjs`),
+      `build:web`; the web build is a PR artifact for 7 days.
+- [x] `smoke`: `pnpm smoke` on Windows (Electron end to end).
+- [x] Runs on `pull_request`, `push` to `main`, and `merge_group`. Top-level
+      `permissions: {}`, actions pinned by SHA, `concurrency` cancels superseded PR runs.
+- [ ] Installer as a PR artifact: waits for packaging (Phase 4).
 
 Done when a PR that breaks a test cannot merge.
 
 ### Phase 3: security automation
 
-- [ ] `.github/dependabot.yml`: `uv` (engine), `npm` (root + app), `github-actions`; weekly,
-      grouped minor/patch. Electron stays pinned; its majors are a human-reviewed PR.
-- [ ] `codeql.yml`: python, javascript-typescript, actions.
-- [ ] `dependency-review` on PRs (fails on high-severity advisories).
-- [ ] `zizmor` on workflow changes; `scorecard.yml` weekly with the README badge.
+Written 2026-09-29 (`security.yml`, `scorecard.yml`, `dependabot.yml`).
+
+- [x] Dependabot: `uv` (engine), `npm` (app), `github-actions`; weekly, grouped minor/patch.
+      Electron gets security updates only; moving its version is a reviewed PR.
+- [x] CodeQL: python, javascript-typescript, actions; weekly as well as on every change.
+- [x] `dependency-review` on PRs (fails on high-severity advisories).
+- [x] `zizmor` on every change; Scorecard weekly.
+- [ ] README badges (CI, Scorecard) once the repo URL exists.
 
 Done when Scorecard publishes and the Security tab shows CodeQL results.
 
@@ -214,7 +227,8 @@ Done when Scorecard publishes and the Security tab shows CodeQL results.
       `connect()`, take a backup (`backups.make`) before running migrations, and refuse to open a
       library whose `user_version` is above `SCHEMA_VERSION`. Today it rewrites `user_version`
       down to the older number, and the next upgrade re-runs a migration on a library that
-      already has it. One test each.
+      already has it. One test each. The minds spec's foundation owns this task
+      (`docs/specs/2026-09-29-minds.md`, "Library safety").
 - [ ] Packaging (M5 overlaps; share its spec): electron-builder bundles the engine; version
       comes from the tag; `generateUpdatesFilesForAllChannels: true`.
 - [ ] release-please: one version for engine + app (`release-please-config.json`, manifest).
@@ -250,9 +264,10 @@ reaching new users.
 
 ### Phase 6: Kataki online (the website)
 
-Its own spec comes first (`docs/specs/<date>-kataki-online.md`, spec → plan → build like M2
-and M3), built as show-first slices. What that spec has to settle, with the defaults this plan
-assumes:
+The engine side is track B of `docs/specs/2026-09-29-minds.md` (§4: one engine, a `Host` seam,
+many libraries per process, metering to a ledger, a credit gate, channels as feature flags on
+the account). The website's own screens come from a Claude Design handoff (the user is making
+it). This phase is the hosting around them; the defaults it assumes:
 
 - **Accounts:** sign-in by passkey or email link through a hosted auth provider; no passwords
   stored by Kataki.
@@ -265,7 +280,7 @@ assumes:
   at cost × (1 + margin). Users top up through the payment processor's hosted checkout; the
   ledger is append-only. Spending caps per user and a global daily cap guard against runaway
   costs.
-- **Content and payments:** open decision 3.
+- **Payment processor:** the user's (open decision 3); build against test mode.
 - **Hosting:** a container host with persistent volumes, separate staging and production apps,
   and image-based rollback (Fly.io fits; the spec confirms it). Images go to GHCR, tagged by
   commit.

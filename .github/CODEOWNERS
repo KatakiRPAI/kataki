@@ -1,0 +1,9 @@
+# Changes here need the owner's approval (the main ruleset requires code-owner review).
+# Everything else merges when CI is green. Why: AGENTS.md › How a change lands.
+/.github/                       @QaisZAK
+/AGENTS.md                      @QaisZAK
+/CLAUDE.md                      @QaisZAK
+/SECURITY.md                    @QaisZAK
+/CONTENT_POLICY.md              @QaisZAK
+/engine/src/kataki/db.py        @QaisZAK
+/engine/src/kataki/schema.sql   @QaisZAK
