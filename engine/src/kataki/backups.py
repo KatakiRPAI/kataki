@@ -36,7 +36,11 @@ def make(conn: sqlite3.Connection, db_path: Path, keep: str = "7") -> dict:
 
 def describe(p: Path) -> dict:
     st = p.stat()
-    return {"name": p.name, "bytes": st.st_size, "at": datetime.fromtimestamp(st.st_mtime).isoformat(timespec="seconds")}
+    return {
+        "name": p.name,
+        "bytes": st.st_size,
+        "at": datetime.fromtimestamp(st.st_mtime).isoformat(timespec="seconds"),
+    }
 
 
 def listing(db_path: Path) -> list[dict]:
@@ -59,7 +63,10 @@ def due(db_path: Path, every: str) -> bool:
     if every not in EVERY:
         return False
     newest = listing(db_path)
-    return not newest or time.time() - (folder(db_path) / newest[0]["name"]).stat().st_mtime > EVERY[every]
+    return (
+        not newest
+        or time.time() - (folder(db_path) / newest[0]["name"]).stat().st_mtime > EVERY[every]
+    )
 
 
 def request_restore(db_path: Path, name: str) -> None:
@@ -80,7 +87,10 @@ def apply_pending(db_path: Path) -> bool:
         if db_path.exists():  # what was there is kept, so restoring can be undone
             stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
             shutil.copy2(db_path, folder(db_path) / f"library-{stamp}-before-restore.db")
-        for extra in (db_path.with_name(db_path.name + "-wal"), db_path.with_name(db_path.name + "-shm")):
+        for extra in (
+            db_path.with_name(db_path.name + "-wal"),
+            db_path.with_name(db_path.name + "-shm"),
+        ):
             extra.unlink(missing_ok=True)
         shutil.copy2(source, db_path)
     marker.unlink()

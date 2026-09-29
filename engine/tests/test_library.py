@@ -175,7 +175,9 @@ def test_a_book_holds_its_stories_in_an_order(conn, cast):
     assert [s["title"] for s in library.book_stories(conn, book)] == ["Two"]
     assert conn.execute("SELECT count(*) FROM stories").fetchone()[0] == 3
 
-    place = library.create_item(conn, "place", "Harbour", data={"links": {"book": book}, "time": "dusk"})
+    place = library.create_item(
+        conn, "place", "Harbour", data={"links": {"book": book}, "time": "dusk"}
+    )
 
     # deleting the book keeps every story, place and plot, not filed anywhere
     library.delete_book(conn, book)

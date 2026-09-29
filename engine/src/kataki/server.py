@@ -319,12 +319,19 @@ def create_app(
     app = FastAPI(
         title="Kataki RPAI engine", version=__version__, dependencies=[Depends(require_token)]
     )
+
     @app.exception_handler(sqlite3.OperationalError)
     async def no_room(request: Request, e: sqlite3.OperationalError):
         """A write that failed for space or permission (N2): said as such, so the app can hold
         the window until it can write again. Anything else is still a plain failure."""
         said = str(e).lower()
-        code = "DISK_FULL" if "full" in said else "DISK_READONLY" if "readonly" in said or "read-only" in said else None
+        code = (
+            "DISK_FULL"
+            if "full" in said
+            else "DISK_READONLY"
+            if "readonly" in said or "read-only" in said
+            else None
+        )
         if code is None:
             raise e
         return JSONResponse({"detail": {"code": code, "message": str(e)}}, status_code=507)
@@ -929,7 +936,8 @@ def create_app(
                     (story["id"],),
                 )
             ],
-            "last_line": last and {"id": last["id"], "speaker": speaker and speaker["name"], "text": last["text"]},
+            "last_line": last
+            and {"id": last["id"], "speaker": speaker and speaker["name"], "text": last["text"]},
             "new_events": new_events(story),
             "waiting": len(extract.pending(conn, story["id"])),
             # which book, and where in it: a book is an order, so the order travels with it
@@ -1517,7 +1525,9 @@ def create_app(
     async def message_context(message_id: int):
         """The prompt a reply was written from, for Backstage at any turn."""
         return context_out(
-            _row(conn, "SELECT * FROM context_log WHERE message_id=? ORDER BY id DESC", (message_id,))
+            _row(
+                conn, "SELECT * FROM context_log WHERE message_id=? ORDER BY id DESC", (message_id,)
+            )
         )
 
     def context_out(row: dict) -> dict:
@@ -1541,9 +1551,17 @@ def create_app(
             disk = shutil.disk_usage(db.parent)
             return {
                 "places": [
-                    {"what": "library", "path": str(db.parent), "bytes": sum(size(Path(f"{db}{s}")) for s in ("", "-wal"))},
+                    {
+                        "what": "library",
+                        "path": str(db.parent),
+                        "bytes": sum(size(Path(f"{db}{s}")) for s in ("", "-wal")),
+                    },
                     {"what": "pictures", "path": str(pictures), "bytes": size(pictures)},
-                    {"what": "backups", "path": str(backups.folder(db)), "bytes": size(backups.folder(db))},
+                    {
+                        "what": "backups",
+                        "path": str(backups.folder(db)),
+                        "bytes": size(backups.folder(db)),
+                    },
                 ],
                 # the drive the library is on (N2: "Free on C: 4 MB of 237 GB")
                 "drive": db.anchor.rstrip("\\/") or "/",

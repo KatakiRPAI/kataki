@@ -43,7 +43,7 @@ def can_doubt(conn: sqlite3.Connection, entity_id: int | None) -> bool:
 
 
 def hear_all(conn: sqlite3.Connection) -> bool:
-    """"Everyone hears everything": nobody is away and nothing is a whisper. Thoughts stay."""
+    """ "Everyone hears everything": nobody is away and nothing is a whisper. Thoughts stay."""
     return setting(conn, "memory.hearing", "real") == "all"
 
 
@@ -69,4 +69,6 @@ def character_model(conn: sqlite3.Connection, entity_id: int | None, ep, get_key
     provider = conn.execute("SELECT * FROM providers WHERE id=?", (own["provider_id"],)).fetchone()
     if provider is None:  # the connection was removed: the default speaks for them
         return ep
-    return replace(ep, base_url=provider["base_url"], model=own["model"], api_key=get_key(provider["name"]))
+    return replace(
+        ep, base_url=provider["base_url"], model=own["model"], api_key=get_key(provider["name"])
+    )

@@ -132,7 +132,13 @@ def _instantiate(conn: sqlite3.Connection, story_id: int, item: dict, is_ai: boo
 
 
 # The editor's words (F2 › Relationships) as the engine's relationship words; "never met" is none.
-RELATIONSHIP = {"friend": "friend of", "fond": "fond of", "wary": "wary of", "rival": "rival of", "family": "family of"}
+RELATIONSHIP = {
+    "friend": "friend of",
+    "fond": "fond of",
+    "wary": "wary of",
+    "rival": "rival of",
+    "family": "family of",
+}
 
 
 def create_story(
@@ -589,27 +595,48 @@ def branch_story(conn: sqlite3.Connection, message_id: int) -> int:
         ).lastrowid  # fmt: skip
         ent: dict[int, int] = {}
         cols = _columns(conn, "entities", {"id", "story_id", "run_id", "merge_candidate_id"})
-        for e in conn.execute("SELECT * FROM entities WHERE story_id=? AND run_id IS NULL", (old["id"],)):
+        for e in conn.execute(
+            "SELECT * FROM entities WHERE story_id=? AND run_id IS NULL", (old["id"],)
+        ):
             ent[e["id"]] = conn.execute(
                 f"INSERT INTO entities(story_id, {', '.join(cols)}) VALUES(?, {', '.join('?' * len(cols))})",
                 (new, *(e[c] for c in cols)),
             ).lastrowid
             for a in conn.execute("SELECT alias FROM aliases WHERE entity_id=?", (e["id"],)):
-                conn.execute("INSERT OR IGNORE INTO aliases(entity_id, alias) VALUES(?, ?)", (ent[e["id"]], a["alias"]))
-        conn.execute("UPDATE stories SET persona_entity_id=? WHERE id=?", (ent.get(old["persona_entity_id"]), new))
+                conn.execute(
+                    "INSERT OR IGNORE INTO aliases(entity_id, alias) VALUES(?, ?)",
+                    (ent[e["id"]], a["alias"]),
+                )
+        conn.execute(
+            "UPDATE stories SET persona_entity_id=? WHERE id=?",
+            (ent.get(old["persona_entity_id"]), new),
+        )
         scenes: dict[int, int] = {}
         for s in conn.execute("SELECT * FROM scenes WHERE story_id=? ORDER BY id", (old["id"],)):
             if s["start_message_id"] is None or s["start_message_id"] in on_path:
                 scenes[s["id"]] = conn.execute(
                     "INSERT INTO scenes(story_id, place_id, title, start_story_time, mood, media)"
                     " VALUES(?, ?, ?, ?, ?, ?)",
-                    (new, ent.get(s["place_id"]), s["title"], s["start_story_time"], s["mood"], s["media"]),
+                    (
+                        new,
+                        ent.get(s["place_id"]),
+                        s["title"],
+                        s["start_story_time"],
+                        s["mood"],
+                        s["media"],
+                    ),
                 ).lastrowid
         msg: dict[int, int] = {}
-        cols = _columns(conn, "messages", {"id", "story_id", "parent_id", "speaker_id", "scene_id", "audience"})
+        cols = _columns(
+            conn, "messages", {"id", "story_id", "parent_id", "speaker_id", "scene_id", "audience"}
+        )
         for p in path:
-            audience = json.loads(p["audience"]) if "audience" in p.keys() and p["audience"] else None
-            mapped = None if audience is None else json.dumps([ent[a] for a in audience if a in ent])
+            audience = (
+                json.loads(p["audience"]) if "audience" in p.keys() and p["audience"] else None
+            )
+            mapped = (
+                None if audience is None else json.dumps([ent[a] for a in audience if a in ent])
+            )
             msg[p["id"]] = conn.execute(
                 f"INSERT INTO messages(story_id, parent_id, speaker_id, scene_id, audience, {', '.join(cols)})"
                 f" VALUES(?, ?, ?, ?, ?, {', '.join('?' * len(cols))})",
@@ -617,16 +644,30 @@ def branch_story(conn: sqlite3.Connection, message_id: int) -> int:
                  *(p[c] for c in cols)),
             ).lastrowid  # fmt: skip
         for old_id, new_id in scenes.items():
-            start = conn.execute("SELECT start_message_id FROM scenes WHERE id=?", (old_id,)).fetchone()[0]
+            start = conn.execute(
+                "SELECT start_message_id FROM scenes WHERE id=?", (old_id,)
+            ).fetchone()[0]
             if start is not None:
-                conn.execute("UPDATE scenes SET start_message_id=? WHERE id=?", (msg[start], new_id))
+                conn.execute(
+                    "UPDATE scenes SET start_message_id=? WHERE id=?", (msg[start], new_id)
+                )
         for r in conn.execute(
-            "SELECT p.* FROM presence p JOIN scenes s ON s.id=p.scene_id WHERE s.story_id=?", (old["id"],)
+            "SELECT p.* FROM presence p JOIN scenes s ON s.id=p.scene_id WHERE s.story_id=?",
+            (old["id"],),
         ):
-            if r["scene_id"] in scenes and r["entity_id"] in ent and (r["message_id"] is None or r["message_id"] in on_path):
+            if (
+                r["scene_id"] in scenes
+                and r["entity_id"] in ent
+                and (r["message_id"] is None or r["message_id"] in on_path)
+            ):
                 conn.execute(
                     "INSERT INTO presence(scene_id, entity_id, message_id, present) VALUES(?, ?, ?, ?)",
-                    (scenes[r["scene_id"]], ent[r["entity_id"]], msg.get(r["message_id"]), r["present"]),
+                    (
+                        scenes[r["scene_id"]],
+                        ent[r["entity_id"]],
+                        msg.get(r["message_id"]),
+                        r["present"],
+                    ),
                 )
         conn.execute("UPDATE stories SET active_leaf_id=? WHERE id=?", (msg[message_id], new))
     return new
@@ -636,7 +677,8 @@ def become(conn: sqlite3.Connection, story_id: int, persona_id: int) -> int:
     """The story's entity for this library persona, brought in (and put in the current scene)
     if they aren't in it yet. Characters meet the new person from the next line."""
     row = conn.execute(
-        "SELECT id FROM entities WHERE story_id=? AND lib_item_id=? AND is_ai=0", (story_id, persona_id)
+        "SELECT id FROM entities WHERE story_id=? AND lib_item_id=? AND is_ai=0",
+        (story_id, persona_id),
     ).fetchone()
     if row:
         return row["id"]
@@ -644,7 +686,12 @@ def become(conn: sqlite3.Connection, story_id: int, persona_id: int) -> int:
         raise ValueError(f"no library item {persona_id}")
     with conn:
         entity_id = _instantiate(conn, story_id, item, False)
-        scene = conn.execute("SELECT max(id) FROM scenes WHERE story_id=?", (story_id,)).fetchone()[0]
+        scene = conn.execute("SELECT max(id) FROM scenes WHERE story_id=?", (story_id,)).fetchone()[
+            0
+        ]
         if scene is not None:
-            conn.execute("INSERT INTO presence(scene_id, entity_id, present) VALUES(?, ?, 1)", (scene, entity_id))
+            conn.execute(
+                "INSERT INTO presence(scene_id, entity_id, present) VALUES(?, ?, 1)",
+                (scene, entity_id),
+            )
     return entity_id

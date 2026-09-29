@@ -364,7 +364,9 @@ def delete_newest(conn: sqlite3.Connection, message_id: int) -> None:
     if conn.execute("SELECT 1 FROM messages WHERE parent_id=?", (message_id,)).fetchone():
         raise ValueError("lines follow this one")
     with conn:
-        story = conn.execute("SELECT active_leaf_id FROM stories WHERE id=?", (m["story_id"],)).fetchone()
+        story = conn.execute(
+            "SELECT active_leaf_id FROM stories WHERE id=?", (m["story_id"],)
+        ).fetchone()
         if story["active_leaf_id"] == message_id:
             _set_active(conn, m["story_id"], m["parent_id"])
         conn.execute("DELETE FROM messages WHERE id=?", (message_id,))

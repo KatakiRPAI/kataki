@@ -174,8 +174,14 @@ def test_the_story_list_shows_each_story_with_its_people_place_and_last_line(api
         {"id": ids["Mira"], "name": "Mira", "lib_item_id": lib["Mira"], "present": True},
         {"id": ids["Tobin"], "name": "Tobin", "lib_item_id": lib["Tobin"], "present": False},
     ]
-    assert entry["last_line"] == {"id": entry["last_line"]["id"], "speaker": "Mira", "text": "*frowns* The lighthouse?"}
-    assert api.post(f"/messages/{entry['last_line']['id']}/branch").status_code == 201  # Branch a copy
+    assert entry["last_line"] == {
+        "id": entry["last_line"]["id"],
+        "speaker": "Mira",
+        "text": "*frowns* The lighthouse?",
+    }
+    assert (
+        api.post(f"/messages/{entry['last_line']['id']}/branch").status_code == 201
+    )  # Branch a copy
 
 
 def test_pinned_stories_come_first_then_the_most_recently_played(api, story, backend):
@@ -1296,7 +1302,9 @@ def test_the_app_is_served_for_a_browser_and_the_api_still_wants_its_token(conn,
         assert "<title>Kataki</title>" in client.get("/app/").text
         assert "<title>Kataki</title>" in client.get("/app/story/4").text  # the router's, not ours
         assert client.get("/app/assets/app.js").text == "console.log(1)"
-        assert client.get("/app/assets/missing.js").status_code == 404  # a missing file isn't the page
+        assert (
+            client.get("/app/assets/missing.js").status_code == 404
+        )  # a missing file isn't the page
         assert client.get("/stories").status_code == 401
 
 
@@ -1339,12 +1347,17 @@ def test_a_branch_is_a_new_story_up_to_that_line(api, story):
 
 
 def test_you_can_become_someone_else_mid_story_or_no_one(api, story):
-    sable = api.post("/library", json={"kind": "character", "name": "Sable", "data": {"persona": True}}).json()["id"]
+    sable = api.post(
+        "/library", json={"kind": "character", "name": "Sable", "data": {"persona": True}}
+    ).json()["id"]
     now = api.patch(f"/stories/{story}", json={"persona_id": sable}).json()
     assert now["persona"]["name"] == "Sable"
     assert "Sable" in cast(api, story)  # she is in the story now, as you
     aren = cast(api, story)["Aren"]["lib_item_id"]
-    assert api.patch(f"/stories/{story}", json={"persona_id": aren}).json()["persona"]["name"] == "Aren"
+    assert (
+        api.patch(f"/stories/{story}", json={"persona_id": aren}).json()["persona"]["name"]
+        == "Aren"
+    )
     assert len([e for e in cast(api, story).values() if e["name"] == "Aren"]) == 1  # not twice
     assert api.patch(f"/stories/{story}", json={"persona_id": None}).json()["persona"] is None
 
@@ -1357,7 +1370,7 @@ def test_search_finds_names_lines_and_memories(api, story, conn):
     )
     conn.commit()
     found = api.get("/search", params={"q": "ledger"}).json()
-    assert [l["text"] for l in found["lines"]] == ["The ledger is under the floorboard."]
+    assert [x["text"] for x in found["lines"]] == ["The ledger is under the floorboard."]
     assert [m["detail"] for m in found["memories"]] == ["Aren hid the ledger."]
     assert found["lines"][0]["story_title"] == "Low Tide"
     names = api.get("/search", params={"q": "mir"}).json()
@@ -1371,7 +1384,9 @@ def test_search_finds_names_lines_and_memories(api, story, conn):
     assert [i["name"] for i in by_words] == ["Mira"]
     assert api.get("/search", params={"q": "debts"}).json()["items"] == []  # private stays private
     assert api.get("/search", params={"q": "tide"}).json()["stories"][0]["title"] == "Low Tide"
-    assert api.get("/search", params={"q": "%"}).json()["lines"] == []  # a wildcard is just a character
+    assert (
+        api.get("/search", params={"q": "%"}).json()["lines"] == []
+    )  # a wildcard is just a character
 
 
 def test_a_full_disk_is_said_plainly(api, monkeypatch):
@@ -1391,11 +1406,23 @@ def test_a_full_disk_is_said_plainly(api, monkeypatch):
 def test_a_memory_can_be_made_sharp_again(api, story, conn):
     mira = cast(api, story)["Mira"]["id"]
     api.post(f"/stories/{story}/line", json={"text": "Evening."})  # a scene to rehearse it in
-    m = api.post(f"/stories/{story}/memories", json={"detail": "The key is under the third step.", "knower_ids": [mira]}).json()
-    conn.execute("UPDATE memories SET story_time=story_time-90*1440 WHERE id=?", (m["id"],))  # a season ago
-    conn.execute("UPDATE knowledge SET learned_story_time=learned_story_time-90*1440 WHERE memory_id=?", (m["id"],))
+    m = api.post(
+        f"/stories/{story}/memories",
+        json={"detail": "The key is under the third step.", "knower_ids": [mira]},
+    ).json()
+    conn.execute(
+        "UPDATE memories SET story_time=story_time-90*1440 WHERE id=?", (m["id"],)
+    )  # a season ago
+    conn.execute(
+        "UPDATE knowledge SET learned_story_time=learned_story_time-90*1440 WHERE memory_id=?",
+        (m["id"],),
+    )
     conn.commit()
-    tier = lambda: next(x["tier"] for x in api.get(f"/stories/{story}/memories", params={"knower": mira}).json() if x["memory_id"] == m["id"])  # noqa: E731
+
+    def tier():
+        found = api.get(f"/stories/{story}/memories", params={"knower": mira}).json()
+        return next(x["tier"] for x in found if x["memory_id"] == m["id"])
+
     assert tier() != "sharp"
     assert api.post(f"/memories/{m['id']}/sharpen", params={"knower": mira}).status_code == 200
     assert tier() == "sharp"

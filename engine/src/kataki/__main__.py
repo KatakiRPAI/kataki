@@ -39,7 +39,9 @@ def serve(db_path: Path, parent_watch: bool, port: int = 0, web: Path | None = N
     threading.Thread(target=embed.builtin, daemon=True).start()
     backups.apply_pending(db_path)  # a restore asked for last time happens before the library opens
     conn = db.connect(db_path)
-    config = uvicorn.Config(create_app(conn, token, web_dir=web, db_path=db_path), log_level="warning")
+    config = uvicorn.Config(
+        create_app(conn, token, web_dir=web, db_path=db_path), log_level="warning"
+    )
     threading.Thread(target=_auto_backup, args=(conn, db_path), daemon=True).start()
     server = uvicorn.Server(config)
     if parent_watch:

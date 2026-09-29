@@ -38,3 +38,4 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]  # the formatter owns line length; long SQL and prompt strings stay whole
