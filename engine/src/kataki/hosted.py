@@ -38,13 +38,22 @@ USER = re.compile(r"[A-Za-z0-9_-]{1,64}")  # a library id names a folder: nothin
 WINDOW = 60  # seconds a signature is good for, either way (clock skew, and no replays after)
 
 
-def sign(secret: bytes, user: str, channel: str, at: int) -> str:
-    """The gateway's signature on one request (§8.4)."""
-    return hmac.new(secret, f"{user}\n{channel}\n{at}".encode(), hashlib.sha256).hexdigest()
+def sign(secret: bytes, user: str, channel: str, at: int, method: str, target: str) -> str:
+    """The gateway's signature on one request (§8.4). `target` is its path and query as sent,
+    `/stories/1/turn?` (the `?` always there), so a captured signature is good for that request
+    line only.
+
+    ponytail: no body hash and no nonce cache: a request can be replayed as-is within the window.
+    Both are owed before `--bind` is anything but loopback."""
+    said = f"{user}\n{channel}\n{at}\n{method}\n{target}"
+    return hmac.new(secret, said.encode(), hashlib.sha256).hexdigest()
 
 
-def who(secret: bytes, headers: Mapping[str, str], now: float) -> tuple[str, str] | None:
-    """(user, channel) when the headers are the gateway's, signed within the window; else None."""
+def who(
+    secret: bytes, headers: Mapping[str, str], now: float, method: str, target: str
+) -> tuple[str, str] | None:
+    """(user, channel) when the headers are the gateway's, signed within the window for this
+    method and target; else None."""
     user = headers.get("x-kataki-user", "")
     channel = headers.get("x-kataki-channel", "")
     try:
@@ -54,7 +63,9 @@ def who(secret: bytes, headers: Mapping[str, str], now: float) -> tuple[str, str
     said = headers.get("x-kataki-sig", "")
     if not USER.fullmatch(user) or abs(now - at) > WINDOW:
         return None
-    if not hmac.compare_digest(said.encode(), sign(secret, user, channel, at).encode()):
+    if not hmac.compare_digest(
+        said.encode(), sign(secret, user, channel, at, method, target).encode()
+    ):
         return None
     return user, channel
 
@@ -310,7 +321,9 @@ class Hosted:
         if scope["type"] != "http":
             return
         headers = {k.decode("latin-1").lower(): v.decode("latin-1") for k, v in scope["headers"]}
-        if (found := who(self.signing, headers, time.time())) is None:
+        path = scope.get("raw_path") or scope["path"].encode()
+        target = f"{path.decode('latin-1')}?{scope['query_string'].decode('latin-1')}"
+        if (found := who(self.signing, headers, time.time(), scope["method"], target)) is None:
             refused = JSONResponse({"detail": "missing or invalid gateway signature"}, 401)
             return await refused(scope, receive, send)
         user, channel = found

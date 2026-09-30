@@ -51,17 +51,27 @@ SECRET = b"s3cret"
 NOW = 1_800_000_000
 
 
-def signed(user="alice", channel="beta", at=NOW, secret=SECRET) -> dict:
+def signed(
+    user="alice", channel="beta", at=NOW, secret=SECRET, method="GET", target="/health?"
+) -> dict:
     return {
         "x-kataki-user": user,
         "x-kataki-channel": channel,
         "x-kataki-time": str(at),
-        "x-kataki-sig": hosted.sign(secret, user, channel, at),
+        "x-kataki-sig": hosted.sign(secret, user, channel, at, method, target),
     }
 
 
 def test_a_signed_request_says_who_and_which_channel():
-    assert hosted.who(SECRET, signed(), NOW + 5) == ("alice", "beta")
+    assert hosted.who(SECRET, signed(), NOW + 5, "GET", "/health?") == ("alice", "beta")
+
+
+@pytest.mark.parametrize(
+    "method, target",
+    [("DELETE", "/stories/1?"), ("GET", "/stories/1?"), ("POST", "/health?"), ("GET", "/health?x=1")],
+)
+def test_a_signature_is_good_for_its_own_request_only(method, target):
+    assert hosted.who(SECRET, signed(), NOW, method, target) is None
 
 
 @pytest.mark.parametrize(
@@ -79,7 +89,7 @@ def test_a_signed_request_says_who_and_which_channel():
     ],
 )
 def test_anything_else_is_nobody(headers):
-    assert hosted.who(SECRET, headers, NOW) is None
+    assert hosted.who(SECRET, headers, NOW, "GET", "/health?") is None
 
 
 # --- the gateway client -----------------------------------------------------------------------
@@ -218,13 +228,27 @@ def service(tmp_path, fake=None, transport=None, **kw) -> hosted.Hosted:
     )
 
 
-def now_signed(user="alice", channel="beta") -> dict:
-    return signed(user, channel, at=int(time.time()))
+def now_signed(user="alice", channel="beta", method="GET", target="/health?") -> dict:
+    return signed(user, channel, int(time.time()), SECRET, method, target)
+
+
+class As(httpx2.Auth):
+    """The gateway's side: it signs each request it forwards, as this user on this channel."""
+
+    def __init__(self, user="alice", channel="beta"):
+        self.user, self.channel = user, channel
+
+    def auth_flow(self, request):
+        path, _, query = request.url.raw_path.decode().partition("?")
+        request.headers.update(
+            now_signed(self.user, self.channel, request.method, f"{path}?{query}")
+        )
+        yield request
 
 
 def test_a_signed_request_opens_that_users_library(tmp_path):
     with TestClient(service(tmp_path)) as client:
-        body = client.get("/health", headers=now_signed()).json()
+        body = client.get("/health", auth=As()).json()
     assert (body["host"], body["channel"]) == ("online", "beta")
     assert (tmp_path / "users" / "alice" / "library.db").exists()
 
@@ -234,29 +258,31 @@ def test_an_unsigned_request_opens_nothing(tmp_path):
         assert client.get("/health", headers={"x-kataki-user": "alice"}).status_code == 401
         forged = {**now_signed(), "x-kataki-user": "bob", "Authorization": "Bearer anything"}
         assert client.get("/health", headers=forged).status_code == 401
+        replayed = now_signed(method="GET", target="/health?")  # a captured GET /health
+        assert client.get("/library", headers=replayed).status_code == 401
     assert not (tmp_path / "users").exists()
 
 
 def test_each_user_sees_only_their_own_library(tmp_path):
     with TestClient(service(tmp_path)) as client:
         made = {"kind": "character", "name": "Mira"}
-        assert client.post("/library", json=made, headers=now_signed("alice")).status_code == 201
-        assert client.get("/library", headers=now_signed("bob")).json() == []
-        mine = client.get("/library", headers=now_signed("alice")).json()
+        assert client.post("/library", json=made, auth=As("alice")).status_code == 201
+        assert client.get("/library", auth=As("bob")).json() == []
+        mine = client.get("/library", auth=As("alice")).json()
         assert [i["name"] for i in mine] == ["Mira"]
 
 
 def test_the_services_catalogue_is_in_every_library(tmp_path):
     app = service(tmp_path)
     with TestClient(app) as client:
-        client.get("/health", headers=now_signed())
+        client.get("/health", auth=As())
         conn = app.opened("alice").conn
         conn.execute("UPDATE providers SET base_url='http://mine/v1'")  # the user's own edit
         conn.commit()
-        assert client.get("/providers", headers=now_signed()).status_code == 404  # local-only
-        assert client.post("/library/1/draw", headers=now_signed()).status_code == 404  # pictures
+        assert client.get("/providers", auth=As()).status_code == 404  # local-only
+        assert client.post("/library/1/draw", auth=As()).status_code == 404  # pictures
     with TestClient(app) as client:  # opened again: the service's routing is back
-        client.get("/health", headers=now_signed())
+        client.get("/health", auth=As())
         conn = app.opened("alice").conn
         assert [tuple(r) for r in conn.execute("SELECT name, base_url FROM providers")] == [
             ("svc", "http://fake/v1")
@@ -266,10 +292,10 @@ def test_the_services_catalogue_is_in_every_library(tmp_path):
 def test_past_the_limit_the_least_recent_library_closes(tmp_path):
     app = service(tmp_path, max_open=1)
     with TestClient(app) as client:
-        client.post("/library", json={"kind": "character", "name": "Mira"}, headers=now_signed())
-        client.get("/health", headers=now_signed("bob"))
+        client.post("/library", json={"kind": "character", "name": "Mira"}, auth=As())
+        client.get("/health", auth=As("bob"))
         assert app.opened("alice") is None and app.opened("bob") is not None
-        assert len(client.get("/library", headers=now_signed()).json()) == 1  # still there
+        assert len(client.get("/library", auth=As()).json()) == 1  # still there
 
 
 @pytest.mark.anyio
@@ -294,9 +320,9 @@ async def test_a_library_is_never_closed_under_a_request_that_came_while_evictin
     async with httpx2.AsyncClient(
         transport=httpx2.ASGITransport(app), base_url="http://engine"
     ) as client:
-        bob = asyncio.create_task(client.get("/health", headers=now_signed("bob")))
+        bob = asyncio.create_task(client.get("/health", auth=As("bob")))
         await closing.wait()
-        theirs = asyncio.create_task(client.get("/health", headers=now_signed("carol")))
+        theirs = asyncio.create_task(client.get("/health", auth=As("carol")))
         await inside.wait()
         done.set()
         assert (await bob).status_code == (await theirs).status_code == 200
@@ -385,7 +411,7 @@ async def test_the_daily_cap_refuses_before_the_gateway_is_asked(tmp_path):
 
 def test_the_desktop_never_reads_the_gateways_headers(conn):
     client = TestClient(create_app(conn, "t0k"))
-    assert client.get("/health", headers=now_signed()).status_code == 401
+    assert client.get("/health", auth=As()).status_code == 401
 
 
 def test_the_cli_binds_to_this_machine_and_needs_its_secrets(tmp_path, monkeypatch):

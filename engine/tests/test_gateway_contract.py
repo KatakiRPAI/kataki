@@ -10,7 +10,7 @@ import httpx2
 from fastapi.testclient import TestClient
 
 from kataki import library, usage
-from test_hosted import PRICES, FakeGateway, now_signed, service
+from test_hosted import PRICES, As, FakeGateway, service
 
 
 def a_story(conn) -> int:
@@ -45,12 +45,12 @@ def test_two_users_a_turn_each_and_every_ledger_is_its_own_usage_log(tmp_path, b
     with TestClient(app) as client:
         for user in ("alice", "bob"):
             r = client.post(
-                f"/stories/{stories[user]}/turn", json={"text": "Hi."}, headers=now_signed(user)
+                f"/stories/{stories[user]}/turn", json={"text": "Hi."}, auth=As(user)
             )
             assert last_event(r.text)[0] == "done"
         sent = len(backend.requests)
         r = client.post(
-            f"/stories/{stories['carol']}/turn", json={"text": "Hi."}, headers=now_signed("carol")
+            f"/stories/{stories['carol']}/turn", json={"text": "Hi."}, auth=As("carol")
         )
         assert last_event(r.text)[1]["code"] == "NO_CREDIT"
         assert len(backend.requests) == sent  # the refusal reached no model
