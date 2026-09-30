@@ -668,3 +668,16 @@ async def test_the_side_call_labels_how_it_sounds_when_she_is_voiced(
     assert "voice" in asked["response_format"]["json_schema"]["schema"]["properties"]
     assert done["voice"]["tone"] == "cold" and done["voice"]["tags"] == ["groan"]
     assert done["voice"]["by"] == "side"
+
+
+async def test_an_unvoiced_speaker_gets_no_voice_field_in_the_side_call(
+    conn, story, backend, side_call
+):
+    labels = {"felt": {"label": "calm", "intensity": 1, "about": None, "cause": ""},
+              "events": [], "position": None, "yielded": False, "face": "neutral"}  # fmt: skip
+    backend.say("Fine.", json.dumps(labels))
+    done = (await play(turns.turn(conn, backend.llm, story, "Mira, do the dishes.")))[-1][1]
+    asked = backend.requests[1]
+    assert "voice" not in asked["response_format"]["json_schema"]["schema"]["properties"]
+    assert "Also give voice" not in asked["messages"][-1]["content"]
+    assert done["voice"] is None

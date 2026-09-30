@@ -358,8 +358,9 @@ class LLM:
         instructions: str | None = None,
     ) -> bytes:
         """Speak `text` (minds slice 10): OpenAI's `POST /audio/speech`, which OpenAI, Together,
-        Kokoro-FastAPI and Orpheus-FastAPI all take. Metered as characters (speech is priced
-        per character), so the desktop's spend and online billing see it. No retry: it costs."""
+        Kokoro-FastAPI and Orpheus-FastAPI all take. Not metered here: the caller meters it
+        (`meter`, as characters: speech is priced per character) once the audio is kept, so a
+        render lost before it is saved is not billed and then billed again. No retry: it costs."""
         body = {"model": ep.model, "input": text, "voice": voice, "speed": speed}
         body["response_format"] = fmt
         if instructions:
@@ -369,8 +370,11 @@ class LLM:
         self._check(r)
         if media.sniff_audio(r.content) is None:
             raise LLMError(f"{ep.base_url} sent no audio: {r.content[:120]!r}")
-        self._used(ep, {"prompt_tokens": len(text)})
         return r.content
+
+    def meter(self, ep: Endpoint, usage: dict) -> None:
+        """Record a call's usage the caller measured itself (speech: characters)."""
+        self._used(ep, usage)
 
     async def list_models(self, base_url: str, api_key: str | None) -> list[str]:
         r = await self._send("GET", f"{base_url.rstrip('/')}/models", api_key)

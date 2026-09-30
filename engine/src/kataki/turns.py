@@ -617,7 +617,7 @@ async def _generate(
         look = None
     length = look["words"] if look else ""
     try:
-        voiced = speech.on(conn, speaker_id)  # slice 10
+        voiced = speech.on(conn, speaker_id, story_id)  # slice 10
     except Exception as e:
         logging.getLogger(__name__).warning("voice skipped for story %s: %s", story_id, e)
         voiced = False

@@ -8,12 +8,14 @@ audio is made only when the app asks for it.
 ponytail: the pause and speed numbers are starting points (note 18 gives none); tune by ear.
 """
 
+import asyncio
 import hashlib
 import json
 import re
 import sqlite3
 
 from kataki import features, knobs, media, roles
+from kataki.llm import LLMError
 
 TONES = ("neutral", "warm", "cheerful", "excited", "anxious", "sad", "hurt", "cold", "angry",
          "flat")  # fmt: skip
@@ -43,12 +45,12 @@ TAG = re.compile(r"[\[<]\s*(" + "|".join(sorted(VERBS, key=len, reverse=True)) +
                  re.I)  # fmt: skip
 
 
-def on(conn: sqlite3.Connection, entity_id: int | None) -> bool:
-    """Is this character voiced? The feature, a `voice` model, and `voice.on` (her own
-    `data.voice.on` wins; off by default on every level, lite included)."""
+def on(conn: sqlite3.Connection, entity_id: int | None, story_id: int | None = None) -> bool:
+    """Is this character voiced? The feature, a `voice` model (the story's own role wins), and
+    `voice.on` (her own `data.voice.on` wins; off by default on every level, lite included)."""
     if entity_id is None or not features.enabled(conn, "mind.voice"):
         return False
-    if roles.resolve(conn, "voice", get_key=lambda _: None) is None:
+    if roles.resolve(conn, "voice", story_id, get_key=lambda _: None) is None:
         return False
     mine = knobs.own(conn, entity_id).get("voice")
     choice = mine.get("on") if isinstance(mine, dict) else None
@@ -136,6 +138,8 @@ TONE_WORDS = {
 HOW_MUCH = {1: ", only slightly", 2: "", 3: ", strongly"}
 DEFAULT_VOICE = "af_heart"  # Kokoro's; a role or a character names another
 KEEP = 4  # renders kept per reply (another voice, an edited line)
+MAX_CHARS = 4000  # ponytail: one request's worth (OpenAI caps at 4096); sentence streaming later
+FORMATS = {"mp3": "mp3", "wav": "wav", "opus": "ogg", "flac": "flac"}  # asked for -> kept as
 
 
 def _sound(tag: str, mode: str) -> str:
@@ -182,35 +186,52 @@ class Refused(Exception):
         self.status = status
 
 
+_busy: dict[int, asyncio.Lock] = {}  # ponytail: one lock per reply asked for, never pruned
+
+
 async def render(conn: sqlite3.Connection, llm, message_id: int, get_key=roles.get_key) -> dict:
     """A reply's audio: from the cache when this line in this voice was made before (no call,
-    no cost), else one call to the `voice` model, saved as media. Raises Refused."""
+    no cost), else one call to the `voice` model, saved as media. Raises Refused. Two asks for
+    the same reply at once (auto-play and a tap) make one call: the second waits and replays."""
+    async with _busy.setdefault(message_id, asyncio.Lock()):
+        return await _render(conn, llm, message_id, get_key)
+
+
+async def _render(conn: sqlite3.Connection, llm, message_id: int, get_key) -> dict:
     m = conn.execute("SELECT * FROM messages WHERE id=?", (message_id,)).fetchone()
     if m is None or m["role"] != "assistant" or m["speaker_id"] is None:
         raise Refused(404, "Only a character's reply has a voice.")
-    if not on(conn, m["speaker_id"]):
-        raise Refused(409, "Voice is off for this character, or no voice model is set.")
     ep = roles.resolve(conn, "voice", m["story_id"], get_key)
+    if ep is None or not on(conn, m["speaker_id"], m["story_id"]):
+        raise Refused(409, "Voice is off for this character, or no voice model is set.")
+    fmt = ep.params.get("format", "mp3")
+    if fmt not in FORMATS:
+        raise Refused(409, f"The voice model's format must be one of {', '.join(FORMATS)}.")
     own = knobs.own(conn, m["speaker_id"]).get("voice")
     own = own if isinstance(own, dict) else {}
     gen = json.loads(m["gen"] or "{}")
+    kept = gen.get("voice") if isinstance(gen.get("voice"), dict) else {}
+    if m["edited_at"]:  # the tags came off the words as written; an edited line has its own
+        gen = {**gen, "voice": {**kept, "tags": []}}
     got = cue(gen, m["text"], own)
     said = speakable(m["text"], got, ep.params.get("tags", "text"))
     if not said:
         raise Refused(422, "This reply has nothing to say out loud.")
+    if len(said) > MAX_CHARS:
+        raise Refused(422, f"This reply is too long to say in one go ({MAX_CHARS} characters).")
     name = str(own.get("name") or ep.params.get("voice") or DEFAULT_VOICE)
-    fmt = ep.params.get("format", "mp3")
     told = instruct(got) if ep.params.get("instructions") else None
     key = hashlib.sha256(
         json.dumps([said, name, got["speed"], told, fmt, ep.model, ep.base_url]).encode()
     ).hexdigest()[:32]
-    kept = gen.get("voice") if isinstance(gen.get("voice"), dict) else {}
     audio = kept.get("audio") if isinstance(kept.get("audio"), dict) else {}
     out = {"cue": got, "voice": name, "chars": len(said)}
     if key in audio and media.find(conn, audio[key]):
         return {"media": audio[key], "url": f"/media/{audio[key]}", "cached": True, **out}
     data = await llm.speech(ep, said, name, got["speed"], fmt, told)
-    file = media.save(conn, data, media.sniff_audio(data))
+    if media.sniff_audio(data) != FORMATS[fmt]:
+        raise LLMError(f"{ep.base_url} was asked for {fmt} and sent something else")
+    file = media.save(conn, data, FORMATS[fmt])
     audio = {**dict(list(audio.items())[-(KEEP - 1) :]), key: file}
     with conn:
         conn.execute(
@@ -218,4 +239,5 @@ async def render(conn: sqlite3.Connection, llm, message_id: int, get_key=roles.g
             " WHERE id=?",
             (json.dumps(audio), message_id),
         )
+    llm.meter(ep, {"prompt_tokens": len(said)})  # billed once it is kept: a lost render is not
     return {"media": file, "url": f"/media/{file}", "cached": False, **out}

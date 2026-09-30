@@ -576,3 +576,33 @@ def test_v17_lets_the_voice_role_in(tmp_path):
         conn.execute("INSERT INTO model_roles(role) VALUES('singer')")
     assert conn.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION == 17
     conn.close()
+
+
+def test_v17_is_all_or_nothing(tmp_path):
+    """The first destructive migration: a failure half-way must leave the v16 library as it
+    was, so it can be opened (or restored) again, never a library with no model_roles."""
+    path = tmp_path / "v16.db"
+    old = db.connect(path)
+    old.executescript(
+        "DROP TABLE model_roles; CREATE TABLE model_roles("
+        " role TEXT PRIMARY KEY CHECK(role IN('rp','narrator','utility','reasoning','embed',"
+        "'image','music')), provider_id INTEGER REFERENCES providers, model TEXT,"
+        " kind TEXT NOT NULL DEFAULT 'auto' CHECK(kind IN('auto','reasoning','standard')),"
+        " detected_kind TEXT CHECK(detected_kind IN('reasoning','standard')),"
+        " params TEXT NOT NULL DEFAULT '{}');"
+    )
+    old.execute("PRAGMA foreign_keys=OFF")  # a row pointing at a provider that is gone
+    old.execute("INSERT INTO model_roles(role, provider_id, model) VALUES('rp', 99, 'rp-8b')")
+    old.execute("PRAGMA user_version=16")
+    old.commit()
+    old.close()
+
+    for _ in range(2):  # the same clear error each time, never "model_roles_new already exists"
+        with pytest.raises(sqlite3.IntegrityError, match="FOREIGN KEY"):
+            db.connect(path)
+    raw = sqlite3.connect(path)
+    tables = {r[0] for r in raw.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    assert "model_roles" in tables and "model_roles_new" not in tables
+    assert raw.execute("PRAGMA user_version").fetchone()[0] == 16
+    assert raw.execute("SELECT model FROM model_roles").fetchone()[0] == "rp-8b"
+    raw.close()

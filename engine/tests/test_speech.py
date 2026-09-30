@@ -183,7 +183,7 @@ def voiced(mira):
 
 
 @pytest.mark.anyio
-async def test_speech_posts_the_openai_shape_and_meters_characters(voiced, backend):
+async def test_speech_posts_the_openai_shape(voiced, backend):
     from kataki import roles
 
     conn = voiced["conn"]
@@ -202,7 +202,7 @@ async def test_speech_posts_the_openai_shape_and_meters_characters(voiced, backe
         "response_format": "mp3",
         "instructions": "Speak sadly.",
     }
-    assert used == [("voice", {"prompt_tokens": len("Evening.")})]
+    assert used == []  # the caller meters it once the audio is kept (render)
 
 
 @pytest.mark.anyio
@@ -223,7 +223,10 @@ async def test_render_saves_once_and_replays_for_free(voiced, backend):
 
     conn = voiced["conn"]
     backend.say(_audio())
-    first = await speech.render(conn, backend.llm, voiced["reply"])
+    llm, used = backend.llm, []
+    llm.on_usage = lambda ep, usage: used.append((ep.role, ep.story_id, usage))
+    first = await speech.render(conn, llm, voiced["reply"])
+    assert used == [("voice", voiced["story"], {"prompt_tokens": first["chars"]})]
     assert first["cached"] is False and first["voice"] == "af_heart"
     assert first["url"] == f"/media/{first['media']}" and first["media"].endswith(".mp3")
     assert media.find(conn, first["media"]).read_bytes() == MP3
@@ -307,3 +310,148 @@ def test_the_route_says_why_there_is_no_audio(api, voiced, backend):
     assert "voice" not in gen  # nothing saved; ask again
     _set(voiced["conn"], "features.mind.voice", False)
     assert api.post(f"/messages/{voiced['reply']}/voice").status_code == 409
+
+
+# --- review fixes ----------------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_two_asks_at_once_render_and_pay_once(voiced, backend):
+    import asyncio
+
+    backend.say(_audio())
+    used = []
+    llm = backend.llm
+    llm.on_usage = lambda ep, usage: used.append(usage)
+    real = llm.speech
+
+    async def slow(*args, **kw):  # a real server takes a while: both asks are in flight
+        await asyncio.sleep(0.01)
+        return await real(*args, **kw)
+
+    llm.speech = slow
+    a, b = await asyncio.gather(
+        speech.render(voiced["conn"], llm, voiced["reply"]),
+        speech.render(voiced["conn"], llm, voiced["reply"]),
+    )
+    assert len(backend.requests) == 1 and len(used) == 1
+    assert {a["cached"], b["cached"]} == {False, True} and a["media"] == b["media"]
+
+
+@pytest.mark.anyio
+async def test_an_edited_line_is_said_again_without_its_old_tag(voiced, backend):
+    from kataki import chat
+
+    conn = voiced["conn"]
+    tagged = chat.add_child(
+        conn, voiced["story"], voiced["reply"], "assistant", "Oh, stop.", voiced["id"], 0,
+        {"voice": {"tags": ["laugh"]}},
+    )  # fmt: skip
+    backend.say(_audio(), _audio(MP3 + b"\x02"))
+    first = await speech.render(conn, backend.llm, tagged)
+    assert first["cue"]["tags"] == ["laugh"] and backend.requests[-1]["input"] == "Ha! Oh, stop."
+    chat.edit_message(conn, tagged, "Stop it.")
+    again = await speech.render(conn, backend.llm, tagged)
+    assert again["cached"] is False and again["cue"]["tags"] == []
+    assert backend.requests[-1]["input"] == "Stop it."
+
+
+@pytest.mark.anyio
+async def test_a_reply_keeps_four_renders(voiced, backend):
+    from kataki import chat
+
+    conn = voiced["conn"]
+    for i in range(5):
+        library.update_item(conn, voiced["lib"], data={"voice": {"name": f"v{i}"}})
+        backend.say(_audio(MP3 + bytes([i])))
+        await speech.render(conn, backend.llm, voiced["reply"])
+    audio = json.loads(chat.get_message(conn, voiced["reply"])["gen"])["voice"]["audio"]
+    assert len(audio) == speech.KEEP == 4
+    library.update_item(conn, voiced["lib"], data={"voice": {"name": "v4"}})
+    await speech.render(conn, backend.llm, voiced["reply"])  # the newest is still there
+    assert len(backend.requests) == 5
+    library.update_item(conn, voiced["lib"], data={"voice": {"name": "v0"}})
+    backend.say(_audio(MP3 + b"\x09"))
+    assert (await speech.render(conn, backend.llm, voiced["reply"]))["cached"] is False
+
+
+@pytest.mark.anyio
+async def test_a_storys_own_voice_role_decides(voiced, backend):
+    conn = voiced["conn"]
+
+    def override(roles):
+        conn.execute(
+            "UPDATE stories SET overrides=? WHERE id=?",
+            (json.dumps({"roles": roles}), voiced["story"]),
+        )
+        conn.commit()
+
+    override({"voice": {"provider_id": None, "model": None}})  # this story has no voice
+    assert not speech.on(conn, voiced["id"], voiced["story"])
+    with pytest.raises(speech.Refused) as e:
+        await speech.render(conn, backend.llm, voiced["reply"])
+    assert e.value.status == 409
+    conn.execute("DELETE FROM model_roles WHERE role='voice'")
+    override({"voice": {"provider_id": 2, "model": "kokoro"}})  # only this story has one
+    assert speech.on(conn, voiced["id"], voiced["story"])
+    assert not speech.on(conn, voiced["id"])
+    backend.say(_audio())
+    assert (await speech.render(conn, backend.llm, voiced["reply"]))["cached"] is False
+
+
+@pytest.mark.anyio
+async def test_a_wall_of_text_is_refused_before_any_call(voiced, backend):
+    from kataki import chat
+
+    long = chat.add_child(
+        conn := voiced["conn"], voiced["story"], None, "assistant", "la " * 2000, voiced["id"]
+    )
+    with pytest.raises(speech.Refused) as e:
+        await speech.render(conn, backend.llm, long)
+    assert e.value.status == 422 and backend.requests == []
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("fmt", ["aac", "pcm"])
+async def test_only_the_listed_formats(voiced, backend, fmt):
+    conn = voiced["conn"]
+    conn.execute(
+        "UPDATE model_roles SET params=? WHERE role='voice'", (json.dumps({"format": fmt}),)
+    )
+    conn.commit()
+    with pytest.raises(speech.Refused) as e:
+        await speech.render(conn, backend.llm, voiced["reply"])
+    assert e.value.status == 409 and backend.requests == []
+
+
+@pytest.mark.anyio
+async def test_opus_is_kept_as_ogg_and_a_mislabelled_answer_fails(voiced, backend):
+    from kataki.llm import LLMError
+
+    conn = voiced["conn"]
+    conn.execute("UPDATE model_roles SET params='{\"format\": \"opus\"}' WHERE role='voice'")
+    conn.commit()
+    backend.say(_audio(b"OggS" + b"\x00" * 64), _audio())
+    got = await speech.render(conn, backend.llm, voiced["reply"])
+    assert got["media"].endswith(".ogg")
+    library.update_item(conn, voiced["lib"], data={"voice": {"name": "bf_emma"}})
+    with pytest.raises(LLMError):  # asked for opus, sent mp3
+        await speech.render(conn, backend.llm, voiced["reply"])
+
+
+@pytest.mark.anyio
+async def test_a_render_that_is_not_kept_is_not_billed(voiced, backend, monkeypatch):
+    from kataki import media
+
+    used = []
+    llm = backend.llm
+    llm.on_usage = lambda ep, usage: used.append(usage)
+
+    def full(*a, **k):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(media, "save", full)
+    backend.say(_audio())
+    with pytest.raises(OSError):
+        await speech.render(voiced["conn"], llm, voiced["reply"])
+    assert used == []

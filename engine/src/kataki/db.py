@@ -177,7 +177,9 @@ MIGRATIONS = {
         "CREATE INDEX ix_reflections ON reflections(knower_id);"
     ),
     17: (  # minds slice 10: a `voice` role (speech). SQLite cannot widen a CHECK in place, so
-        # the table is rebuilt with every row kept; nothing references model_roles
+        # the table is rebuilt with every row kept; nothing references model_roles. The first
+        # destructive migration, so it is one transaction: a failure half-way changes nothing
+        "BEGIN;"
         "CREATE TABLE model_roles_new("
         " role TEXT PRIMARY KEY CHECK(role IN('rp','narrator','utility','reasoning','embed',"
         "'image','music','voice')),"
@@ -189,6 +191,7 @@ MIGRATIONS = {
         " FROM model_roles;"
         "DROP TABLE model_roles;"
         "ALTER TABLE model_roles_new RENAME TO model_roles;"
+        "COMMIT;"
     ),
 }
 
