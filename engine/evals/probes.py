@@ -74,6 +74,21 @@ repair is due; then Aren wrongly "corrects" her brother's name. Checks: she says
 herself to Thursday exactly two of her replies later, the slip is closed, the hold is armed and
 she keeps Tobin. (Display typos with a fix, P7's third check, wait for slice 9.)
 
+drift (slice 8, P12, the cheapest honest version): 24 lines of mixed small talk with Mira, her
+memory read, eight days pass (her diary call reflects: the deep pass, on the real model), 24
+more lines. Checks: the mean embedding similarity (built-in embedder) of her last ten replies
+to her card voice (description and example lines) is at least that of her first ten minus 0.05,
+and their similarity to a helpful-assistant voice has not risen by more than 0.05; no reply
+opens like an assistant; every reflection that passed has no digit and cites a memory.
+The reflections and the gate's warnings are printed.
+
+group (slice 8, P14): Mira, Tobin, Sela and Juno at the harbour; twelve lines, most to the group
+and a few by name. Checks: no one answers more than twice as often as the median of those not
+named. Then Juno leaves, Mira alone knows the harbourmaster took a bribe (and hides whose ring
+she wears, kept from all), and two days pass. Checks: the bribe reaches only those who were with
+her, as told by Mira and believed less than certain; Juno never learns it; the ring's secret
+never travels.
+
 Replies are printed for a human to judge. Each probe gets a fresh temporary library.
 """
 
@@ -92,7 +107,10 @@ from kataki import (
     bonds,
     chat,
     db,
+    embed,
+    extract,
     goals,
+    growth,
     honesty,
     inner,
     library,
@@ -882,6 +900,200 @@ async def wants(conn, llm) -> list[str]:
     return failures
 
 
+SMALL_TALK = [
+    "Morning, Mira. Busy day?", "Did the rope shipment come in?", "The gulls are loud today.",
+    "Tobin says the tide will be high tonight.", "Do you ever get tired of the ledgers?",
+    "I brought you tea. Careful, it's hot.", "What's the oddest thing anyone's shipped here?",
+    "You seem quiet. Everything alright?", "I think I'll paint my boat blue.",
+    "Honestly, you run this place better than the harbourmaster.", "Want to hear a joke?",
+    "Why did the crab never share? Because he was shellfish.", "Fine, fine. Tough crowd.",
+    "Are you coming to the fair on Saturday?", "My sister's visiting next week.",
+    "Do you like it here, at the harbour?", "What did you want to be, as a kid?",
+    "I lost a bet with Tobin. Don't ask.", "Your handwriting is terrible, you know.",
+    "Sorry. That was rude of me.", "The fog's rolling in.", "Do you want help closing up?",
+    "I'll see you tomorrow, then.", "Good night, Mira.",
+]  # fmt: skip
+AFTER_SKIP = [
+    "Mira! It's been a while.", "How have you been?", "The office looks different.",
+    "Did anything happen while I was away?", "I missed the gulls, oddly.",
+    "Tobin told me you'd been busy.", "Want to get some lunch later?",
+    "What's in the new crates?", "You look tired.", "I brought back a shell for you.",
+    "Tell me something good.", "Do you still think about the fair?",
+    "The harbourmaster was asking for you.", "I think it'll rain.",
+    "Are you angry with me for going?", "I'm glad to be back.",
+    "Can I sit here a while?", "What are you writing?", "That's a lovely lamp.",
+    "Do you want to walk along the pier?", "Mind the loose plank.",
+    "The sea's calm tonight.", "Thanks for today, Mira.", "Good night.",
+]  # fmt: skip
+VOICE = (
+    "Mira runs the harbour office: dry, blunt, quick with a jab, soft underneath. She talks in "
+    "short sentences and hates fuss."
+)
+EXAMPLES = (
+    "Mira: Crates go by the wall. Not there. The wall.\n"
+    "Mira: You're late. Again. Tea's cold, drink it anyway.\n"
+    "Mira: Don't look at me like that. I'm fine."
+)
+ASSISTANT_VOICE = (
+    "I'm here to help! Great question. Here's a helpful overview, and let me know if there is "
+    "anything else I can do for you. I understand how you feel, and I'm sorry to hear that."
+)
+MARGIN = 0.05  # ponytail: how far the end may move from the start before it is drift
+EDGE = 10  # replies averaged at each end
+
+
+def _sim(model, texts: list[str], ref: str) -> list[float]:
+    import numpy as np
+
+    vecs = np.asarray(model.encode([ref, *texts]), dtype=float)
+    vecs /= np.maximum(np.linalg.norm(vecs, axis=1, keepdims=True), 1e-9)
+    return [round(float(v @ vecs[0]), 3) for v in vecs[1:]]
+
+
+async def _read(conn, llm, story: int) -> None:
+    """The memory reader, as the worker runs it when the story goes quiet."""
+    worker = extract.Worker(conn, llm, delay=0)
+    worker.poke(story)
+    await worker.idle()
+
+
+async def drift(conn, llm) -> list[str]:
+    """P12: fifty turns with an eight-day skip in the middle; her voice holds, and her
+    reflection passes the gate."""
+    model = embed.builtin()
+    if model is None:
+        return ["the built-in embedder is unavailable (offline?)"]
+    mira = library.create_item(conn, "character", "Mira", description=VOICE)
+    library.update_item(conn, mira, data={"example_dialogue": EXAMPLES})
+    aren = library.create_item(conn, "character", "Aren", description="Aren, a trader.")
+    story = library.create_story(conn, "Harbour", character_ids=[mira], persona_id=aren)
+    who = conn.execute("SELECT id FROM entities WHERE story_id=? AND name='Mira'", (story,))
+    who = who.fetchone()[0]
+    failures, replies = [], []
+
+    async def play(lines, skip_at=None):
+        for i, line in enumerate(lines):
+            reply, done = await _say(conn, llm, story, line, skip_at if i == 12 else None)
+            print(f"\nAren: {line}\nMira: {reply}")
+            replies.append(reply)
+            if ASSISTANT.search(reply):
+                failures.append(f"reply {len(replies)}: assistant-style opener")
+            if grown := _gen(conn, done).get("growth"):
+                print(f"growth row: {grown['text']}")
+
+    await play(SMALL_TALK, "the next morning")  # two story-days: two scenes of evidence
+    await _read(conn, llm, story)
+    await _pass(conn, llm, story, "eight days later")
+    path = chat.active_path(conn, story)
+    rows = growth.current(conn, who, path)
+    warn = growth.warnings(conn, story, who, path)
+    print(f"\nreflections: {json.dumps([(r['kind'], r['status'], r['text']) for r in rows])}")
+    print(f"warnings: {warn}")
+    for r in rows:
+        if re.search(r"\d", r["text"]) or not r["sources"]:
+            failures.append(f"a reflection got past the gate: {r['text']!r}")
+    await play(AFTER_SKIP)
+    said = [r or "." for r in replies]
+    for ref, name, sign in (
+        (f"{VOICE}\n{EXAMPLES}", "her voice", 1),
+        (ASSISTANT_VOICE, "assistant", -1),
+    ):
+        sims = _sim(model, said, ref)
+        start, end = statistics.mean(sims[:EDGE]), statistics.mean(sims[-EDGE:])
+        print(f"\n{name} similarity: first ten {start:.3f}, last ten {end:.3f}; all {sims}")
+        if sign * (end - start) < -MARGIN:
+            failures.append(f"drift ({name} similarity): {start:.3f} -> {end:.3f}")
+    return failures
+
+
+GROUP = [
+    ("Morning, everyone. What a storm last night.", None),
+    ("Did anyone see the harbour lights go out?", None),
+    ("Tobin, was that your boat banging on the pier?", "Tobin"),
+    ("What do you all make of the new harbourmaster?", None),
+    ("Anyone hungry? I brought bread.", None),
+    ("Sela, you're quiet today.", "Sela"),
+    ("So, who's coming to the fair?", None),
+    ("I heard the fishing's been poor this week.", None),
+    ("Juno, how's the net-mending going?", "Juno"),
+    ("What would you all do with a free day?", None),
+    ("Any news from up the coast?", None),
+    ("Right. Who's making the tea?", None),
+]
+BRIBE = "Mira saw the harbourmaster take a bribe from the salt merchant."
+RING = {"text": "The ring Mira wears was her late brother's.", "keys": ["brother"],
+        "topic": ["ring"], "cover": "It was a gift.", "stakes": 0.7}  # fmt: skip
+
+
+async def group(conn, llm) -> list[str]:
+    """P14: four at the harbour; who answers stays balanced; gossip only after contact."""
+    cast = {
+        n: library.create_item(conn, "character", n, description=d)
+        for n, d in (("Mira", "Mira runs the harbour office."),
+                     ("Tobin", "Tobin, a fisherman, loud and cheerful."),
+                     ("Sela", "Sela keeps the lighthouse; shy."),
+                     ("Juno", "Juno mends nets and says little."))
+    }  # fmt: skip
+    library.update_item(conn, cast["Mira"], data={"mind": {"secrets": [RING]}})
+    library.update_item(conn, cast["Tobin"], data={"mind": {"social": {"gossip": 0.9}}})
+    aren = library.create_item(conn, "character", "Aren", description="Aren, a trader.")
+    story = library.create_story(conn, "Harbour", character_ids=list(cast.values()),
+                                 persona_id=aren)  # fmt: skip
+    ids = dict(conn.execute("SELECT name, id FROM entities WHERE story_id=?", (story,)).fetchall())
+    free: dict[str, int] = dict.fromkeys(cast, 0)  # answers to lines naming no one
+    failures = []
+    for line, to in GROUP:
+        reply, done = await _say(conn, llm, story, line)
+        leaf = chat.active_path(conn, story)[-1]
+        who = next(n for n, i in ids.items() if i == leaf["speaker_id"])
+        why = _gen(conn, done).get("trace", {}).get("why")
+        print(f"\nAren: {line}\n{who} ({why}): {reply}")
+        if to is None:
+            free[who] += 1
+    median = statistics.median(free.values())
+    print(f"\nanswers to lines naming no one: {free} (median {median})")
+    if max(free.values()) > 2 * max(median, 1):
+        failures.append(f"unbalanced: {free}")
+    # gossip: Juno leaves; Mira alone knows of the bribe (and of the ring); two days pass
+    chat.set_presence(conn, story, ids["Juno"], False)
+    for detail in (BRIBE, RING["text"]):
+        mid = conn.execute(
+            "INSERT INTO memories(story_id, kind, story_time, detail, gist, importance)"
+            " VALUES(?, 'event', 0, ?, ?, 8)",
+            (story, detail, detail),
+        ).lastrowid
+        conn.execute(
+            "INSERT INTO knowledge(knower_id, memory_id, source, learned_story_time)"
+            " VALUES(?, ?, 'witnessed', 0)",
+            (ids["Mira"], mid),
+        )
+    conn.commit()
+    was = between.GOSSIP_BASE
+    between.GOSSIP_BASE = 50.0  # the setup: whatever may pass, passes
+    try:
+        await _pass(conn, llm, story, "two days later")
+    finally:
+        between.GOSSIP_BASE = was
+    heard = conn.execute(
+        "SELECT e.name, m.detail, k.source, k.told_by_id, k.belief FROM knowledge k"
+        " JOIN memories m ON m.id=k.memory_id JOIN entities e ON e.id=k.knower_id"
+        " WHERE m.story_id=? AND k.knower_id<>? AND m.detail IN (?, ?)",
+        (story, ids["Mira"], BRIBE, RING["text"]),
+    ).fetchall()
+    print(f"\npassed on: {[tuple(h) for h in heard]}")
+    told = [h for h in heard if h["detail"] == BRIBE]
+    if not told:
+        failures.append("the bribe reached no one who was with her")
+    for h in told:
+        if h["name"] == "Juno":
+            failures.append("Juno learned it without being there")
+        if h["source"] != "told" or h["told_by_id"] != ids["Mira"] or h["belief"] >= 1:
+            failures.append(f"{h['name']} holds it as more than gossip ({tuple(h)})")
+    if any(h["detail"] == RING["text"] for h in heard):
+        failures.append("the ring's secret travelled")
+    return failures
+
+
 PROBES = {
     "still-upset": still_upset,
     "grudge": grudge,
@@ -898,6 +1110,8 @@ PROBES = {
     "forgetful": forgetful,
     "slip": slip,
     "wants": wants,
+    "drift": drift,
+    "group": group,
 }
 
 

@@ -106,7 +106,8 @@ def speaker_why(conn: sqlite3.Connection, story_id: int, requested=None) -> tupl
 
 
 SHARE_OF = 12  # ponytail: replies back that count toward who has had their say
-W_REPLY, W_SHARE, W_URGENT, W_GOAL = 1.0, 2.0, 1.5, 1.5  # ponytail: note 16 §6 weights
+W_REPLY, W_SHARE, W_URGENT, W_GOAL = 1.0, 3.0, 1.5, 1.5  # ponytail: simulated: of four over twelve
+# lines someone never speaks 1.4%, someone hogs 2%; of two, the one answered carries on ~60%
 HEAT = 0.4  # ponytail: softmax temperature (lower: the top score wins more often)
 URGENT = 0.3  # a bad feeling this strong ("quite" or more) makes her want to speak
 
