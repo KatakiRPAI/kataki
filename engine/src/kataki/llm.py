@@ -160,10 +160,15 @@ def _first_json_object(text: str, think_tags: tuple[str, str]) -> dict:
 
 
 class LLM:
-    def __init__(self, transport: httpx2.AsyncBaseTransport | None = None):
+    def __init__(
+        self, transport: httpx2.AsyncBaseTransport | None = None, max_calls: int | None = None
+    ):
         # local prefill can be slow, so reads wait long; connects fail fast
         timeout = httpx2.Timeout(10.0, read=600.0)
         self._client = httpx2.AsyncClient(transport=transport, timeout=timeout)
+        # online, one user's requests in flight at once (track B5); past it a call waits. A task
+        # never nests model calls, so it cannot wait on itself. None, the desktop: no cap
+        self._slots = asyncio.Semaphore(max_calls) if max_calls else contextlib.nullcontext()
         self._rejected: set[tuple[str, str, str]] = set()  # response_format types a backend refused
         # called with (endpoint, usage) after every call that reports usage: the desktop
         # records it in usage_log, Kataki online bills it (spec §4)
@@ -200,7 +205,10 @@ class LLM:
 
     async def _send(self, method: str, url: str, api_key: str | None, body: dict | None = None):
         try:
-            r = await self._client.request(method, url, json=body, headers=self._headers(api_key))
+            async with self._slots:
+                r = await self._client.request(
+                    method, url, json=body, headers=self._headers(api_key)
+                )
         except httpx2.TransportError as e:
             raise LLMError(f"cannot reach {url}: {e}") from e
         return r
@@ -302,15 +310,16 @@ class LLM:
     async def _stream(self, url: str, body: dict, api_key: str | None):
         """A streamed POST. A provider that is busy or briefly unavailable (429/502/503: nothing
         was generated, so nothing is billed) is asked again after a moment, twice at most."""
-        for attempt in range(TRIES):
-            async with self._client.stream(
-                "POST", url, json=body, headers=self._headers(api_key)
-            ) as r:
-                if attempt == TRIES - 1 or r.status_code not in BUSY:
-                    yield r
-                    return
-                await r.aread()
-            await asyncio.sleep(RETRY_AFTER * 2**attempt)
+        async with self._slots:
+            for attempt in range(TRIES):
+                async with self._client.stream(
+                    "POST", url, json=body, headers=self._headers(api_key)
+                ) as r:
+                    if attempt == TRIES - 1 or r.status_code not in BUSY:
+                        yield r
+                        return
+                    await r.aread()
+                await asyncio.sleep(RETRY_AFTER * 2**attempt)
 
     @staticmethod
     async def _chunks(r: httpx2.Response, url: str) -> AsyncIterator[dict]:
