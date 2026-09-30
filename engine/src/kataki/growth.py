@@ -383,9 +383,18 @@ def stems(text: str) -> set[str]:
     return {w[:5] for w in re.findall(r"[a-z]+", text.lower()) if len(w) >= 4 and w not in STOP}
 
 
-def evidence(conn, who: int, r: dict, path: list, now: int) -> dict:
-    """What bears a ring out: memories she holds, dated after it, that share a content word with
-    it (its own sources aside), and how many scenes they span."""
+def born(r: dict, rows: dict[int, dict]) -> int:
+    """When a reflection first came to be: its earliest version among `rows`."""
+    seen = set()
+    while r["supersedes_id"] in rows and r["id"] not in seen:
+        seen.add(r["id"])
+        r = rows[r["supersedes_id"]]
+    return r["story_time"]
+
+
+def evidence(conn, who: int, r: dict, path: list, now: int, since: int | None = None) -> dict:
+    """What bears a ring out: memories she holds, dated after it (or `since`), that share a
+    content word with it (its own sources aside), and how many scenes they span."""
     want = stems(r["text"])
     if not want or not path:
         return {"memories": 0, "scenes": 0}
@@ -395,7 +404,7 @@ def evidence(conn, who: int, r: dict, path: list, now: int) -> dict:
         "SELECT DISTINCT m.id, m.detail, m.story_time FROM memories m"
         " JOIN knowledge k ON k.memory_id=m.id"
         f" WHERE k.knower_id=? AND m.hidden=0 AND m.story_time>? AND m.story_time<=? AND {know}",
-        [who, r["story_time"], now, *args],
+        [who, r["story_time"] if since is None else since, now, *args],
     ).fetchall()
     hits = [
         m for m in rows
@@ -441,3 +450,77 @@ def line(conn, who: int, path: list, answering: int | None, name: str | None) ->
     if re.search(r"\d", text):  # words, never numbers (the gate already holds this)
         return None
     return {"reflection": r["id"], "kind": r["kind"], "text": text}
+
+
+# --- what the app shows (spec §8.3 slice 8) ---------------------------------------------------------
+
+AXIS_WORDS = {  # axis -> (up, down), for Peek; the prompt never gets these
+    "warmth": ("warmer", "colder"), "dominance": ("bolder", "meeker"),
+    "candor": ("franker", "more guarded"), "honesty": ("more honest", "less honest"),
+    "yielding": ("quicker to give way", "firmer"), "volatility": ("touchier", "calmer"),
+}  # fmt: skip
+
+
+def words(axis: str, delta: float) -> str:
+    up, down = AXIS_WORDS.get(axis, (f"more {axis}", f"less {axis}"))
+    size = "a little " if abs(delta) <= STEP else "much " if abs(delta) > 6 else ""
+    return size + (up if delta > 0 else down)
+
+
+def _trait(delta) -> dict | None:
+    if not isinstance(delta, dict) or not delta:
+        return None
+    axis, d = next(iter(delta.items()))
+    return {"axis": axis, "delta": d, "words": words(axis, d)}
+
+
+def warnings(conn, story_id: int, who: int, path: list) -> list[str]:
+    """Why her latest reflection dropped something, from the latest between run on the branch."""
+    ids = [m["id"] for m in path]
+    if not ids:
+        return []
+    for (raw,) in conn.execute(
+        f"SELECT raw FROM extraction_runs WHERE story_id=? AND trigger=? AND status='ok'"
+        f" AND to_message_id IN ({','.join('?' * len(ids))}) ORDER BY to_message_id DESC",
+        [story_id, TRIGGER, *ids],
+    ):
+        said = json.loads(raw or "{}").get("deep_warnings", {})
+        if str(who) in said:
+            return list(said[str(who)])
+    return []
+
+
+def entry(conn, r: dict, path: list, names: dict, epoch: int, rows: dict | None = None) -> dict:
+    """One reflection as Peek shows it."""
+    before = (rows or {}).get(r["supersedes_id"]) if r["supersedes_id"] else None
+    if before is None and r["supersedes_id"]:
+        got = conn.execute("SELECT text FROM reflections WHERE id=?", (r["supersedes_id"],))
+        before = got.fetchone()
+    anchored = r["message_id"] is not None or r["run_id"] is not None
+    by = "user" if not anchored else "code" if before and before["text"] == r["text"] else "deep"
+    src = [s for s in r["sources"] if isinstance(s, int)] or [0]
+    held = conn.execute(
+        f"SELECT id, detail FROM memories WHERE id IN ({','.join('?' * len(src))})", src
+    ).fetchall()
+    now = path[-1]["story_time"] if path else 0
+    return {
+        "id": r["id"], "kind": r["kind"], "about": names.get(r["subject_id"]),
+        "about_id": r["subject_id"], "text": r["text"], "status": r["status"], "by": by,
+        "sources": [{"memory_id": m["id"], "text": m["detail"]} for m in held],
+        "evidence": evidence(conn, r["knower_id"], r, path, now, born(r, rows or {}))
+        if r["kind"] in RINGS
+        else None,
+        "trait": _trait(r["trait_delta"]),
+        "since": clock.label(r["story_time"], epoch), "message_id": r["message_id"],
+    }  # fmt: skip
+
+
+def public(conn, story_id: int, who: int, path: list, names: dict, epoch: int) -> dict:
+    """Peek's `growth` (spec §8.3): her reflections as they stand, the drift, the warnings."""
+    rows = {r["id"]: r for r in live(conn, who, path)}
+    now = current(conn, who, path)
+    return {
+        "reflections": [entry(conn, r, path, names, epoch, rows) for r in now],
+        "drift": [{"axis": a, "delta": d, "words": words(a, d)} for a, d in drift(now).items()],
+        "warnings": warnings(conn, story_id, who, path),
+    }

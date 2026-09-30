@@ -32,6 +32,7 @@ from kataki import (
     archive,
     backups,
     between,
+    bonds,
     cards,
     chat,
     chats,
@@ -39,6 +40,7 @@ from kataki import (
     draft,
     extract,
     features,
+    growth,
     images,
     intake,
     library,
@@ -262,6 +264,10 @@ class MemoryPatch(BaseModel):
     pinned: bool | None = None
     common: bool | None = None
     core_locked: bool | None = None  # Lock (minds slice 6): never distorted, never forgotten
+
+
+class ReflectionAct(BaseModel):
+    action: Literal["accept", "reject", "lock"]
 
 
 class VersionIn(BaseModel):
@@ -1541,6 +1547,28 @@ def create_app(
         _row(conn, "SELECT id FROM memories WHERE id=?", (memory_id,))
         _patch(conn, "memories", memory_id, p.model_dump(exclude_unset=True))
         return _row(conn, "SELECT * FROM memories WHERE id=?", (memory_id,))
+
+    @app.post("/reflections/{reflection_id}", status_code=201)
+    async def act_on_reflection(reflection_id: int, a: ReflectionAct):
+        """Peek › Growth (minds slice 8): accept, reject or lock a reflection. Append-only; the
+        choice holds on every branch. -> the reflection as it now stands."""
+        r = _row(conn, "SELECT * FROM reflections WHERE id=?", (reflection_id,))
+        new = growth.act(conn, reflection_id, a.action)
+        story = story_row(r["story_id"])
+        path = chat.active_path(conn, r["story_id"])
+        names = dict(conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story["id"],)))
+        row = conn.execute("SELECT * FROM reflections WHERE id=?", (new,)).fetchone()
+        rows = {x["id"]: x for x in growth.live(conn, r["knower_id"], path)}
+        return growth.entry(conn, growth._row(row), path, names, story["epoch_offset_min"], rows)
+
+    @app.post("/opinions/{opinion_id}/reject")
+    async def reject_grudge(opinion_id: int):
+        """Peek › a grudge › Reject (§6 rule 6): struck from her ledger on every branch."""
+        _row(conn, "SELECT id FROM opinions WHERE id=?", (opinion_id,))
+        try:
+            return {"rejected": bonds.reject(conn, opinion_id)}
+        except ValueError as e:
+            raise HTTPException(409, str(e)) from e
 
     @app.post("/memories/{memory_id}/version", status_code=201)
     async def set_version(memory_id: int, v: VersionIn):

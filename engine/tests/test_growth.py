@@ -469,3 +469,90 @@ async def test_off_or_broken_the_turn_goes_on_without_it(local_model, cards, bac
     monkeypatch.setattr(growth, "line", boom)
     tail, gen = await reply_to(conn, backend, story, "Still there?")
     assert "growth" not in gen
+
+
+# --- Peek and the user's say (§6 rule 6) ------------------------------------------------------------
+
+from fastapi.testclient import TestClient  # noqa: E402
+
+from kataki import bonds, people  # noqa: E402
+from kataki.server import create_app  # noqa: E402
+
+
+@pytest.fixture
+def api(conn, backend):
+    client = TestClient(
+        create_app(conn, "t", llm=backend.llm, worker_delay=60),
+        headers={"Authorization": "Bearer t"},
+    )
+    with client:
+        yield client
+
+
+def peek(conn, story, name="Mira") -> dict:
+    row = conn.execute("SELECT * FROM stories WHERE id=?", (story,)).fetchone()
+    return next(p for p in people.people(conn, row) if p["name"] == name)
+
+
+def test_peek_shows_each_reflection_with_its_evidence_and_drift(conn, cards):
+    story, mira, rid = seeded(conn, cards)
+    aren = ent(conn, story, "Aren")
+    src = hers(conn, story, mira, "Aren carried Mira's crates up from the harbour.", 0)
+    with conn:
+        growth.write(conn, story, mira, "relationship", "He keeps coming back.", [src], "ring", 0,
+                     subject=aren)  # fmt: skip
+    bear_out(conn, story, mira)
+    run = skip_now(conn, story)
+    raw_ = raw(conn, run) | {"deep_warnings": {str(mira): ["A growth ring was dropped: x."]}}
+    conn.execute("UPDATE extraction_runs SET raw=? WHERE id=?", (json.dumps(raw_), run))
+    got = peek(conn, story)["growth"]
+    ring, line_ = sorted(got["reflections"], key=lambda r: r["kind"])
+    assert (ring["kind"], ring["status"], ring["by"]) == ("habit", "ring", "code")
+    assert ring["evidence"] == {"memories": 3, "scenes": 2}
+    assert ring["trait"] == {"axis": "warmth", "delta": 2, "words": "a little warmer"}
+    assert (line_["about"], line_["about_id"], line_["evidence"]) == ("Aren", aren, None)
+    assert line_["sources"] == [
+        {"memory_id": src, "text": "Aren carried Mira's crates up from the harbour."}
+    ]
+    assert got["drift"] == [{"axis": "warmth", "delta": 2, "words": "a little warmer"}]
+    assert got["warnings"] == ["A growth ring was dropped: x."]
+    setting(conn, "features.mind.growth", False)
+    assert peek(conn, story)["growth"] is None
+
+
+def test_accept_reject_lock_through_the_api(conn, cards, api):
+    story, mira, rid = seeded(conn, cards)
+    got = api.post(f"/reflections/{rid}", json={"action": "accept"})
+    assert got.status_code == 201 and got.json()["status"] == "ring"
+    assert got.json()["by"] == "user"
+    assert inner.profile(conn, mira)["axes"]["warmth"][0] == 52
+    rejected = api.post(f"/reflections/{got.json()['id']}", json={"action": "reject"}).json()
+    assert rejected["status"] == "rejected" and rejected["trait"]["delta"] == 2
+    assert inner.profile(conn, mira)["axes"]["warmth"][0] == 50
+    assert peek(conn, story)["growth"]["drift"] == []
+    assert api.post(f"/reflections/{rid}", json={"action": "lock"}).json()["status"] == "locked"
+    assert api.post("/reflections/9999", json={"action": "lock"}).status_code == 404
+    assert api.post(f"/reflections/{rid}", json={"action": "erase"}).status_code == 422
+
+
+@pytest.mark.anyio
+async def test_a_rejected_grudge_is_struck_on_every_branch(local_model, cards, backend):
+    conn = local_model
+    story = make(conn, cards)
+    await reply_to(conn, backend, story, "Mira, you're useless.", "Fine.")
+    [bond] = peek(conn, story)["bonds"]
+    grudge = bond["grudge"]
+    assert grudge["event"] == "insult" and grudge["id"]
+    client = TestClient(create_app(conn, "t", llm=backend.llm, worker_delay=60),
+                        headers={"Authorization": "Bearer t"})  # fmt: skip
+    with client:
+        got = client.post(f"/opinions/{grudge['id']}/reject")
+        assert got.status_code == 200 and len(got.json()["rejected"]) == 3
+        assert client.post("/opinions/9999/reject").status_code == 404
+        kind = conn.execute("SELECT id FROM opinions WHERE event='rejected'").fetchone()[0]
+        assert client.post(f"/opinions/{kind}/reject").status_code == 409  # not a grudge
+    assert peek(conn, story)["bonds"] == [] or peek(conn, story)["bonds"][0]["grudge"] is None
+    tail, _ = await reply_to(conn, backend, story, "Hello again.")
+    assert "not forgiven" not in tail
+    rows = bonds.ledger(conn, ent(conn, story, "Mira"), chat.active_path(conn, story))
+    assert bonds.standing(rows, ent(conn, story, "Aren"), 10**6)["grudge"] is None

@@ -17,6 +17,7 @@ from kataki import (
     db,
     features,
     goals,
+    growth,
     honesty,
     inner,
     recollect,
@@ -195,6 +196,15 @@ def _goals(conn, entity_id: int, path: list, epoch: int) -> list[dict]:
         return []
 
 
+def _growth(conn, story_id: int, entity_id: int, path: list, names: dict, epoch: int):
+    """How she has changed (slice 8), or None when it can't be read (never the whole Peek)."""
+    try:
+        return growth.public(conn, story_id, entity_id, path, names, epoch)
+    except Exception as e:
+        logging.getLogger(__name__).warning("growth not shown for %s: %s", entity_id, e)
+        return None
+
+
 def _needs(conn, entity_id: int, path: list, now: int, epoch: int) -> dict | None:
     """Her energy now and her drives, if tracked (Peek; spec §8.3 slice 7); guarded."""
     try:
@@ -261,6 +271,7 @@ def people(conn: sqlite3.Connection, story: sqlite3.Row) -> list[dict]:
     offscreen = features.enabled(conn, "mind.offscreen")
     human = features.enabled(conn, "mind.recall")
     wanting = features.enabled(conn, "mind.goals")
+    growing = features.enabled(conn, "mind.growth")
 
     out = []
     for e in conn.execute(
@@ -299,6 +310,7 @@ def people(conn: sqlite3.Connection, story: sqlite3.Row) -> list[dict]:
                 "versions": _versions(conn, e["id"], path, known) if human else [],
                 "goals": _goals(conn, e["id"], path, epoch) if wanting else [],
                 "needs": _needs(conn, e["id"], path, now, epoch) if wanting else None,
+                "growth": _growth(conn, story_id, e["id"], path, names, epoch) if growing else None,
             }
         )
     return out
