@@ -106,6 +106,14 @@ def _pressed(conn: sqlite3.Connection, story_id: int, speaker_id: int) -> set[in
     return {m["memory_id"] for m in shown if m["tier"] == "hazy" and m["rendered"] != "dropped"}
 
 
+def _mood_of(state: dict | None) -> float | None:
+    """Her mood's valence for mood-congruent recall (slice 6), or None when unknown."""
+    try:
+        return float(state["mood"]["v"]) if state else None
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
 def _unsign(text: str, name: str) -> str:
     """Drop the speaker's own name left dangling after the last sentence ('...due. Mira'):
     small models sign off in the 'Name: line' shape of the history. A name inside a sentence
@@ -443,6 +451,7 @@ async def _generate(
                 if knobs.setting(conn, "memory.byMeaning", True)  # Settings › Recall by meaning
                 else None
             ),
+            mood=_mood_of(minds.get(speaker_id)),  # what she feels tilts what comes back
         )
         trace["ms"]["recall"] = ms(at)
         if recalled:

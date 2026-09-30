@@ -11,10 +11,11 @@ render     sharp -> detail, hazy -> gist; pressing a hazy memory makes them stra
 rehearse   being recalled is an access, at most one per scene
 """
 
+import logging
 import re
 import sqlite3
 
-from kataki import activation, chat, db, knobs
+from kataki import activation, chat, db, features, knobs, recollect
 from kataki.activation import Access
 from kataki.context import Recalled
 
@@ -59,8 +60,12 @@ def _ids(rows) -> set[int]:
     return {r[0] for r in rows}
 
 
-def _assess(conn, m, knower_id, known, now, live_scenes, live, relevance, graph, wobble, d):
-    """One memory, one knower: (how they know it, is it superseded, activation score)."""
+def _assess(
+    conn, m, knower_id, known, now, live_scenes, live, relevance, graph, wobble, d, mood=0.0
+):
+    """One memory, one knower: (how they know it, is it superseded, activation score). A locked
+    memory (minds slice 6, `mood` given means the feature is on) is never forgotten: at worst
+    hazy."""
     live_sql, live_args = db.live_filter(live)
     source = known["source"] if known else "innate"
     learned = known["learned_story_time"] if known else m["story_time"]
@@ -87,7 +92,10 @@ def _assess(conn, m, knower_id, known, now, live_scenes, live, relevance, graph,
         superseded=superseded,
         noise=wobble,
         d=d,
+        mood=mood or 0.0,
     )
+    if s.tier is None and mood is not None and m["core_locked"]:
+        s = activation.Score(s.base_all, s.base_detail, s.a_all, s.a_detail, "hazy")
     return source, superseded, s
 
 
@@ -114,6 +122,7 @@ def recall(
     d: float = activation.DECAY,
     leaf_id: int | None = None,  # recall as of this message (a regenerate); default: active leaf
     vector_ranks: dict[int, int] | None = None,  # from embed.py, when an embedder is set
+    mood: float | None = None,  # her mood's valence now (inner.py), for mood-congruent recall
 ) -> list[Recalled]:
     path = chat.path_to(conn, leaf_id) if leaf_id else chat.active_path(conn, story_id)
     if not path:
@@ -183,6 +192,8 @@ def recall(
         conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)).fetchall()
     )
     ours = live_scenes(conn, story_id, path)
+    human = _human(conn)  # minds slice 6: the human effects of memory, or today's recall exactly
+    here = {e["entity_id"] for e in present}
 
     results = []
     for m in rows:
@@ -200,9 +211,10 @@ def recall(
 
         relevance = relevance_of(m["id"])
         wobble = activation.noise(knower_id, m["id"], scene_id or 0) if noise else 0.0
+        tilt = recollect.congruence(m["valence"], mood, m["importance"]) if human else None
         source, superseded, s = _assess(
             conn, m, knower_id, known, now, ours, live, relevance, graph.get(m["id"], 0.0),
-            wobble, d,
+            wobble, d, tilt,
         )  # fmt: skip
         if s.tier is None:
             continue  # forgotten, for now
@@ -214,6 +226,10 @@ def recall(
         body = m["detail"] if sharp else m["gist"]
         if effortful:
             body = f"(after straining to recall) {body}"
+        cue = None
+        if human and effortful is False:  # on the tip of her tongue: true pieces, no more
+            cue = _cues(conn, m, here, knower_id, now)
+            body = recollect.tip(body, cue) if cue else body
         if source in HEARSAY:
             who = names.get(known["told_by_id"], "someone") if known["told_by_id"] else "someone"
             body = f"{HEARSAY[source].format(who=who)} {body}"
@@ -239,6 +255,8 @@ def recall(
                     "noise": round(wobble, 3),
                     "superseded": superseded,
                     "effortful": effortful,
+                    **({"M": round(tilt, 3)} if tilt is not None else {}),
+                    **({"cue": cue} if cue else {}),
                 },
             )
         )
@@ -270,6 +288,32 @@ def recall(
     return results
 
 
+def _human(conn: sqlite3.Connection) -> bool:
+    """mind.recall (slice 6), guarded: unreadable means today's recall."""
+    try:
+        return features.enabled(conn, "mind.recall")
+    except Exception as e:
+        logging.getLogger(__name__).warning("recall effects off: %s", e)
+        return False
+
+
+def _cues(conn: sqlite3.Connection, m, here: set[int], knower_id: int, now: int) -> list[str]:
+    """recollect.cues for this memory, from its stored people and place; guarded."""
+    try:
+        linked = [
+            dict(r)
+            for r in conn.execute(
+                "SELECT e.id, e.kind, e.name FROM memory_entities me"
+                " JOIN entities e ON e.id=me.entity_id WHERE me.memory_id=? ORDER BY e.id",
+                (m["id"],),
+            )
+        ]
+        return recollect.cues(linked, here, knower_id, m["emotion"], now - m["story_time"])
+    except Exception as e:
+        logging.getLogger(__name__).warning("no cues for memory %s: %s", m["id"], e)
+        return []
+
+
 # Clarity, one definition on every screen: how a memory would come back if it came up.
 # A cue of middling relevance (S) that touches its people (G), with no noise; replies keep
 # using the real cue of the moment.
@@ -291,6 +335,7 @@ def inspect(
     names = dict(
         conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)).fetchall()
     )
+    floor = 0.0 if _human(conn) else None  # a locked memory is never forgotten (slice 6)
     out = []
     for m in conn.execute(
         f"SELECT * FROM memories WHERE story_id=? AND story_time<=? AND {live_sql} ORDER BY id",
@@ -306,6 +351,7 @@ def inspect(
         source, superseded, s = _assess(
             conn, m, knower_id, known, now, ours, live,
             CLARITY_CUE["relevance"], CLARITY_CUE["graph"], 0.0, knobs.decay(conn, knower_id),
+            floor,
         )  # fmt: skip
         out.append(
             {
