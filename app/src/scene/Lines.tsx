@@ -1,7 +1,7 @@
 // The story's rows (SCENE.md › Lines): title cards, notes on who came and went, lines with their
 // tools, edits in place, reactions and recalls, and markers where lines were hidden.
 import { useState, type ReactNode } from 'react'
-import type { Cast, Item, LineSignal, Message, Signals, Story } from '../api'
+import type { Cast, Delivery, Item, LineSignal, Message, Signals, Story } from '../api'
 import { K } from '../ds'
 import { face, fullTime, twelve } from '../hooks'
 import { t } from '../strings'
@@ -21,7 +21,9 @@ export type LineActions = {
 
 const REACT_KIND = { memory: 'memory', belief: 'belief', feeling: 'feeling', warm: 'warm', mood: 'mood' } as const
 
-export default function Lines({ story, messages, cast, signals, advanced, busy, editing, onEditing, colour, itemOf, act, reading, found }: {
+export type Play = { id: number; upto: number; typing: boolean } // a new text reply, bubble by bubble
+
+export default function Lines({ story, messages, cast, signals, advanced, busy, editing, onEditing, colour, itemOf, act, reading, found, play }: {
   story: Story
   messages: Message[]
   cast: Cast
@@ -35,6 +37,7 @@ export default function Lines({ story, messages, cast, signals, advanced, busy, 
   act: LineActions
   reading?: boolean
   found?: number
+  play?: Play
 }) {
   const entity = (id: number | null) => cast.entities.find((e) => e.id === id)
   const name = (id: number) => entity(id)?.name ?? '?'
@@ -76,7 +79,8 @@ export default function Lines({ story, messages, cast, signals, advanced, busy, 
         <Line key={m.id} m={m} story={story} signal={signal} advanced={advanced && !reading} busy={busy} reading={reading}
           colour={colour(m)} editing={editing === m.id} dim={editing !== undefined && m.id > editing}
           after={shown.length - 1 - shown.indexOf(m)} newest={m.id === lastReply?.id} flash={m.id === found}
-          onEditing={(on) => onEditing(on ? m.id : undefined)} act={act} name={name} list={list} itemOf={itemOf} />,
+          onEditing={(on) => onEditing(on ? m.id : undefined)} act={act} name={name} list={list} itemOf={itemOf}
+          texting={story.talk === 'text'} play={play?.id === m.id ? play : undefined} />,
       )
     }
     for (const c of cast.changes.filter((c) => c.message_id === m.id)) {
@@ -93,11 +97,24 @@ export default function Lines({ story, messages, cast, signals, advanced, busy, 
   return <>{out}</>
 }
 
-function Line({ m, story, signal, advanced, busy, reading, colour, editing, dim, after, newest, flash, onEditing, act, name, list, itemOf }: {
+/** A texting story's line as a phone thread's bubbles: the reply's planned bursts (a typo, then
+ *  its `*word` correction), else one bubble a line. `upto`/`typing`: a new reply still playing. */
+export function Bubbles({ text, delivery, upto, typing }: { text: string; delivery?: Delivery | null; upto?: number; typing?: boolean }) {
+  const bursts = delivery?.mode === 'text' && delivery.bursts.length ? delivery.bursts
+    : text.split('\n').filter((l) => l.trim()).map((l) => ({ text: l, correction: false }))
+  return (
+    <div className="txt__thread">
+      {bursts.slice(0, upto ?? bursts.length).map((b, i) => <span key={i} className={b.correction ? 'txt__b txt__b--fix' : 'txt__b'}>{b.text}</span>)}
+      {typing && <span className="txt__b txt__typing" role="status" aria-label={t('txt.typing')}><i /><i /><i /></span>}
+    </div>
+  )
+}
+
+function Line({ m, story, signal, advanced, busy, reading, colour, editing, dim, after, newest, flash, onEditing, act, name, list, itemOf, texting, play }: {
   m: Message; story: Story; signal?: LineSignal; advanced: boolean; busy: boolean; reading?: boolean
   colour: string; editing: boolean; dim: boolean; after: number; newest: boolean; flash: boolean
   onEditing: (on: boolean) => void; act: LineActions; name: (id: number) => string; list: (ids: number[]) => string
-  itemOf: (entityId: number | null) => Item | undefined
+  itemOf: (entityId: number | null) => Item | undefined; texting: boolean; play?: Play
 }) {
   const [draft, setDraft] = useState(m.text)
   const [allReacts, setAllReacts] = useState(false)
@@ -132,14 +149,17 @@ function Line({ m, story, signal, advanced, busy, reading, colour, editing, dim,
   )
   const recall = signal?.recall
   const receipts = advanced ? signal?.receipts ?? [] : []
+  // a Texting story: said lines are bubbles (yours on the right); narration, thoughts and whispers stay prose
+  const bubbles = texting && !how
   return (
-    <div className={flash ? 'line-flash' : undefined}>
+    <div className={[flash && 'line-flash', bubbles && (m.role === 'user' ? 'txt txt--me' : 'txt')].filter(Boolean).join(' ') || undefined}>
       <K.ChatLine id={`line-${m.id}`} speaker={String(m.speaker_id ?? m.role)} color={colour} name={who} time={time}
         mode={how} modeNote={how === 'whisper' ? t('line.whisper', { names: list(m.audience ?? []) }) : how === 'think' ? t('line.thought') : undefined}
-        exact={m.clock.slice(-5)} timeDetail={fullTime(m.clock, m.date)} text={m.text} dim={dim} tools={tools}
+        exact={m.clock.slice(-5)} timeDetail={fullTime(m.clock, m.date)} text={bubbles ? '' : m.text} dim={dim} tools={tools}
         recalled={!!recall} thought={m.think_ms ? t('scene.thought', { s: Math.max(1, Math.round(m.think_ms / 1000)) }) : undefined}
         onContextMenu={reading ? undefined : (e: MouseEvent) => { e.preventDefault(); act.menu(e, m) }}
         onKeyDown={(e: KeyboardEvent) => { if (e.key === 'F10' && e.shiftKey) { e.preventDefault(); act.menu(e.currentTarget as Element, m) } }}>
+        {bubbles && <Bubbles text={m.text} delivery={m.delivery} upto={play?.upto} typing={play?.typing} />}
         {!reading && recall && recall.items[0] && (recall.items[0].tier === 'hazy' || /vaguely|strain/i.test(recall.title)) && (
           <K.RecallBox title={recall.title} memory={recall.items[0].text}
             meta={t('recall.meta', { tier: recall.items[0].tier, how: recall.items[0].how })} />

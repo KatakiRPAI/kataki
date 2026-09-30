@@ -24,7 +24,7 @@ from pathlib import Path
 
 import httpx2
 
-from kataki import chat, clock, db, embed, extract, library, retrieve, signals, turns
+from kataki import chat, clock, db, delivery, embed, extract, library, retrieve, signals, turns
 from kataki.llm import LLM
 
 DEFAULT_DB = Path(__file__).resolve().parents[2] / ".dev" / "demo.db"
@@ -58,6 +58,14 @@ REPLIES = [
     "Somewhere back there.",
     "*frowns* The lighthouse? I could have sworn… Six years is a long time.",
 ]
+# "Texts from Tobin", a story set to Texting: what you send, and what he texts back
+TEXTS = [
+    ("you around tonight?", "yeah just closing up\nwhy whats up"),
+    ("need a favour. can't say it over text", "ugh you always do this\nfine. usual place?"),
+    ("usual place. and bring the boat",
+     "the boat?? at this hour\nyou realise the harbour watch is out tonight\nyou owe me a drink"),
+    ("deal. two drinks", "honestly you're lucky i like you\nsee you at nine\ndon't be late"),
+]  # fmt: skip
 SECRET_LINE = (
     "Quickly, while he's gone. I hid the guild ledger under the third floorboard behind the "
     "bar. Tell no one, least of all Tobin."
@@ -201,7 +209,7 @@ async def build(path: Path, model_url: str) -> None:
         Path(f"{path}{suffix}").unlink(missing_ok=True)
     embed.builtin = lambda: None  # recall by words only: no model download, same result each time
     conn = db.connect(path)
-    llm = LLM(transport=httpx2.MockTransport(Scripted(REPLIES)))
+    llm = LLM(transport=httpx2.MockTransport(Scripted(REPLIES + [r for _, r in TEXTS])))
     with conn:
         conn.execute("INSERT INTO providers(id, name, base_url) VALUES(1, 'Fake model', ?)",
                      (model_url,))  # fmt: skip
@@ -226,7 +234,7 @@ async def build(path: Path, model_url: str) -> None:
     tobin = item(
         conn, "character", "Tobin", "Cheerful smuggler. Hears everything eventually.",
         "He would sell the guild ledger in a heartbeat.", ["Smuggler"],
-        pronouns="he", palette=palette(1),
+        pronouns="he", palette=palette(1), realism={"texting": "messy"},  # texts in a hurry
         first_message="*raises a mug* Friends! Who's buying?",
     )  # fmt: skip
     ilsa = item(
@@ -302,12 +310,29 @@ async def build(path: Path, model_url: str) -> None:
     await say(conn, llm, story, "It was never behind the bar. I buried it by the lighthouse, "
               "remember?", who("Mira"))  # fmt: skip
     await read(conn, llm, story)  # run 3: the lie, which Mira doubts
+
+    # --- "Texts from Tobin": a story set to Texting, so his replies come as bubbles ---
+    texts = library.create_story(
+        conn,
+        "Texts from Tobin",
+        [tobin],
+        None,
+        aren,
+        talk="text",
+        epoch_offset_min=2 * clock.DAY + 21 * 60,
+        opening=False,
+    )  # opening=False: a text thread opens with yours
+    sql = "SELECT id FROM entities WHERE story_id=? AND name='Tobin'"
+    him = conn.execute(sql, (texts,)).fetchone()[0]
+    for line, _ in TEXTS:
+        await say(conn, llm, texts, line, him)
     await llm.aclose()
 
-    problems = check(conn, story)
+    problems = check(conn, story) + check_texts(conn, texts)
     kinds = dict(conn.execute("SELECT kind, count(*) FROM lib_items GROUP BY kind").fetchall())
     stories = conn.execute("SELECT count(*) FROM stories").fetchone()[0]
-    runs = conn.execute("SELECT count(*) FROM extraction_runs WHERE status='ok'").fetchone()[0]
+    sql = "SELECT count(*) FROM extraction_runs WHERE story_id=? AND status='ok' AND role!='code'"
+    runs = conn.execute(sql, (story,)).fetchone()[0]
     memories = conn.execute("SELECT count(*) FROM memories").fetchone()[0]
     lines = len(chat.active_path(conn, story))
     conn.close()
@@ -318,7 +343,25 @@ async def build(path: Path, model_url: str) -> None:
     if problems:
         print("check FAILED:\n  " + "\n  ".join(problems))
         sys.exit(1)
-    print("check ok: the secret, the six years and the doubted lie are all there")
+    print("check ok: the secret, the six years and the doubted lie are all there,"
+          " and Tobin texts in bubbles with a corrected typo")  # fmt: skip
+
+
+def check_texts(conn, story: int) -> list[str]:
+    """The texting story: every reply of his planned as bubbles, one with a typo he corrects."""
+    plans = [
+        json.loads(m["gen"] or "{}").get("delivery") or {}
+        for m in chat.active_path(conn, story)
+        if m["role"] == "assistant" and m["speaker_id"] is not None
+    ]
+    problems = []
+    if len(plans) != len(TEXTS) or any(p.get("mode") != "text" for p in plans):
+        problems.append(f"Tobin's texts weren't all planned as texts: {plans}")
+    if not any(len(p.get("bursts", [])) > 1 for p in plans):
+        problems.append("none of Tobin's texts came in more than one bubble")
+    if not any(p.get("typo") for p in plans):
+        problems.append("none of Tobin's texts has a typo he corrects (change a line in TEXTS)")
+    return problems
 
 
 def check(conn, story: int) -> list[str]:
@@ -329,8 +372,9 @@ def check(conn, story: int) -> list[str]:
     at = {clock.label(m["story_time"], epoch): m for m in path}
     if clock.label(path[-1]["story_time"], epoch) != "Year 7, Day 1, 19:22":
         problems.append(f"the clock reads {clock.label(path[-1]['story_time'], epoch)}")
-    runs = conn.execute(
-        "SELECT count(*) FROM extraction_runs WHERE story_id=? AND status='ok'", (story,)
+    runs = conn.execute(  # memory reads, not the life-between-scenes pass (role 'code')
+        "SELECT count(*) FROM extraction_runs WHERE story_id=? AND status='ok' AND role!='code'",
+        (story,),
     ).fetchone()[0]
     if runs != 3:
         problems.append(f"{runs} memory reads finished, not 3")
@@ -398,6 +442,13 @@ LINES = [
     "*glances toward the door* Say that again, quieter this time. Walls have ears here.",
     "*laughs despite themselves* You always did know how to make an entrance.",
 ]
+# in a story set to Texting: chatty lines, several bubbles each, with plenty of words to mistype
+TEXT_LINES = [
+    "wait really?\nthat changes everything\ntell me properly when you get here",
+    "haha no way\nyou always make things complicated\nfine i'm listening",
+    "okay okay\nsomething strange happened at the harbour tonight\ncall me",
+    "honestly i should be sleeping\nbut this sounds important\nwhat happened",
+]
 THOUGHT = "They weigh how much to say. The room is listening, and not everyone here is a friend."
 
 
@@ -436,7 +487,9 @@ def serve_model(port: int, delay: float, think: bool) -> None:
                 self.wfile.write(b"data: [DONE]\n\n")
                 return
             words = [("reasoning_content", w) for w in THOUGHT.split(" ")] if think else []
-            words += [("content", w) for w in LINES[next(turn) % len(LINES)].split(" ")]
+            said = (body.get("messages") or [{}])[-1].get("content") or ""
+            lines = TEXT_LINES if delivery.TEXTING in said else LINES  # a Texting story
+            words += [("content", w) for w in lines[next(turn) % len(lines)].split(" ")]
             try:
                 for i, (field, word) in enumerate(words):
                     last = i + 1 == len(words) or words[i + 1][0] != field

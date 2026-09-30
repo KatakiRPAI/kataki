@@ -71,7 +71,7 @@ The engine also runs on its own:
 
 A demo library and a fake model let you try the whole app without a GPU (from `engine/`):
 
-- `uv run python evals/demo.py build` writes `.dev/demo.db` from scratch: the design brief's friends, places, plots and four stories, including "The Third Floorboard" played through to the six-year skip, with its memories read. It checks the result and exits non-zero if something is off.
+- `uv run python evals/demo.py build` writes `.dev/demo.db` from scratch: the design brief's friends, places, plots and five stories, including "The Third Floorboard" played through to the six-year skip, with its memories read, and "Texts from Tobin", a story set to Texting (bubbles, and a typo he corrects). It checks the result and exits non-zero if something is off.
 - `uv run python evals/demo.py serve-model --think` answers on `http://127.0.0.1:8099/v1` (model `fake`) with streamed lines, and some thinking first with `--think`. The demo library already points at it.
 - `KATAKI_DB=.dev/demo.db pnpm dev` opens the desktop app on the demo library; with `kataki serve --db ../.dev/demo.db` any browser can use it.
 

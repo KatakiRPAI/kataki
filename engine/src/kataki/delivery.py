@@ -29,6 +29,11 @@ SHAKEN = frozenset({"hurt", "sad", "afraid", "anxious", "ashamed", "angry", "ann
 CURT_WORDS = 3  # ponytail: a user line this short gets a shorter answer (mirroring, note 15 §3)
 LONG_WORDS = 40  # ponytail: and one this long a longer one
 MOVED = 10  # ponytail: ledger points (trust fallen, closeness risen) that change the register
+# a story set to Texting (overrides.talk == "text"): said in [Directive], every reply is a text
+TEXTING = (
+    "You are texting on your phone: write only the message you send, the way people text. "
+    "No *actions*, no narration, no quotation marks; a new line is a new message."
+)
 
 
 def _num(x) -> float:
@@ -202,16 +207,21 @@ def _mistype(word: str, rng: random.Random) -> str:
 
 def plan(text: str, dial: str, *, name: str, heard: str | None, mood: dict | None,
          tired: bool, weighty: bool, typo_ok: bool, seed: str,
-         chat: bool = True) -> dict | None:  # fmt: skip
+         chat: bool = True, force: bool = False) -> dict | None:  # fmt: skip
     """The delivery plan for a finished, clean reply (spec §8.3 slice 9), or None when the dial
     is off. `heard`: the line she answers (she reads it first); `weighty`: a decision rode in
     [Directive]; `typo_ok`: the turn allows a typo at all; `seed`: the same reply always gets the
     same plan; `chat`: the line she answers was a text (a reply to prose is prose, however it
-    looks). Prose gets `mode: "prose"` and no bursts. Display only: `text` is never changed."""
+    looks). Prose gets `mode: "prose"` and no bursts. Display only: `text` is never changed.
+    `force`: the story is set to Texting, so it is a text whatever it looks like; "off" then
+    still gives bubbles (one a line), but no wait and no typo."""
     if dial == "off":
-        return None
+        if not force:
+            return None
+        bursts = [{"text": p, "typing_ms": 0, "delay_ms": 0} for p in split(text, 99, True)]
+        return {"mode": "text", "dial": "off", "bursts": bursts, "typo": None}
     dial = dial if dial in CAP else "light"
-    if not chat or not chatty(text, name):
+    if not force and (not chat or not chatty(text, name)):
         return {"mode": "prose", "dial": dial, "bursts": [], "typo": None}
     rng = random.Random(zlib.crc32(seed.encode()))
     pace = _pace(mood, tired)

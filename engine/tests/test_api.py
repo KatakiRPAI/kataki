@@ -265,6 +265,22 @@ def test_a_turn_streams_and_the_story_shows_it(api, story, backend):
     assert shown[-1]["swipe"] == [1, 1] and shown[-1]["clock"] == "Day 1, 08:04"
 
 
+def test_how_you_talk_is_chosen_at_the_start_changed_later_and_texts_keep_their_bubbles(
+    api, story, backend
+):
+    assert api.get(f"/stories/{story}").json()["talk"] == "person"
+    texted = api.post("/stories", json={"title": "Texts", "talk": "text"}).json()
+    assert texted["talk"] == "text"
+    assert api.patch(f"/stories/{story}", json={"talk": "text"}).json()["talk"] == "text"
+    assert api.patch(f"/stories/{story}", json={"title": "Low Tide"}).json()["talk"] == "text"
+    assert api.post("/stories", json={"title": "x", "talk": "shout"}).status_code == 422
+    backend.say("the tide turned\nyou should've seen it")
+    api.post(f"/stories/{story}/turn", json={"text": "*waves* Evening, Mira."})
+    bursts = api.get(f"/stories/{story}/messages").json()[-1]["delivery"]["bursts"]
+    assert [b["text"] for b in bursts] == ["the tide turned", "you should've seen it"]
+    assert api.patch(f"/stories/{story}", json={"talk": "person"}).json()["talk"] == "person"
+
+
 def give_mira_sprites(api):
     mira = next(i for i in api.get("/library?kind=character").json() if i["name"] == "Mira")
     pack = {"from": "p.png", "sprites": {"neutral": "n.png", "smiling": "s.png"}}

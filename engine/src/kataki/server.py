@@ -131,6 +131,7 @@ class StoryIn(BaseModel):
     scenario_id: int | None = None
     first_message: str = ""  # how it opens, when not from a plot
     epoch_offset_min: int = Field(480, ge=0)  # the clock at the start: 480 = Day 1, 08:00
+    talk: Literal["person", "text"] = "person"  # How you talk: in person, or texting
 
 
 class BookIn(BaseModel):
@@ -180,6 +181,7 @@ class StoryPatch(BaseModel):
     ui: dict | None = None  # the app's own per-story state (widget layout, notes); never read here
     moments: list[Moment] | None = None  # what the story's dates count from
     persona_id: int | None = None  # who you are from now on (a library persona); None = no one
+    talk: Literal["person", "text"] | None = None  # How you talk: in person, or texting
 
 
 class TurnIn(BaseModel):
@@ -459,6 +461,7 @@ def create_app(
                     "think_ms": gen.get("think_ms"),
                     "expression": m["expression"],
                     "ooc": bool(gen.get("ooc")),  # an out-of-character aside (minds slice 4)
+                    "delivery": gen.get("delivery"),  # the texting bubbles (minds slice 9)
                 }
             )
         return out
@@ -1092,6 +1095,7 @@ def create_app(
             "moments": overrides.get("moments", []),
             "roles": overrides.get("roles", {}),
             "ui": overrides.get("ui", {}),
+            "talk": overrides.get("talk", "person"),
             **standing(story),
         }
 
@@ -1099,7 +1103,8 @@ def create_app(
     async def edit_story(story_id: int, s: StoryPatch):
         story = story_row(story_id)
         fields = s.model_dump(
-            exclude_unset=True, exclude={"roles", "ui", "moments", "book_id", "tags", "persona_id"}
+            exclude_unset=True,
+            exclude={"roles", "ui", "moments", "book_id", "tags", "persona_id", "talk"},
         )
         if "persona_id" in s.model_fields_set:
             fields["persona_entity_id"] = (
@@ -1108,9 +1113,9 @@ def create_app(
         if s.tags is not None:
             with conn:  # its own commit: a patch of tags alone writes nothing else
                 library.set_tags(conn, "story", story_id, s.tags)
-        if s.roles is not None or s.ui is not None or s.moments is not None:
+        if s.roles is not None or s.ui is not None or s.moments is not None or s.talk is not None:
             overrides = json.loads(story["overrides"])
-            overrides |= s.model_dump(include={"roles", "ui", "moments"}, exclude_none=True)
+            overrides |= s.model_dump(include={"roles", "ui", "moments", "talk"}, exclude_none=True)
             fields["overrides"] = json.dumps(overrides)
         if "book_id" in s.model_fields_set:
             try:
