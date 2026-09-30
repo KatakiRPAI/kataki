@@ -58,6 +58,7 @@ export type ItemData = {
   tagline?: string // the card line (characters)
   lines?: string[] // how they talk: sample lines, also joined into example_dialogue
   focus?: string // where the face is in the portrait, "x% y%"
+  zoom?: number // how far the portrait is zoomed in about the focus, 1–4 (none = 1)
   alt?: string // the portrait described, for screen readers
   places?: number[] // places they know
   relationships?: { id: number; feels: string }[] // an authored starting point

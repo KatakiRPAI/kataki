@@ -9,6 +9,7 @@ import { Overlay } from '../overlay'
 import { t, type Key } from '../strings'
 import { err, type Shown } from '../errors'
 import { lines as linesOf } from './Profile'
+import { Crop } from './Crop'
 import liv from '../ds/art/liv.png'
 import mike from '../ds/art/mike.png'
 import theo from '../ds/art/theo.png'
@@ -29,7 +30,7 @@ const SECTIONS: [Section, Key, Key, import('../ds/kataki').IconName][] = [
 type Form = {
   name: string; about: string; tagline: string; tags: string; pronouns: Pronouns
   lines: string[]; secret: string; relationships: { id: number; feels: string }[]; places: number[]
-  fade: (typeof FADES)[number]; doubt: boolean; portrait?: string; focus?: string; alt?: string; model: string // "providerId:model", or '' for the default
+  fade: (typeof FADES)[number]; doubt: boolean; portrait?: string; focus?: string; zoom?: number; alt?: string; model: string // "providerId:model", or '' for the default
 }
 
 function formOf(c?: Item): Form {
@@ -37,7 +38,7 @@ function formOf(c?: Item): Form {
     name: c?.name ?? '', about: c?.description ?? '', tagline: c?.data.tagline ?? '',
     tags: (c?.tags ?? []).join(', '), pronouns: c?.data.pronouns ?? 'they', lines: c ? linesOf(c) : ['', ''], secret: c?.private ?? '',
     relationships: c?.data.relationships ?? [], places: c?.data.places ?? [], fade: c?.data.fade ?? 'inherit', doubt: c?.data.doubt !== false, model: c?.data.model?.model ? `${c.data.model.provider_id}:${c.data.model.model}` : '',
-    portrait: c?.data.portrait, focus: c?.data.focus, alt: c?.data.alt,
+    portrait: c?.data.portrait, focus: c?.data.focus, zoom: c?.data.zoom, alt: c?.data.alt,
   }
 }
 const filled: Record<Section, (f: Form) => boolean> = {
@@ -83,7 +84,7 @@ export default function Editor() {
   const edit = !!id
   const firstLoad = base ?? formOf()
   const nameOk = !!f.name.trim()
-  const diff = changed(f, firstLoad).concat(f.name !== firstLoad.name || f.portrait !== firstLoad.portrait || f.focus !== firstLoad.focus || f.alt !== firstLoad.alt ? (['about'] as Section[]) : [])
+  const diff = changed(f, firstLoad).concat(f.name !== firstLoad.name || f.portrait !== firstLoad.portrait || f.focus !== firstLoad.focus || f.zoom !== firstLoad.zoom || f.alt !== firstLoad.alt ? (['about'] as Section[]) : [])
   const sections = [...new Set(diff)]
   const dirty = sections.length > 0
   const blocker = useBlocker(({ currentLocation, nextLocation }) => dirty && !saving && currentLocation.pathname !== nextLocation.pathname)
@@ -123,7 +124,7 @@ export default function Editor() {
       data: {
         ...(item?.data ?? { source: 'made' }), tagline: f.tagline.trim() || undefined, pronouns: f.pronouns,
         lines, example_dialogue: lines.map((l) => `${f.name.trim()}: ${l}`).join('\n'),
-        portrait: f.portrait, focus: f.focus, alt: f.alt, places: f.places, relationships: f.relationships, fade: f.fade, doubt: f.doubt,
+        portrait: f.portrait, focus: f.focus, zoom: f.zoom, alt: f.alt, places: f.places, relationships: f.relationships, fade: f.fade, doubt: f.doubt,
         model: f.model ? { provider_id: Number(f.model.split(':')[0]), model: f.model.split(':').slice(1).join(':') } : undefined,
         edits: item ? (item.data.edits ?? 0) + 1 : 0,
       },
@@ -183,7 +184,7 @@ export default function Editor() {
             </K.DropZone>
           ) : (
             <div className="card ed-face">
-              <img src={portraitSrc} alt={f.alt ?? ''} style={{ objectPosition: f.focus }} />
+              <img src={portraitSrc} alt={f.alt ?? ''} style={K.framed(f.focus, f.zoom, 10)} />
               <div className="col" style={{ gap: 6, flex: 1 }}>
                 <span style={{ fontSize: 14.5, fontWeight: 700 }}>{t('ed.portrait')}</span>
                 <span className="t-meta">{t('ed.portraitMeta', { focus: f.focus ?? '50% 40%' })}</span>
@@ -191,7 +192,7 @@ export default function Editor() {
               <K.ButtonGroup>
                 <K.Button size="sm" onClick={() => setFocusing({ src: portraitSrc!, name: f.portrait })}>{t('ed.cropFocus')}</K.Button>
                 <K.Button size="sm" variant="ghost" onClick={() => fileRef.current?.click()}>{t('ed.replace')}</K.Button>
-                <K.Button size="sm" variant="ghost" onClick={() => setF((x) => ({ ...x, portrait: undefined, focus: undefined, alt: undefined }))}>{t('ed.remove')}</K.Button>
+                <K.Button size="sm" variant="ghost" onClick={() => setF((x) => ({ ...x, portrait: undefined, focus: undefined, zoom: undefined, alt: undefined }))}>{t('ed.remove')}</K.Button>
               </K.ButtonGroup>
             </div>
           )}
@@ -286,7 +287,7 @@ export default function Editor() {
         <aside aria-label={t('ed.look')} className="col ed-aside">
           <K.Eyebrow>{t('ed.look')}</K.Eyebrow>
           <div className="card" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 14, alignItems: 'flex-start' }}>
-            <K.CharacterCard src={portraitSrc} focus={f.focus} name={f.name.trim() || '?'} line={f.tagline || f.about.split(/(?<=[.!?])\s/)[0]} when={t('ed.previewWhen')}
+            <K.CharacterCard src={portraitSrc} focus={f.focus} zoom={f.zoom} name={f.name.trim() || '?'} line={f.tagline || f.about.split(/(?<=[.!?])\s/)[0]} when={t('ed.previewWhen')}
               badge={!f.secret.trim() ? t('chars.badge.draft') : undefined} alt={f.alt} />
           </div>
           <K.Callout tone={readyTone} title={readyTitle}>{readyText}</K.Callout>
@@ -312,12 +313,12 @@ export default function Editor() {
         <Picker onClose={() => setPicking(false)} onPick={async (src, focus) => {
           setPicking(false)
           const made = await upload(await (await fetch(src)).blob())
-          setF((x) => ({ ...x, portrait: made.name, focus }))
+          setF((x) => ({ ...x, portrait: made.name, focus, zoom: undefined }))
         }} />
       )}
       {focusing && (
-        <Focus src={focusing.src} bad={focusing.bad} focus={f.focus} alt={f.alt} name={f.name} onClose={() => setFocusing(undefined)} onChoose={() => fileRef.current?.click()}
-          onUse={(focus, alt) => { setF((x) => ({ ...x, portrait: focusing.name ?? x.portrait, focus, alt })); setFocusing(undefined) }} />
+        <Crop src={focusing.src} bad={focusing.bad} focus={f.focus} zoom={f.zoom} alt={f.alt} name={f.name} onClose={() => setFocusing(undefined)} onChoose={() => fileRef.current?.click()}
+          onUse={(focus, zoom, alt) => { setF((x) => ({ ...x, portrait: focusing.name ?? x.portrait, focus, zoom, alt })); setFocusing(undefined) }} />
       )}
       {blocker.state === 'blocked' && (
         <Overlay onClose={() => blocker.reset()}>
@@ -360,66 +361,6 @@ function Picker({ onClose, onPick }: { onClose: () => void; onPick: (src: string
           <div className="k-btngroup">
             <K.Button variant="ghost" onClick={onClose}>{t('pick.cancel')}</K.Button>
             <K.Button variant="primary" onClick={() => onPick(SET[n][0], SET[n][1])}>{t('pick.use')}</K.Button>
-          </div>
-        </div>
-      </section>
-    </Overlay>
-  )
-}
-
-/** F5: where the face is, so every crop centres on it; and what the picture shows. */
-function Focus({ src, bad, focus, alt, name, onClose, onChoose, onUse }: {
-  src: string; bad?: Shown; focus?: string; alt?: string; name: string; onClose: () => void; onChoose: () => void; onUse: (focus: string, alt: string) => void
-}) {
-  const [x0, y0] = (focus ?? '50% 40%').split(' ').map((v) => parseFloat(v))
-  const [at, setAt] = useState({ x: x0, y: y0 })
-  const [text, setText] = useState(alt ?? '')
-  const box = useRef<HTMLDivElement>(null)
-  const place = (e: { clientX: number; clientY: number }) => {
-    const r = box.current!.getBoundingClientRect()
-    setAt({ x: Math.round(Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100))), y: Math.round(Math.max(0, Math.min(100, ((e.clientY - r.top) / r.height) * 100))) })
-  }
-  const pos = `${at.x}% ${at.y}%`
-  return (
-    <Overlay onClose={onClose}>
-      <section className="dlg dlg--xl" role="dialog" aria-modal="true" aria-labelledby="focus-title">
-        <div className="dlg__head">
-          <div className="dlg__titles"><h2 className="dlg__title" id="focus-title">{t('focus.title')}</h2><p className="dlg__desc">{t('focus.body')}</p></div>
-          <K.IconButton icon="x" label="Close" size="sm" onClick={onClose} />
-        </div>
-        <div className="dlg__body">
-          {bad ? (
-            <K.Callout tone="bad" title={bad.title} action={<K.Button size="sm" onClick={() => { onClose(); onChoose() }}>{t('ed.chooseFile')}</K.Button>}>{bad.body} <span className="errcode">{bad.code}</span></K.Callout>
-          ) : (
-            <div className="ed-focus">
-              <div ref={box} className="ed-focus__img" onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); place(e) }}
-                onPointerMove={(e) => e.buttons && place(e)}>
-                <img src={src} alt="" />
-                <span className="ed-focus__ring" role="slider" tabIndex={0} aria-label={t('focus.title')} aria-valuetext={t('focus.value', { x: at.x, y: at.y })}
-                  style={{ left: `${at.x}%`, top: `${at.y}%` }}
-                  onKeyDown={(e) => {
-                    const step = e.shiftKey ? 10 : 1
-                    const d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key]
-                    if (d) { e.preventDefault(); setAt((a) => ({ x: Math.max(0, Math.min(100, a.x + d[0])), y: Math.max(0, Math.min(100, a.y + d[1])) })) }
-                  }} />
-              </div>
-              <div className="col" style={{ gap: 14 }}>
-                <K.Eyebrow>{t('focus.crops')}</K.Eyebrow>
-                <div className="row" style={{ gap: 14, alignItems: 'flex-end' }}>
-                  {[20, 40, 64].map((s) => <K.Avatar key={s} src={src} focus={pos} size={s} />)}
-                </div>
-                <div className="ed-focus__card"><img src={src} alt="" style={{ objectPosition: pos }} /></div>
-                <span className="t-meta">{t('focus.value', { x: at.x, y: at.y })}</span>
-                <K.TextField label={t('focus.alt')} hint={t('focus.altHint')} value={text} onChange={setText} placeholder={name} />
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="dlg__foot">
-          <span />
-          <div className="k-btngroup">
-            <K.Button variant="ghost" onClick={onClose}>{t('focus.cancel')}</K.Button>
-            {!bad && <K.Button variant="primary" onClick={() => onUse(pos, text.trim())}>{t('focus.use')}</K.Button>}
           </div>
         </div>
       </section>
