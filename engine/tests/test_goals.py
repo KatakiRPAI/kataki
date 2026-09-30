@@ -106,3 +106,201 @@ def test_merged_people_keep_their_goals(conn, cards):
     mira, tobin = ent(conn, story, "Mira"), ent(conn, story, "Tobin")
     library.merge_entities(conn, tobin, mira)
     assert [g["key"] for g in goals.live(conn, tobin, path(conn, story))] == ["want"]
+
+
+# --- the agenda ----------------------------------------------------------------------------------
+
+
+def test_an_opening_is_its_topic_an_open_question_or_a_lull():
+    cue = ["boat", "sail"]
+    assert goals.opening("Saw some boats down at the pier.", cue) == "topic"
+    assert goals.opening("So, what's new with you?", cue) == "asked"
+    assert goals.opening("How was your week, Mira?", cue) == "asked"
+    assert goals.opening("Morning, Mira.", cue) == "lull"
+    assert goals.opening("Did the rope shipment come in yet?", cue) is None
+    assert goals.opening("We need to talk about the accounts before the inspector.", cue) is None
+    assert goals.tried("I finished the boat! Come see her.", cue)
+    assert not goals.tried("The shipment came in, yes.", cue)
+
+
+from kataki import turns  # noqa: E402
+
+
+async def play(stream):
+    return [e async for e in stream]
+
+
+def setting(conn, key: str, value) -> None:
+    conn.execute(
+        "INSERT OR REPLACE INTO settings(key, value) VALUES(?, ?)", (key, json.dumps(value))
+    )
+    conn.commit()
+
+
+def directive_of(backend, i=-1) -> str:
+    return backend.requests[i]["messages"][-1]["content"].split("[Directive]")[1]
+
+
+def gen_of(conn, story) -> dict:
+    return json.loads(path(conn, story)[-1]["gen"])
+
+
+async def talk(conn, backend, story, text, reply, skip=None) -> dict:
+    """Aren says `text` to Mira, who replies `reply`. -> the reply's gen."""
+    backend.say(reply)
+    mira = ent(conn, story, "Mira")
+    events = await play(turns.turn(conn, backend.llm, story, text, speaker=mira, skip=skip))
+    assert events[-1][0] == "done", events[-1]
+    return gen_of(conn, story)
+
+
+WANT = "Something you want: to get Aren to come and see the boat she built."
+
+
+@pytest.mark.anyio
+async def test_she_brings_it_up_only_at_an_opening_and_at_most_once_every_four_replies(
+    local_model, cards, backend
+):
+    conn = local_model
+    story = make(conn, cards, {"want": BOAT})
+    said = [
+        ("Did the rope shipment come in yet?", "It did."),  # no opening
+        ("Morning, Mira.", "Morning! I finished the boat, you know."),  # a lull: offered, tried
+        ("Great. Did Tobin pay his tab?", "He did."),  # dodged
+        ("Nice.", "Mm."),  # a lull, but too soon
+        ("Right.", "Yes."),
+        ("Okay.", "The boat is ready to sail."),  # four replies on: offered again
+    ]
+    got = [await talk(conn, backend, story, text, reply) for text, reply in said]
+    offered = [i for i, g in enumerate(got) if g.get("agenda")]
+    assert offered == [1, 5]
+    assert WANT in directive_of(backend, 1) and WANT not in directive_of(backend, 0)
+    assert not any(ch.isdigit() for ch in directive_of(backend, 1).split("First, before")[0])
+    first = got[1]["agenda"]
+    assert first["why"] == "lull" and first["tried"] is True and first["resurfaced"] is False
+    assert first["key"] == "want" and first["text"] == BOAT["text"]
+    assert got[2]["goal"]["outcome"] == "deflected" and got[2]["goal"]["by"] == "rules"
+    mira = ent(conn, story, "Mira")
+    want = goals.live(conn, mira, path(conn, story))[0]
+    assert want["deflections"] == 1 and want["status"] == "active"
+    assert want["message_id"] == path(conn, story)[4]["id"]  # anchored on the line that dodged it
+
+
+@pytest.mark.anyio
+async def test_dodged_twice_it_goes_dormant_then_resurfaces_after_a_rest(
+    local_model, cards, backend
+):
+    conn = local_model
+    story = make(conn, cards, {"want": BOAT})
+    mira = ent(conn, story, "Mira")
+    for text, reply in [
+        ("Morning.", "Come see my boat!"),
+        ("Did Tobin pay?", "Yes."),  # dodge one
+        ("Ok.", "Mm."),
+        ("Ok.", "Mm."),
+        ("Hi.", "The boat, though!"),  # offered again
+        ("How's the office?", "Busy."),  # dodge two: dormant
+        ("Ok.", "Mm."),
+        ("Ok.", "Mm."),
+        ("Hm.", "Mm."),  # an opening, the rate allows it, but it is resting
+    ]:
+        got = await talk(conn, backend, story, text, reply)
+    assert "agenda" not in got
+    want = goals.live(conn, mira, path(conn, story))[0]
+    assert (want["status"], want["deflections"]) == ("dormant", 2)
+    backend.say("{}", "{}")  # a day passes: the memory reader reads the lines before it first
+    got = await talk(conn, backend, story, "Hey, Mira.", "Aren!", skip="the next day")
+    assert got["onmind"]["reentry"] and "agenda" not in got  # the time away comes first
+    got = await talk(conn, backend, story, "What's new?", "Still that boat.")
+    assert got["agenda"]["resurfaced"] is True and got["agenda"]["why"] == "asked"
+    assert "Something still on your mind" in directive_of(backend)
+    got = await talk(conn, backend, story, "Oh, the boat? Show me.", "Tomorrow!")
+    assert got["goal"]["outcome"] == "progressed"
+    want = goals.live(conn, mira, path(conn, story))[0]
+    assert (want["status"], want["deflections"], want["progress"]) == ("active", 0, 0.25)
+
+
+@pytest.mark.anyio
+async def test_not_when_the_line_hurts_or_a_heavier_decision_is_there(local_model, cards, backend):
+    conn = local_model
+    story = make(conn, cards, {"want": BOAT})
+    got = await talk(conn, backend, story, "You're useless.", "Fine.")
+    assert "agenda" not in got  # an emotional line is not the moment
+    secret = {"text": "Mira sank the old boat.", "keys": ["sank"], "topic": ["boat"],
+              "cover": "It rotted."}  # fmt: skip
+    story = make(conn, cards, {"want": BOAT, "secrets": [secret]})
+    got = await talk(conn, backend, story, "What happened to the old boat?", "It rotted.")
+    assert got.get("honest") and "agenda" not in got  # the secret decides this reply
+
+
+@pytest.mark.anyio
+async def test_the_side_call_reads_the_answer_in_place_of_the_rules(
+    local_model, cards, backend, side_call
+):
+    conn = local_model
+    story = make(conn, cards, {"want": BOAT})
+    mira = ent(conn, story, "Mira")
+    label = {"felt": {"label": "calm", "intensity": 1, "about": None, "cause": ""}, "events": [],
+             "position": None, "yielded": False, "face": "neutral"}  # fmt: skip
+    backend.say("Morning! Come see her.", json.dumps(label | {"agenda": "tried"}))
+    mira_events = await play(turns.turn(conn, backend.llm, story, "Morning.", speaker=mira))
+    assert mira_events[-1][0] == "done"
+    assert gen_of(conn, story)["agenda"]["tried"] is True  # no cue word, but the model says so
+    assert '"not_tried"' in json.dumps(backend.requests[-1]["response_format"])
+    backend.say("Fine.", json.dumps(label | {"agenda": "deflected"}))
+    line_ = "Boats are lovely, sure. How's Tobin?"  # names the cue, and still dodges it
+    await play(turns.turn(conn, backend.llm, story, line_, speaker=mira))
+    got = gen_of(conn, story)
+    assert got["goal"]["outcome"] == "deflected" and got["goal"]["by"] == "side"
+    want = goals.live(conn, mira, path(conn, story))[0]
+    assert want["deflections"] == 1  # replaced, not added to the rules' reading
+    assert conn.execute("SELECT COUNT(*) FROM goals WHERE key='want'").fetchone()[0] == 2
+
+
+@pytest.mark.anyio
+async def test_lite_makes_no_extra_call_and_off_does_nothing(
+    local_model, cards, backend, side_call
+):
+    conn = local_model
+    setting(conn, "mind.level", "lite")
+    story = make(conn, cards, {"want": BOAT})
+    got = await talk(conn, backend, story, "Morning.", "The boat is done!")
+    assert got["agenda"]["tried"] is True and len(backend.requests) == 1
+    setting(conn, "features.mind.goals", False)
+    story = make(conn, cards, {"want": BOAT})
+    got = await talk(conn, backend, story, "Morning.", "Hi.")
+    assert "agenda" not in got and "Something you want" not in directive_of(backend)
+
+
+@pytest.mark.anyio
+async def test_a_failure_never_breaks_the_turn(local_model, cards, backend, monkeypatch):
+    conn = local_model
+    story = make(conn, cards, {"want": BOAT})
+
+    def broken(*a, **k):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(goals, "pick", broken)
+    monkeypatch.setattr(goals, "judge", broken)
+    got = await talk(conn, backend, story, "Morning.", "Hi.")
+    assert "agenda" not in got
+
+
+@pytest.mark.anyio
+async def test_when_it_fires_the_seed_on_her_mind_waits(local_model, cards, backend):
+    conn = local_model
+    story = make(conn, cards, {"want": BOAT})
+    line(conn, story, "Aren", "Morning.")
+    line(conn, story, "Mira", "Morning.")
+    mira = ent(conn, story, "Mira")
+    with conn:
+        conn.execute(
+            "INSERT INTO seeds(story_id, entity_id, kind, text, weight, story_time)"
+            " VALUES(?, ?, 'plan', 'fix the old lantern', 0.9, ?)",
+            (story, mira, path(conn, story)[-1]["story_time"]),
+        )
+    got = await talk(conn, backend, story, "Nice day.", "The boat!")
+    tail = backend.requests[-1]["messages"][-1]["content"]
+    assert got["agenda"] and "onmind" not in got and "lantern" not in tail
+    got = await talk(conn, backend, story, "Did Tobin pay?", "He did.")
+    assert got["onmind"]["text"] == "fix the old lantern"  # its turn comes after

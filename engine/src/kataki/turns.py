@@ -27,6 +27,7 @@ from kataki import (
     embed,
     extract,
     features,
+    goals,
     honesty,
     images,
     inner,
@@ -121,6 +122,16 @@ def _recall_record(recalled: list, fix: dict | None, held: str) -> dict | None:
     if not (drift or cues or fix or held):
         return None
     return {"drift": drift, "cues": cues, "correction": fix and fix["record"], "hold": bool(held)}
+
+
+def _agenda_ask(gen: dict, path: list) -> dict | None:
+    """What the side call is asked about her agenda (slice 7): how the line she is answering took
+    up the goal she raised before, or whether this reply brought up the one offered now."""
+    if (got := gen.get("goal")) and path and got["line"] == path[-1]["id"]:
+        return {"mode": "judge", **got}
+    if said := gen.get("agenda"):
+        return {"mode": "offer", **said}
+    return None
 
 
 def _mood_of(state: dict | None) -> float | None:
@@ -377,16 +388,6 @@ async def _generate(
     except Exception as e:
         logging.getLogger(__name__).warning("on-mind skipped for story %s: %s", story_id, e)
         onmind = None
-    mind_rows = [onmind["row"]] if onmind and onmind["row"] else []
-    try:
-        inside = (
-            inner.block(names.get(speaker_id, ""), ties + felt + mind_rows)
-            if speaker_id is not None
-            else ""
-        )
-    except Exception as e:
-        logging.getLogger(__name__).warning("mind block skipped: %s", e)
-        inside = ""
     decide, check, hold = "", False, False  # the yield decision; check the opening; hold it back
     try:
         if speaker_id is not None and bonds_on:
@@ -426,6 +427,35 @@ async def _generate(
         repaired = None
     if repaired and repaired["directive"]:
         decide = " ".join(p for p in (decide, repaired["directive"]) if p)
+    agenda, judged = None, None  # slice 7: what she wants, and how the user answered it
+    try:
+        if speaker_id is not None and features.enabled(conn, "mind.goals"):
+            judged = goals.judge(conn, speaker_id, path)
+            busy = any(x and x["directive"] for x in (secret, onmind, repaired))
+            last = path[-1] if path else None
+            stirred = bool(pending.get(speaker_id)) or (
+                last is not None and last["role"] == "user" and inner.sense(last["text"])
+            )  # an emotional line is not the moment
+            if not busy and not stirred:
+                user = names.get(story["persona_entity_id"])
+                agenda = goals.pick(conn, speaker_id, path, user)
+    except Exception as e:
+        logging.getLogger(__name__).warning("goals skipped for story %s: %s", story_id, e)
+        agenda = judged = None
+    if agenda:
+        decide = " ".join(p for p in (decide, agenda["directive"]) if p)
+        if onmind and not onmind["directive"]:
+            onmind = None  # one thing on her mind at a time (note 22 §4 row 5)
+    mind_rows = [onmind["row"]] if onmind and onmind["row"] else []
+    try:
+        inside = (
+            inner.block(names.get(speaker_id, ""), ties + felt + mind_rows)
+            if speaker_id is not None
+            else ""
+        )
+    except Exception as e:
+        logging.getLogger(__name__).warning("mind block skipped: %s", e)
+        inside = ""
     guards = secret["guards"] if secret else []  # every secret kept from someone here
     guarding = bool(secret and secret["hot"])  # on the table: hold the reply by sentences
     try:
@@ -723,6 +753,13 @@ async def _generate(
             if onmind:
                 gen["onmind"] = onmind["record"]
             try:
+                if agenda:
+                    gen["agenda"] = {**agenda["record"], "tried": goals.tried(text, agenda["cue"])}
+                if judged:
+                    gen["goal"] = judged
+            except Exception as e:
+                logging.getLogger(__name__).warning("goal not kept: %s", e)
+            try:
                 if human and (got := _recall_record(built_recalled, repaired, held)):
                     gen["recall"] = got
             except Exception as e:
@@ -779,6 +816,7 @@ async def _generate(
                     minds.get(speaker_id),
                     get_key,
                     afterthought=voice == "after",
+                    agenda=_agenda_ask(gen, path),
                 )
                 # the side call may have replaced the mood, and written an afterthought
                 saved = json.loads(chat.get_message(conn, message_id)["gen"])

@@ -15,7 +15,7 @@ import logging
 import re
 import sqlite3
 
-from kataki import db
+from kataki import chat, db
 
 TIERS = ("ambition", "project", "today")
 STATUSES = ("active", "dormant", "done", "failed", "dropped")
@@ -128,3 +128,162 @@ def write(conn: sqlite3.Connection, goal: dict, message_id: int | None, run_id: 
              g["priority"], round(min(1.0, max(0.0, g["progress"])), 3), g["status"], g["tactic"],
              g["deflections"], now, message_id, run_id),
         ).lastrowid  # fmt: skip
+
+
+# --- the agenda (note 22 §2 step 7f; §4 row 5) --------------------------------------------------
+
+EVERY = 4  # ponytail: at most one offer every this many of her replies
+DROP = 2  # dodged this many times in a row, a goal goes dormant (note 17 §2)
+REST = 12 * 60  # ponytail: story minutes a dormant goal rests before it can come back
+STEP = 0.25  # ponytail: progress when the user takes it up
+LULL = 6  # a line this short with no question is a lull
+ASKED = re.compile(
+    r"\b(what'?s new|what is new|what'?s up|how are you|how'?ve you been|how have you been"
+    r"|what have you been (?:up to|doing)|how was your (?:day|week|morning|night|weekend)"
+    r"|anything new|what'?s on your mind|what are you up to|how'?s (?:it going|life|things))\b",
+    re.IGNORECASE,
+)
+PURSUED = ("need", "fear")  # kept, never offered: she does not know she is after them
+
+
+def tried(text: str, cue: list[str]) -> bool:
+    """Whether a line names the goal's topic (a cue word, or its plural)."""
+    if not cue:
+        return False
+    return re.search(rf"\b(?:{'|'.join(map(re.escape, cue))})(?:e?s)?\b", text, re.I) is not None
+
+
+def opening(text: str, cue: list[str]) -> str | None:
+    """Whether the user's line leaves room to bring a goal up: it touches the goal's topic, it
+    asks what is new with her, or it is a lull. None: answer it and nothing else."""
+    if tried(text, cue):
+        return "topic"
+    if ASKED.search(text):
+        return "asked"
+    if len(text.split()) <= LULL and "?" not in text:
+        return "lull"
+    return None
+
+
+def _gen(m) -> dict:
+    try:
+        return json.loads(m["gen"] or "{}")
+    except (ValueError, TypeError):
+        return {}
+
+
+def _mine(path: list, who: int) -> list:
+    return [m for m in path if m["role"] == "assistant" and m["speaker_id"] == who]
+
+
+def directive(g: dict, user: str, resurfaced: bool) -> str:
+    """The decision for [Directive]: words only, answer first, once, let it go if dodged."""
+    if resurfaced:
+        return (
+            f"Something still on your mind: {g['text']}. You let it drop before, and {user}'s"
+            f" line gives you an opening to try again: answer {user} first, then bring it up"
+            f" once, lightly. If {user} dodges it again, let it go."
+        )
+    return (
+        f"Something you want: {g['text']}. {user}'s line gives you an opening: answer {user}"
+        f" first, then bring it up once, lightly, in your own words. If {user} doesn't take it"
+        " up, let it go for now."
+    )
+
+
+def pick(conn: sqlite3.Connection, who: int, path: list, user: str | None) -> dict | None:
+    """Step 7f: at most one goal for her agenda this reply, only at an opening in the user's
+    line, at most once every EVERY of her replies; a dormant goal only once it has rested.
+    -> {"directive", "record", "cue"} or None."""
+    if not path or path[-1]["role"] != "user":
+        return None
+    if path[-1]["id"] not in chat.heard_by(conn, path, who):
+        return None  # a whisper to someone else, or a thought: no opening for her
+    mine = _mine(path, who)
+    offers = [i for i, m in enumerate(mine) if _gen(m).get("agenda")]
+    if offers and len(mine) - offers[-1] < EVERY:
+        return None
+    text, now = path[-1]["text"], path[-1]["story_time"]
+    best = None
+    for g in live(conn, who, path):
+        if g["key"] in PURSUED or g["status"] not in ("active", "dormant"):
+            continue
+        if g["status"] == "dormant" and now - g["story_time"] < REST:
+            continue
+        if (why := opening(text, g["cue"])) is None:
+            continue
+        rank = (why == "topic", g["priority"])
+        if best is None or rank > best[0]:
+            best = (rank, g, why)
+    if best is None:
+        return None
+    _, g, why = best
+    back = g["status"] == "dormant"
+    return {
+        "directive": directive(g, user or "them", back),
+        "record": {"goal": g["id"], "key": g["key"], "text": g["text"], "why": why,
+                   "resurfaced": back, "tried": None},
+        "cue": g["cue"],
+    }  # fmt: skip
+
+
+OUTCOMES = ("deflected", "progressed", "done")
+
+
+def _moved(g: dict, outcome: str) -> dict:
+    """What an answer does to a goal: a dodge counts (two in a row: dormant), taking it up resets
+    the dodges and moves it on, done ends it."""
+    if outcome == "deflected":
+        n = g["deflections"] + 1
+        return {"deflections": n, "status": "dormant" if n >= DROP else g["status"]}
+    if outcome == "progressed":
+        return {"deflections": 0, "status": "active", "progress": g["progress"] + STEP}
+    return {"deflections": 0, "status": "done", "progress": 1.0}
+
+
+def _answered(path: list, who: int) -> tuple | None:
+    """Her latest raise on this path that she tried, and the user's line that answered it, while
+    she has not spoken since: (record, the line) or None."""
+    mine = _mine(path, who)
+    if not mine or not (said := _gen(mine[-1]).get("agenda")) or not said.get("tried"):
+        return None
+    ids = [m["id"] for m in path]
+    after = path[ids.index(mine[-1]["id"]) + 1 :]
+    line = next((m for m in after if m["role"] == "user"), None)
+    return (said, line) if line is not None else None
+
+
+def _judge(conn, who: int, path: list, said: dict, line, outcome: str, by: str) -> dict | None:
+    """Write (or rewrite) the judgment of `line` for the goal `said` raised, anchored on it."""
+    with conn:  # a retake or a relabel replaces the reading of that line, never adds to it
+        conn.execute(
+            "DELETE FROM goals WHERE entity_id=? AND key=? AND message_id=?",
+            (who, said["key"], line["id"]),
+        )
+    upto = path[: [m["id"] for m in path].index(line["id"]) + 1]
+    g = next((g for g in live(conn, who, upto) if g["key"] == said["key"]), None)
+    if g is None:
+        return None
+    write(conn, g, line["id"], None, line["story_time"], **_moved(g, outcome))
+    return {"goal": g["id"], "key": g["key"], "text": g["text"], "outcome": outcome, "by": by,
+            "line": line["id"]}  # fmt: skip
+
+
+def judge(conn: sqlite3.Connection, who: int, path: list) -> dict | None:
+    """Step 13's goal counters, read from the rules before her next reply: did the user's line
+    after her raise take it up (names its topic) or dodge it? -> gen.goal, or None."""
+    got = _answered(path, who)
+    if got is None:
+        return None
+    said, line = got
+    g = next((g for g in live(conn, who, path) if g["key"] == said["key"]), None)
+    if g is None:
+        return None
+    outcome = "progressed" if tried(line["text"], g["cue"]) else "deflected"
+    return _judge(conn, who, path, said, line, outcome, "rules")
+
+
+def relabel(conn: sqlite3.Connection, who: int, path: list, judged: dict, outcome: str) -> dict:
+    """The side call's reading of the answer, in place of the rules'. -> the new gen.goal."""
+    line = next(m for m in path if m["id"] == judged["line"])
+    return _judge(conn, who, path, judged, line, outcome, "side") or judged

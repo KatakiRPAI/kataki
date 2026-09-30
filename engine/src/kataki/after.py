@@ -14,7 +14,7 @@ import sqlite3
 import time
 from collections.abc import Callable
 
-from kataki import bonds, chat, features, images, inner, knobs, roles, thought
+from kataki import bonds, chat, features, goals, images, inner, knobs, roles, thought
 from kataki.llm import LLM
 
 PROMPT = """\
@@ -54,9 +54,22 @@ AFTERTHOUGHT = (
 )
 
 
-def schema(handles: list[str], afterthought: bool = False) -> dict:
+AGENDA = {  # slice 7: the closed agenda outcome (note 22 §1), by what this turn has to say
+    "offer": ("tried", "not_tried"),
+    "judge": goals.OUTCOMES,
+}
+AGENDA_ASK = {
+    "offer": "Also give agenda: whether {name}'s reply brought up {text}: tried or not_tried.",
+    "judge": "Also give agenda: how THE LINE answered what {name} had brought up before "
+    "({text}): deflected (dodged it, ignored it or changed the subject), progressed (took it "
+    "up), done (settled it for good).",
+}
+
+
+def schema(handles: list[str], afterthought: bool = False, agenda: str | None = None) -> dict:
     """The labels, every list closed: feelings, events, faces, and only the people here; with
-    `afterthought`, also the thought a reasoning model's reply was said with (slice 3)."""
+    `afterthought`, also the thought a reasoning model's reply was said with (slice 3); with
+    `agenda` ("offer" | "judge"), the agenda outcome (slice 7)."""
     level = {"type": "integer", "enum": [1, 2, 3]}
     out = {
         "type": "object",
@@ -105,6 +118,9 @@ def schema(handles: list[str], afterthought: bool = False) -> dict:
     if afterthought:
         out["properties"]["thought"] = {"type": ["string", "null"]}
         out["required"].append("thought")
+    if agenda in AGENDA:
+        out["properties"]["agenda"] = {"type": "string", "enum": list(AGENDA[agenda])}
+        out["required"].append("agenda")
     return out
 
 
@@ -116,7 +132,7 @@ def _word(x, allowed) -> bool:
     return isinstance(x, str) and x in allowed
 
 
-def read(data: dict, handles: list[str]) -> dict:
+def read(data: dict, handles: list[str], agenda: str | None = None) -> dict:
     """Validate the labels. Unusable as a whole (no feeling from the list, no face) raises
     ValueError, so the model is asked once more; a bad event is only dropped."""
     felt = data.get("felt")
@@ -129,29 +145,40 @@ def read(data: dict, handles: list[str]) -> dict:
     events = data.get("events") if isinstance(data.get("events"), list) else []
     pos = data.get("position")
     text = pos.get("text") if isinstance(pos, dict) else None
-    return {
-        "felt": {
-            "label": felt["label"],
-            "intensity": felt["intensity"],
-            "about": felt.get("about") if _word(felt.get("about"), handles) else None,
-            "cause": str(felt.get("cause") or "")[:80],
-        },
-        "events": [
-            {"target": e["target"], "type": e["type"], "intensity": e["intensity"]}
-            for e in events[:3]
-            if isinstance(e, dict)
-            and _word(e.get("target"), handles)
-            and _word(e.get("type"), bonds.EVENTS)
-            and _level(e.get("intensity"))
-        ],
-        "position": (
-            {"text": text.strip()[:80], "firm": pos["firm"]}
-            if isinstance(text, str) and text.strip() and _level(pos.get("firm"))
-            else None
-        ),
-        "yielded": data.get("yielded") is True,
-        "face": data["face"],
-    } | _afterthought(data)
+    return (
+        {
+            "felt": {
+                "label": felt["label"],
+                "intensity": felt["intensity"],
+                "about": felt.get("about") if _word(felt.get("about"), handles) else None,
+                "cause": str(felt.get("cause") or "")[:80],
+            },
+            "events": [
+                {"target": e["target"], "type": e["type"], "intensity": e["intensity"]}
+                for e in events[:3]
+                if isinstance(e, dict)
+                and _word(e.get("target"), handles)
+                and _word(e.get("type"), bonds.EVENTS)
+                and _level(e.get("intensity"))
+            ],
+            "position": (
+                {"text": text.strip()[:80], "firm": pos["firm"]}
+                if isinstance(text, str) and text.strip() and _level(pos.get("firm"))
+                else None
+            ),
+            "yielded": data.get("yielded") is True,
+            "face": data["face"],
+        }
+        | _afterthought(data)
+        | _agenda(data, agenda)
+    )
+
+
+def _agenda(data: dict, agenda: str | None) -> dict:
+    """The agenda outcome, only when asked; a value off the list is None (the rules' stands)."""
+    if agenda not in AGENDA:
+        return {}
+    return {"agenda": data.get("agenda") if data.get("agenda") in AGENDA[agenda] else None}
 
 
 def _afterthought(data: dict) -> dict:
@@ -193,6 +220,7 @@ async def _ask(
     seen: dict,
     get_key,
     afterthought: bool = False,
+    agenda: dict | None = None,
 ) -> dict | None:
     if (ep := roles.resolve(conn, "utility", story_id, get_key)) is None:
         return None
@@ -202,6 +230,7 @@ async def _ask(
         f"E{i} = {names[i]}" + (" (the user)" if i == seen["persona"] else "") for i in seen["here"]
     )
     name = names[speaker_id]
+    mode = agenda.get("mode") if agenda and agenda.get("mode") in AGENDA else None
     line = (
         f"{names.get(last['speaker_id'], 'Narration')}: {last['text'][-1200:]}"
         if last is not None
@@ -218,11 +247,16 @@ async def _ask(
             + (f"[Earlier lines, context only]\n{context}\n" if context else "")
             + f"[The line to judge: what did THIS line do to {name}?]\n{line}\n\n"
             f"[{name}'s reply: for position, yielded and face only]\n{reply[-1500:]}"
-            + (f"\n\n{AFTERTHOUGHT.format(name=name)}" if afterthought else ""),
+            + (f"\n\n{AFTERTHOUGHT.format(name=name)}" if afterthought else "")
+            + (f"\n\n{AGENDA_ASK[mode].format(name=name, text=agenda['text'])}" if mode else ""),
         },
     ]
     return await llm.complete_json(
-        ep, ask, schema(handles, afterthought), lambda d: read(d, handles), name="after"
+        ep,
+        ask,
+        schema(handles, afterthought, mode),
+        lambda d: read(d, handles, mode),
+        name="after",
     )
 
 
@@ -324,6 +358,7 @@ async def run(
     state: dict | None,  # the speaker's state before the reply (None: moods are off)
     get_key: Callable[[str], str | None],
     afterthought: bool = False,  # a reasoning model replied: ask what they thought (slice 3)
+    agenda: dict | None = None,  # slice 7: {"mode": "offer" | "judge", <gen.agenda | gen.goal>}
 ) -> dict | None:
     """The side call for one reply, applied. -> the labels, or None when it was skipped.
     ponytail: inline after the reply, before `done`, as the face call ran; move it to a
@@ -331,7 +366,9 @@ async def run(
     at, got = time.monotonic(), None
     try:
         seen = _scene(conn, story_id, path, speaker_id)
-        got = await _ask(conn, llm, story_id, speaker_id, reply, seen, get_key, afterthought)
+        got = await _ask(
+            conn, llm, story_id, speaker_id, reply, seen, get_key, afterthought, agenda
+        )
         if got is not None:
             _apply(conn, story_id, path, speaker_id, message_id, got, state, seen)
     except Exception as e:  # never a turn's undoing: the rules' reading stays
@@ -352,4 +389,24 @@ async def run(
                 )
     except Exception as e:
         logging.getLogger(__name__).warning("side call not recorded: %s", e)
+    try:
+        if got and got.get("agenda") and agenda:
+            _agenda_apply(conn, path, speaker_id, message_id, agenda, got["agenda"])
+    except Exception as e:  # the rules' reading stands
+        logging.getLogger(__name__).warning("agenda label not applied: %s", e)
     return got
+
+
+def _agenda_apply(conn, path: list, speaker_id: int, message_id: int, agenda: dict, said: str):
+    """The model's agenda label in place of the rules': whether the reply brought the goal up
+    (gen.agenda.tried), or how the line answered it (a new judgment row, gen.goal)."""
+    if agenda["mode"] == "offer":
+        field, value = "$.agenda.tried", json.dumps(said == "tried")
+    else:
+        got = goals.relabel(conn, speaker_id, path, agenda, said)
+        field, value = "$.goal", json.dumps(got)
+    with conn:
+        conn.execute(
+            "UPDATE messages SET gen=json_set(gen, ?, json(?)) WHERE id=?",
+            (field, value, message_id),
+        )
