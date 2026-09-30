@@ -391,3 +391,8 @@ def test_a_turn_without_prices_is_null(local_model):
     conn = local_model
     turn = usage.per_turn(conn, a_story(conn), {})
     assert (turn["lite"], turn["standard"], turn["premium"]) == (None, None, None)
+
+
+def test_an_embed_price_needs_no_output_rate():
+    """An embedding writes nothing back, so its price is its input rate alone."""
+    assert usage.cost({"e": {"input": 2.0}}, "e", "embed", {"prompt_tokens": 10}) == 2e-5

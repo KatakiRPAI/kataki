@@ -30,7 +30,8 @@ def cost(prices: dict, model: str, role: str, used: dict) -> float | None:
             rates = [float(p["char"])]
             spent = prompt * rates[0]
         else:
-            rates = [float(p["input"]), float(p.get("cached", p["input"])), float(p["output"])]
+            out = p.get("output", 0) if role == "embed" else p["output"]  # embeddings write none
+            rates = [float(p["input"]), float(p.get("cached", p["input"])), float(out)]
             cached = min(
                 (used.get("prompt_tokens_details") or {}).get("cached_tokens") or 0, prompt
             )
