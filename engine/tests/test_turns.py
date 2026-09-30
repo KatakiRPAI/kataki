@@ -611,3 +611,60 @@ async def test_texting_needs_no_other_mind_feature(conn, story, backend):
     backend.say("the tide turned early")
     done = (await play(turns.turn(conn, backend.llm, story, "Evening, Mira.")))[-1][1]
     assert done["delivery"]["mode"] == "text"
+
+
+# --- voice (minds slice 10) -------------------------------------------------------------------
+
+
+def _voiced(conn):
+    conn.execute("INSERT INTO providers(id, name, base_url) VALUES(2, 'tts', 'http://tts/v1')")
+    conn.execute("INSERT INTO model_roles(role, provider_id, model) VALUES('voice', 2, 'kokoro')")
+    _set(conn, "voice.on", True)
+
+
+async def test_a_voiced_reply_carries_its_cue_and_no_tag_in_the_text(conn, story, backend):
+    _voiced(conn)
+    backend.say("[laughs] Oh, stop it. *grins*")
+    done = (await play(turns.turn(conn, backend.llm, story, "Mira, you're the best.")))[-1][1]
+    assert done["text"] == "Oh, stop it. *grins*"
+    assert chat.active_path(conn, story)[-1]["text"] == done["text"]
+    assert done["voice"]["tags"] == ["laugh"] and done["voice"]["by"] == "code"
+    assert done["voice"]["tone"] in ("neutral", "cheerful", "warm")
+    assert _gen(conn, story)["voice"] == {"tags": ["laugh"]}
+    assert len(backend.requests) == 1  # no audio in the turn: only when the app asks
+
+
+async def test_a_reply_that_is_not_voiced_is_untouched(conn, story, backend):
+    backend.say("[laughs] Oh, stop it.")
+    done = (await play(turns.turn(conn, backend.llm, story, "Mira, you're the best.")))[-1][1]
+    assert done["voice"] is None and done["text"] == "[laughs] Oh, stop it."
+    assert "voice" not in _gen(conn, story)
+
+
+async def test_a_broken_cue_never_breaks_the_turn(conn, story, backend, monkeypatch):
+    from kataki import speech
+
+    _voiced(conn)
+
+    def boom(*a, **k):
+        raise RuntimeError("no")
+
+    monkeypatch.setattr(speech, "cue", boom)
+    backend.say("Evening.")
+    done = (await play(turns.turn(conn, backend.llm, story, "Evening, Mira.")))[-1][1]
+    assert done["text"] == "Evening." and done["voice"] is None
+
+
+async def test_the_side_call_labels_how_it_sounds_when_she_is_voiced(
+    conn, story, backend, side_call
+):
+    _voiced(conn)
+    labels = {"felt": {"label": "calm", "intensity": 1, "about": None, "cause": ""},
+              "events": [], "position": None, "yielded": False, "face": "neutral",
+              "voice": {"tone": "cold", "tag": "groan"}}  # fmt: skip
+    backend.say("Fine.", json.dumps(labels))
+    done = (await play(turns.turn(conn, backend.llm, story, "Mira, do the dishes.")))[-1][1]
+    asked = backend.requests[1]
+    assert "voice" in asked["response_format"]["json_schema"]["schema"]["properties"]
+    assert done["voice"]["tone"] == "cold" and done["voice"]["tags"] == ["groan"]
+    assert done["voice"]["by"] == "side"

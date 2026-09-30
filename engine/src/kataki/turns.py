@@ -39,6 +39,7 @@ from kataki import (
     recollect,
     retrieve,
     roles,
+    speech,
     thought,
 )
 from kataki.llm import LLM, LLMError, anti_slop
@@ -616,6 +617,11 @@ async def _generate(
         look = None
     length = look["words"] if look else ""
     try:
+        voiced = speech.on(conn, speaker_id)  # slice 10
+    except Exception as e:
+        logging.getLogger(__name__).warning("voice skipped for story %s: %s", story_id, e)
+        voiced = False
+    try:
         inside = (
             inner.block(
                 names.get(speaker_id, ""),
@@ -897,6 +903,14 @@ async def _generate(
                     trace["leak"] = {"hit": key, "resampled": again, "covered": True}
             except Exception as e:
                 logging.getLogger(__name__).warning("leak check skipped: %s", e)
+        sounds = []  # slice 10: a [laughs] the model wrote is a cue, never seen in the chat
+        if text and voiced:
+            try:
+                kept, sounds = speech.untag(text)
+                text = kept or text  # a reply that was only a tag keeps it: never an empty reply
+            except Exception as e:
+                logging.getLogger(__name__).warning("speech tags kept: %s", e)
+                sounds = []
         if text:
             if check and not hold and (hit := bonds.opener(text)):
                 trace["check"] = {"hit": hit, "resampled": False}  # lite: noted, not retaken
@@ -909,6 +923,8 @@ async def _generate(
                 "reasoning": reasoning or None,
                 "usage": done.get("usage"),
             }
+            if sounds:
+                gen["voice"] = {"tags": sounds}
             try:
                 if seen := thought.parse(heard, name or ""):  # Peek's thought; came first?
                     early = _early(thoughts[:before], header, name or "", ep.think_tags)
@@ -1031,6 +1047,7 @@ async def _generate(
                     get_key,
                     afterthought=voice == "after",
                     agenda=_agenda_ask(gen, path),
+                    voice=voiced,
                 )
                 # the side call may have replaced the mood, and written an afterthought
                 saved = json.loads(chat.get_message(conn, message_id)["gen"])
@@ -1051,6 +1068,13 @@ async def _generate(
                         "UPDATE messages SET gen=json_set(gen, '$.trace.ms.face', ?) WHERE id=?",
                         (ms(at), message_id),
                     )
+        cue = None  # slice 10: how it sounds; the audio waits until the app asks for it
+        if voiced:
+            try:
+                saved = json.loads(chat.get_message(conn, message_id)["gen"] or "{}")
+                cue = speech.cue(saved, text, knobs.own(conn, speaker_id).get("voice"))
+            except Exception as e:
+                logging.getLogger(__name__).warning("voice cue skipped: %s", e)
         yield (
             "done",
             {
@@ -1064,6 +1088,7 @@ async def _generate(
                 "mood": gen.get("mind"),
                 "thought": gen.get("thought"),
                 "delivery": gen.get("delivery"),
+                "voice": cue,
             },
         )
 
@@ -1181,7 +1206,8 @@ async def _ooc(
         {"message_id": answer, "text": text, "ooc": True, "skip_minutes": 0,
          "clock": clock.label(now, story["epoch_offset_min"]),
          "date": clock.date(now, story["epoch_offset_min"], moments), "usage": usage,
-         "expression": None, "mood": None, "thought": None, "delivery": None},
+         "expression": None, "mood": None, "thought": None, "delivery": None,
+         "voice": None},
     )  # fmt: skip
 
 

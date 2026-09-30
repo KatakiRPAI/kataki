@@ -368,3 +368,21 @@ async def test_a_kindness_to_someone_else_does_not_wipe_the_grudge_toward_him(
     backend.say("Hm.", said(events=[{"target": f"E{tobin}", "type": "kindness", "intensity": 1}]))
     await play(turns.turn(conn, backend.llm, story, "Mira, I forgot. I didn't come last night."))
     assert {"promise_broken", "kindness"} <= events_of(conn, "Mira")
+
+
+# --- voice (minds slice 10) -------------------------------------------------------------------
+
+
+def test_the_voice_field_is_asked_only_when_she_is_voiced():
+    from kataki import speech
+
+    assert "voice" not in after.schema(HANDLES)["properties"]
+    s = after.schema(HANDLES, voice=True)
+    assert s["properties"]["voice"]["properties"]["tone"]["enum"] == list(speech.TONES)
+    assert s["properties"]["voice"]["properties"]["tag"]["enum"] == [*speech.TAGS, None]
+    assert "voice" in s["required"]
+    got = after.read(labels(voice={"tone": "hurt", "tag": "sigh"}), HANDLES, voice=True)
+    assert got["voice"] == {"tone": "hurt", "tag": "sigh"}
+    bad = after.read(labels(voice={"tone": "sultry", "tag": "scream"}), HANDLES, voice=True)
+    assert bad["voice"] == {"tone": None, "tag": None}
+    assert "voice" not in after.read(labels(voice={"tone": "hurt"}), HANDLES)
