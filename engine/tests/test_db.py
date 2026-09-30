@@ -252,7 +252,7 @@ def test_v10_adds_minds_and_usage(tmp_path):
     path = tmp_path / "v9.db"
     old = db.connect(path)  # today's schema, then pretend it is v9 without the new tables
     old.executescript(
-        "DROP TABLE IF EXISTS secrets; DROP TABLE IF EXISTS opinions;"
+        "DROP TABLE IF EXISTS seeds; DROP TABLE IF EXISTS secrets; DROP TABLE IF EXISTS opinions;"
         " DROP TABLE IF EXISTS mind_states;"
         " DROP TABLE IF EXISTS usage_log;"
     )
@@ -301,7 +301,9 @@ def test_anchored_rows_follow_the_branch(conn):
 def test_v11_adds_the_relationship_ledger(tmp_path):
     path = tmp_path / "v10.db"
     old = db.connect(path)  # today's schema, then pretend it is v10 without the ledger
-    old.executescript("DROP TABLE IF EXISTS secrets; DROP TABLE IF EXISTS opinions;")
+    old.executescript(
+        "DROP TABLE IF EXISTS seeds; DROP TABLE IF EXISTS secrets; DROP TABLE IF EXISTS opinions;"
+    )
     old.execute("PRAGMA user_version=10")
     old.commit()
     old.close()
@@ -332,7 +334,7 @@ def test_v11_adds_the_relationship_ledger(tmp_path):
 def test_v12_adds_secrets(tmp_path):
     path = tmp_path / "v11.db"
     old = db.connect(path)  # today's schema, then pretend it is v11 without secrets
-    old.executescript("DROP TABLE IF EXISTS secrets;")
+    old.executescript("DROP TABLE IF EXISTS seeds; DROP TABLE IF EXISTS secrets;")
     old.execute("PRAGMA user_version=11")
     old.commit()
     old.close()
@@ -357,5 +359,48 @@ def test_v12_adds_secrets(tmp_path):
         )
     conn.execute("DELETE FROM stories WHERE id=?", (story,))
     assert conn.execute("SELECT COUNT(*) FROM secrets").fetchone()[0] == 0
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION == 12
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION
+    conn.close()
+
+
+def test_v13_adds_seeds(tmp_path):
+    path = tmp_path / "v12.db"
+    old = db.connect(path)  # today's schema, then pretend it is v12 without seeds
+    old.executescript("DROP TABLE IF EXISTS seeds;")
+    old.execute("PRAGMA user_version=12")
+    old.commit()
+    old.close()
+
+    conn = db.connect(path)
+    story = _story(conn)
+    mira = conn.execute(
+        "INSERT INTO entities(story_id, kind, name) VALUES(?, 'character', 'Mira')", (story,)
+    ).lastrowid
+    run = conn.execute(
+        "INSERT INTO extraction_runs(story_id, from_message_id, to_message_id, trigger, status)"
+        " VALUES(?, 0, 1, 'between', 'ok')",
+        (story,),
+    ).lastrowid
+    for kind in ("worry", "news", "preoccupation"):
+        conn.execute(
+            "INSERT INTO seeds(story_id, entity_id, kind, text, weight, story_time, run_id)"
+            " VALUES(?, ?, ?, 'whether he calls', 0.6, 0, ?)",
+            (story, mira, kind, run),
+        )
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(
+            "INSERT INTO seeds(story_id, entity_id, kind, text, weight, story_time)"
+            " VALUES(?, ?, 'grudge', 'x', 1, 0)",
+            (story, mira),
+        )
+    db.discard_run(conn, run)
+    assert conn.execute("SELECT COUNT(*) FROM seeds").fetchone()[0] == 0
+    conn.execute(
+        "INSERT INTO seeds(story_id, entity_id, kind, text, weight, story_time)"
+        " VALUES(?, ?, 'plan', 'x', 1, 0)",
+        (story, mira),
+    )
+    conn.execute("DELETE FROM stories WHERE id=?", (story,))
+    assert conn.execute("SELECT COUNT(*) FROM seeds").fetchone()[0] == 0
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION == 13
     conn.close()

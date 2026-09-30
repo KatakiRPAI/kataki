@@ -17,6 +17,7 @@ FEATURES = {
     "mind.bonds": "alpha",  # slice 2: grudges that hold, pushback, the side call
     "mind.thought": "alpha",  # slice 3: a private thought before the reply
     "mind.secrets": "alpha",  # slice 4: secrets, lies, the leak filter, out-of-character honesty
+    "mind.offscreen": "alpha",  # slice 5: a life between scenes, the "while you were away" card
 }
 
 

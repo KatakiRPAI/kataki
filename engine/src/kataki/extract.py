@@ -15,7 +15,7 @@ import json
 import re
 import sqlite3
 
-from kataki import chat, db, embed, knobs, library, retrieve, roles
+from kataki import between, chat, db, embed, knobs, library, retrieve, roles
 from kataki.activation import FIDELITY
 from kataki.llm import LLM, Endpoint, LLMError
 from kataki.models import extraction_schema, parse_extraction
@@ -384,7 +384,8 @@ def pending(conn: sqlite3.Connection, story_id: int) -> list[sqlite3.Row]:
     path = chat.active_path(conn, story_id)
     live = sorted(db.live_runs(conn, story_id))
     ends = conn.execute(
-        f"SELECT to_message_id FROM extraction_runs WHERE id IN ({','.join('?' * len(live))})",
+        f"SELECT to_message_id FROM extraction_runs WHERE trigger!='between'"
+        f" AND id IN ({','.join('?' * len(live))})",
         live,
     )
     covered = max((r[0] for r in ends), default=0)  # ids grow along a path
@@ -436,6 +437,7 @@ def roster(conn: sqlite3.Connection, story_id: int, chunk: list) -> tuple[list[s
         memories = conn.execute(
             "SELECT DISTINCT m.* FROM memories m JOIN memory_entities me ON me.memory_id=m.id"
             f" WHERE m.story_id=? AND m.hidden=0 AND {live_sql}"
+            " AND m.tags_text NOT LIKE '%offscreen%'"  # a life between scenes is not transcript
             f" AND me.entity_id IN ({','.join('?' * len(focus))}) ORDER BY m.id DESC LIMIT ?",
             [story_id, *live_args, *focus, MAX_MEMORIES],
         ).fetchall()
@@ -662,6 +664,7 @@ class Worker:
 
     async def _work(self, story_id: int) -> None:
         await asyncio.sleep(self.delay)
+        await self._between(story_id)  # first: the time-skip card is waiting for them
         while job := due(self.conn, story_id, self.get_key):
             chunk, trigger, role, ep, attempts = job
             self._base_url = ep.base_url
@@ -677,3 +680,16 @@ class Worker:
             if status is None or status[0] != "ok":
                 return  # a failing model is not hammered; the next poke tries again
             await embed.refresh(self.conn, self.llm, story_id, self.get_key)
+
+    async def _between(self, story_id: int) -> None:
+        """The diaries a skip still owes (minds slice 5), one call per character, each stepping
+        aside for a reply like a memory read does."""
+        for run_id, who in between.todo(self.conn, story_id):
+            if (ep := roles.resolve(self.conn, "utility", story_id, self.get_key)) is None:
+                between._mark(self.conn, run_id, who, "failed")  # no model: never owed forever
+                continue
+            self._base_url = ep.base_url
+            try:
+                await between.think(self.conn, self.llm, story_id, run_id, who, self.get_key, ep)
+            finally:
+                self._base_url = None

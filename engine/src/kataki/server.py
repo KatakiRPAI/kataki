@@ -11,6 +11,7 @@ import contextlib
 import functools
 import hmac
 import json
+import logging
 import shutil
 import sqlite3
 import tempfile
@@ -30,6 +31,7 @@ from kataki import (
     __version__,
     archive,
     backups,
+    between,
     cards,
     chat,
     chats,
@@ -431,6 +433,14 @@ def create_app(
         return StreamingResponse(
             body(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"}
         )
+
+    def meanwhile(story_id: int) -> None:
+        """Time passed: each character's life between scenes is worked out now, in code (minds
+        slice 5); the diaries follow in the background. Never fails the request."""
+        try:
+            between.at_skip(conn, story_id, chat.active_path(conn, story_id))
+        except Exception as e:
+            logging.getLogger(__name__).warning("between skipped for story %s: %s", story_id, e)
 
     def make_way(story_id: int) -> None:
         """A reply is about to be generated: the background reader steps aside if it would
@@ -1256,6 +1266,12 @@ def create_app(
         what they know about you, and how they feel about everyone."""
         return people.people(conn, story_row(story_id))
 
+    @app.get("/stories/{story_id}/away")
+    async def get_away(story_id: int):
+        """While you were away: what each character's time between scenes held (minds slice 5).
+        The card polls this until `done`."""
+        return between.away(conn, story_row(story_id))
+
     @app.post("/stories/{story_id}/turn")
     async def take_turn(story_id: int, t: TurnIn):
         story_row(story_id)
@@ -1279,6 +1295,7 @@ def create_app(
             raise HTTPException(422, str(e)) from None
         if written is None:
             raise HTTPException(422, "Say something, or let some time pass.")
+        meanwhile(story_id)
         worker.poke(story_id)  # the story may now have lines worth remembering
         return messages(story_id)
 
@@ -1343,6 +1360,7 @@ def create_app(
             _patch(conn, "messages", message_id, {"hidden": p.hidden})
         if p.skip_minutes is not None:
             chat.set_skip(conn, message_id, p.skip_minutes)
+            meanwhile(m["story_id"])  # a changed skip gets its life between scenes again
         return messages(m["story_id"])
 
     @app.post("/stories/{story_id}/presence")
@@ -1390,6 +1408,7 @@ def create_app(
         except ValueError as e:
             raise HTTPException(422, str(e)) from None
         chat.new_scene(conn, story_id, s.present, place_id, s.title, skip)
+        meanwhile(story_id)
         worker.poke(story_id)  # the closed scene is worth a careful read
         return await get_cast(story_id)
 
@@ -1427,13 +1446,18 @@ def create_app(
     @app.get("/stories/{story_id}/runs")
     async def list_runs(story_id: int):
         rows = conn.execute(
-            "SELECT * FROM extraction_runs WHERE story_id=? ORDER BY id DESC", (story_id,)
+            "SELECT * FROM extraction_runs WHERE story_id=? AND trigger!=? ORDER BY id DESC",
+            (story_id, between.TRIGGER),  # a life between scenes read no transcript
         )
         return [run_out(r) for r in rows]
 
     @app.post("/runs/{run_id}/reread")
     async def reread(run_id: int, r: RereadIn):
-        _row(conn, "SELECT id FROM extraction_runs WHERE id=?", (run_id,))
+        _row(
+            conn,
+            "SELECT id FROM extraction_runs WHERE id=? AND trigger!=?",
+            (run_id, between.TRIGGER),
+        )
         try:
             new_id = await extract.reread(conn, llm, run_id, r.role, get_key)
         except LLMError as e:  # the old reading is still there

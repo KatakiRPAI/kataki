@@ -315,7 +315,8 @@ def build(
     # After a long time skip, what came before is memory, not a transcript: once those lines
     # have been read into memory, they leave the window, and recalling them means decay.
     ends = conn.execute(
-        f"SELECT to_message_id FROM extraction_runs WHERE id IN ({','.join('?' * len(live))})",
+        f"SELECT to_message_id FROM extraction_runs WHERE trigger!='between'"
+        f" AND id IN ({','.join('?' * len(live))})",
         sorted(live),
     ).fetchall()
     read_to = max((r[0] for r in ends), default=0)

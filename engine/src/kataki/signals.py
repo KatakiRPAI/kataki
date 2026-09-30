@@ -357,7 +357,9 @@ def scene(conn: sqlite3.Connection, story: sqlite3.Row) -> Scene:
     live = db.live_runs(conn, story_id)
     marks = ",".join("?" * len(live))
     ends = conn.execute(
-        f"SELECT max(to_message_id) FROM extraction_runs WHERE id IN ({marks})", sorted(live)
+        f"SELECT max(to_message_id) FROM extraction_runs WHERE trigger!='between'"
+        f" AND id IN ({marks})",
+        sorted(live),
     ).fetchone()[0]
     ai = [
         r[0]
