@@ -129,6 +129,7 @@ class StoryIn(BaseModel):
     place_id: int | None = None
     persona_id: int | None = None
     scenario_id: int | None = None
+    first_message: str = ""  # how it opens, when not from a plot
     epoch_offset_min: int = Field(480, ge=0)  # the clock at the start: 480 = Day 1, 08:00
 
 

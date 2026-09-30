@@ -1275,7 +1275,7 @@ def test_a_few_words_become_a_whole_profile_for_the_editor(api, backend):
         "description": "The prince's driver and bodyguard, from a family of fighters.",
         "secret": "He reports everything to the royal family.",
         "example_dialogue": "Kai: Buckle up.\nKai: I'll handle it.\nKai: Sir.",
-        "first_message": "*opens the car door* Your Highness.", "aliases": ["the driver"],
+        "aliases": ["the driver"],
         "tags": ["driver", "bodyguard"],
     }  # fmt: skip
     backend.say(json.dumps(profile))

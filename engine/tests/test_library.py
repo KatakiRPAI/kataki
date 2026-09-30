@@ -126,6 +126,34 @@ def test_the_first_characters_greeting_opens_the_story(conn, story):
     assert first["speaker_id"] == entity(conn, story, "Mira")["id"]
 
 
+def test_the_opening_is_the_one_typed_else_the_plots_else_a_greeting(conn, cast):
+    plot = library.create_item(
+        conn, "scenario", "Heist", data={"first_message": "Rain on the glass."}
+    )
+
+    def opening(**kw):
+        story = library.create_story(conn, "S", character_ids=[cast["mira"]], **kw)
+        leaf = conn.execute("SELECT active_leaf_id FROM stories WHERE id=?", (story,)).fetchone()[0]
+        row = conn.execute("SELECT text, speaker_id FROM messages WHERE id=?", (leaf,)).fetchone()
+        return (row["text"], row["speaker_id"] is None) if row else None
+
+    assert opening(scenario_id=plot, first_message="The lights go out.") == (
+        "The lights go out.",
+        True,
+    )
+    assert opening(first_message="  The lights go out.  ") == ("The lights go out.", True)
+    assert opening(scenario_id=plot) == ("Rain on the glass.", True)
+    assert opening() == (
+        "Mira slides a letter across the bar.",
+        False,
+    )  # an imported card's greeting
+    tobin = library.create_story(conn, "S", character_ids=[cast["tobin"]], first_message=" ")
+    assert (
+        conn.execute("SELECT active_leaf_id FROM stories WHERE id=?", (tobin,)).fetchone()[0]
+        is None
+    )
+
+
 def test_director_mode_has_no_persona(conn, cast):
     story = library.create_story(conn, "Watching", character_ids=[cast["tobin"]])
     row = conn.execute(

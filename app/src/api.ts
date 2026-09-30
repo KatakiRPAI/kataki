@@ -79,7 +79,6 @@ export type Drafted = {
   description: string
   secret: string
   example_dialogue: string
-  first_message: string
   aliases: string[]
   tags: string[]
 }

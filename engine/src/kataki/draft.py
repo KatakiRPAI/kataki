@@ -5,7 +5,7 @@ until you do. Characters are adults, whatever the words say."""
 from kataki.llm import LLM, Endpoint
 
 FIELDS = ("name", "pronouns", "looks", "description", "secret", "example_dialogue",
-          "first_message", "aliases", "tags")  # fmt: skip
+          "aliases", "tags")  # fmt: skip
 
 SCHEMA = {
     "type": "object",
@@ -30,7 +30,6 @@ consistent with it. The character is an adult (18 or older).
 this unless they are told. 2-5 sentences.
 - secret: something only they know and would never say out loud. One or two sentences.
 - example_dialogue: three lines in their voice, one per line, each starting "Name: "
-- first_message: what they say or do when a story starts, with actions in *asterisks*
 - aliases: other names people call them (may be empty)
 - tags: 2-5 short tags that describe them"""
 
