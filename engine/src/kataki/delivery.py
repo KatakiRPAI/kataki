@@ -57,7 +57,8 @@ def style(setting: str, user_text: str | None, mood: dict | None, tired: bool,
     if tired:
         shift -= 1
     floor = 0 if texts and not weighty else 1
-    length = CLASSES[min(max(start + max(-2, min(1, shift)), floor), len(CLASSES) - 1)]
+    ceiling = CLASSES.index("medium") if texts else len(CLASSES) - 1  # a text stays a text
+    length = CLASSES[min(max(start + max(-2, min(1, shift)), floor), ceiling)]
     shows = mood.get("shows")
     if shows in ("angry", "annoyed") or bond.get("grudge"):
         register = "clipped"
@@ -92,11 +93,40 @@ WORD = re.compile(r"(?<!\S)[a-z]{4,}(?=[.,!?;:\u2026]*(?:\s|$))")  # a plain wor
 TEXT_WORDS = 60  # ponytail: a reply longer than this is not a text message (review I1)
 
 
+STARRED = re.compile(r"\*([^*\n]{1,40})\*")
+NOT_VERBS = frozenset({"this", "less", "unless", "always", "perhaps", "yours", "ours", "hers",
+                       "does", "was", "has", "his", "its", "yes"})  # fmt: skip
+
+
+def _emphasis(span: str) -> bool:
+    """`*marlowe*`, `*really*`, `*so much*`: a word or two, none of them a third-person verb
+    (`*smiles*`, `*looks away*` are actions).
+    ponytail: a verb is a word of four letters or more ending in s; a plural noun reads as one."""
+    words = span.split()
+    return (
+        1 <= len(words) <= 2
+        and span == span.strip()
+        and not any(
+            len(w) >= 4 and w.lower().endswith("s") and w.lower() not in NOT_VERBS for w in words
+        )
+    )
+
+
+def marked(text: str) -> bool:
+    """Prose markup: an action in asterisks, `_…_`, or quoted speech. A word or two in asterisks
+    for emphasis is not markup."""
+    return bool(
+        PROSE.search(
+            STARRED.sub(lambda m: m.group(1) if _emphasis(m.group(1)) else m.group(), text)
+        )
+    )
+
+
 def chatty(text: str, name: str) -> bool:
     """Is this reply a text message, not prose? No action markup, no quoted speech, no opening
     pronoun and not her own name (narration names its subject; a text does not). Every doubt
     reads as prose: a false "prose" costs the effect, a false "text" would mangle a story."""
-    if not text.strip() or PROSE.search(text) or len(text.split()) > TEXT_WORDS:
+    if not text.strip() or marked(text) or len(text.split()) > TEXT_WORDS:
         return False
     first = re.match(r"\W*(\w+)", text)
     if first and first.group(1).lower() in PRONOUN:

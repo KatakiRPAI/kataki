@@ -12,7 +12,9 @@ BUZZING = {"label": "excited", "shows": "excited", "word": "buzzing"}
 def test_the_setting_is_where_the_length_starts():
     for setting in ("short", "medium", "long"):
         assert (
-            delivery.style(setting, "What did you do today, then?", None, False, None)["length"]
+            delivery.style(setting, "What did you do today, then?", None, False, None, texts=False)[
+                "length"
+            ]
             == setting
         )
 
@@ -28,8 +30,8 @@ def test_a_curt_line_a_low_mood_and_tiredness_each_shorten_it():
 
 def test_a_long_line_lengthens_it_by_one_at_most():
     long = " ".join(["word"] * 45)
-    assert delivery.style("medium", long, None, False, None)["length"] == "long"
-    assert delivery.style("long", long, BUZZING, False, None)["length"] == "long"
+    assert delivery.style("medium", long, None, False, None, texts=False)["length"] == "long"
+    assert delivery.style("long", long, BUZZING, False, None, texts=False)["length"] == "long"
 
 
 def test_register_follows_what_she_shows_and_where_she_stands():
@@ -189,3 +191,20 @@ def test_brief_needs_a_text_and_never_squeezes_a_decision():
 def test_a_url_or_path_never_gets_a_typo():
     text = "https://harbour.example/tides/today"
     assert all(_plan(text, "messy", typo_ok=True, seed=str(s))["typo"] is None for s in range(40))
+
+
+def test_a_text_is_never_asked_for_a_long_reply():
+    long = " ".join(["word"] * 45)
+    assert delivery.style("long", long, None, False, None)["length"] == "medium"
+    assert delivery.style("long", long, None, False, None, texts=False)["length"] == "long"
+
+
+def test_a_word_or_two_in_asterisks_is_emphasis_not_narration():
+    for text in (
+        "you're not fixing the *marlowe* again?",
+        "i *really* mean it",
+        "*so much* better",
+    ):
+        assert delivery.chatty(text, "Mira") and not delivery.marked(text)
+    for text in ("*looks away* fine", "*she sighs and turns* ok", "*smiles* hey"):
+        assert not delivery.chatty(text, "Mira") and delivery.marked(text)

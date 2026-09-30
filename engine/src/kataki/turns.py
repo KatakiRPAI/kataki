@@ -255,7 +255,7 @@ def _look(conn, story, who: int, path: list, state: dict | None, stood: list,
     answering = answering if answering not in (None, who) else story["persona_entity_id"]
     bond = next((b for b in stood if b.get("other_id") == answering), None)
     mood = inner.public(state, prof) if state else None
-    texts = heard is not None and not delivery.PROSE.search(heard)
+    texts = heard is not None and not delivery.marked(heard)
     got = delivery.style(context.reply_length(conn), heard, mood, tired, bond, texts, weighty)
     return {**got, "heard": heard, "mood": mood, "tired": tired, "texts": texts}
 
