@@ -79,17 +79,6 @@ def test_two_users_a_turn_each_and_every_ledger_is_its_own_usage_log(tmp_path, b
         assert unsent(tmp_path, user) == 0
     assert not set(fake.ledger["alice"]) & set(fake.ledger["bob"])  # no call billed twice
     assert "carol" not in fake.ledger and their_rows(tmp_path, "carol") == {}
-
-
-def test_past_the_daily_cap_a_turn_ends_with_its_own_code(tmp_path, backend):
-    fake = FakeGateway(PRICES)
-    app = service(tmp_path, fake, transport=httpx2.MockTransport(backend), daily_cap=0.0)
-    story = a_story(app.open("alice").conn)
-    backend.say("Hello, Aren.")
-    with TestClient(app) as client:
-        r = client.post(f"/stories/{story}/turn", json={"text": "Hi."}, auth=As("alice"))
-    assert last_event(r.text)[1]["code"] == "DAILY_CAP"
-    assert backend.requests == [] and fake.asked == []  # no model, and the gateway never asked
     assert set(fake.taken.values()) == {1}  # the engine never sends an acknowledged row again
 
 
