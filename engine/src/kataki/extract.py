@@ -15,7 +15,18 @@ import json
 import re
 import sqlite3
 
-from kataki import between, chat, db, embed, features, knobs, library, retrieve, roles
+from kataki import (
+    between,
+    chat,
+    db,
+    embed,
+    features,
+    knobs,
+    library,
+    recollect,
+    retrieve,
+    roles,
+)
 from kataki.activation import FIDELITY
 from kataki.llm import LLM, Endpoint, LLMError
 from kataki.models import extraction_schema, parse_extraction
@@ -55,6 +66,8 @@ class _Applier:
         self.heard = {c["id"]: chat.heard_by(conn, path, c["id"]) for c in characters}
         self.new: dict[str, int] = {}
         self.live = db.live_runs(conn, self.story_id, end["id"])
+        self.path = path
+        self.human = features.enabled(conn, "mind.recall")  # slice 6: versions of memories
 
     def at(self, line: int | None) -> sqlite3.Row:
         """The message a transcript line points at; the window's end when unsure."""
@@ -213,6 +226,31 @@ class _Applier:
                     self.doubt(knower, contradicts, doubt if is_claim else 1.0)
             if asserter is not None:
                 self.know(asserter, memory_id, "witnessed", when=when)  # they know what they said
+                for c in clashes:  # she told a hazy memory of her own differently: her version
+                    self.retold(asserter, self.memory(c.contradicts), item.detail, when)
+
+    def retold(self, who: int, memory_id: int | None, text: str, when: int) -> None:
+        """A retelling reconsolidates (note 14 §7.3): a claim that contradicts a memory its
+        speaker holds only hazily becomes her version of it. Never a sharp, pinned or locked
+        one (a lie about what she clearly knows stays a lie); never on faithful."""
+        if not self.human or memory_id is None or not self.is_live(memory_id):
+            return
+        try:
+            m = self.conn.execute("SELECT * FROM memories WHERE id=?", (memory_id,)).fetchone()
+            if m["pinned"] or m["core_locked"] or recollect.dial(self.conn, who) == "faithful":
+                return
+            here = [p for p in self.path if p["story_time"] <= when]
+            if (
+                retrieve.clarity(self.conn, self.story_id, who, memory_id, here, self.live)
+                != "hazy"
+            ):
+                return
+            ids = {p["id"] for p in self.path}
+            mine = recollect.version(self.conn, who, memory_id, self.live, ids, when)
+            recollect.write(self.conn, who, memory_id, "retelling", text, when,
+                            parent=mine and mine["id"], run=self.run_id)  # fmt: skip
+        except Exception as e:
+            self.warnings.append(f"no version kept for M{memory_id}: {e}")
 
     def mix_ups(self, index: int, item) -> list[dict]:
         """The alts code can plant later with the truth in hand (slice 6): `right` must stand in
@@ -272,6 +310,13 @@ class _Applier:
                 self.warnings.append(f"knowledge[{i}] skipped: unknown reference")
                 continue
             self.know(knower, memory_id, k.source, self.entity(k.told_by))
+            if self.human and k.source == "told" and (teller := self.entity(k.told_by)):
+                try:  # told by someone with a version of it: that version is what they hear
+                    ids = {p["id"] for p in self.path}
+                    recollect.pass_on(self.conn, teller, knower, memory_id, self.live, ids,
+                                      self.now, run=self.run_id)  # fmt: skip
+                except Exception as e:
+                    self.warnings.append(f"knowledge[{i}]: version not passed on: {e}")
         for i, f in enumerate(parsed["flags"]):
             if f is None:
                 continue

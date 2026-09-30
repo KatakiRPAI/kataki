@@ -19,7 +19,19 @@ import re
 import sqlite3
 from collections.abc import Callable
 
-from kataki import bonds, chat, clock, db, features, honesty, inner, knobs, retrieve, roles
+from kataki import (
+    bonds,
+    chat,
+    clock,
+    db,
+    features,
+    honesty,
+    inner,
+    knobs,
+    recollect,
+    retrieve,
+    roles,
+)
 from kataki.activation import FIDELITY
 from kataki.llm import LLM
 
@@ -516,7 +528,18 @@ class _Tick:
                                  f["importance"], bool(f["covert"]))  # fmt: skip
                     if self.rng(a, b, "gossip", f["id"]).random() < p:
                         self.know(b, f["id"], "told", a, TOLD_BELIEF, self.now)
+                        self.version(a, b, f["id"], live)
                         passed += 1
+
+    def version(self, teller: int, hearer: int, memory: int, live: set[int]) -> None:
+        """What is passed on is the teller's own version of it (slice 6), if they hold one."""
+        try:
+            if features.enabled(self.conn, "mind.recall"):
+                ids = {m["id"] for m in self.path}
+                recollect.pass_on(self.conn, teller, hearer, memory, live, ids, self.now,
+                                  run=self.run)  # fmt: skip
+        except Exception as e:
+            logging.getLogger(__name__).warning("version not passed on: %s", e)
 
 
 def _tag(conn: sqlite3.Connection, memory_id: int, tags: list[str]) -> None:
@@ -871,10 +894,11 @@ def on_mind(
                                "text": top and top["text"], "news": news and news["id"],
                                "reentry": True},
                 }  # fmt: skip
-    pick = next(
-        (s for s in seeds if offered.get(s["id"], 0) < SURFACE and not s["payload"].get("absence")),
+    pick = next(  # a correction is not a thought to share: the repair decides it (slice 6)
+        (s for s in seeds if offered.get(s["id"], 0) < SURFACE and not s["payload"].get("absence")
+         and s["kind"] != "correction"),
         None,
-    )
+    )  # fmt: skip
     if pick is None:
         return None
     them = user or "them"

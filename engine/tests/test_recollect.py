@@ -153,3 +153,147 @@ def test_a_turn_recalls_with_her_mood_and_never_breaks_on_a_bad_state():
 
     assert turns._mood_of({"mood": {"v": -0.4, "a": 0.2, "d": 0}}) == -0.4
     assert turns._mood_of(None) is turns._mood_of({"mood": {}}) is None
+
+
+# --- her version: a hazy detail drifts, with the truth kept ---------------------------------
+
+THURSDAY = {"slot": "when", "right": "on Thursday", "wrong": "on Tuesday"}
+DRIFTED = "Tobin spoke of turning on the guild, on Tuesday."
+
+
+def test_how_often_a_detail_drifts_follows_the_dial_and_importance():
+    assert recollect.drift_p(6, "faithful") == 0
+    assert recollect.drift_p(6, "human") == pytest.approx(0.22)
+    assert recollect.drift_p(6, "dreamlike") == pytest.approx(0.33)
+    assert recollect.drift_p(1, "human") == pytest.approx(0.37)
+    assert recollect.drift_p(0, "human") == 0.4 and recollect.drift_p(0, "dreamlike") == 0.6
+
+
+@pytest.fixture
+def always(monkeypatch):
+    monkeypatch.setattr(recollect, "drift_p", lambda importance, dial: 1.0)
+
+
+def rows(conn, table):
+    return [dict(r) for r in conn.execute(f"SELECT * FROM {table} ORDER BY id")]
+
+
+def test_a_hazy_detail_drifts_into_her_version_and_the_truth_is_kept(conn, world, always):
+    memory = hazy(conn, world, alts=[THURSDAY])
+    (got,) = recall(conn, world)
+    assert got.text == DRIFTED and got.breakdown["drift"] == THURSDAY
+    leaf = chat.active_path(conn, world)[-1]["id"]
+    [mine] = rows(conn, "recollections")
+    assert (mine["basis"], mine["text"], mine["memory_id"], mine["message_id"]) == (
+        "alt", DRIFTED, memory, leaf
+    )  # fmt: skip
+    [fix] = rows(conn, "seeds")
+    assert (fix["kind"], fix["text"], fix["memory_id"], fix["message_id"]) == (
+        "correction", "it was on Thursday, not on Tuesday", memory, leaf
+    )  # fmt: skip
+    assert conn.execute("SELECT detail FROM memories").fetchone()[0] == DETAIL  # the truth
+    assert recall(conn, world)[0].text == DRIFTED  # stable: her version now
+    assert len(rows(conn, "recollections")) == len(rows(conn, "seeds")) == 1
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [{"core_locked": True}, {"importance": 8}, {}],
+    ids=["locked", "canon", "sharp"],
+)
+def test_what_may_never_drift_never_does(conn, world, always, extra):
+    if extra:
+        hazy(conn, world, alts=[THURSDAY], **extra)
+    else:  # fresh, so sharp
+        extracted(conn, world, {"memories": [betrayal(conn, alts=[THURSDAY])]})
+    assert "Tuesday" not in recall(conn, world)[0].text
+    assert rows(conn, "recollections") == [] == rows(conn, "seeds")
+
+
+def test_faithful_never_drifts_and_off_is_todays_recall(conn, world, always):
+    hazy(conn, world, alts=[THURSDAY])
+    conn.execute("INSERT INTO settings(key, value) VALUES('realism.memory', '\"faithful\"')")
+    assert recall(conn, world)[0].text == GIST
+    conn.execute("UPDATE settings SET value='\"human\"' WHERE key='realism.memory'")
+    off(conn)
+    assert recall(conn, world)[0].text == GIST
+    assert rows(conn, "recollections") == []
+
+
+def test_her_version_stays_on_its_branch(conn, world, always, monkeypatch):
+    hazy(conn, world, alts=[THURSDAY])
+    assert recall(conn, world)[0].text == DRIFTED
+    monkeypatch.setattr(recollect, "drift_p", lambda importance, dial: 0.0)
+    leaf = chat.active_path(conn, world)[-1]["id"]
+    chat.append_sibling(conn, leaf, "Another take.")
+    assert recall(conn, world)[0].text == GIST
+
+
+def test_a_reading_never_writes(conn, world, always):
+    hazy(conn, world, alts=[THURSDAY])
+    assert recall(conn, world, log=False)[0].text == DRIFTED
+    assert rows(conn, "recollections") == [] == rows(conn, "seeds")
+
+
+# --- a retelling becomes her version, and travels -------------------------------------------
+
+
+def claim(conn, detail, memory):
+    return {
+        "memories": [
+            {
+                "kind": "claim",
+                "detail": detail,
+                "gist": "Mira spoke of Tobin and the guild.",
+                "participants": [{"ref": h(conn, "Tobin"), "role": "subject"}],
+                "asserted_by": h(conn, "Mira"),
+                "heard_by": [h(conn, "Aren")],
+            }
+        ],
+        "contradictions": [
+            {"claim": 0, "contradicts": f"M{memory}", "hearer": h(conn, "Aren"),
+             "resolution": "accepted"}
+        ],
+    }  # fmt: skip
+
+
+TOLD = "Tobin said he would turn on the guild at the mill."
+
+
+def test_a_claim_against_her_own_hazy_memory_becomes_her_version(conn, world):
+    memory = hazy(conn, world)
+    extracted(conn, world, claim(conn, TOLD, memory))
+    [mine] = rows(conn, "recollections")
+    assert (mine["knower_id"], mine["memory_id"], mine["basis"], mine["text"]) == (
+        eid(conn, "Mira"), memory, "retelling", TOLD
+    )  # fmt: skip
+    assert memory in [r.memory_id for r in recall(conn, world) if r.text == TOLD]
+
+
+def test_a_claim_against_a_sharp_memory_stays_a_claim(conn, world):
+    extracted(conn, world, {"memories": [betrayal(conn)]})
+    memory = conn.execute("SELECT id FROM memories").fetchone()[0]
+    extracted(conn, world, claim(conn, TOLD, memory))
+    assert rows(conn, "recollections") == []
+
+
+def test_telling_someone_passes_on_her_version(conn, world):
+    memory = hazy(conn, world)
+    extracted(conn, world, claim(conn, TOLD, memory))
+    told = {"knower": h(conn, "Dara"), "memory": f"M{memory}", "source": "told",
+            "told_by": h(conn, "Mira")}  # fmt: skip
+    extracted(conn, world, {"knowledge": [told]})
+    mira, dara = rows(conn, "recollections")
+    assert (dara["knower_id"], dara["text"], dara["parent_id"], dara["basis"]) == (
+        eid(conn, "Dara"), TOLD, mira["id"], "retelling"
+    )  # fmt: skip
+
+
+def test_a_pending_correction_is_never_offered_as_something_on_her_mind(conn, world, always):
+    from kataki import between
+
+    hazy(conn, world, alts=[THURSDAY])
+    recall(conn, world)
+    path = chat.active_path(conn, world)
+    assert [s["kind"] for s in between.open_seeds(conn, eid(conn, "Mira"), path)] == ["correction"]
+    assert between.on_mind(conn, world, eid(conn, "Mira"), path, "Aren") is None
