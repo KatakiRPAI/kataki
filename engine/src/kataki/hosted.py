@@ -34,7 +34,9 @@ from kataki.server import create_app
 
 log = logging.getLogger(__name__)
 
-USER = re.compile(r"[A-Za-z0-9_-]{1,64}")  # a library id names a folder: nothing else gets in
+# a library id names a folder: nothing else gets in. Lowercase only (a case-blind disk would give
+# `Alice` and `alice` one folder), and never a Windows device name
+USER = re.compile(r"(?!(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$)[a-z0-9_-]{1,64}")
 WINDOW = 60  # seconds a signature is good for, either way (clock skew, and no replays after)
 
 

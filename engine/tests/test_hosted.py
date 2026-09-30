@@ -86,6 +86,9 @@ def test_a_signature_is_good_for_its_own_request_only(method, target):
         {**signed(), "x-kataki-time": "soon"},
         signed(user="../bob"),  # signed, but it names a folder: never trusted to
         signed(user=""),
+        signed(user="Alice"),  # lowercase only: `alice`'s folder on a case-blind disk
+        signed(user="con"),  # Windows device names are no folder at all
+        signed(user="lpt1"),
     ],
 )
 def test_anything_else_is_nobody(headers):
