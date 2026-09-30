@@ -8,6 +8,7 @@ unless they are on stable. One registry serves the desktop app and Kataki online
 
 import os
 import sqlite3
+from contextvars import ContextVar
 
 from kataki import knobs
 
@@ -26,10 +27,21 @@ FEATURES = {
 }
 
 
-def channel() -> str:
+# the channel of the request being served, from its host (track B1): online, the account's.
+# A ContextVar, so a turn's task and the worker it pokes keep their user's channel; unset (the
+# CLI, tests, anything outside a request) means the build's.
+CURRENT: ContextVar[str | None] = ContextVar("channel", default=None)
+
+
+def from_env() -> str:
     """The build's channel. Electron sets KATAKI_CHANNEL from the app version (-alpha.N, -beta.N,
     else stable); a source checkout or a headless engine without it is alpha."""
-    value = os.environ.get("KATAKI_CHANNEL", "alpha")
+    return os.environ.get("KATAKI_CHANNEL", "alpha")
+
+
+def channel() -> str:
+    """This request's channel (its host's), else the build's. Anything unknown is stable."""
+    value = CURRENT.get() or from_env()
     return value if value in STAGES else "stable"
 
 

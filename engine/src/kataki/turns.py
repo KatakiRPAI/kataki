@@ -42,7 +42,7 @@ from kataki import (
     speech,
     thought,
 )
-from kataki.llm import LLM, LLMError, anti_slop
+from kataki.llm import LLM, LLMError, NoCredit, anti_slop
 
 Event = tuple[str, Any]
 NARRATOR = "narrator"
@@ -386,7 +386,10 @@ async def _read_past_before_skip(
     while any(m["skip_minutes"] >= context.BIG_SKIP for m in extract.pending(conn, story_id)[1:]):
         if (job := extract.due(conn, story_id, get_key)) is None:
             return
-        run_id = await extract.read(conn, llm, story_id, *job)
+        try:
+            run_id = await extract.read(conn, llm, story_id, *job)
+        except NoCredit:
+            return  # the reply asks the gate itself, and says so
         status = conn.execute("SELECT status FROM extraction_runs WHERE id=?", (run_id,))
         if (row := status.fetchone()) is None or row[0] != "ok":
             return  # the model can't read right now: reply anyway, the window stays whole
@@ -776,6 +779,7 @@ async def _generate(
     header, before = thought.Header(False, "", ep.think_tags), None
     guard = honesty.Guard([])
     finish, error, message_id, text, skip = "stopped", None, None, "", 0
+    code = None  # NO_CREDIT: the reply was refused before it was sent
     first_thought = first_token = first_word = None  # think_ms: first thought to first word
     asked = time.monotonic()
     try:
@@ -871,7 +875,7 @@ async def _generate(
                 logging.getLogger(__name__).warning("resample prompt skipped: %s", e)
         finish = "stop"
     except LLMError as e:
-        finish, error = "error", str(e)
+        finish, error, code = "error", str(e), getattr(e, "code", None)
     finally:  # runs on finish, on error, and when the client stops the stream
         # stopped while held: keep it, in the order it was written (header, prefix, opener)
         tail = prefix.feed(header.flush()) + prefix.flush()
@@ -1019,7 +1023,10 @@ async def _generate(
             context.calibrate(conn, ep.model, chars, prompt_tokens)
 
     if error:
-        yield ("error", {"message": error, "message_id": message_id})
+        yield (
+            "error",
+            {"message": error, "message_id": message_id, **({"code": code} if code else {})},
+        )
     elif message_id is None:
         yield ("error", {"message": "The model returned an empty reply."})
     else:
@@ -1189,7 +1196,8 @@ async def _ooc(
                 elif what == "done":
                     done = value
         except LLMError as e:
-            yield ("error", {"message": str(e)})
+            code = getattr(e, "code", None)
+            yield ("error", {"message": str(e), **({"code": code} if code else {})})
             return
         said, usage = "".join(parts).strip(), done.get("usage")
         text = said if said and not honesty.HUMAN.search(said) else honesty.AI_ANSWER

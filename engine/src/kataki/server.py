@@ -57,7 +57,8 @@ from kataki import (
     turns,
     usage,
 )
-from kataki.llm import LLM, LLMError
+from kataki.host import Host, LocalHost
+from kataki.llm import LLM, SAMPLER_KEYS, LLMError, NoCredit
 
 LOCAL_SERVERS = {  # where the first-run wizard looks for a model already running here
     "llama.cpp": "http://127.0.0.1:8080/v1",
@@ -318,10 +319,26 @@ def create_app(
     image_transport=None,  # tests script the HF router here
     web_dir: Path | None = None,  # the built app, served under /app/ for any browser
     db_path: Path | None = None,  # the library's file: backups live beside it
+    host: Host | None = None,  # where it runs (track B1); None: the desktop, keys from get_key
 ) -> FastAPI:
+    host = host or LocalHost(get_key=get_key)
+    get_key = host.get_key
     llm = llm or LLM()
-    if llm.on_usage is None:  # the host may bring its own meter (Kataki online)
-        llm.on_usage = functools.partial(usage.record, conn)
+    billed = host.meter is not None or host.allow is not None
+    if billed and (llm.on_usage is not None or llm.allow is not None):
+        # one LLM per app: a shared one would bill and gate one user's calls as another's
+        raise ValueError("this LLM already meters or gates another app; give each app its own")
+    if llm.on_usage is None:  # a test may bring its own meter
+        llm.on_usage = functools.partial(host.on_usage, conn)
+    if host.allow is not None:  # the credit gate (track B3), priced in dollars for the host
+
+        def gate(ep, ask) -> bool:
+            estimate = usage.cost(host.price_table(conn), ep.model, ep.role, ask)
+            return estimate is not None and host.allow(ep, estimate)  # unpriced: not billable
+
+        llm.allow = gate
+    if not host.local_routes:  # online: a role's raw JSON tunes the sampler, not the bill
+        llm.body_keys = SAMPLER_KEYS
     worker = extract.Worker(conn, llm, get_key, delay=worker_delay)
     extract.recover(conn)
 
@@ -337,8 +354,21 @@ def create_app(
                 return
         raise HTTPException(401, "missing or invalid token")
 
+    async def this_host():
+        """Every request runs on its host's channel (async: the ContextVar is set in the
+        request's own task, so its turn and anything it pokes inherit it)."""
+        features.CURRENT.set(host.channel())
+
+    def local_only():
+        """Routes about this machine (providers and keys, backups on disk) exist only here, and
+        so do pictures until they are priced, gated and metered (track B4)."""
+        if not host.local_routes:
+            raise HTTPException(404, "Not Found")
+
     app = FastAPI(
-        title="Kataki RPAI engine", version=__version__, dependencies=[Depends(require_token)]
+        title="Kataki RPAI engine",
+        version=__version__,
+        dependencies=[Depends(require_token), Depends(this_host)],
     )
 
     @app.exception_handler(sqlite3.OperationalError)
@@ -356,6 +386,18 @@ def create_app(
         if code is None:
             raise e
         return JSONResponse({"detail": {"code": code, "message": str(e)}}, status_code=507)
+
+    @app.exception_handler(NoCredit)
+    async def no_credit(request: Request, e: NoCredit):
+        """Refused before it was sent (spec §8.4): 402, said as a code the app can act on."""
+        detail = {"code": e.code, "message": str(e)}
+        return JSONResponse({"code": e.code, "detail": detail}, status_code=402)
+
+    def failed(e: LLMError, said: str = "") -> Exception:
+        """A model call that failed is the provider's 502, but a refusal stays a refusal."""
+        if isinstance(e, NoCredit):  # a fresh one, so `raise failed(e) from e` is not e from e
+            return NoCredit(str(e))
+        return HTTPException(502, f"{said}{e}")
 
     # Any origin is fine: auth is a bearer token, not a cookie, so a foreign page has
     # nothing to ride on.
@@ -428,7 +470,8 @@ def create_app(
                 async for event in events:
                     await queue.put(event)
             except Exception as e:  # a bug must still end the stream for the client
-                await queue.put(("error", {"message": f"{type(e).__name__}: {e}"}))
+                code = {"code": e.code} if isinstance(e, NoCredit) else {}
+                await queue.put(("error", {"message": f"{type(e).__name__}: {e}", **code}))
             finally:
                 queue.put_nowait(None)
                 worker.poke(story_id)  # the story may now have lines worth remembering
@@ -472,7 +515,7 @@ def create_app(
             "version": __version__,
             "schema": schema,
             "channel": features.channel(),
-            "host": "desktop",
+            "host": host.name,
         }
 
     @app.get("/features")
@@ -517,6 +560,8 @@ def create_app(
 
     @app.put("/settings")
     async def put_settings(values: dict):
+        if "prices" in values and host.prices is not None:  # online: the service's table
+            raise HTTPException(403, "Prices are set by the service.")
         with conn:
             for key, value in values.items():
                 conn.execute(
@@ -535,11 +580,11 @@ def create_app(
             "has_key": bool(get_key(row["name"])),
         }
 
-    @app.get("/providers")
+    @app.get("/providers", dependencies=[Depends(local_only)])
     async def list_providers():
         return [provider_out(r) for r in conn.execute("SELECT * FROM providers ORDER BY name")]
 
-    @app.post("/providers", status_code=201)
+    @app.post("/providers", status_code=201, dependencies=[Depends(local_only)])
     async def add_provider(p: ProviderIn):
         try:
             with conn:
@@ -553,7 +598,7 @@ def create_app(
             roles.set_key(p.name, p.api_key)
         return provider_out(_row(conn, "SELECT * FROM providers WHERE id=?", (pid,)))
 
-    @app.patch("/providers/{pid}")
+    @app.patch("/providers/{pid}", dependencies=[Depends(local_only)])
     async def edit_provider(pid: int, p: ProviderPatch):
         old = _row(conn, "SELECT * FROM providers WHERE id=?", (pid,))
         fields = p.model_dump(exclude_unset=True, exclude={"api_key"})
@@ -570,7 +615,7 @@ def create_app(
             roles.delete_key(name)
         return provider_out(_row(conn, "SELECT * FROM providers WHERE id=?", (pid,)))
 
-    @app.delete("/providers/{pid}", status_code=204)
+    @app.delete("/providers/{pid}", status_code=204, dependencies=[Depends(local_only)])
     async def remove_provider(pid: int):
         old = _row(conn, "SELECT * FROM providers WHERE id=?", (pid,))
         with conn:
@@ -580,7 +625,7 @@ def create_app(
             conn.execute("DELETE FROM providers WHERE id=?", (pid,))
         roles.delete_key(old["name"])
 
-    @app.get("/providers/detect")
+    @app.get("/providers/detect", dependencies=[Depends(local_only)])
     async def detect_providers():
         """Model servers already running on this machine, for the first-run wizard."""
 
@@ -592,13 +637,13 @@ def create_app(
         found = await asyncio.gather(*(probe(n, u) for n, u in LOCAL_SERVERS.items()))
         return [f for f in found if f]
 
-    @app.get("/providers/{pid}/models")
+    @app.get("/providers/{pid}/models", dependencies=[Depends(local_only)])
     async def provider_models(pid: int):
         p = _row(conn, "SELECT * FROM providers WHERE id=?", (pid,))
         try:
             return {"models": await llm.list_models(p["base_url"], get_key(p["name"]))}
         except LLMError as e:
-            raise HTTPException(502, str(e)) from e
+            raise failed(e) from e
 
     @app.get("/roles")
     async def list_roles(story_id: int | None = None):
@@ -625,7 +670,7 @@ def create_app(
         try:
             kind = await roles.probe_kind(llm, ep)
         except LLMError as e:
-            raise HTTPException(502, str(e)) from e
+            raise failed(e) from e
         source = next(r for r in roles.routing(conn) if r["role"] == role)
         with conn:
             conn.execute(
@@ -705,9 +750,9 @@ def create_app(
         try:
             return await draft.character(llm, ep, d.words)
         except LLMError as e:
-            raise HTTPException(502, f"The model could not write a profile: {e}") from e
+            raise failed(e, "The model could not write a profile: ") from e
 
-    @app.post("/library/{item_id}/draw")
+    @app.post("/library/{item_id}/draw", dependencies=[Depends(local_only)])
     async def draw_item(item_id: int, d: DrawIn):
         """A place's background, or a character's first picture, from their own words: one
         paid call through the image job. It replaces the picture they had."""
@@ -747,7 +792,7 @@ def create_app(
         library.update_item(conn, item_id, data=data)
         return library.get_item(conn, item_id)
 
-    @app.post("/library/{item_id}/look")
+    @app.post("/library/{item_id}/look", dependencies=[Depends(local_only)])
     async def make_look(item_id: int, d: LookIn):
         """A character's sprites: each asked-for expression edited from their portrait (the
         sheet) and cut out, all at once. Two paid calls each. What worked is kept even when
@@ -867,7 +912,8 @@ def create_app(
     async def import_kataki(request: Request):
         """A `.kataki` poured into this library, which must be empty."""
         try:
-            return archive.restore(conn, await request.body())
+            keep = () if host.local_routes else archive.MANAGED  # online: the service's own
+            return archive.restore(conn, await request.body(), keep)
         except archive.BadArchive as e:
             raise HTTPException(422, str(e)) from None
 
@@ -1235,7 +1281,7 @@ def create_app(
         except speech.Refused as e:
             raise HTTPException(e.status, str(e)) from None
         except LLMError as e:
-            raise HTTPException(502, str(e)) from e
+            raise failed(e) from e
 
     @app.get("/stories/{story_id}/feelings")
     async def get_feelings(story_id: int, who: int, about: int | None = None):
@@ -1296,6 +1342,17 @@ def create_app(
         """While you were away: what each character's time between scenes held (minds slice 5).
         The card polls this until `done`."""
         return between.away(conn, story_row(story_id))
+
+    @app.get("/stories/{story_id}/spend")
+    async def get_spend(story_id: int):
+        """What this story's model calls cost, by role and day, and a turn at each mind level
+        (minds spec §8.4, track B2). No call is made."""
+        story_row(story_id)
+        prices = host.price_table(conn)
+        return {
+            **usage.spend(conn, story_id, prices),
+            "per_turn": usage.per_turn(conn, story_id, prices),
+        }
 
     @app.post("/stories/{story_id}/turn")
     async def take_turn(story_id: int, t: TurnIn):
@@ -1486,7 +1543,7 @@ def create_app(
         try:
             new_id = await extract.reread(conn, llm, run_id, r.role, get_key)
         except LLMError as e:  # the old reading is still there
-            raise HTTPException(502, str(e)) from e
+            raise failed(e) from e
         if new_id is None:
             raise HTTPException(409, f"no model is set for {r.role!r}")
         return run_out(_row(conn, "SELECT * FROM extraction_runs WHERE id=?", (new_id,)))
@@ -1646,7 +1703,7 @@ def create_app(
 
     if db_path is not None:
 
-        @app.get("/storage")
+        @app.get("/storage", dependencies=[Depends(local_only)])
         async def storage():
             """Where the library lives on this computer, and how big it is (K10)."""
 
@@ -1678,16 +1735,16 @@ def create_app(
                 "total": disk.total,
             }
 
-        @app.get("/backups")
+        @app.get("/backups", dependencies=[Depends(local_only)])
         async def list_backups():
             return backups.listing(db_path)
 
-        @app.post("/backups", status_code=201)
+        @app.post("/backups", status_code=201, dependencies=[Depends(local_only)])
         async def back_up_now():
             keep = conn.execute("SELECT value FROM settings WHERE key='backups.keep'").fetchone()
             return backups.make(conn, db_path, json.loads(keep[0]) if keep else "7")
 
-        @app.post("/backups/{name}/restore", status_code=202)
+        @app.post("/backups/{name}/restore", status_code=202, dependencies=[Depends(local_only)])
         async def restore_backup(name: str):
             """Asked for now, done at the next start (the app restarts to finish)."""
             try:

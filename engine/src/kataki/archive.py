@@ -33,6 +33,9 @@ MAX_MANIFEST = 64 * 1024  # a manifest is four fields
 DERIVED = ("memories_fts",)
 # What a first run writes before there is any library: the backup's copy wins over this one's.
 REPLACED = ("providers", "model_roles", "settings", "tags")
+# Online, these are the service's (a provider named like the service's with another address would
+# be sent the service's key): an import leaves them as they are, whatever the file holds.
+MANAGED = ("providers", "model_roles", "settings", "usage_log")
 
 
 class BadArchive(ValueError):
@@ -182,8 +185,9 @@ def _room_for_it(conn: sqlite3.Connection, tables: list[str]) -> None:
         )
 
 
-def restore(conn: sqlite3.Connection, blob: bytes) -> dict:
-    """Pour a `.kataki` into this library, which must have no story of its own. What arrived."""
+def restore(conn: sqlite3.Connection, blob: bytes, keep: tuple[str, ...] = ()) -> dict:
+    """Pour a `.kataki` into this library, which must have no story of its own. What arrived.
+    Tables in `keep` are left exactly as they are here (online: MANAGED)."""
     if len(blob) > MAX_BYTES:
         raise BadArchive("that file is too big to be a library.")
 
@@ -209,7 +213,7 @@ def restore(conn: sqlite3.Connection, blob: bytes) -> dict:
 
                 # Drive the copy off our own tables, never the stranger's: an extra table in
                 # there is nothing here, and a missing one is a library that is not whole.
-                ours = _tables(conn)
+                ours = [t for t in _tables(conn) if t not in keep]
                 if missing := [t for t in ours if t not in theirs]:
                     raise BadArchive(
                         f"the library in this file has no {missing[0]}, so it is not a library."
@@ -236,7 +240,7 @@ def _copy(conn: sqlite3.Connection, incoming: Path, tables: list[str]) -> None:
     conn.execute("ATTACH DATABASE ? AS incoming", (str(incoming),))
     try:
         with conn:
-            for table in REPLACED:
+            for table in (t for t in REPLACED if t in tables):
                 conn.execute(f'DELETE FROM main."{table}"')
             for table in tables:
                 conn.execute(f'INSERT INTO main."{table}" SELECT * FROM incoming."{table}"')

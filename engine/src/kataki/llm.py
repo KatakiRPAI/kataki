@@ -10,6 +10,7 @@ import asyncio
 import contextlib
 import json
 import logging
+import math
 import re
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
@@ -31,6 +32,15 @@ RETRY_AFTER = 2.0  # seconds before asking a busy provider again; doubled each t
 BUSY = (429, 502, 503)  # busy or briefly down: nothing was generated, so nothing is billed
 TRIES = 3
 THINKING_TEMPERATURE = 0.6  # Qwen's recommended thinking-mode temperature
+# Online, a role's raw JSON may tune these and nothing else: never the model, the count, the usage
+# report or the length the credit gate priced (track B3).
+SAMPLER_KEYS = frozenset(
+    ("temperature", "top_p", "top_k", "min_p", "typical_p", "top_a", "tfs", "seed", "stop")
+    + ("repetition_penalty", "frequency_penalty", "presence_penalty", "logit_bias")
+    + ("dry_multiplier", "dry_base", "dry_allowed_length", "dry_sequence_breakers")
+    + ("xtc_threshold", "xtc_probability", "mirostat", "mirostat_tau", "mirostat_eta")
+)
+ASK_OUT = 1000  # ponytail: output tokens the credit gate assumes when a request names no limit
 SPELLED_OUT = (
     "Reply with one JSON object that follows this JSON schema exactly, field names and all:\n"
 )
@@ -63,6 +73,13 @@ def anti_slop(ep: "Endpoint", xtc: bool = False) -> dict:
 
 class LLMError(Exception):
     pass
+
+
+class NoCredit(LLMError):
+    """The host refused the call before it was sent (Kataki online: the balance cannot cover
+    it; spec §8.4). Nothing reached a provider, so nothing is billed."""
+
+    code = "NO_CREDIT"
 
 
 @dataclass(frozen=True)
@@ -151,6 +168,11 @@ class LLM:
         # called with (endpoint, usage) after every call that reports usage: the desktop
         # records it in usage_log, Kataki online bills it (spec §4)
         self.on_usage: Callable[[Endpoint, dict], None] | None = None
+        # asked before every request with (endpoint, estimated usage): False refuses it
+        # (NoCredit). None, the desktop: nothing is ever refused (track B3)
+        self.allow: Callable[[Endpoint, dict], bool] | None = None
+        # the role body keys that reach a request; None, the desktop: all of them, verbatim
+        self.body_keys: frozenset[str] | None = None
 
     async def aclose(self) -> None:
         await self._client.aclose()
@@ -159,15 +181,21 @@ class LLM:
     def _headers(api_key: str | None) -> dict:
         return {"Authorization": f"Bearer {api_key}"} if api_key else {}
 
-    @staticmethod
-    def _body(ep: Endpoint, messages: list[dict], **extra) -> dict:
+    def _own(self, ep: Endpoint) -> dict:
+        """The role's raw JSON: verbatim on the desktop, only `body_keys` online."""
+        said = ep.params.get("body", {})
+        if self.body_keys is None:
+            return said
+        return {k: v for k, v in said.items() if k in self.body_keys}
+
+    def _body(self, ep: Endpoint, messages: list[dict], **extra) -> dict:
         room = {"max_tokens": THINKING_MAX_TOKENS} if ep.thinks else {}
         body = {"model": ep.model, "messages": messages, **room, **extra}
         if (thinking := ep.params.get("thinking", "default")) != "default":
             body["chat_template_kwargs"] = {"enable_thinking": thinking == "enabled"}
         if effort := ep.params.get("reasoning_effort"):
             body["reasoning_effort"] = effort
-        body.update(ep.params.get("body", {}))  # the user's raw JSON wins, verbatim
+        body.update(self._own(ep))  # the user's raw JSON wins
         return body
 
     async def _send(self, method: str, url: str, api_key: str | None, body: dict | None = None):
@@ -176,6 +204,26 @@ class LLM:
         except httpx2.TransportError as e:
             raise LLMError(f"cannot reach {url}: {e}") from e
         return r
+
+    @staticmethod
+    def _guess(messages: list[dict], streamed: int) -> dict:
+        """What a call used when the provider never said (stopped, dropped, failed mid-way, or a
+        backend that reports nothing): characters / 4 each way (track B2)."""
+        sent = sum(len(str(m.get("content") or "")) for m in messages)
+        return {
+            "prompt_tokens": math.ceil(sent / 4),
+            "completion_tokens": math.ceil(streamed / 4),
+            "estimated": True,
+        }
+
+    def _gate(self, ep: Endpoint, ask: dict) -> None:
+        """The credit gate: one question per request, before it is sent."""
+        if self.allow is not None and not self.allow(ep, ask):
+            raise NoCredit("There is not enough credit left for this. Top up to go on.")
+
+    def _asking(self, messages: list[dict], out: int | None) -> dict:
+        """A request's usage as the gate prices it: what it sends, and all it may write."""
+        return {**self._guess(messages, 0), "completion_tokens": out or ASK_OUT}
 
     def _used(self, ep: Endpoint, usage: dict | None) -> None:
         if usage and self.on_usage:
@@ -205,40 +253,50 @@ class LLM:
         refused = False
         splitter = ThinkSplitter(*ep.think_tags)
         usage = timings = None
+        live = metered = False  # a request that got a 2xx is metered once, however it ends
+        streamed = 0
         try:
-            for extra_samplers in tries:
-                body = self._body(
-                    ep, messages, stream=True, stream_options={"include_usage": True}, **extra
-                )
-                body = {**(extra_samplers or {}), **body}
-                async with self._stream(url, body, ep.api_key) as r:
-                    if r.status_code >= 400:
-                        await r.aread()
-                        if extra_samplers and r.status_code in (400, 422):
-                            refused = True  # the samplers, or something else? the retry tells
-                            continue
-                        self._check(r)
-                    if refused:  # only without them did it work: it refuses them, stop sending
-                        self._rejected.add(key)
-                    async for chunk in self._chunks(r, url):
-                        usage = chunk.get("usage") or usage
-                        timings = chunk.get("timings") or timings  # llama.cpp: cache hits here
-                        for choice in chunk.get("choices") or []:
-                            delta = choice.get("delta") or {}
-                            if thought := delta.get("reasoning_content") or delta.get("reasoning"):
-                                yield ("thought", thought)
-                            if content := delta.get("content"):
-                                for event in splitter.feed(content):
-                                    yield event
-                break
-        except httpx2.TransportError as e:
-            raise LLMError(f"cannot reach {url}: {e}") from e
-        for event in splitter.flush():
-            yield event
-        # ponytail: a reply stopped mid-stream never gets the final usage chunk, so it is not
-        # recorded; Kataki online meters those from streamed length (track B3)
-        self._used(ep, usage)
-        yield ("done", {"usage": usage, **({"timings": timings} if timings else {})})
+            try:
+                for extra_samplers in tries:
+                    body = self._body(
+                        ep, messages, stream=True, stream_options={"include_usage": True}, **extra
+                    )
+                    body = {**(extra_samplers or {}), **body}
+                    self._gate(ep, self._asking(messages, body.get("max_tokens")))
+                    async with self._stream(url, body, ep.api_key) as r:
+                        if r.status_code >= 400:
+                            await r.aread()
+                            if extra_samplers and r.status_code in (400, 422):
+                                refused = True  # the samplers, or something else? retry tells
+                                continue
+                            self._check(r)
+                        if refused:  # only without them did it work: it refuses them, stop
+                            self._rejected.add(key)
+                        live = True
+                        async for chunk in self._chunks(r, url):
+                            usage = chunk.get("usage") or usage
+                            timings = chunk.get("timings") or timings  # llama.cpp: cache hits
+                            for choice in chunk.get("choices") or []:
+                                delta = choice.get("delta") or {}
+                                thought = delta.get("reasoning_content") or delta.get("reasoning")
+                                if thought:
+                                    streamed += len(thought)
+                                    yield ("thought", thought)
+                                if content := delta.get("content"):
+                                    streamed += len(content)
+                                    for event in splitter.feed(content):
+                                        yield event
+                    break
+            except httpx2.TransportError as e:
+                raise LLMError(f"cannot reach {url}: {e}") from e
+            for event in splitter.flush():
+                yield event
+            metered = True
+            self._used(ep, usage or self._guess(messages, streamed))
+            yield ("done", {"usage": usage, **({"timings": timings} if timings else {})})
+        finally:  # stopped, dropped for a retake, or failed mid-way: the final usage never came
+            if live and not metered:
+                self._used(ep, usage or self._guess(messages, streamed))
 
     @contextlib.asynccontextmanager
     async def _stream(self, url: str, body: dict, api_key: str | None):
@@ -293,7 +351,8 @@ class LLM:
             body["temperature"] = THINKING_TEMPERATURE if ep.thinks else 0
             if fmt:
                 body["response_format"] = fmt
-            text, finish, usage = [], None, None
+            text, finish, usage, live = [], None, None, False
+            self._gate(ep, self._asking(body["messages"], body.get("max_tokens")))
             try:
                 async with self._stream(url, body, ep.api_key) as r:
                     if fmt and r.status_code in (400, 422):
@@ -302,6 +361,7 @@ class LLM:
                     if r.status_code >= 400:
                         await r.aread()
                         self._check(r)
+                    live = True
                     async for chunk in self._chunks(r, url):
                         usage = chunk.get("usage") or usage
                         for choice in chunk.get("choices") or []:
@@ -309,12 +369,14 @@ class LLM:
                             finish = choice.get("finish_reason") or finish
             except httpx2.TransportError as e:
                 raise LLMError(f"cannot reach {url}: {e}") from e
+            finally:  # a request that ran is metered once: finished, cut off, failed or cancelled
+                if live:
+                    self._used(ep, usage or self._guess(body["messages"], len("".join(text))))
             if finish == "length":  # cut off: asking again pays again
                 raise LLMError(
                     f"the model ran out of room ({body.get('max_tokens')} tokens) before it "
                     "finished answering"
                 )
-            self._used(ep, usage)
             return "".join(text)
         raise LLMError(f"{url} rejected every request form")  # unreachable: None is never skipped
 
@@ -365,7 +427,8 @@ class LLM:
         body["response_format"] = fmt
         if instructions:
             body["instructions"] = instructions
-        body.update(ep.params.get("body", {}))  # the user's raw JSON wins, verbatim
+        body.update(self._own(ep))  # the user's raw JSON wins
+        self._gate(ep, {"prompt_tokens": len(text)})  # speech is priced by the character
         r = await self._send("POST", f"{ep.base_url.rstrip('/')}/audio/speech", ep.api_key, body)
         self._check(r)
         if media.sniff_audio(r.content) is None:
@@ -383,7 +446,9 @@ class LLM:
 
     async def embed(self, ep: Endpoint, texts: list[str]) -> list[list[float]]:
         body = {"model": ep.model, "input": texts}
+        self._gate(ep, self._guess([{"content": t} for t in texts], 0))
         r = await self._send("POST", f"{ep.base_url.rstrip('/')}/embeddings", ep.api_key, body)
         self._check(r)
-        self._used(ep, r.json().get("usage"))
+        said = r.json().get("usage")
+        self._used(ep, said or self._guess([{"content": t} for t in texts], 0))
         return [d["embedding"] for d in sorted(r.json()["data"], key=lambda d: d["index"])]

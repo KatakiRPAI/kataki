@@ -36,7 +36,7 @@ from kataki import (
     roles,
 )
 from kataki.activation import FIDELITY
-from kataki.llm import LLM
+from kataki.llm import LLM, NoCredit
 
 DAY, HOUR = clock.DAY, clock.HOUR
 MIN_SKIP = 2 * HOUR  # a skip shorter than this is not time away
@@ -989,6 +989,8 @@ async def think(
             return False  # the skip was undone while the model was busy
         with conn:
             _write(conn, story_id, run, skip, who, got, wants, work)
+    except NoCredit:  # refused before it was sent: still owed, done once there is credit
+        raise
     except Exception as e:  # never the turn's undoing, never retried unasked
         logging.getLogger(__name__).warning("diary call failed for %s: %s", who, e)
         _mark(conn, run_id, who, "failed")
