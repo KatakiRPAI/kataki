@@ -66,8 +66,8 @@ export function Board({ story, people, everyone, itemOf, speaking, active, editi
       const more = detail?.(e.id)
       const status = w.entity === speaking ? t('w.choosing', { p }) : more ? t('w.status', { presence, detail: more }) : presence
       return here && !compact
-        ? <K.CharacterWidget {...common} who={f.who} src={f.src} focus={itemOf(e)?.data.focus} name={e.name} thinking={w.entity === speaking} status={status} onOpen={() => onOpen(e.id)} alt={itemOf(e)?.data.alt} />
-        : <K.CharacterRowWidget {...common} who={f.who} src={f.src} name={e.name} away={!here} status={here ? status : t('w.away')} onOpen={() => onOpen(e.id)} />
+        ? <K.CharacterWidget {...common} who={f.who} src={f.src} focus={f.focus} zoom={f.zoom} name={e.name} thinking={w.entity === speaking} status={status} onOpen={() => onOpen(e.id)} alt={itemOf(e)?.data.alt} />
+        : <K.CharacterRowWidget {...common} who={f.who} src={f.src} focus={f.focus} zoom={f.zoom} name={e.name} away={!here} status={here ? status : t('w.away')} onOpen={() => onOpen(e.id)} />
     }
     if (w.kind === 'clock')
       return <K.ClockWidget {...common} time={twelve(story.clock)} rel={story.date} place={story.place?.name ?? ''} exact={story.clock.slice(-5)}

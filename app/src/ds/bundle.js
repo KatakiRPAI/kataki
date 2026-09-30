@@ -13,6 +13,16 @@
     function set(v) { if (!ctl) s[1](v); if (p[onKey || 'onChange']) p[onKey || 'onChange'](v); }
     return [val, set];
   }
+  /* A portrait in any frame: object-fit cover, centred on `focus` ("x% y%"), zoomed `zoom` times about it.
+     The clip keeps the zoomed picture inside its own box; `round` is the box's corner radius. */
+  function framed(focus, zoom, round) {
+    var z = zoom > 1 ? zoom : 1, at = focus || '50% 50%';
+    if (z === 1) return { objectPosition: focus };
+    var xy = at.split(' ').map(parseFloat), k = 1 - 1 / z;
+    var r = round === undefined ? '' : ' round ' + (typeof round === 'number' ? round / z + 'px' : round);
+    return { objectPosition: at, transform: 'scale(' + z + ')', transformOrigin: at,
+      clipPath: 'inset(' + xy[1] * k + '% ' + (100 - xy[0]) * k + '% ' + (100 - xy[1]) * k + '% ' + xy[0] * k + '%' + r + ')' };
+  }
   function artSrc(p, who) { var a = ART[who || p.who] || {}; return p.src || a.src; }
 
   /* ---------- foundations ---------- */
@@ -29,7 +39,7 @@
     var a = ART[p.who] || {};
     var s = p.size || 36, src = p.src || a.src;
     return h('span', { className: cx('k-avatar', p.ring && 'k-avatar--ring-' + p.ring, p.away && 'k-avatar--away', p.className), style: { width: s, height: s } },
-      src ? h('img', { src: src, alt: p.alt || '', style: { objectPosition: p.focus || a.focus } })
+      src ? h('img', { src: src, alt: p.alt || '', style: framed(p.focus || a.focus, p.zoom, '50%') })
           : h('span', { className: 'k-avatar__initial', style: { fontSize: Math.round(s * 0.42) }, 'aria-hidden': 'true' }, (p.name || p.who || '?')[0].toUpperCase()),
       p.status ? h('span', { className: 'k-avatar__status k-avatar__status--' + p.status, 'aria-label': p.status }) : null);
   }
@@ -37,7 +47,7 @@
     var people = p.people || [], max = p.max || 4, s = p.size || 30;
     var shown = people.slice(0, max), extra = people.length - shown.length;
     return h('span', { className: 'k-stack', 'aria-label': p.label },
-      shown.map(function (x, i) { return h(Avatar, { key: i, who: x.who, src: x.src, name: x.name, focus: x.focus, alt: x.alt || x.name || '', size: s, className: 'k-stack__item' }); }),
+      shown.map(function (x, i) { return h(Avatar, { key: i, who: x.who, src: x.src, name: x.name, focus: x.focus, zoom: x.zoom, alt: x.alt || x.name || '', size: s, className: 'k-stack__item' }); }),
       extra > 0 ? h('span', { className: 'k-stack__more', style: { width: s, height: s } }, '+' + extra) : null);
   }
   function Eyebrow(p) { return h('div', { className: cx('k-eyebrow', p.tone && 'k-eyebrow--' + p.tone, p.className) }, p.children); }
@@ -466,7 +476,7 @@
     var a = ART[p.who] || {}, src = p.src || a.src;
     return h('article', { className: cx('k-char', p.featured && 'k-char--featured', p.hover && 'is-hover', p.variant === 'list' && 'k-char--list') },
       h('div', { className: 'k-char__art' },
-        src ? h('img', { src: src, alt: p.alt || (p.name + ', portrait'), style: { objectPosition: p.focus || a.focus } })
+        src ? h('img', { src: src, alt: p.alt || (p.name + ', portrait'), style: framed(p.focus || a.focus, p.zoom) })
             : h('div', { className: 'k-char__noface' }, h('span', { 'aria-hidden': 'true' }, (p.name || '?')[0]), h('small', null, 'no portrait yet')),
         p.badge ? h('span', { className: cx('k-char__badge', p.badgeTone === 'warm' && 'k-char__badge--warm') }, p.badge) : null,
         p.hover || p.continueHref || p.onMore ? h('div', { className: 'k-char__quick' }, p.continueHref || p.hover ? h(Button, { variant: 'primary', size: 'sm', href: p.continueHref }, p.continueLabel || 'Continue') : h('span'), h(IconButton, { icon: 'dots', label: 'More for ' + p.name, size: 'sm', variant: 'glass', onClick: p.onMore })) : null),
@@ -480,7 +490,7 @@
   }
   function PersonaCard(p) {
     return h('article', { className: cx('k-persona-card', p.selected && 'is-selected') },
-      p.who || p.src ? h(Avatar, { who: p.who, src: p.src, size: 40 }) : h('span', { className: 'k-persona-card__icon' }, h(Icon, { name: p.icon || 'feather', size: 18 })),
+      p.who || p.src ? h(Avatar, { who: p.who, src: p.src, focus: p.focus, zoom: p.zoom, size: 40 }) : h('span', { className: 'k-persona-card__icon' }, h(Icon, { name: p.icon || 'feather', size: 18 })),
       h('div', { className: 'k-persona-card__text' }, h('div', { className: 'k-persona-card__name' }, p.name, p.isDefault ? h(Tag, { tone: 'accent' }, 'Default') : null), h('div', { className: 'k-persona-card__line' }, p.line)));
   }
   function StoryCard(p) {
@@ -719,7 +729,7 @@
   function CharacterWidget(p) {
     var a = ART[p.who] || {};
     return h(Widget, { label: p.name, edit: p.edit, pinned: p.pinned !== false, dragging: p.dragging, width: p.width || 272, onPin: p.onPin, onRemove: p.onRemove },
-      h('div', { className: cx('k-cw__art', p.away && 'is-away'), onClick: p.edit ? undefined : p.onOpen, style: p.onOpen && !p.edit ? { cursor: 'pointer' } : undefined }, p.src || a.src ? h('img', { src: p.src || a.src, alt: p.alt || (p.name + ', portrait'), style: { objectPosition: p.focus || a.focus } }) : h('div', { className: 'k-char__noface' }, h('span', { 'aria-hidden': 'true' }, (p.name || '?')[0])),
+      h('div', { className: cx('k-cw__art', p.away && 'is-away'), onClick: p.edit ? undefined : p.onOpen, style: p.onOpen && !p.edit ? { cursor: 'pointer' } : undefined }, p.src || a.src ? h('img', { src: p.src || a.src, alt: p.alt || (p.name + ', portrait'), style: framed(p.focus || a.focus, p.zoom) }) : h('div', { className: 'k-char__noface' }, h('span', { 'aria-hidden': 'true' }, (p.name || '?')[0])),
         p.thinking ? h('span', { className: 'k-cw__flag k-cw__flag--thinking' }, h(Icon, { name: 'thought', size: 13 }), 'thinking…') : null,
         p.badge ? h('span', { className: 'k-cw__flag k-cw__flag--badge' }, p.badge) : null,
         !p.edit ? h('button', { type: 'button', className: cx('k-cw__pin', p.pinned !== false && 'is-on'), 'aria-label': (p.pinned !== false ? 'Unpin ' : 'Pin ') + p.name, 'aria-pressed': String(p.pinned !== false), onClick: function (e) { e.stopPropagation(); if (p.onPin) p.onPin(); } }, h(Icon, { name: 'pushpin', size: 14 })) : null),
@@ -727,7 +737,7 @@
   }
   function CharacterRowWidget(p) {
     return h(Widget, { label: p.name, edit: p.edit, width: p.width || 272, pinned: p.pinned, onPin: p.onPin, onRemove: p.onRemove },
-      h('div', { className: 'k-cwrow', onClick: p.edit ? undefined : p.onOpen, style: p.onOpen && !p.edit ? { cursor: 'pointer' } : undefined }, h(Avatar, { who: p.who, src: p.src, name: p.name, size: 40, away: p.away }), h('div', null, h('b', null, p.name), h('span', null, p.status))));
+      h('div', { className: 'k-cwrow', onClick: p.edit ? undefined : p.onOpen, style: p.onOpen && !p.edit ? { cursor: 'pointer' } : undefined }, h(Avatar, { who: p.who, src: p.src, focus: p.focus, zoom: p.zoom, name: p.name, size: 40, away: p.away }), h('div', null, h('b', null, p.name), h('span', null, p.status))));
   }
   function ClockWidget(p) {
     var night = p.kind === 'night';
@@ -781,5 +791,5 @@
       h('div', { className: 'k-promptbar__legend' }, segs.map(function (s, i) { return h('span', { key: i }, h('i', { style: { background: SEGCOL[i % SEGCOL.length] } }), s.name, ' ', s.value.toLocaleString('en'), h('span', { className: 'k-engrow__detail' }, ' / ' + s.limit.toLocaleString('en'))); })));
   }
 
-  window.Kataki = { Icon: Icon, Avatar: Avatar, AvatarStack: AvatarStack, Eyebrow: Eyebrow, StoryName: StoryName, Text: Text, Kbd: Kbd, Shortcut: Shortcut, Divider: Divider, Panel: Panel, Sky: Sky, Spinner: Spinner, Button: Button, IconButton: IconButton, ButtonGroup: ButtonGroup, TextLink: TextLink, Field: Field, TextField: TextField, TextArea: TextArea, Select: Select, SearchField: SearchField, Checkbox: Checkbox, RadioGroup: RadioGroup, Toggle: Toggle, Segmented: Segmented, Slider: Slider, Chip: Chip, ChoiceChips: ChoiceChips, DropZone: DropZone, StepHeader: StepHeader, Rail: Rail, PersonaSwitch: PersonaSwitch, TopBar: TopBar, Tabs: Tabs, SideNav: SideNav, Breadcrumbs: Breadcrumbs, ShowMore: ShowMore, Menu: Menu, Tooltip: Tooltip, Popover: Popover, Dialog: Dialog, Sheet: Sheet, Toast: Toast, CommandPalette: CommandPalette, Callout: Callout, Alert: Alert, EmptyState: EmptyState, ProgressBar: ProgressBar, Skeleton: Skeleton, StepList: StepList, StatusLine: StatusLine, StatePill: StatePill, Tag: Tag, Badge: Badge, Meter: Meter, MemoryRow: MemoryRow, Stat: Stat, StatRow: StatRow, KeyValue: KeyValue, ListRow: ListRow, TimeStrip: TimeStrip, Stamp: Stamp, Changelog: Changelog, Bubble: Bubble, SecretCard: SecretCard, Still: Still, EventCard: EventCard, CharacterCard: CharacterCard, AddCard: AddCard, PersonaCard: PersonaCard, StoryCard: StoryCard, ContinueHero: ContinueHero, StoryPreview: StoryPreview, RelationshipCard: RelationshipCard, PlaceCard: PlaceCard, PlotCard: PlotCard, DoorCard: DoorCard, SearchResult: SearchResult, ThemeTile: ThemeTile, LanguageTile: LanguageTile, SettingsSection: SettingsSection, SettingsRow: SettingsRow, ConnectionRow: ConnectionRow, JobRow: JobRow, FolderRow: FolderRow, ShortcutRow: ShortcutRow, SceneStage: SceneStage, SceneButton: SceneButton, SceneHeader: SceneHeader, BackstageToggle: BackstageToggle, ChatPanel: ChatPanel, LineTools: LineTools, ChatLine: ChatLine, TitleCard: TitleCard, StoryNote: StoryNote, RecallBox: RecallBox, Reaction: Reaction, ModeChip: ModeChip, ModeMenu: ModeMenu, Composer: Composer, EditLine: EditLine, Widget: Widget, CharacterWidget: CharacterWidget, CharacterRowWidget: CharacterRowWidget, ClockWidget: ClockWidget, MusicWidget: MusicWidget, TimeSkipCard: TimeSkipCard, BackstagePanel: BackstagePanel, MindNode: MindNode, EngineRow: EngineRow, PromptBar: PromptBar, ICONS: ICONS, ART: ART };
+  window.Kataki = { Icon: Icon, Avatar: Avatar, AvatarStack: AvatarStack, Eyebrow: Eyebrow, StoryName: StoryName, Text: Text, Kbd: Kbd, Shortcut: Shortcut, Divider: Divider, Panel: Panel, Sky: Sky, Spinner: Spinner, Button: Button, IconButton: IconButton, ButtonGroup: ButtonGroup, TextLink: TextLink, Field: Field, TextField: TextField, TextArea: TextArea, Select: Select, SearchField: SearchField, Checkbox: Checkbox, RadioGroup: RadioGroup, Toggle: Toggle, Segmented: Segmented, Slider: Slider, Chip: Chip, ChoiceChips: ChoiceChips, DropZone: DropZone, StepHeader: StepHeader, Rail: Rail, PersonaSwitch: PersonaSwitch, TopBar: TopBar, Tabs: Tabs, SideNav: SideNav, Breadcrumbs: Breadcrumbs, ShowMore: ShowMore, Menu: Menu, Tooltip: Tooltip, Popover: Popover, Dialog: Dialog, Sheet: Sheet, Toast: Toast, CommandPalette: CommandPalette, Callout: Callout, Alert: Alert, EmptyState: EmptyState, ProgressBar: ProgressBar, Skeleton: Skeleton, StepList: StepList, StatusLine: StatusLine, StatePill: StatePill, Tag: Tag, Badge: Badge, Meter: Meter, MemoryRow: MemoryRow, Stat: Stat, StatRow: StatRow, KeyValue: KeyValue, ListRow: ListRow, TimeStrip: TimeStrip, Stamp: Stamp, Changelog: Changelog, Bubble: Bubble, SecretCard: SecretCard, Still: Still, EventCard: EventCard, CharacterCard: CharacterCard, AddCard: AddCard, PersonaCard: PersonaCard, StoryCard: StoryCard, ContinueHero: ContinueHero, StoryPreview: StoryPreview, RelationshipCard: RelationshipCard, PlaceCard: PlaceCard, PlotCard: PlotCard, DoorCard: DoorCard, SearchResult: SearchResult, ThemeTile: ThemeTile, LanguageTile: LanguageTile, SettingsSection: SettingsSection, SettingsRow: SettingsRow, ConnectionRow: ConnectionRow, JobRow: JobRow, FolderRow: FolderRow, ShortcutRow: ShortcutRow, SceneStage: SceneStage, SceneButton: SceneButton, SceneHeader: SceneHeader, BackstageToggle: BackstageToggle, ChatPanel: ChatPanel, LineTools: LineTools, ChatLine: ChatLine, TitleCard: TitleCard, StoryNote: StoryNote, RecallBox: RecallBox, Reaction: Reaction, ModeChip: ModeChip, ModeMenu: ModeMenu, Composer: Composer, EditLine: EditLine, Widget: Widget, CharacterWidget: CharacterWidget, CharacterRowWidget: CharacterRowWidget, ClockWidget: ClockWidget, MusicWidget: MusicWidget, TimeSkipCard: TimeSkipCard, BackstagePanel: BackstagePanel, MindNode: MindNode, EngineRow: EngineRow, PromptBar: PromptBar, ICONS: ICONS, ART: ART, framed: framed };
 })();

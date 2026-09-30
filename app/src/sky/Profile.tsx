@@ -88,7 +88,7 @@ export default function Profile() {
     <main className="app__main" aria-label={c.name} style={{ gap: 28 }}>
       <K.TopBar back={t('pf.back')} backHref="/characters" />
       <section className="pf-head">
-        {art ? <img src={art} alt={c.data.alt ?? c.name} className="pf-portrait" style={{ objectPosition: c.data.focus ?? (f.who ? K.ART[f.who]?.focus : undefined) }} />
+        {art ? <img src={art} alt={c.data.alt ?? c.name} className="pf-portrait" style={K.framed(c.data.focus ?? (f.who ? K.ART[f.who]?.focus : undefined), c.data.zoom, 16)} />
           : <div className="pf-portrait pf-portrait--none" aria-hidden="true">{c.name[0]}</div>}
         <div className="col" style={{ flex: 1, gap: 14, paddingBottom: 6 }}>
           {latest && <K.Stamp exact={new Date(utc(latest.last_at)).toLocaleString('en-GB')} detail={latest.title}>{t('card.when.played', { relative: relative(utc(latest.last_at)) })}</K.Stamp>}

@@ -148,11 +148,11 @@ export const fullTime = (clock: string, date: string) =>
 
 /** How a person shows: the sample world's own art by name, else their uploaded portrait. */
 const SAMPLE = new Set(['liv', 'mike', 'theo', 'jae', 'nico', 'cas', 'dani'])
-export function face(item: Item | undefined, name = item?.name ?? ''): { who?: string; src?: string; name: string; focus?: string } {
+export function face(item: Item | undefined, name = item?.name ?? ''): { who?: string; src?: string; name: string; focus?: string; zoom?: number } {
   const src = item?.data.portrait ? mediaUrl(item.data.portrait) : undefined
   const who = name.toLowerCase().split(' ')[0]
   // a `who` with a picture too: Chip and SearchResult only draw a face when there is one
-  return { who: src ? who || '?' : SAMPLE.has(who) ? who : undefined, src, name, focus: item?.data.focus }
+  return { who: src ? who || '?' : SAMPLE.has(who) ? who : undefined, src, name, focus: item?.data.focus, zoom: item?.data.zoom }
 }
 /** A place's picture: the sample world's by name, else its upload. */
 const PLACES: Record<string, string> = { 'halcyon coffee': 'halcyon-coffee', 'corvel palace': 'corvel-palace', 'the flat on ardenne': 'flat-on-ardenne' }

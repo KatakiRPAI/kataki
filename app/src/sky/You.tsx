@@ -9,6 +9,7 @@ import { Overlay, toast, withMenu, type MenuItem } from '../overlay'
 import { setPref, usePrefs } from '../prefs'
 import { personaMenu } from './Palette'
 import { t, type Key } from '../strings'
+import { Crop, type Picture } from './Crop'
 
 const PRONOUNS: Pronouns[] = ['she', 'he', 'they']
 
@@ -45,7 +46,7 @@ export default function You() {
 
       {current && (
         <section className="you-hero">
-          {f.src ?? (f.who && K.ART[f.who]?.src) ? <img className="you-portrait" src={f.src ?? K.ART[f.who!]!.src!} alt={current.name} style={{ objectPosition: current.data.focus ?? K.ART[f.who ?? '']?.focus }} />
+          {f.src ?? (f.who && K.ART[f.who]?.src) ? <img className="you-portrait" src={f.src ?? K.ART[f.who!]!.src!} alt={current.name} style={K.framed(current.data.focus ?? K.ART[f.who ?? '']?.focus, current.data.zoom, 16)} />
             : <K.Avatar name={current.name} size={120} />}
           <div className="col" style={{ gap: 12, flex: 1 }}>
             <K.Eyebrow tone="mid">{t(isDef(current) ? 'you.default' : 'you.persona')}</K.Eyebrow>
@@ -148,24 +149,28 @@ function EditPersona({ p, isDefault, stories, onClose, onDone }: { p?: Item; isD
   const [who, setWho] = useState(p?.description ?? '')
   const [pronouns, setPronouns] = useState<Pronouns>(p?.data.pronouns ?? 'they')
   const [tags, setTags] = useState((p?.tags ?? []).join(', '))
-  const [portrait, setPortrait] = useState(p?.data.portrait)
+  const [pic, setPic] = useState<Picture>({ portrait: p?.data.portrait, focus: p?.data.focus, zoom: p?.data.zoom, alt: p?.data.alt })
+  const [cropping, setCropping] = useState<string>() // a media name
   const [makeDefault, setMakeDefault] = useState(isDefault)
   const save = async () => {
-    const body = { name: name.trim(), description: who.trim(), tags: tags.split(',').map((x) => x.trim()).filter(Boolean).slice(0, 3), data: { ...(p?.data ?? {}), persona: true, pronouns, portrait } }
+    const body = { name: name.trim(), description: who.trim(), tags: tags.split(',').map((x) => x.trim()).filter(Boolean).slice(0, 3), data: { ...(p?.data ?? {}), persona: true, pronouns, ...pic } }
     const saved = p ? await api<Item>(`/library/${p.id}`, 'PATCH', body) : await api<Item>('/library', 'POST', { kind: 'character', ...body })
     if (makeDefault) await setPref('persona', saved.id)
     onDone()
     onClose()
   }
+  if (cropping) return <Crop src={mediaUrl(cropping)} {...(cropping === pic.portrait ? pic : {})} name={name} onClose={() => setCropping(undefined)} onUse={(focus, zoom, alt) => { setPic({ portrait: cropping, focus, zoom, alt }); setCropping(undefined) }} />
+  const { portrait } = pic
   return (
     <Overlay onClose={onClose}>
       <K.Dialog size="lg" title={p ? t('ep.title', { name: fullName(p) }) : t('ep.newTitle')} description={t('ep.body')} onClose={onClose}
         note={p && isDefault ? t('ep.note', { n: stories.filter((s) => s.persona?.lib_item_id === p.id).length }) : undefined}
         actions={[<K.Button key="c" variant="ghost" onClick={onClose}>{t('ep.cancel')}</K.Button>, <K.Button key="s" variant="primary" disabled={!name.trim()} onClick={save}>{t('ep.save')}</K.Button>]}>
         <div className="row" style={{ gap: 14 }}>
-          <K.Avatar src={portrait ? mediaUrl(portrait) : undefined} name={name || '?'} size={64} />
-          <label className="k-btn k-btn--secondary k-btn--sm">{t(portrait ? 'ep.picture' : 'ep.pictureAdd')}<input type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={async (e) => { const f = e.target.files?.[0]; if (f) setPortrait((await upload(f)).name) }} /></label>
-          {portrait && <K.Button size="sm" variant="ghost" onClick={() => setPortrait(undefined)}>{t('ep.remove')}</K.Button>}
+          <K.Avatar src={portrait ? mediaUrl(portrait) : undefined} focus={pic.focus} zoom={pic.zoom} name={name || '?'} size={64} />
+          <label className="k-btn k-btn--secondary k-btn--sm">{t(portrait ? 'ep.picture' : 'ep.pictureAdd')}<input type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={async (e) => { const f = e.target.files?.[0]; if (f) setCropping((await upload(f)).name) }} /></label>
+          {portrait && <K.Button size="sm" onClick={() => setCropping(portrait)}>{t('ed.cropFocus')}</K.Button>}
+          {portrait && <K.Button size="sm" variant="ghost" onClick={() => setPic({})}>{t('ep.remove')}</K.Button>}
         </div>
         <div className="ep-pair">
           <K.TextField label={t('ep.name')} required story value={name} onChange={setName} max={40} />

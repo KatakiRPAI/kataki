@@ -10,6 +10,7 @@ import { loadPrefs, pref, setPref, skyTheme, usePrefs } from '../prefs'
 import { seedSampleWorld } from '../sample/seed'
 import { t, type Key } from '../strings'
 import { ImportCards } from './Characters'
+import { Crop, type Picture } from './Crop'
 import { openFeedback } from './Feedback'
 import Top from './Top'
 import { classify, err } from '../errors'
@@ -314,25 +315,29 @@ function Who() {
 function Persona({ me, onClose, onDone }: { me?: Item; onClose: () => void; onDone: () => void }) {
   const [name, setName] = useState(me?.name ?? '')
   const [who, setWho] = useState(me?.description ?? '')
-  const [portrait, setPortrait] = useState(me?.data.portrait)
+  const [pic, setPic] = useState<Picture>({ portrait: me?.data.portrait, focus: me?.data.focus, zoom: me?.data.zoom, alt: me?.data.alt })
+  const [cropping, setCropping] = useState<string>() // a media name
   const [justYou, setJustYou] = useState(false)
   const save = async () => {
     if (justYou) { await setPref('persona', null); onClose(); return }
-    const body = { name: name.trim(), description: who.trim(), data: { ...(me?.data ?? {}), persona: true, portrait } }
+    const body = { name: name.trim(), description: who.trim(), data: { ...(me?.data ?? {}), persona: true, ...pic } }
     const saved = me ? await api<Item>(`/library/${me.id}`, 'PATCH', body) : await api<Item>('/library', 'POST', { kind: 'character', ...body })
     await setPref('persona', saved.id)
     onDone()
     onClose()
     toast(t('set.saved'), {}, 2000)
   }
+  if (cropping) return <Crop src={mediaUrl(cropping)} {...(cropping === pic.portrait ? pic : {})} name={name} onClose={() => setCropping(undefined)} onUse={(focus, zoom, alt) => { setPic({ portrait: cropping, focus, zoom, alt }); setCropping(undefined) }} />
+  const { portrait } = pic
   return (
     <Overlay onClose={onClose}>
       <K.Dialog icon="user" title={t('fr.personaTitle')} onClose={onClose}
         actions={[<K.Button key="c" variant="ghost" onClick={onClose}>{t('ep.cancel')}</K.Button>, <K.Button key="s" variant="primary" disabled={!justYou && !name.trim()} onClick={save}>{t('fr.save')}</K.Button>]}>
         <div className="row" style={{ gap: 14 }}>
-          <K.Avatar src={portrait ? mediaUrl(portrait) : undefined} {...(me && !portrait ? face(me) : {})} name={name || '?'} size={56} />
+          <K.Avatar src={portrait ? mediaUrl(portrait) : undefined} {...(me && !portrait ? face(me) : {})} focus={pic.focus} zoom={pic.zoom} name={name || '?'} size={56} />
           <div className="col" style={{ gap: 6 }}>
-            <label className="k-btn k-btn--secondary k-btn--sm" style={{ alignSelf: 'flex-start' }}>{t('fr.pic')}<input type="file" accept="image/png,image/jpeg,image/webp" hidden disabled={justYou} onChange={async (e) => { const f = e.target.files?.[0]; if (f) setPortrait((await upload(f)).name) }} /></label>
+            <label className="k-btn k-btn--secondary k-btn--sm" style={{ alignSelf: 'flex-start' }}>{t('fr.pic')}<input type="file" accept="image/png,image/jpeg,image/webp" hidden disabled={justYou} onChange={async (e) => { const f = e.target.files?.[0]; if (f) setCropping((await upload(f)).name) }} /></label>
+            {portrait && !justYou && <K.Button size="sm" variant="ghost" onClick={() => setCropping(portrait)}>{t('ed.cropFocus')}</K.Button>}
             <span className="t-faint">{t('fr.picHint')}</span>
           </div>
         </div>
