@@ -40,7 +40,9 @@ class Host:
     def on_usage(self, conn: sqlite3.Connection, ep: Endpoint, used: dict) -> None:
         row = usage.record(conn, ep, used, self.price_table(conn))
         if self.meter:
-            self.meter(row)
+            self.meter(row)  # a meter that raises leaves the row unsent, for B4 to send again
+            with conn:
+                conn.execute("UPDATE usage_log SET metered=1 WHERE usage_id=?", (row["usage_id"],))
 
 
 class LocalHost(Host):

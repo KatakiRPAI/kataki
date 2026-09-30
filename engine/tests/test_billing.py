@@ -111,6 +111,20 @@ def test_a_broken_price_table_still_records_and_meters(conn):
     assert sent[0]["cost"] is None and len(metered(conn)) == 1
 
 
+def test_a_row_is_marked_sent_only_when_the_meter_took_it(conn):
+    """B4's outbox resends the rows still unmarked: a meter that failed leaves the row at 0."""
+
+    def down(row):
+        raise ConnectionError("gateway unreachable")
+
+    Host(meter=lambda row: None).on_usage(conn, ep(), {"prompt_tokens": 3})
+    with pytest.raises(ConnectionError):
+        Host(meter=down).on_usage(conn, ep(), {"prompt_tokens": 3})
+    Host().on_usage(conn, ep(), {"prompt_tokens": 3})  # the desktop meters nothing
+    sent = [r[0] for r in conn.execute("SELECT metered FROM usage_log ORDER BY id")]
+    assert sent == [1, 0, 0]
+
+
 def test_v18_prices_each_usage_row(tmp_path):
     path = tmp_path / "v17.db"
     old = db.connect(path)  # today's schema, then pretend it is v17 (usage_log without the columns)
@@ -130,8 +144,8 @@ def test_v18_prices_each_usage_row(tmp_path):
 
     conn = db.connect(path)
     [row] = conn.execute("SELECT * FROM usage_log").fetchall()
-    got = (row["prompt_tokens"], row["cost"], row["estimated"], row["usage_id"])
-    assert got == (12, None, 0, None)
+    got = (row["prompt_tokens"], row["cost"], row["estimated"], row["usage_id"], row["metered"])
+    assert got == (12, None, 0, None, 0)
     assert conn.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION == 18
     conn.close()
 
