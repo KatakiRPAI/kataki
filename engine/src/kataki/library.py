@@ -151,6 +151,7 @@ def create_story(
     scenario_id: int | None = None,
     epoch_offset_min: int = 480,  # the clock at story time 0: Day 1, 08:00
     opening: bool = True,  # False: a story that already has its first line, as an import does
+    first_message: str = "",  # how this story opens, typed when it starts; beats the plot's
 ) -> int:
     scenario = get_item(conn, scenario_id) if scenario_id is not None else None
     # The premise is copied too, so editing the plot in the library never rewrites this story.
@@ -208,8 +209,12 @@ def create_story(
                 (scene_id, entity_id),
             )
 
-        # The opening line: the scenario's (narrated), else the first AI character's greeting.
-        first = (None, scenario["data"].get("first_message")) if scenario else (None, None)
+        # The opening line (narrated): the one typed for this story, else the plot's, else the
+        # first AI character's greeting (an imported card brings one).
+        first = (
+            None,
+            first_message.strip() or (scenario and scenario["data"].get("first_message")),
+        )
         if not first[1]:
             greeters = (
                 (entity_id, item["data"].get("first_message"))

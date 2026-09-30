@@ -17,7 +17,6 @@ import jae from '../ds/art/jae.png'
 import cas from '../ds/art/cas.png'
 
 const SET: [string, string][] = [[liv, '52% 24%'], [mike, '50% 26%'], [theo, '50% 30%'], [jae, '50% 32%'], [nico, '52% 30%'], [cas, '50% 20%']]
-const MOODS = ['warm', 'guarded', 'hurry', 'argue'] as const
 const PRONOUNS: Pronouns[] = ['she', 'he', 'they']
 const RELS = ['friend', 'fond', 'wary', 'rival', 'family', 'never'] as const
 const FADES = ['inherit', 'fast', 'lifelike', 'slow', 'never'] as const
@@ -28,14 +27,14 @@ const SECTIONS: [Section, Key, Key, import('../ds/kataki').IconName][] = [
 ]
 
 type Form = {
-  name: string; greeting: string; about: string; tagline: string; tags: string; pronouns: Pronouns
+  name: string; about: string; tagline: string; tags: string; pronouns: Pronouns
   lines: string[]; secret: string; relationships: { id: number; feels: string }[]; places: number[]
   fade: (typeof FADES)[number]; doubt: boolean; portrait?: string; focus?: string; alt?: string; model: string // "providerId:model", or '' for the default
 }
 
 function formOf(c?: Item): Form {
   return {
-    name: c?.name ?? '', greeting: c?.data.first_message ?? '', about: c?.description ?? '', tagline: c?.data.tagline ?? '',
+    name: c?.name ?? '', about: c?.description ?? '', tagline: c?.data.tagline ?? '',
     tags: (c?.tags ?? []).join(', '), pronouns: c?.data.pronouns ?? 'they', lines: c ? linesOf(c) : ['', ''], secret: c?.private ?? '',
     relationships: c?.data.relationships ?? [], places: c?.data.places ?? [], fade: c?.data.fade ?? 'inherit', doubt: c?.data.doubt !== false, model: c?.data.model?.model ? `${c.data.model.provider_id}:${c.data.model.model}` : '',
     portrait: c?.data.portrait, focus: c?.data.focus, alt: c?.data.alt,
@@ -84,8 +83,7 @@ export default function Editor() {
   const edit = !!id
   const firstLoad = base ?? formOf()
   const nameOk = !!f.name.trim()
-  const hiOk = !!f.greeting.trim()
-  const diff = changed(f, firstLoad).concat(f.name !== firstLoad.name || f.greeting !== firstLoad.greeting || f.portrait !== firstLoad.portrait || f.focus !== firstLoad.focus || f.alt !== firstLoad.alt ? (['about'] as Section[]) : [])
+  const diff = changed(f, firstLoad).concat(f.name !== firstLoad.name || f.portrait !== firstLoad.portrait || f.focus !== firstLoad.focus || f.alt !== firstLoad.alt ? (['about'] as Section[]) : [])
   const sections = [...new Set(diff)]
   const dirty = sections.length > 0
   const blocker = useBlocker(({ currentLocation, nextLocation }) => dirty && !saving && currentLocation.pathname !== nextLocation.pathname)
@@ -111,10 +109,10 @@ export default function Editor() {
   const modelOptions: [string, string][] = [['', rp ? t('ed.modelDefault', { model: rp }) : t('ed.modelNone')], ...(models ?? []), ...(f.model && !(models ?? []).some(([k]) => k === f.model) ? [[f.model, f.model.split(':').slice(1).join(':')] as [string, string]] : [])]
   const theirs = item ? storiesWith(item, stories) : []
 
-  const save = async (draftOnly = false) => {
+  const save = async () => {
     setTried(true)
-    if (!nameOk || (!hiOk && !draftOnly)) {
-      document.querySelector<HTMLElement>(nameOk ? '#ed-hi textarea' : '#ed-name input')?.focus()
+    if (!nameOk) {
+      document.querySelector<HTMLElement>('#ed-name input')?.focus()
       return false
     }
     setSaving(true)
@@ -123,7 +121,7 @@ export default function Editor() {
       name: f.name.trim(), description: f.about.trim(), private: f.secret.trim(),
       tags: f.tags.split(',').map((x) => x.trim()).filter(Boolean).slice(0, 3),
       data: {
-        ...(item?.data ?? { source: 'made' }), tagline: f.tagline.trim() || undefined, pronouns: f.pronouns, first_message: f.greeting.trim(),
+        ...(item?.data ?? { source: 'made' }), tagline: f.tagline.trim() || undefined, pronouns: f.pronouns,
         lines, example_dialogue: lines.map((l) => `${f.name.trim()}: ${l}`).join('\n'),
         portrait: f.portrait, focus: f.focus, alt: f.alt, places: f.places, relationships: f.relationships, fade: f.fade, doubt: f.doubt,
         model: f.model ? { provider_id: Number(f.model.split(':')[0]), model: f.model.split(':').slice(1).join(':') } : undefined,
@@ -139,8 +137,8 @@ export default function Editor() {
       setSaving(false)
     }
   }
-  const saveAndGo = async (draftOnly = false) => {
-    const saved = await save(draftOnly)
+  const saveAndGo = async () => {
+    const saved = await save()
     if (saved) setTimeout(() => navigate(`/characters/${saved.id}`), 0) // after the form is clean
   }
   const choose = async (file: File | undefined) => {
@@ -154,7 +152,7 @@ export default function Editor() {
     setFocusing({ src: mediaUrl(made.name), name: made.name })
   }
 
-  const ready = nameOk && hiOk
+  const ready = nameOk
   const readyTone = edit ? 'info' : ready ? 'ok' : 'bad'
   const readyTitle = edit ? t('ed.ready.edit', { p }) : ready ? t('ed.ready.ok') : t('ed.ready.no')
   const readyText = edit ? t('ed.ready.editBody', { p }) : !ready ? t('ed.ready.noBody') : f.secret.trim() ? t('ed.ready.full', { name: f.name }) : t('ed.ready.draft', { name: f.name, p })
@@ -204,12 +202,6 @@ export default function Editor() {
               <K.TextField label={t('ed.name')} required max={40} value={f.name} onChange={(v) => set('name', v)}
                 hint={taken ? `${err('NAME_TAKEN', { name: f.name.trim() }).title}. ${err('NAME_TAKEN').body}` : t('ed.nameHint')} error={tried && !nameOk ? t('ed.nameErr') : undefined} />
             </div>
-            <div id="ed-hi">
-              <K.TextArea label={t('ed.hi')} required story rows={3} value={f.greeting} onChange={(v) => set('greeting', v)} placeholder={t('ed.hiPlaceholder')}
-                hint={t('ed.hiHint')} error={tried && !hiOk ? t('ed.hiErr') : undefined} />
-            </div>
-            <K.ChoiceChips label={t('ed.stuck')} options={MOODS.map((m) => t(`ed.m.${m}` as Key))}
-              onPick={(o) => { const m = MOODS.find((x) => t(`ed.m.${x}` as Key) === o); if (m) set('greeting', t(`ed.g.${m}` as Key)) }} />
           </section>
 
           <section className="col" style={{ gap: 12 }}>
@@ -296,20 +288,18 @@ export default function Editor() {
           <div className="card" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 14, alignItems: 'flex-start' }}>
             <K.CharacterCard src={portraitSrc} focus={f.focus} name={f.name.trim() || '?'} line={f.tagline || f.about.split(/(?<=[.!?])\s/)[0]} when={t('ed.previewWhen')}
               badge={!f.secret.trim() ? t('chars.badge.draft') : undefined} alt={f.alt} />
-            {hiOk && <K.Bubble>{f.greeting}</K.Bubble>}
           </div>
           <K.Callout tone={readyTone} title={readyTitle}>{readyText}</K.Callout>
           {edit ? (
             <>
               {dirty && <span className="t-meta">{t('ed.unsaved', { n: sections.length })} · {sections.map((s) => t(SECTIONS.find(([x]) => x === s)![1])).join(', ')}</span>}
-              <K.Button variant="primary" size="lg" full disabled={!dirty || !nameOk || !hiOk} loading={saving} onClick={() => saveAndGo()}>{t('ed.save')}</K.Button>
+              <K.Button variant="primary" size="lg" full disabled={!dirty || !nameOk} loading={saving} onClick={() => saveAndGo()}>{t('ed.save')}</K.Button>
               <K.Button variant="ghost" disabled={!dirty} onClick={() => setF(firstLoad)}>{t('ed.discard')}</K.Button>
             </>
           ) : (
             <>
               <K.Button variant="primary" size="lg" full loading={saving} onClick={() => saveAndGo()}>{nameOk ? t('ed.create', { name: f.name.trim() }) : t('ed.createBare')}</K.Button>
               <div className="row" style={{ justifyContent: 'space-between' }}>
-                <K.Button variant="ghost" disabled={!nameOk} onClick={() => saveAndGo(true)}>{t('ed.draft')}</K.Button>
                 <K.Button variant="ghost" onClick={() => navigate(-1)}>{t('ed.cancel')}</K.Button>
               </div>
             </>

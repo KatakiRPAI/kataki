@@ -1,6 +1,5 @@
 // A character as the handoff's DATA.md reads it, over the engine's library item.
-// Field map: tagline → data.tagline, about → description, greeting → data.first_message,
-// sample lines → data.lines (and data.example_dialogue for the engine), secret → private.
+// Field map: tagline → data.tagline, about → description, sample lines → data.lines (and data.example_dialogue for the engine), secret → private.
 import type { Item, StorySummary } from './api'
 import { utc } from './hooks'
 

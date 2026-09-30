@@ -37,6 +37,7 @@ export default function NewStory() {
   const [place, setPlace] = useState<number | 'new' | null>(() => Number(params.get('place')) || null)
   const [fresh, setFresh] = useState({ name: '', like: '', time: 'dusk' as Time, keep: true })
   const [plot, setPlot] = useState<number | null>(() => Number(params.get('plot')) || null)
+  const [opens, setOpens] = useState('') // how it opens, without a plot
   const [name, setName] = useState('')
   const [book, setBook] = useState<number | 'none' | 'new'>(() => Number(params.get('book')) || 'none')
   const [bookName, setBookName] = useState('')
@@ -80,7 +81,7 @@ export default function NewStory() {
         reloadLibrary()
       }
       const story = await api<Story>('/stories', 'POST', {
-        title: name.trim() || fallback, character_ids: chosen, place_id: placeId, persona_id: me?.id ?? null, scenario_id: plot,
+        title: name.trim() || fallback, character_ids: chosen, place_id: placeId, persona_id: me?.id ?? null, scenario_id: plot, first_message: plot ? '' : opens.trim(),
         ...(place === 'new' ? { epoch_offset_min: START[fresh.time] } : {}),
       })
       const away = chosen.filter((id) => (presence[id] ?? 'here') !== 'here')
@@ -189,6 +190,7 @@ export default function NewStory() {
                 <span className="t-meta">{t('ns.nothingSub')}</span>
               </button>
             </div>
+            {plot === null && <K.TextArea label={t('ns.opens')} optional hint={t('ns.opensHint')} story rows={3} value={opens} onChange={setOpens} />}
           </section>
         </div>
 

@@ -147,7 +147,6 @@ export default function Profile() {
                 <K.Button icon="edit" href={`/characters/${c.id}/edit`}>{t('pf.edit')}</K.Button>
               </div>
               <section><h2 className="pf-h">{t('pf.about')}</h2><p className="pf-text">{c.description || t('pf.none')}</p></section>
-              <section><h2 className="pf-h">{t('pf.hi', { p })}</h2>{c.data.first_message ? <K.Bubble>{c.data.first_message}</K.Bubble> : <p className="pf-text">{t('pf.none')}</p>}</section>
               {lines(c).length > 0 && (
                 <section><h2 className="pf-h">{t('pf.lines', { p })}</h2>
                   <div className="col" style={{ gap: 10 }}>{lines(c).map((l, i) => <K.Bubble key={i} indent={i % 2 === 1}>{l}</K.Bubble>)}</div>
