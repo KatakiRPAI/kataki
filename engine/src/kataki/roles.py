@@ -18,7 +18,7 @@ import keyring.errors
 
 from kataki.llm import LLM, Endpoint
 
-ROLES = ("rp", "narrator", "utility", "reasoning", "embed", "image", "music")
+ROLES = ("rp", "narrator", "utility", "reasoning", "embed", "image", "music", "voice")
 CHAIN = {"narrator": "rp", "utility": "rp", "reasoning": "utility"}  # the rest never inherit
 _EMPTY = {"provider_id": None, "model": None, "kind": "auto", "detected_kind": None, "params": {}}
 

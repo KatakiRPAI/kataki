@@ -538,5 +538,41 @@ def test_v16_adds_reflections(tmp_path):
             )
     conn.execute("DELETE FROM extraction_runs WHERE id=?", (run,))  # the skip's job is undone
     assert conn.execute("SELECT COUNT(*) FROM reflections").fetchone()[0] == 0
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION == 16
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION
+    conn.close()
+
+
+def test_v17_lets_the_voice_role_in(tmp_path):
+    path = tmp_path / "v16.db"
+    old = db.connect(path)  # today's schema, then pretend it is v16 (the old role list)
+    old.executescript(
+        "DROP TABLE model_roles; CREATE TABLE model_roles("
+        " role TEXT PRIMARY KEY CHECK(role IN('rp','narrator','utility','reasoning','embed',"
+        "'image','music')), provider_id INTEGER REFERENCES providers, model TEXT,"
+        " kind TEXT NOT NULL DEFAULT 'auto' CHECK(kind IN('auto','reasoning','standard')),"
+        " detected_kind TEXT CHECK(detected_kind IN('reasoning','standard')),"
+        " params TEXT NOT NULL DEFAULT '{}');"
+    )
+    old.execute("INSERT INTO providers(id, name, base_url) VALUES(1, 'local', 'http://x/v1')")
+    old.execute(
+        "INSERT INTO model_roles(role, provider_id, model, detected_kind, params)"
+        " VALUES('rp', 1, 'rp-8b', 'standard', '{\"thinking\": \"disabled\"}')"
+    )
+    with pytest.raises(sqlite3.IntegrityError):
+        old.execute("INSERT INTO model_roles(role) VALUES('voice')")
+    old.execute("PRAGMA user_version=16")
+    old.commit()
+    old.close()
+
+    conn = db.connect(path)
+    kept = conn.execute("SELECT * FROM model_roles WHERE role='rp'").fetchone()
+    assert (kept["model"], kept["detected_kind"], kept["params"]) == (
+        "rp-8b",
+        "standard",
+        '{"thinking": "disabled"}',
+    )
+    conn.execute("INSERT INTO model_roles(role, provider_id, model) VALUES('voice', 1, 'kokoro')")
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute("INSERT INTO model_roles(role) VALUES('singer')")
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION == 17
     conn.close()
