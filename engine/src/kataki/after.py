@@ -334,6 +334,8 @@ def _apply(
             st = inner.regulate(
                 inner.feel(st, felt["label"], FELT[felt["intensity"]], cause, prof), prof
             )
+        if isinstance(state.get("needs"), dict):  # what the line did to her needs stays
+            st = {**st, "needs": state["needs"]}
         st = bonds.took(st, got["position"], got["yielded"], seen["scene_id"], now)
         with conn:  # this reply's row is replaced, not added to
             conn.execute(

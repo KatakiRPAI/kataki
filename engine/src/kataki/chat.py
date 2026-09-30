@@ -323,6 +323,11 @@ def set_skip(conn: sqlite3.Connection, message_id: int, minutes: int) -> None:
             " WHERE message_id IN (SELECT id FROM down)",
             (message_id, delta),
         )
+        conn.execute(  # a goal's judgment moves with the line it hangs on (minds slice 7)
+            down + "UPDATE goals SET story_time=story_time+?"
+            " WHERE run_id IS NULL AND message_id IN (SELECT id FROM down)",
+            (message_id, delta),
+        )
         stale = conn.execute(
             down + "SELECT id, trigger, to_message_id FROM extraction_runs"
             " WHERE to_message_id IN (SELECT id FROM down)",

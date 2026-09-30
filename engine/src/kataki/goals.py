@@ -29,11 +29,24 @@ STOP = frozenset(
 )
 
 
+CARD_CUE = 4  # a topic word from the card needs this many letters ("a" would match anything)
+# ponytail: a word list and suffixes stand in for a tagger: verbs and adjectives are no topic
+ACTION = re.compile(
+    r"(?:ed|ing|ly|est)$|^(?:build|built|save|find|help|show|take|tell|sell|bring|finish|start"
+    r"|learn|fix|write|open|visit|meet|try|win|big|bigger|small|smaller|new|old|good|better"
+    r"|great|little|real|own|finally)$"
+)
+
+
 def cues(text: str, names: set[str] = frozenset()) -> list[str]:
     """The words that put a goal on the table: its content words, without small words and
     people's names. ponytail: words only, no embedder (a reworded topic can miss)."""
     words = re.findall(r"[a-z]+", text.lower())
-    out = [w for w in words if len(w) >= 3 and w not in STOP and w not in names]
+    out = [
+        w
+        for w in words
+        if len(w) >= 3 and w not in STOP and w not in names and not ACTION.search(w)
+    ]
     return list(dict.fromkeys(out))
 
 
@@ -44,7 +57,8 @@ def _text(value) -> str | None:
 def _listed(value) -> list[str]:
     if not isinstance(value, list):
         return []
-    return [w.strip().lower() for w in value if isinstance(w, str) and w.strip()]
+    words = (w.strip().lower() for w in value if isinstance(w, str))
+    return [w for w in words if len(w) >= CARD_CUE]
 
 
 def seed(conn: sqlite3.Connection, story_id: int, cast: list[tuple[dict, int]]) -> None:
@@ -143,7 +157,12 @@ ASKED = re.compile(
     r"|anything new|what'?s on your mind|what are you up to|how'?s (?:it going|life|things))\b",
     re.IGNORECASE,
 )
-PURSUED = ("need", "fear")  # kept, never offered: she does not know she is after them
+ACCEPT = re.compile(  # a yes that need not name the topic ("sure, show me") is no dodge
+    r"\b(yes|yeah|yep|sure|of course|okay,? (?:show|let'?s)|love to|i'?d like|show me|let'?s"
+    r"|when can|count me in|sounds (?:good|great|fun))\b",
+    re.IGNORECASE,
+)
+UNPURSUED = ("need", "fear")  # kept, never offered: she does not know she is after them
 
 
 def tried(text: str, cue: list[str]) -> bool:
@@ -182,7 +201,7 @@ def restraint(conn: sqlite3.Connection, who: int, path: list, user: str | None) 
     words, or ""."""
     ids = [m["id"] for m in path]
     for g in live(conn, who, path):
-        if g["key"] in PURSUED or g["status"] != "dormant" or g["deflections"] < DROP:
+        if g["key"] in UNPURSUED or g["status"] != "dormant" or g["deflections"] < DROP:
             continue
         if g["message_id"] not in ids:
             continue
@@ -226,7 +245,7 @@ def pick(conn: sqlite3.Connection, who: int, path: list, user: str | None) -> di
     text, now = path[-1]["text"], path[-1]["story_time"]
     best = None
     for g in live(conn, who, path):
-        if g["key"] in PURSUED or g["status"] not in ("active", "dormant"):
+        if g["key"] in UNPURSUED or g["status"] not in ("active", "dormant"):
             continue
         if g["status"] == "dormant" and now - g["story_time"] < REST:
             continue
@@ -277,7 +296,7 @@ def _judge(conn, who: int, path: list, said: dict, line, outcome: str, by: str) 
     """Write (or rewrite) the judgment of `line` for the goal `said` raised, anchored on it."""
     with conn:  # a retake or a relabel replaces the reading of that line, never adds to it
         conn.execute(
-            "DELETE FROM goals WHERE entity_id=? AND key=? AND message_id=?",
+            "DELETE FROM goals WHERE entity_id=? AND key=? AND message_id=? AND run_id IS NULL",
             (who, said["key"], line["id"]),
         )
     upto = path[: [m["id"] for m in path].index(line["id"]) + 1]
@@ -300,7 +319,8 @@ def judge(conn: sqlite3.Connection, who: int, path: list) -> dict | None:
     g = next((g for g in live(conn, who, path) if g["key"] == said["key"]), None)
     if g is None:
         return None
-    outcome = "progressed" if tried(line["text"], g["cue"]) else "deflected"
+    taken = tried(line["text"], g["cue"]) or ACCEPT.search(line["text"])
+    outcome = "progressed" if taken else "deflected"
     return _judge(conn, who, path, said, line, outcome, "rules")
 
 
@@ -320,7 +340,7 @@ def handles(conn: sqlite3.Connection, who: int, path: list) -> dict[str, dict]:
     return {
         f"G{g['id']}": g
         for g in live(conn, who, path)
-        if g["key"] not in PURSUED and g["status"] in ("active", "dormant")
+        if g["key"] not in UNPURSUED and g["status"] in ("active", "dormant")
     }
 
 
@@ -352,7 +372,7 @@ def public(conn: sqlite3.Connection, who: int, path: list, epoch: int) -> list[d
                                        "tried": said.get("tried")}  # fmt: skip
     return [
         {"id": g["id"], "key": g["key"],
-         "kind": g["key"] if g["key"] in ("want", *PURSUED) else "goal",
+         "kind": g["key"] if g["key"] in ("want", *UNPURSUED) else "goal",
          "tier": g["tier"], "text": g["text"], "status": g["status"],
          "progress": g["progress"], "dodged": g["deflections"], "tactic": g["tactic"],
          "since": clock.label(g["story_time"], epoch), "raised": raised.get(g["key"])}

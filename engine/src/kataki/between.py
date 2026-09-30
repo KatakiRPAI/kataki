@@ -745,7 +745,7 @@ def _wants(conn, who: int, path: list, wants: dict[str, dict]) -> str:
     """Her goals for the diary call, with handles; what she needs and fears, as context only."""
     rows = [f"- {h}: {g['text']}" + (" (you let it drop lately)" if g["status"] == "dormant"
             else "") for h, g in wants.items()]  # fmt: skip
-    deep = {g["key"]: g["text"] for g in goals.live(conn, who, path) if g["key"] in goals.PURSUED}
+    deep = {g["key"]: g["text"] for g in goals.live(conn, who, path) if g["key"] in goals.UNPURSUED}
     out = "What you are after:\n" + "\n".join(rows)
     if deep.get("need"):
         out += f"\nDeep down, without quite knowing it, you need {deep['need']}."

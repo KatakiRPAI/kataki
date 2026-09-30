@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from kataki import chat, goals, library
+from kataki import chat, goals, inner, library
 
 BOAT = {"text": "to get Aren to come and see the boat she built", "cue": ["boat", "sail"]}
 
@@ -68,7 +68,7 @@ def test_want_need_fear_and_listed_goals_become_her_goals(conn, cards):
     assert got["need"]["status"] == got["fear"]["status"] == "dormant"  # never pursued
     assert got["g1"]["tier"] == "ambition" and got["g1"]["priority"] == 0.4
     assert got["g2"]["tier"] == "project" and got["g2"]["priority"] == 0.5  # bad values: defaults
-    assert got["g1"]["cue"] == ["save", "bigger", "workshop"]  # its own words, when none given
+    assert got["g1"]["cue"] == ["workshop"]  # its own nouns, when none given
     assert all(g["message_id"] is None and g["run_id"] is None for g in got.values())
     tobin = ent(conn, story, "Tobin")
     assert goals.live(conn, tobin, path(conn, story)) == []
@@ -80,11 +80,15 @@ def test_a_malformed_card_never_breaks_the_story(conn, cards):
 
 
 def test_cue_words_leave_out_small_words_and_names():
-    assert goals.cues("to get Aren to come and see the boat she built", {"aren"}) == [
-        "boat",
-        "built",
-    ]
+    assert goals.cues("to get Aren to come and see the boat she built", {"aren"}) == ["boat"]
     assert goals.cues("I want THE harbour-master's job!") == ["harbour", "master", "job"]
+    assert goals.cues("save for a bigger workshop, finally working") == ["workshop"]
+
+
+def test_the_cards_own_topic_words_need_four_letters(conn, cards):
+    story = make(conn, cards, {"want": {"text": "see the boat", "cue": ["a", "sea", "Boat"]}})
+    want = goals.live(conn, ent(conn, story, "Mira"), path(conn, story))[0]
+    assert want["cue"] == ["boat"]
 
 
 def test_the_latest_version_on_this_branch_is_the_goal(conn, cards):
@@ -463,3 +467,82 @@ async def test_once_it_is_dropped_she_is_told_to_leave_it_be_for_a_few_replies(
     assert told == [True, True, True, True, False]  # the reply to the dodge, and three more
     assert "unless Aren brings it up" in directive_of(backend, -5)
     assert not any(ch.isdigit() for ch in directive_of(backend, -5).split("First, before")[0])
+
+
+# --- review fixes --------------------------------------------------------------------------------
+
+LABEL = {"felt": {"label": "hurt", "intensity": 2, "about": None, "cause": "he insulted her"},
+         "position": None, "yielded": False, "face": "neutral"}  # fmt: skip
+
+
+@pytest.mark.anyio
+async def test_on_standard_the_side_call_keeps_what_the_line_did_to_her_needs(
+    local_model, cards, backend, side_call
+):
+    conn = local_model
+    story = make(conn, cards)
+    mira, aren = ent(conn, story, "Mira"), ent(conn, story, "Aren")
+    label = LABEL | {"events": [{"target": f"E{aren}", "type": "insult", "intensity": 2}]}
+    backend.say("Fine.", json.dumps(label))
+    await play(turns.turn(conn, backend.llm, story, "You're useless, Mira.", speaker=mira))
+    assert gen_of(conn, story)["after"] != "skipped"
+    state = json.loads(
+        conn.execute(
+            "SELECT state FROM mind_states WHERE entity_id=? ORDER BY id DESC", (mira,)
+        ).fetchone()[0]
+    )
+    assert state["needs"]["competence"] < inner.START["competence"]
+
+
+def test_short_questions_are_not_boring_but_a_run_of_grunts_is():
+    prof = inner.shape({})
+    state = inner.drive(inner.fresh(prof, 0), prof)
+    for _ in range(10):
+        state = inner.drive(state, prof, None, "Where did you put the rope?")
+    assert inner.need_row(state, prof, 15 * 60, []) is None
+    for _ in range(15):
+        state = inner.drive(state, prof, None, "Mm.")
+    assert inner.need_row(state, prof, 15 * 60, [])["need"] == "stimulation"
+
+
+@pytest.mark.anyio
+async def test_on_lite_a_yes_is_a_yes(local_model, cards, backend):
+    conn = local_model
+    setting(conn, "mind.level", "lite")
+    story = make(conn, cards, {"want": BOAT})
+    await talk(conn, backend, story, "Morning.", "Come see my boat!")
+    got = await talk(conn, backend, story, "Yes, I'd love to see it!", "Tomorrow, then.")
+    assert got["goal"]["outcome"] == "progressed"
+
+
+@pytest.mark.anyio
+async def test_when_the_side_call_says_she_never_raised_it_nothing_is_judged(
+    local_model, cards, backend, side_call
+):
+    conn = local_model
+    story = make(conn, cards, {"want": BOAT})
+    mira = ent(conn, story, "Mira")
+    label = LABEL | {"felt": {**LABEL["felt"], "label": "calm", "intensity": 1}, "events": []}
+    backend.say("The boat, the boat.", json.dumps(label | {"agenda": "not_tried"}))
+    await play(turns.turn(conn, backend.llm, story, "Morning.", speaker=mira))
+    assert gen_of(conn, story)["agenda"]["tried"] is False
+    backend.say("Yes.", json.dumps(label))
+    await play(turns.turn(conn, backend.llm, story, "Did Tobin pay?", speaker=mira))
+    assert "goal" not in gen_of(conn, story)
+    assert goals.live(conn, mira, path(conn, story))[0]["deflections"] == 0
+
+
+@pytest.mark.anyio
+async def test_a_clock_edit_keeps_her_goals_where_they_were(local_model, cards, backend):
+    conn = local_model
+    story = make(conn, cards, {"want": BOAT})
+    mira = ent(conn, story, "Mira")
+    await talk(conn, backend, story, "Did the rope come in yet?", "No.", skip="the next day")
+    first = path(conn, story)[0]["id"]
+    for text, reply in [("Hi.", "Come see my boat!"), ("Did Tobin pay?", "Yes."),
+                        ("Ok.", "Mm."), ("Ok.", "Mm."), ("Hm.", "The boat!"),
+                        ("How's the office?", "Busy.")]:  # fmt: skip
+        await talk(conn, backend, story, text, reply)
+    assert goals.live(conn, mira, path(conn, story))[0]["status"] == "dormant"
+    chat.set_skip(conn, first, 0)  # the day never passed: everything after moves back
+    assert goals.live(conn, mira, path(conn, story))[0]["status"] == "dormant"

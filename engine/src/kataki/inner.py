@@ -479,7 +479,8 @@ BOSSY = re.compile(
     r"|because i said so|that'?s an order|don'?t argue)",
     re.IGNORECASE,
 )
-CONTACT, DULL, LIVELY = 0.05, -0.03, 0.02  # ponytail: being talked to; a curt line; a real one
+CONTACT, DULL, LIVELY = 0.05, -0.015, 0.02  # ponytail: being talked to; a curt line; a real one
+CURT = 3  # words or fewer, and no question: a curt line
 
 
 def rest(prof: dict) -> dict[str, float]:
@@ -501,23 +502,28 @@ def drive(state: dict, prof: dict, event: str | None = None, text: str | None = 
         if BOSSY.search(text):
             needs["autonomy"] -= 0.2
         needs["relatedness"] += CONTACT
-        needs["stimulation"] += LIVELY if len(text.split()) >= 8 else DULL
+        words = len(text.split())
+        if words >= 8:
+            needs["stimulation"] += LIVELY
+        elif words <= CURT and "?" not in text:
+            needs["stimulation"] += DULL
     return {**state, "needs": {k: round(min(1.0, max(0.0, v)), 3) for k, v in needs.items()}}
 
 
 def energy(minute_of_day: int, chronotype_h: float = 0) -> float:
     """How much energy she has at this time of day, 0-1 (closed form, never stored): a circadian
-    curve peaking mid-afternoon and lowest before dawn, minus sleep pressure after about sixteen
-    hours awake; `chronotype_h` shifts her day later (+) or earlier (-).
+    curve peaking mid-afternoon and lowest before dawn, minus sleep pressure that builds after
+    about sixteen hours awake, peaks before dawn and is gone by her usual waking hour;
+    `chronotype_h` shifts her day later (+) or earlier (-).
     ponytail: the two-process model with a fixed wake time; no sleep is tracked."""
     h = (minute_of_day / 60 - chronotype_h) % 24
     circadian = math.cos(2 * math.pi * (h - 15) / 24)
-    pressure = max(0.0, (h - 7) % 24 - 16) / 8
+    pressure = max(0.0, 1 - abs((h - 7) % 24 - 20) / 4)  # 0 at 23:00 and 07:00, 1 at 03:00
     return round(min(1.0, max(0.0, 0.55 + 0.3 * circadian - 0.35 * pressure)), 3)
 
 
 ROWS = {  # the need as behaviour, never as an announcement (note 17 §1)
-    "energy": "Body: worn out, it is late for you. Shorter answers, little patience, a bit"
+    "energy": "Body: you're worn out. Shorter answers, little patience, a bit"
     " snappish; if anyone says you seem tired, deny it.",
     "autonomy": "Lately you have felt pushed around: you bristle at being told what to do and"
     " want to make your own call.",
