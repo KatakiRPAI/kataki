@@ -517,7 +517,8 @@ def read(conn: sqlite3.Connection, story_id: int, speaker_id: int, path: list, p
         mine = [i for i, m in enumerate(heard) if m["role"] == "user" and m["speaker_id"] == asker]
         caught = None
         said = pending["text"] if pending is not None else ""
-        if ACCUSE.search(said) or leak(said, sec["keys"]):  # or he names the truth to her face
+        # or he names the truth to her face (asking about it is a probe, not an accusation)
+        if ACCUSE.search(said) or (leak(said, sec["keys"]) and not question(said)):
             caught = "accused"
         elif asker is not None and _doubted(conn, story_id, speaker_id, sec, path, asker):
             caught = "doubted"

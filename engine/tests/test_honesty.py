@@ -739,3 +739,20 @@ def test_a_merged_owner_keeps_her_secrets(conn, cards):
     conn.execute("UPDATE secrets SET owner_id=? WHERE story_id=?", (other, story))
     library.merge_entities(conn, mira, other)
     assert conn.execute("SELECT owner_id FROM secrets").fetchone()[0] == mira
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "line, caught",
+    [
+        ("Mira, do you have any brothers?", None),
+        ("Mira, Tobin told me it was your brother's ring.", "accused"),
+    ],
+)
+async def test_naming_the_key_in_a_question_is_a_probe_not_an_accusation(
+    conn, liar, backend, line, caught
+):
+    backend.say("It was my grandmother's.", "Hm.")
+    await play(turns.turn(conn, backend.llm, liar, ASK))
+    await play(turns.turn(conn, backend.llm, liar, line))
+    assert leaf(conn, liar)[1]["honest"]["caught"] == caught
