@@ -370,6 +370,12 @@ async def _generate(
         secret = None
     if secret and secret["directive"]:
         decide = " ".join(p for p in (decide, secret["directive"]) if p)
+    guards = secret["guards"] if secret else []  # every secret kept from someone here
+    guarding = bool(secret and secret["hot"])  # on the table: hold the reply by sentences
+    try:
+        lite = knobs.setting(conn, "mind.level", "standard") == "lite"
+    except Exception:
+        lite = True  # unreadable: no retake, code only
     think_why = None  # why the header was asked, for gen.trace.think
     try:
         voice = thought.mode(conn, ep, speaker_id)
@@ -476,6 +482,7 @@ async def _generate(
     parts, thoughts, done = [], [], {}
     prefix, opener, dropped = _Prefix(name or "Narrator"), _Opener(False), ""
     header, before = thought.Header(False, "", ep.think_tags), None
+    guard = honesty.Guard([])
     finish, error, message_id, text, skip = "stopped", None, None, "", 0
     first_thought = first_token = first_word = None  # think_ms: first thought to first word
     asked = time.monotonic()
@@ -485,6 +492,7 @@ async def _generate(
             first_thought = first_token = first_word = None  # a retake times its own take
             prefix, opener = _Prefix(name or "Narrator"), _Opener(hold and not attempt)
             header = thought.Header(voice == "inline", name or "", ep.think_tags)
+            guard = honesty.Guard(guards if guarding else [])
             stream = llm.chat_stream(
                 ep, built.messages, stop=stops, max_tokens=built.response_reserve
             )
@@ -501,24 +509,36 @@ async def _generate(
                         first_word = first_word or (value and time.monotonic()) or None
                         if value and voice == "inline" and not attempt and not opener.watched:
                             _watch(opener, thoughts, header, name, ep.think_tags)
-                        if value := opener.feed(value):
+                        if value := guard.feed(opener.feed(value)):
                             parts.append(value)
                             yield ("token", value)
-                        if opener.hit:
+                        if opener.hit or guard.hit:
                             break  # closing the stream stops the model
                     else:
                         done = value
-            rest = "" if opener.hit else prefix.feed(header.flush()) + prefix.flush()
+            cut = opener.hit or guard.hit
+            rest = "" if cut else prefix.feed(header.flush()) + prefix.flush()
             if rest and voice == "inline" and not attempt and not opener.watched:
                 _watch(opener, thoughts, header, name, ep.think_tags)
-            if not opener.hit and (rest := opener.feed(rest) + opener.flush()):
+            if not cut and (rest := guard.feed(opener.feed(rest) + opener.flush()) + guard.flush()):
                 parts.append(rest)
                 yield ("token", rest)
-            if not opener.hit:
+            redo = guard.hit and not guard.shown and not attempt and not lite  # nothing seen yet
+            if guard.hit and not redo:  # said: the cover takes its place, and the reply ends
+                again = (trace.get("leak") or {}).get("resampled", False)
+                trace["leak"] = {"hit": guard.hit, "resampled": again, "covered": True}
+                fix = honesty.cover_up(guard.before, guard.before + guard.leaked, guard.cover)
+                parts.append(fix)
+                yield ("token", fix)
+            if not opener.hit and not redo:
                 break
             # ponytail: the dropped take's thoughts were already streamed (no words were)
             dropped = opener.dropped
-            if opener.echo:  # it said its thought aloud: the same one retake, told to keep it in
+            if redo:  # it gave the secret away before a word was seen: the one retake
+                trace["leak"] = {"hit": guard.hit, "resampled": True, "covered": False}
+                dropped = honesty.cover_up("", guard.leaked, guard.cover)  # if the retake fails
+                stronger = honesty.STRONGER.format(name=name)
+            elif opener.echo:  # it said its thought aloud: the same one retake, told to keep it in
                 trace["echo"] = {"hit": opener.echo, "resampled": True}
                 stronger = thought.STRONGER.format(name=name)
             else:
@@ -545,7 +565,7 @@ async def _generate(
     finally:  # runs on finish, on error, and when the client stops the stream
         # stopped while held: keep it, in the order it was written (header, prefix, opener)
         tail = prefix.feed(header.flush()) + prefix.flush()
-        text = ("".join(parts) + opener.held + tail).strip()
+        text = ("".join(parts) + guard.held + opener.held + tail).strip()
         if not text and dropped:  # the second take failed or came back empty: keep the first
             text = dropped.strip()
         reasoning, heard = "".join(thoughts), []
@@ -562,6 +582,17 @@ async def _generate(
                 logging.getLogger(__name__).warning("thought not read: %s", e)
                 heard = []
         text = _unsign(text, name or "Narrator")
+        if text and guards:  # whatever went unheld or unchecked: the saved reply keeps no secret
+            try:
+                kept, key = honesty.scrub(
+                    text, guards if guarding else [(k, None) for k, _ in guards]
+                )
+                if key:
+                    text = kept
+                    again = (trace.get("leak") or {}).get("resampled", False)
+                    trace["leak"] = {"hit": key, "resampled": again, "covered": True}
+            except Exception as e:
+                logging.getLogger(__name__).warning("leak check skipped: %s", e)
         if text:
             if check and not hold and (hit := bonds.opener(text)):
                 trace["check"] = {"hit": hit, "resampled": False}  # lite: noted, not retaken

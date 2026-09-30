@@ -293,6 +293,7 @@ def claims(conn: sqlite3.Connection, story_id: int, owner_id: int, sec: dict, pa
 END = re.compile(r"[.!?…]+[\"”’'*_)\]]*(?:\s+|$)|\n+")  # a sentence's end, closers and all
 SURE_END = re.compile(r"[.!?…]+[\"”’'*_)\]]*\s+|\n+")  # ...that no later character can extend
 SILENT = "…"  # what is left of a leak with no cover to put in its place
+STRONGER = "{name} keeps the secret: if it comes up, {name} tells only the story they have told."
 
 
 def _key(key: str) -> re.Pattern:
@@ -359,11 +360,13 @@ class Guard:
     def __init__(self, guards: list[tuple[list[str], str | None]]):
         self.guards = [(keys, cover) for keys, cover in guards if keys]
         self.held, self.hit, self.cover, self.shown, self.before = "", None, None, False, ""
+        self.leaked = ""  # from the leaking sentence on: never shown
 
     def _release(self, done: str) -> str:
         if found := _first(done, self.guards):
             start, self.hit, self.cover = found
-            done = done[:start]
+            done, self.leaked = done[:start], done[start:] + self.held
+            self.held = ""
         self.shown = self.shown or bool(done.strip())
         self.before += done
         return done
@@ -454,7 +457,7 @@ def read(conn: sqlite3.Connection, story_id: int, speaker_id: int, path: list, p
         if not hide:
             continue  # nobody here it is kept from: nothing to decide, nothing to guard
         if not sec["sincere"]:
-            guards.append((sec["keys"], sec["cover"]))
+            guards.append((sec["id"], sec["keys"], sec["cover"]))
         if any(topical(sec, m["text"]) for m in heard[-RECENT:]):
             hot.append((sec, hide))
     close = _close(conn, speaker_id, path, asker)
@@ -494,7 +497,9 @@ def read(conn: sqlite3.Connection, story_id: int, speaker_id: int, path: list, p
         words_ = directive(None, move, user, [], None)
         honest = {"secret": None, "move": move, "why": "face", "caught": None, "to": asker,
                   "inputs": {"stakes": None, **inputs}, "told": []}  # fmt: skip
+    if honest and honest["move"] in TELLING:  # she is telling it: nothing to guard
+        guards = [g for g in guards if g[0] != honest["secret"]]
     if not guards and honest is None:
         return None
-    return {"gate": gate, "hot": bool(hot), "guards": guards, "directive": words_,
-            "honest": honest}  # fmt: skip
+    return {"gate": gate, "hot": bool(hot), "guards": [g[1:] for g in guards],
+            "directive": words_, "honest": honest}  # fmt: skip

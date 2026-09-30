@@ -60,7 +60,7 @@
 
 **Files:** `docs/specs/2026-09-29-minds.md` (§8.3: drop slice 4 from "Known now", add a **Slice 4** block after Slice 3), this plan.
 
-- [ ] Write the block: `mind.secrets`; the card shape `data.mind.secrets[]`; `people[].secrets[]`; `gen.honest`; the `honest` DECIDE node; the OOC SSE and message fields; `gen.trace.gate`; `gen.trace.think` gains `"secret"`; `gen.honest.leak`.
+- [ ] Write the block: `mind.secrets`; the card shape `data.mind.secrets[]`; `people[].secrets[]`; `gen.honest`; the `honest` DECIDE node; the OOC SSE and message fields; `gen.trace.gate`; `gen.trace.think` gains `"secret"`; `gen.trace.leak`.
 - [ ] Commit: `docs: minds slice 4 plan and API contract for the UI`
 
 ### Task 2: v12 `secrets`, and `mind.secrets`
@@ -124,7 +124,7 @@
 
 **Files:** `turns.py`; tests `test_honesty.py`.
 
-**Interfaces:** on hot turns a `honesty.Guard` sits after `_Opener` in the stream; a leak in the first sentence (nothing shown yet, first take, not lite) is retaken once with `honesty.STRONGER` (the one retake per turn); a leak later, a leak on the retake, or any leak on lite ends the reply there with the cover; a leak on a non-hot turn is scrubbed from the saved text. `gen.honest.leak = {"hit": key, "fixed": "retake" | "cover"}`.
+**Interfaces:** on hot turns a `honesty.Guard` sits after `_Opener` in the stream; a leak in the first sentence (nothing shown yet, first take, not lite) is retaken once with `honesty.STRONGER` (the one retake per turn); a leak later, a leak on the retake, or any leak on lite ends the reply there with the cover; a leak on a non-hot turn is scrubbed from the saved text. `gen.trace.leak = {"hit": key, "resampled": bool, "covered": bool}`.
 
 - [ ] Tests: a first-sentence leak is written again once and never streamed; a retake that leaks too is covered; a mid-reply leak keeps the clean sentences and ends with the cover (no second request); lite covers without a retake; the opener retake and the leak never add up to two retakes; a leak on an unrelated turn is scrubbed from `done.text`.
 - [ ] Commit: `feat(engine): a reply that gives a secret away is written again once, or covered`

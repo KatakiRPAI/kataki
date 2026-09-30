@@ -337,3 +337,74 @@ async def test_an_opinion_on_his_poem_gets_a_move_by_temperament(conn, cards, lo
     await play(turns.turn(conn, backend.llm, story, "Mira, I wrote a poem. What do you think?"))
     assert honesty.FACE_SAY["truth"] in directive_of(backend)
     assert leaf(conn, story)[1]["honest"]["why"] == "face"
+
+
+# --- the leak filter in the turn ---------------------------------------------------------------
+
+ASK = "Mira, whose ring is in your drawer?"
+
+
+@pytest.mark.anyio
+async def test_a_first_sentence_that_gives_it_away_is_written_again_unseen(conn, liar, backend):
+    backend.say("It was my brother's. He died.", "It was my grandmother's.")
+    events = await play(turns.turn(conn, backend.llm, liar, ASK))
+    assert len(backend.requests) == 2 and honesty.STRONGER.format(name="Mira") in directive_of(
+        backend, 1
+    )
+    assert "brother" not in shown(events).lower()
+    text, gen = leaf(conn, liar)
+    assert text == "It was my grandmother's." == events[-1][1]["text"]
+    assert gen["trace"]["leak"] == {"hit": "brother", "resampled": True, "covered": False}
+
+
+@pytest.mark.anyio
+async def test_a_retake_that_gives_it_away_too_gets_the_cover(conn, liar, backend):
+    backend.say("It was my brother's.", '"My brother\'s, fine."')
+    events = await play(turns.turn(conn, backend.llm, liar, ASK))
+    assert len(backend.requests) == 2 and "brother" not in shown(events).lower()
+    text, gen = leaf(conn, liar)
+    assert text == '"It was my grandmother\'s."'
+    assert gen["trace"]["leak"] == {"hit": "brother", "resampled": True, "covered": True}
+
+
+@pytest.mark.anyio
+async def test_a_leak_later_keeps_the_clean_sentences_and_ends_with_the_cover(conn, liar, backend):
+    backend.say("Fine. It was my brother's. He died.")
+    events = await play(turns.turn(conn, backend.llm, liar, ASK))
+    assert len(backend.requests) == 1
+    assert shown(events) == "Fine. It was my grandmother's." == leaf(conn, liar)[0]
+    assert leaf(conn, liar)[1]["trace"]["leak"] == {
+        "hit": "brother", "resampled": False, "covered": True,
+    }  # fmt: skip
+
+
+@pytest.mark.anyio
+async def test_lite_covers_by_code_without_a_retake(conn, liar, backend):
+    conn.execute("INSERT INTO settings(key, value) VALUES('mind.level', '\"lite\"')")
+    backend.say("It was my brother's.")
+    await play(turns.turn(conn, backend.llm, liar, ASK))
+    assert len(backend.requests) == 1 and leaf(conn, liar)[0] == "It was my grandmother's."
+
+
+@pytest.mark.anyio
+async def test_the_opener_retake_and_a_leak_never_make_two_retakes(
+    conn, cards, local_model, backend
+):
+    story = make(conn, cards, [SECRET], {"axes": {"honesty": [25, 5], "candor": [85, 5]}})
+    backend.say("You're right, I should say. Hm.", "It was my brother's.", "unused")
+    await play(turns.turn(conn, backend.llm, story, ASK))
+    assert len(backend.requests) == 2
+    text, gen = leaf(conn, story)
+    assert text == "It was my grandmother's." and gen["trace"]["check"]["resampled"]
+    assert gen["trace"]["leak"] == {"hit": "brother", "resampled": False, "covered": True}
+
+
+@pytest.mark.anyio
+async def test_a_leak_when_it_was_not_on_the_table_is_taken_out_of_the_saved_reply(
+    conn, liar, backend
+):
+    backend.say("No ships. My brother loved ships, you know.")
+    events = await play(turns.turn(conn, backend.llm, liar, "Mira, any ships in today?"))
+    assert shown(events) == "No ships. My brother loved ships, you know."  # not held: streamed
+    assert events[-1][1]["text"] == "No ships." == leaf(conn, liar)[0]
+    assert leaf(conn, liar)[1]["trace"]["leak"]["covered"]
