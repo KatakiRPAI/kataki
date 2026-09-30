@@ -287,3 +287,93 @@ async def test_a_dropped_take_is_metered(local_model, backend):
     assert len(backend.requests) == 2
     rows = [r for r in metered(conn) if r["role"] == "rp"]
     assert [r["estimated"] for r in rows] == [1, 0]  # the dropped take, then the kept one
+
+
+# --- what a story cost, and what a turn costs --------------------------------------------------
+
+
+def a_story(conn):
+    mira = library.create_item(conn, "character", "Mira")
+    aren = library.create_item(conn, "character", "Aren")
+    return library.create_story(conn, "s", character_ids=[mira], persona_id=aren)
+
+
+def log(conn, story, role, model, prompt, out, at, cost=None):
+    conn.execute(
+        "INSERT INTO usage_log(story_id, role, model, prompt_tokens, completion_tokens, at, cost)"
+        " VALUES(?, ?, ?, ?, ?, ?, ?)",
+        (story, role, model, prompt, out, at, cost),
+    )
+
+
+def client_for(conn):
+    from fastapi.testclient import TestClient
+
+    from kataki.server import create_app
+
+    return TestClient(create_app(conn, "t")), {"Authorization": "Bearer t"}
+
+
+def test_spend_totals_by_role_and_by_day(local_model):
+    conn = local_model
+    story, other = a_story(conn), a_story(conn)
+    set_prices(conn, {"rp-model": {"input": 1.0, "output": 2.0}})
+    log(conn, story, "rp", "rp-model", 1000, 100, "2026-09-29 10:00:00", cost=0.5)  # kept as made
+    log(conn, story, "rp", "rp-model", 1000, 100, "2026-09-30 10:00:00")  # before any price
+    log(conn, story, "utility", "free-local", 500, 50, "2026-09-30 11:00:00")  # never priced
+    log(conn, other, "rp", "rp-model", 9, 9, "2026-09-30 11:00:00", cost=9.0)  # another story
+    conn.execute("UPDATE usage_log SET estimated=1 WHERE model='free-local'")
+    client, auth = client_for(conn)
+
+    got = client.get(f"/stories/{story}/spend", headers=auth).json()
+
+    today = (1000 * 1.0 + 100 * 2.0) / 1e6
+    assert got["calls"] == 3 and got["unpriced"] == 1 and got["estimated"] == 1
+    assert got["cost"] == pytest.approx(0.5 + today)
+    assert got["by_role"]["rp"]["calls"] == 2
+    assert got["by_role"]["rp"]["cost"] == pytest.approx(0.5 + today)
+    assert got["by_role"]["utility"] == {
+        "calls": 1,
+        "cost": 0,
+        "prompt_tokens": 500,
+        "cached_tokens": 0,
+        "completion_tokens": 50,
+    }
+    days = [(d["day"], d["calls"], round(d["cost"], 9)) for d in got["by_day"]]
+    assert days == [("2026-09-29", 1, 0.5), ("2026-09-30", 2, round(today, 9))]
+
+
+def test_spend_for_no_story_is_404(conn):
+    client, auth = client_for(conn)
+    assert client.get("/stories/99/spend", headers=auth).status_code == 404
+
+
+def test_a_turn_costs_more_the_more_the_mind_does(local_model):
+    conn = local_model
+    story = a_story(conn)
+    set_prices(conn, {"rp-model": {"input": 1.0, "output": 2.0}})
+    conn.execute("INSERT INTO settings(key, value) VALUES('mind.level', '\"lite\"')")
+    turn = usage.per_turn(conn, story, usage.table(conn))
+    assert turn["level"] == "lite"
+    # lite: the reply (4000 in, 300 out by default) and a memory read every fifth turn
+    assert turn["lite"] == pytest.approx((4000 + 300 * 2 + 0.2 * (2000 + 300 * 2)) / 1e6)
+    assert turn["lite"] < turn["standard"] < turn["premium"]
+
+
+def test_a_turns_reply_is_sized_from_the_story_itself(local_model):
+    conn = local_model
+    story = a_story(conn)
+    set_prices(conn, {"rp-model": {"input": 1.0, "cached": 0.0, "output": 0.0}})
+    conn.execute(
+        "INSERT INTO context_log(story_id, sections, memories, est_tokens, actual_tokens,"
+        " cached_tokens) VALUES(?, '[]', '[]', 9000, 8000, 6000)",
+        (story,),
+    )
+    base = usage.per_turn(conn, story, usage.table(conn))["lite"]
+    assert base == pytest.approx((2000 + 0.2 * 2000) / 1e6)  # 8000 in, 6000 of them cached
+
+
+def test_a_turn_without_prices_is_null(local_model):
+    conn = local_model
+    turn = usage.per_turn(conn, a_story(conn), {})
+    assert (turn["lite"], turn["standard"], turn["premium"]) == (None, None, None)

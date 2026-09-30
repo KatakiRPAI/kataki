@@ -55,6 +55,7 @@ from kataki import (
     signals,
     speech,
     turns,
+    usage,
 )
 from kataki.host import Host, LocalHost
 from kataki.llm import LLM, LLMError
@@ -1311,6 +1312,17 @@ def create_app(
         """While you were away: what each character's time between scenes held (minds slice 5).
         The card polls this until `done`."""
         return between.away(conn, story_row(story_id))
+
+    @app.get("/stories/{story_id}/spend")
+    async def get_spend(story_id: int):
+        """What this story's model calls cost, by role and day, and a turn at each mind level
+        (minds spec §8.4, track B2). No call is made."""
+        story_row(story_id)
+        prices = host.price_table(conn)
+        return {
+            **usage.spend(conn, story_id, prices),
+            "per_turn": usage.per_turn(conn, story_id, prices),
+        }
 
     @app.post("/stories/{story_id}/turn")
     async def take_turn(story_id: int, t: TurnIn):
