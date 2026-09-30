@@ -10,6 +10,10 @@ ponytail: every number here is a starting point from note 15 (whose own rates ar
 defaults); tune on the texting probe, not by feel.
 """
 
+import random
+import re
+import zlib
+
 from kataki import context
 
 DIALS = ("off", "light", "natural", "messy")
@@ -64,3 +68,139 @@ def style(setting: str, user_text: str | None, mood: dict | None, tired: bool,
         register = "plain"
     said = " ".join(w for w in (LENGTH_WORDS[length], REGISTER_WORDS.get(register)) if w)
     return {"length": length, "register": register, "words": said}
+
+
+# --- the courier: bursts, timing, one corrected typo (note 15 §3, §7B) --------------------------
+
+CAP = {"light": 2, "natural": 3, "messy": 4}  # ponytail: the most bubbles a reply becomes
+TYPO_RATE = {"natural": 0.1, "messy": 0.2}  # ponytail: note 15 §7A (natural 1 in 10, messy 1 in 5)
+READ_MS, READ_CAP = 30, 3000  # ponytail: reading the user's line (Jones and Bergen: 30 ms a char)
+TYPE_MS = 55  # ponytail: typing a character (the Turing test's 300 ms drags in a long roleplay)
+TYPING_MIN, TYPING_MAX = 400, 6000  # ponytail: ms
+DELAY_MAX = 8000  # ponytail: note 15 §3: keep a simulated wait within about 1.5-8 s
+GAP_MS = (300, 900)  # ponytail: the pause between one bubble and the next
+FIX_MS = (300, 700)  # ponytail: and before the "*word" that corrects a typo
+WEIGHTY = 1.5  # ponytail: a hard moment (a decision in [Directive]) is slower to start
+PROSE = re.compile(r'[*_"“”]')
+PRONOUN = frozenset({"she", "he", "they", "her", "his", "their"})
+ABBREV = re.compile(r"\b(?:mr|mrs|ms|dr|st)\.$", re.I)
+KEYS = "qwertyuiop asdfghjkl zxcvbnm".split()
+
+
+def chatty(text: str, name: str) -> bool:
+    """Is this reply a text message, not prose? No action markup, no quoted speech, no opening
+    pronoun and not her own name (narration names its subject; a text does not). Every doubt
+    reads as prose: a false "prose" costs the effect, a false "text" would mangle a story."""
+    if not text.strip() or PROSE.search(text):
+        return False
+    first = re.match(r"\W*(\w+)", text)
+    if first and first.group(1).lower() in PRONOUN:
+        return False
+    names = [n for n in dict.fromkeys([name, *name.split()[:1]]) if n]
+    return not any(re.search(rf"\b{re.escape(n)}\b", text, re.I) for n in names)
+
+
+def _sentences(line: str) -> list[str]:
+    out: list[str] = []
+    for piece in re.split(r"(?<=[.!?…])\s+", line):
+        if out and (ABBREV.search(out[-1]) or out[-1].endswith(("..", "…"))):
+            out[-1] += " " + piece  # "Mr. Vey", "the dock... he": not a sentence's end
+        else:
+            out.append(piece)
+    return [p for p in out if p.strip()]
+
+
+def split(text: str, cap: int, lines_only: bool) -> list[str]:
+    """The model's own lines, then (unless `lines_only`) their sentences, with the shortest
+    neighbours merged until there are at most `cap`."""
+    parts = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    if not lines_only:
+        parts = [s for ln in parts for s in _sentences(ln)]
+    while len(parts) > max(cap, 1):
+        i = min(range(len(parts) - 1), key=lambda i: len(parts[i]) + len(parts[i + 1]))
+        parts[i : i + 2] = [f"{parts[i]} {parts[i + 1]}"]
+    return parts
+
+
+def _pace(mood: dict | None, tired: bool) -> float:
+    """How fast she answers: wound up is quicker, low or hurt slower, tired slower."""
+    mood = mood if isinstance(mood, dict) else {}
+    label, word = mood.get("label"), mood.get("word")
+    p = 1.0
+    if word in ("buzzing", "on edge") or label in ("excited", "angry"):
+        p = 0.8
+    elif word == "low" or label in ("hurt", "sad", "ashamed", "bored"):
+        p = 1.3
+    return p * (1.2 if tired else 1.0)
+
+
+def _typing(text: str, pace: float) -> int:
+    return round(min(max(len(text) * TYPE_MS * pace, TYPING_MIN), TYPING_MAX))
+
+
+def _mistype(word: str, rng: random.Random) -> str:
+    """One keyboard-plausible slip: two letters swapped, one dropped or doubled, or a neighbour
+    key hit instead."""
+    for _ in range(8):
+        i = rng.randrange(1, len(word) - 1)
+        how = rng.choice(("swap", "drop", "double", "near"))
+        if how == "swap":
+            out = word[:i] + word[i + 1] + word[i] + word[i + 2 :]
+        elif how == "drop":
+            out = word[:i] + word[i + 1 :]
+        elif how == "double":
+            out = word[:i] + word[i] + word[i:]
+        else:
+            row = next((r for r in KEYS if word[i] in r), None)
+            if row is None:
+                continue
+            j = row.index(word[i])
+            near = [row[k] for k in (j - 1, j + 1) if 0 <= k < len(row)]
+            out = word[:i] + rng.choice(near) + word[i + 1 :]
+        if out != word:
+            return out
+    return word
+
+
+def plan(text: str, dial: str, *, name: str, heard: str | None, mood: dict | None,
+         tired: bool, weighty: bool, typo_ok: bool, seed: str) -> dict | None:  # fmt: skip
+    """The delivery plan for a finished, clean reply (spec §8.3 slice 9), or None when the dial
+    is off. `heard`: the line she answers (she reads it first); `weighty`: a decision rode in
+    [Directive]; `typo_ok`: the turn allows a typo at all; `seed`: the same reply always gets the
+    same plan. Prose gets `mode: "prose"` and no bursts. Display only: `text` is never changed."""
+    if dial == "off":
+        return None
+    dial = dial if dial in CAP else "light"
+    if not chatty(text, name):
+        return {"mode": "prose", "dial": dial, "bursts": [], "typo": None}
+    rng = random.Random(zlib.crc32(seed.encode()))
+    pace = _pace(mood, tired)
+    parts = split(text, CAP[dial], lines_only=dial == "light")
+    bursts = []
+    for i, part in enumerate(parts):
+        if i == 0:
+            wait = min(len(heard or ""), READ_CAP // READ_MS) * READ_MS
+            wait += rng.gammavariate(2.5, 0.25) * 1000  # thinking, right-skewed
+            wait *= pace * (WEIGHTY if weighty else 1.0)
+        else:
+            wait = rng.uniform(*GAP_MS) * pace
+        bursts.append({"text": part, "typing_ms": _typing(part, pace),
+                       "delay_ms": round(min(wait, DELAY_MAX))})  # fmt: skip
+    typo = None
+    roll = rng.random()  # drawn every time, so allowing a typo never moves the timing
+    if typo_ok and roll < TYPO_RATE.get(dial, 0.0):
+        spots = [(i, m) for i, b in enumerate(bursts)
+                 for m in re.finditer(r"(?<![\w'])[a-z]{4,}(?![\w'])", b["text"])]  # fmt: skip
+        if spots:
+            i, m = rng.choice(spots)
+            right = m.group()
+            wrong = _mistype(right, rng)
+            if wrong != right:
+                b = bursts[i]
+                b["text"] = b["text"][: m.start()] + wrong + b["text"][m.end() :]
+                b["typo"] = typo = {"wrong": wrong, "right": right}
+                fix = f"*{right}"
+                bursts.insert(i + 1, {"text": fix, "typing_ms": _typing(fix, pace),
+                                      "delay_ms": round(rng.uniform(*FIX_MS)),
+                                      "correction": True})  # fmt: skip
+    return {"mode": "text", "dial": dial, "bursts": bursts, "typo": typo}
