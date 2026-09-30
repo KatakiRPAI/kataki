@@ -1,6 +1,6 @@
 # Minds Slice 6 ("She misremembers, and corrects herself") Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:test-driven-development for every task (test first, see it fail, implement, see it pass). Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:test-driven-development for every task (test first, see it fail, implement, see it pass). Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Memory gets its human effects, all in code, zero extra calls. What she is feeling tilts what comes back (mood-congruent recall). A hazy memory she is pressed on gives true partial cues ("a name that starts with T; about six years ago") instead of nothing. A hazy memory's minor detail can drift to a plausible mix-up the memory reader wrote down beside the truth (`alts`): that becomes *her version* (a `recollections` row, append-only; the truth row is never touched), she says it ("we met on Tuesday"), and code, which holds the ground truth, schedules the repair as a `correction` seed: two of her replies later `[Directive]` has her correct herself in passing ("wait, Thursday"). When the user catches the slip first she owns it; when the user "corrects" something she remembers sharply she keeps it. A claim she makes that contradicts a hazy memory of hers becomes her version (a retelling), and when she tells someone else, they get her version. Pinned and `core_locked` memories are never distorted and never forgotten. The dial `realism.memory` (faithful / human / dreamlike) sets how often details drift. The ledger (`GET /stories/{id}/memories?knower=`) shows her version beside the truth and tells "she forgot" from "the app lost it"; Lock and Correct join Pin and Hide.
 
@@ -59,52 +59,52 @@
 
 ### Task 1: The slice-6 contract for the UI
 
-- [ ] §8.3 **Slice 6** block: `mind.recall`; `realism.memory`; memory fields; ledger `version`, `why_not`; PATCH `core_locked`; `POST /memories/{id}/version`; `people[].versions`; `gen.recall`; `correction` seeds; what the prompt now carries.
-- [ ] Commit: `docs: minds slice 6 plan and API contract for the UI`
+- [x] §8.3 **Slice 6** block: `mind.recall`; `realism.memory`; memory fields; ledger `version`, `why_not`; PATCH `core_locked`; `POST /memories/{id}/version`; `people[].versions`; `gen.recall`; `correction` seeds; what the prompt now carries.
+- [x] Commit: `docs: minds slice 6 plan and API contract for the UI`
 
 ### Task 2: v14 and `mind.recall`
 
 **Files:** `db.py` (`SCHEMA_VERSION = 14`), `features.py`; tests `test_db.py` (`test_v14_adds_recollections`: a v13 library opens at v14, the columns exist with defaults, a row inserts, a bad basis fails the CHECK, deleting the memory cascades, deleting the anchoring message cascades), `test_features.py`.
 
-- [ ] Commit: `feat(engine): v14 recollections and memory columns, and the mind.recall feature`
+- [x] Commit: `feat(engine): v14 recollections and memory columns, and the mind.recall feature`
 
 ### Task 3: The memory reader writes valence, alts and core_locked
 
 **Files:** `models.py` (`Alt`, lenient validators, `extraction_schema(..., recall=True)`), `extract.py` (`INSTRUCTIONS_RECALL`, `prompt` asks only when on, `add_memories` stores them, drops an alt whose `right` is not in the detail); tests `test_extract.py`.
 
-- [ ] Tests: the fields are stored; an alt not in the detail is dropped with a warning; a bad valence or alt never drops the memory; off → schema and instructions unchanged; the schema grows < 25%.
-- [ ] Commit: `feat(engine): the memory reader notes how a memory felt and what could be mixed up`
+- [x] Tests: the fields are stored; an alt not in the detail is dropped with a warning; a bad valence or alt never drops the memory; off → schema and instructions unchanged; the schema grows < 25%.
+- [x] Commit: `feat(engine): the memory reader notes how a memory felt and what could be mixed up`
 
 ### Task 4: Mood-congruent recall, cues, never forgotten
 
 **Files:** `recollect.py` (`congruence`, `cues`), `activation.py` (`score(..., mood=0)`), `retrieve.py` (`recall(..., mood=None)`); tests `test_recollect.py` (new), `test_retrieve.py`.
 
-- [ ] Tests: a sad mood lifts a sad memory over a happy one of equal weight (and not with the feature off); a pressed hazy memory whose strain fails carries at most two true cues and no digits; a `core_locked` memory far past forgetting is still hazy.
-- [ ] Commit: `feat(engine): what she feels tilts what she remembers, and a half-remembered name is on the tip of her tongue`
+- [x] Tests: a sad mood lifts a sad memory over a happy one of equal weight (and not with the feature off); a pressed hazy memory whose strain fails carries at most two true cues and no digits; a `core_locked` memory far past forgetting is still hazy.
+- [x] Commit: `feat(engine): what she feels tilts what she remembers, and a half-remembered name is on the tip of her tongue`
 
 ### Task 5: Her version: drift, retelling, telling others
 
 **Files:** `recollect.py` (`drift_p`, `version`, `plant`, `retold`, `pass_on`), `retrieve.py`, `extract.py`, `between.py`; tests `test_recollect.py`.
 
-- [ ] Tests: a hazy memory with alts, rolled to drift, renders her version, writes one `alt` recollection and one `correction` seed on the answered line; the truth row is unchanged; a sharp, pinned, `core_locked` or importance-8 memory never drifts; faithful never drifts; a second recall in the scene adds nothing; another branch does not see it; a claim contradicting her own hazy memory becomes her `retelling` version (not a sharp one); a `knowledge` told row copies the teller's version to the hearer; so does gossip.
-- [ ] Commit: `feat(engine): a hazy detail can drift, and her version is what she tells (minds slice 6)`
+- [x] Tests: a hazy memory with alts, rolled to drift, renders her version, writes one `alt` recollection and one `correction` seed on the answered line; the truth row is unchanged; a sharp, pinned, `core_locked` or importance-8 memory never drifts; faithful never drifts; a second recall in the scene adds nothing; another branch does not see it; a claim contradicting her own hazy memory becomes her `retelling` version (not a sharp one); a `knowledge` told row copies the teller's version to the hearer; so does gossip.
+- [x] Commit: `feat(engine): a hazy detail can drift, and her version is what she tells (minds slice 6)`
 
 ### Task 6: She corrects herself, owns a caught slip, and holds a true memory
 
 **Files:** `recollect.py` (`decide`, `settle`), `turns.py`; tests `test_recollect.py`.
 
-- [ ] Tests: after she says the wrong detail, her second reply after that gets "correct yourself in passing" with the truth, then her memory is back to the truth and the seed is closed; never said → no correction; the user naming the right detail → "own the slip"; a correcting user line with a SHARP memory recalled → the hold directive and `gen.recall.hold`; no digits; off → nothing; a failure never breaks the turn.
-- [ ] Commit: `feat(engine): she catches her own slip two replies later, and keeps what she knows`
+- [x] Tests: after she says the wrong detail, her second reply after that gets "correct yourself in passing" with the truth, then her memory is back to the truth and the seed is closed; never said → no correction; the user naming the right detail → "own the slip"; a correcting user line with a SHARP memory recalled → the hold directive and `gen.recall.hold`; no digits; off → nothing; a failure never breaks the turn.
+- [x] Commit: `feat(engine): she catches her own slip two replies later, and keeps what she knows`
 
 ### Task 7: The ledger and Peek
 
 **Files:** `retrieve.inspect` (`version`, `why_not`, `valence`, `alts`, `core_locked`), `server.py` (PATCH `core_locked`, `POST /memories/{id}/version`), `people.py` (`versions`); tests `test_api.py`.
 
-- [ ] Commit: `feat(engine): the memory ledger shows her version beside the truth, and why something is missing`
+- [x] Commit: `feat(engine): the memory ledger shows her version beside the truth, and why something is missing`
 
 ### Task 8: Probes, real-model check, progress
 
-- [ ] P6 `forgetful`: a small memory six years back, pressed twice; a `core_locked` one and a pinned one with alts, drift forced. Pass: hazy rendering; a cue or a won strain on the second press; the reply names no specific that was not in her prompt; the locked and pinned ones have no versions.
-- [ ] P7 `slip`: a hazy café memory with a weekday alt, drift forced; asked when it was, then two more lines; later the user wrongly "corrects" a sharp fact. Pass: she says the wrong day; the correction directive fires on schedule and the reply names the right day; she keeps the sharp fact.
-- [ ] Run P6, P7 and the regressions still-upset, grudge, thought, leak, absence on HF (under $0.30); fix root causes with a test; record in §0.
-- [ ] Commit: `test(engine): minds slice 6 probes`, `docs: minds slice 6 progress`
+- [x] P6 `forgetful`: a small memory six years back, pressed twice; a `core_locked` one and a pinned one with alts, drift forced. Pass: hazy rendering; a cue or a won strain on the second press; the reply names no specific that was not in her prompt; the locked and pinned ones have no versions.
+- [x] P7 `slip`: a hazy café memory with a weekday alt, drift forced; asked when it was, then two more lines; later the user wrongly "corrects" a sharp fact. Pass: she says the wrong day; the correction directive fires on schedule and the reply names the right day; she keeps the sharp fact.
+- [x] Run P6, P7 and the regressions still-upset, grudge, thought, leak, absence on HF (under $0.30); fix root causes with a test; record in §0.
+- [x] Commit: `test(engine): minds slice 6 probes`, `docs: minds slice 6 progress`
