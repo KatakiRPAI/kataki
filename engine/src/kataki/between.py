@@ -884,8 +884,16 @@ def _write(conn, story_id: int, run: sqlite3.Row, skip: sqlite3.Row, who: int, g
         goals.change(conn, g, moved["change"], moved["tactic"] or None, skip["id"], run["id"],
                      tick.now)  # fmt: skip
     if work:  # slice 8: what passes the gate becomes her reflections, the rest a warning
-        warn = growth.take(conn, story_id, who, got.get("deep"), work, tick.path, skip["id"],
-                           run["id"], tick.now)  # fmt: skip
+        conn.execute("SAVEPOINT deep")
+        try:
+            warn = growth.take(conn, story_id, who, got.get("deep"), work, tick.path, skip["id"],
+                               run["id"], tick.now)  # fmt: skip
+            conn.execute("RELEASE deep")
+        except Exception as e:  # costs the reflection only; the diary stays
+            logging.getLogger(__name__).warning("reflection not written for %s: %s", who, e)
+            conn.execute("ROLLBACK TO deep")
+            conn.execute("RELEASE deep")
+            warn = ["The reflection was skipped: something went wrong."]
         _warn(conn, run["id"], who, warn, got.get("deep"))
 
 

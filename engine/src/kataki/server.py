@@ -1553,7 +1553,10 @@ def create_app(
         """Peek › Growth (minds slice 8): accept, reject or lock a reflection. Append-only; the
         choice holds on every branch. -> the reflection as it now stands."""
         r = _row(conn, "SELECT * FROM reflections WHERE id=?", (reflection_id,))
-        new = growth.act(conn, reflection_id, a.action)
+        try:
+            new = growth.act(conn, reflection_id, a.action)
+        except LookupError as e:
+            raise HTTPException(409, str(e)) from e
         story = story_row(r["story_id"])
         path = chat.active_path(conn, r["story_id"])
         names = dict(conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story["id"],)))

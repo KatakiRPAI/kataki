@@ -35,7 +35,7 @@ SENTENCES = 6  # the self line
 EVIDENCE, SCENES = 3, 2  # a ring rests on this many memories from this many scenes (note 17 §6)
 NUMBERS = frozenset(
     "one two three four five six seven eight nine ten eleven twelve twenty thirty forty fifty"
-    " hundred thousand million once twice".split()
+    " hundred thousand million".split()
 )
 ME = frozenset({"i", "i'm", "i've", "i'd", "i'll"})
 
@@ -146,8 +146,14 @@ def live(conn: sqlite3.Connection, who: int, path: list) -> list[dict]:
 
 
 def current(conn: sqlite3.Connection, who: int, path: list) -> list[dict]:
-    """Her reflections as they stand: live rows no live row supersedes, newest first."""
-    rows = live(conn, who, path)
+    """Her reflections as they stand: live rows no live row supersedes, newest first. A version
+    counts only where the row it changes is live (the user's own versions are unanchored, so a
+    ring accepted on one branch must not appear on another)."""
+    ids, rows = set(), []
+    for r in live(conn, who, path):  # id order: a row comes after the one it supersedes
+        if r["supersedes_id"] is None or r["supersedes_id"] in ids:
+            ids.add(r["id"])
+            rows.append(r)
     gone = {r["supersedes_id"] for r in rows if r["supersedes_id"] is not None}
     return [r for r in reversed(rows) if r["id"] not in gone]
 
@@ -177,13 +183,17 @@ ACTIONS = {"accept": "ring", "reject": "rejected", "lock": "locked"}
 
 
 def act(conn: sqlite3.Connection, reflection_id: int, action: str) -> int:
-    """The user's say (§6 rule 6): a new, unanchored version, so it holds on every branch. The
-    row it supersedes is never touched. -> the new row's id."""
+    """The user's say (§6 rule 6): a new, unanchored version, holding wherever the row it changes
+    is live. The row it supersedes is never touched. KeyError: no such row; LookupError: not
+    current on the active branch (stale, or another branch's). -> the new row's id."""
     if action not in ACTIONS:
         raise ValueError(f"unknown action {action!r}")
     r = conn.execute("SELECT * FROM reflections WHERE id=?", (reflection_id,)).fetchone()
     if r is None:
         raise KeyError(reflection_id)
+    path = chat.active_path(conn, r["story_id"])
+    if reflection_id not in {x["id"] for x in current(conn, r["knower_id"], path)}:
+        raise LookupError("that reflection is not current on this branch")
     last = conn.execute(
         "SELECT MAX(story_time) FROM messages WHERE story_id=?", (r["story_id"],)
     ).fetchone()[0]
@@ -380,7 +390,11 @@ STOP = frozenset(
 def stems(text: str) -> set[str]:
     """A ring's content words, cut to five letters so 'helped' meets 'help' (ponytail: words
     only, no embedder)."""
-    return {w[:5] for w in re.findall(r"[a-z]+", text.lower()) if len(w) >= 4 and w not in STOP}
+    return {_stem(w) for w in re.findall(r"[a-z]+", text.lower()) if len(w) >= 4 and w not in STOP}
+
+
+def _stem(w: str) -> str:
+    return re.sub(r"(ing|ed|es|s)$", "", w)[:5]
 
 
 def born(r: dict, rows: dict[int, dict]) -> int:
@@ -409,7 +423,7 @@ def evidence(conn, who: int, r: dict, path: list, now: int, since: int | None = 
     hits = [
         m for m in rows
         if m["id"] not in r["sources"]
-        and want & {w[:5] for w in re.findall(r"[a-z]+", m["detail"].lower())}
+        and want & {_stem(w) for w in re.findall(r"[a-z]+", m["detail"].lower())}
     ]  # fmt: skip
     return {
         "memories": len(hits),
@@ -490,7 +504,20 @@ def warnings(conn, story_id: int, who: int, path: list) -> list[str]:
     return []
 
 
-def entry(conn, r: dict, path: list, names: dict, epoch: int, rows: dict | None = None) -> dict:
+def holds(conn, story_id: int, who: int) -> dict[int, str]:
+    """Her memories as she holds them (her version, else sharp detail or hazy gist), by id: the
+    text the deep pass judged, for Peek's sources."""
+    from kataki import retrieve  # retrieve imports inner, which imports this module
+
+    return {
+        m["memory_id"]: (m.get("version") or {}).get("text")
+        or (m["detail"] if m["tier"] == "sharp" else m["gist"])
+        for m in retrieve.inspect(conn, story_id, who)
+    }
+
+
+def entry(conn, r: dict, path: list, names: dict, epoch: int, rows: dict | None = None,
+          texts: dict[int, str] | None = None) -> dict:  # fmt: skip
     """One reflection as Peek shows it."""
     before = (rows or {}).get(r["supersedes_id"]) if r["supersedes_id"] else None
     if before is None and r["supersedes_id"]:
@@ -506,7 +533,8 @@ def entry(conn, r: dict, path: list, names: dict, epoch: int, rows: dict | None 
     return {
         "id": r["id"], "kind": r["kind"], "about": names.get(r["subject_id"]),
         "about_id": r["subject_id"], "text": r["text"], "status": r["status"], "by": by,
-        "sources": [{"memory_id": m["id"], "text": m["detail"]} for m in held],
+        "sources": [{"memory_id": m["id"], "text": (texts or {}).get(m["id"], m["detail"])}
+                    for m in held],  # fmt: skip
         "evidence": evidence(conn, r["knower_id"], r, path, now, born(r, rows or {}))
         if r["kind"] in RINGS
         else None,
@@ -519,8 +547,9 @@ def public(conn, story_id: int, who: int, path: list, names: dict, epoch: int) -
     """Peek's `growth` (spec §8.3): her reflections as they stand, the drift, the warnings."""
     rows = {r["id"]: r for r in live(conn, who, path)}
     now = current(conn, who, path)
+    texts = holds(conn, story_id, who) if now else {}
     return {
-        "reflections": [entry(conn, r, path, names, epoch, rows) for r in now],
+        "reflections": [entry(conn, r, path, names, epoch, rows, texts) for r in now],
         "drift": [{"axis": a, "delta": d, "words": words(a, d)} for a, d in drift(now).items()],
         "warnings": warnings(conn, story_id, who, path),
     }

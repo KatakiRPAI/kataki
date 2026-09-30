@@ -96,10 +96,11 @@ def speaker_why(conn: sqlite3.Connection, story_id: int, requested=None) -> tupl
                 return named, "named"
             last = (m["speaker_id"] for m in reversed(path) if m["role"] == "assistant")
             answered = next((s for s in last if s in hearers), None)
-            if len(hearers) > 1 and (got := _scored(conn, story_id, path, hearers, answered)):
+            said = path[-1]["text"]
+            if len(hearers) > 1 and (got := _scored(conn, story_id, path, hearers, answered, said)):
                 return got
             return answered or hearers[0], "last"
-    if len(ids) > 1 and (got := _scored(conn, story_id, path, ids, None)):
+    if len(ids) > 1 and (got := _scored(conn, story_id, path, ids, None, None)):
         return got
     spoke_at = {m["speaker_id"]: i for i, m in enumerate(path) if m["role"] == "assistant"}
     return min(ids, key=lambda e: spoke_at.get(e, -1)), "quietest"
@@ -135,11 +136,14 @@ def _wants(conn, who: int, path: list, text: str | None) -> float:
     return out
 
 
-def _scored(conn, story_id: int, path: list, cands: list[int], answered: int | None):
+def _scored(conn, story_id: int, path: list, cands: list[int], answered: int | None,
+            text: str | None):  # fmt: skip
     """Note 16 §6's speaker score in place of the "last"/"quietest" fallbacks (minds slice 8):
     being answered (fading as she keeps the floor), her share of the last replies (fewer is
     better), being stirred up, having something to say; drawn from a softmax with an RNG seeded
     by the story and the line being answered, so the same path always gives the same speaker.
+    `text`: the line they heard, or None (nothing heard decides nothing). Being stirred counts
+    only while she has had no more than her fair share, so an upset one can't keep the floor.
     -> (speaker, "urgent" | "wants_in" | "balance"), or None when off or it fails."""
     try:
         if not features.enabled(conn, "mind.growth"):
@@ -148,14 +152,14 @@ def _scored(conn, story_id: int, path: list, cands: list[int], answered: int | N
         recent = [s for s in spoke[-SHARE_OF:] if s in cands]
         streak = next((i for i, s in enumerate(reversed(spoke)) if s != answered), len(spoke))
         now = path[-1]["story_time"] if path else 0
-        text = path[-1]["text"] if path and path[-1]["role"] == "user" else None
         scores, why = [], {}
         for c in cands:
             share = (recent.count(c) + 1) / (len(recent) + len(cands))  # smoothed
             balance = W_SHARE * (1 / len(cands) - share)
             if c == answered:
                 balance += W_REPLY * 0.5 ** max(0, streak - 1)  # reply-chain decay
-            urgent = W_URGENT if _urge(conn, c, path, now) else 0.0
+            fair = share <= 1 / len(cands)
+            urgent = W_URGENT if fair and _urge(conn, c, path, now) else 0.0
             wants = _wants(conn, c, path, text)
             scores.append(math.exp((balance + urgent + wants) / HEAT))
             why[c] = "urgent" if urgent else "wants_in" if wants >= 0.5 else "balance"

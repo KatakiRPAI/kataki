@@ -531,7 +531,9 @@ def test_accept_reject_lock_through_the_api(conn, cards, api):
     assert rejected["status"] == "rejected" and rejected["trait"]["delta"] == 2
     assert inner.profile(conn, mira)["axes"]["warmth"][0] == 50
     assert peek(conn, story)["growth"]["drift"] == []
-    assert api.post(f"/reflections/{rid}", json={"action": "lock"}).json()["status"] == "locked"
+    locked = api.post(f"/reflections/{rejected['id']}", json={"action": "lock"}).json()
+    assert locked["status"] == "locked"
+    assert api.post(f"/reflections/{rid}", json={"action": "lock"}).status_code == 409  # stale
     assert api.post("/reflections/9999", json={"action": "lock"}).status_code == 404
     assert api.post(f"/reflections/{rid}", json={"action": "erase"}).status_code == 422
 
@@ -555,7 +557,10 @@ async def test_a_rejected_grudge_is_struck_on_every_branch(local_model, cards, b
     assert peek(conn, story)["bonds"] == [] or peek(conn, story)["bonds"][0]["grudge"] is None
     tail, _ = await reply_to(conn, backend, story, "Hello again.")
     assert "not forgiven" not in tail
+    later = chat.active_path(conn, story)[-2]["id"]  # "Hello again.": take another branch there
+    chat.set_leaf(conn, story, chat.append_sibling(conn, later, "Good evening."))
     rows = bonds.ledger(conn, ent(conn, story, "Mira"), chat.active_path(conn, story))
+    assert any(r["event"] == "insult" for r in rows)  # the grudge's rows are on this branch too
     assert bonds.standing(rows, ent(conn, story, "Aren"), 10**6)["grudge"] is None
 
 
@@ -587,3 +592,92 @@ async def test_a_broken_deep_pass_costs_only_itself_and_says_so(
     backend.say(json.dumps(DIARY))
     assert await between.think(conn, backend.llm, story, run, mira)  # the diary still lands
     assert "skipped" in raw(conn, run)["deep_warnings"][str(mira)][0]
+
+
+# --- review fixes: the user's say stays on its branch; a stale act is refused ---------------------
+
+
+def on_branch(conn, story, mira):
+    """A seed on a between run of branch `a`; `b` is a sibling branch without it."""
+    aren = ent(conn, story, "Aren")
+    a = chat.append_message(conn, story, "user", "Hello.", aren)
+    b = chat.append_sibling(conn, a, "Hi.")
+    chat.set_leaf(conn, story, a)
+    run = conn.execute(
+        "INSERT INTO extraction_runs(story_id, from_message_id, to_message_id, trigger, status)"
+        " VALUES(?, 0, ?, 'between', 'ok')",
+        (story, a),
+    ).lastrowid
+    with conn:
+        rid = growth.write(conn, story, mira, "habit", "learned to ask for help", [97], "seed",
+                           0, delta={"warmth": 2}, message_id=a, run_id=run)  # fmt: skip
+    return a, b, rid
+
+
+def test_an_accepted_ring_stays_on_its_branch(conn, story):
+    mira = ent(conn, story, "Mira")
+    a, b, rid = on_branch(conn, story, mira)
+    growth.act(conn, rid, "accept")
+    assert growth.current(conn, mira, chat.path_to(conn, a))[0]["status"] == "ring"
+    assert growth.current(conn, mira, chat.path_to(conn, b)) == []  # it never happened there
+    chat.set_leaf(conn, story, b)
+    assert inner.profile(conn, mira)["axes"]["warmth"][0] == 50
+
+
+def test_a_stale_or_other_branch_act_is_refused(conn, story, api):
+    mira = ent(conn, story, "Mira")
+    a, b, rid = on_branch(conn, story, mira)
+    seed = growth.current(conn, mira, chat.path_to(conn, a))[0]
+    with conn:
+        growth.again(conn, seed, "ring", 5, a, seed["run_id"])  # code promoted it meanwhile
+    with pytest.raises(LookupError):
+        growth.act(conn, rid, "reject")  # from an older Peek
+    assert api.post(f"/reflections/{rid}", json={"action": "reject"}).status_code == 409
+    [now] = growth.current(conn, mira, chat.path_to(conn, a))
+    chat.set_leaf(conn, story, b)
+    assert api.post(f"/reflections/{now['id']}", json={"action": "lock"}).status_code == 409
+    assert growth.drift(growth.current(conn, mira, chat.path_to(conn, a))) == {"warmth": 2}
+
+
+@pytest.mark.anyio
+async def test_a_failed_take_keeps_the_diary_and_says_so(local_model, cards, backend, monkeypatch):
+    conn = local_model
+    story, run, mira, aren, mems, _ = skipped(conn, cards)
+
+    def boom(*a, **k):
+        raise RuntimeError("no")
+
+    monkeypatch.setattr(growth, "take", boom)
+    backend.say(json.dumps(answer(mems, aren)))
+    assert await between.think(conn, backend.llm, story, run, mira)
+    assert "skipped" in raw(conn, run)["deep_warnings"][str(mira)][0]
+    diary = conn.execute(
+        "SELECT detail FROM memories WHERE run_id=? AND tags_text LIKE '%diary%'", (run,)
+    ).fetchall()
+    assert DIARY["diary"] in [d[0] for d in diary]
+
+
+def test_stems_meet_other_forms_of_a_word(conn, cards):
+    assert growth.stems("learned to ask for help") & growth.stems("she helped him")
+    story, mira, _ = seeded(conn, cards)
+    for n, d in enumerate((1, 1, 2)):
+        hers(conn, story, mira, f"Mira helped Tobin haul the nets ({n}).", d * DAY)
+    skip_now(conn, story)
+    assert status(conn, story, mira) == "ring"
+
+
+def test_peek_shows_a_source_as_she_holds_it(conn, cards):
+    from kataki import recollect
+
+    story, mira, _ = seeded(conn, cards)
+    src = hers(conn, story, mira, "Aren carried the crates on Thursday.", 0)
+    with conn:
+        recollect.write(conn, mira, src, "user", "Aren carried the crates on Tuesday.", 0)
+        growth.write(conn, story, mira, "self", "I lean on him.", [src], "ring", 0)
+    line_ = next(r for r in peek(conn, story)["growth"]["reflections"] if r["kind"] == "self")
+    assert line_["sources"] == [{"memory_id": src, "text": "Aren carried the crates on Tuesday."}]
+
+
+def test_once_is_not_a_number():
+    item = {"about": "P12", "line": "I once thought he would leave.", "sources": ["M1"]}
+    assert gate(item) is None

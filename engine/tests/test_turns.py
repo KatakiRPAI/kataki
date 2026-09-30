@@ -447,4 +447,25 @@ async def test_one_who_could_answer_keeps_the_old_reasons(conn, story, backend):
         turns.turn(conn, backend.llm, story, "Only you hear this.", audience=[eid(conn, "Mira")])
     )
     assert why_of(conn, story) == "last"
-    assert tobin
+    assert path(conn, story)[-1][1] != tobin  # he never heard it
+
+
+async def test_an_upset_character_who_had_her_say_does_not_keep_the_floor(conn, story, backend):
+    mira = eid(conn, "Mira")
+    backend.say(*["Mm."] * 4)
+    for line in ("Mira?", "Mira, again?", "Mira, one more?"):
+        await play(turns.turn(conn, backend.llm, story, line))
+    hurt(conn, mira, story)
+    chat.append_message(conn, story, "user", "Anyone?", eid(conn, "Aren"))
+    path_ = chat.active_path(conn, story)
+    got = turns._scored(conn, story, path_, [mira, eid(conn, "Tobin")], mira, "Anyone?")
+    assert got != (mira, "urgent")
+
+
+async def test_a_line_nobody_heard_does_not_decide_who_speaks(conn, story, backend, monkeypatch):
+    seen = []
+    monkeypatch.setattr(turns, "_wants", lambda conn, c, path, text: seen.append(text) or 0.0)
+    backend.say("Yes?", "Mm.")
+    await play(turns.turn(conn, backend.llm, story, "Mira?"))
+    await play(turns.turn(conn, backend.llm, story, "I wonder about the boat.", audience=[]))
+    assert seen and all(t is None for t in seen)
