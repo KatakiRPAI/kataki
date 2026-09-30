@@ -55,8 +55,8 @@ from kataki import (
     signals,
     speech,
     turns,
-    usage,
 )
+from kataki.host import Host, LocalHost
 from kataki.llm import LLM, LLMError
 
 LOCAL_SERVERS = {  # where the first-run wizard looks for a model already running here
@@ -318,10 +318,13 @@ def create_app(
     image_transport=None,  # tests script the HF router here
     web_dir: Path | None = None,  # the built app, served under /app/ for any browser
     db_path: Path | None = None,  # the library's file: backups live beside it
+    host: Host | None = None,  # where it runs (track B1); None: the desktop, keys from get_key
 ) -> FastAPI:
+    host = host or LocalHost(get_key=get_key)
+    get_key = host.get_key
     llm = llm or LLM()
-    if llm.on_usage is None:  # the host may bring its own meter (Kataki online)
-        llm.on_usage = functools.partial(usage.record, conn)
+    if llm.on_usage is None:  # a test may bring its own meter
+        llm.on_usage = functools.partial(host.on_usage, conn)
     worker = extract.Worker(conn, llm, get_key, delay=worker_delay)
     extract.recover(conn)
 
@@ -337,8 +340,20 @@ def create_app(
                 return
         raise HTTPException(401, "missing or invalid token")
 
+    async def this_host():
+        """Every request runs on its host's channel (async: the ContextVar is set in the
+        request's own task, so its turn and anything it pokes inherit it)."""
+        features.CURRENT.set(host.channel())
+
+    def local_only():
+        """Routes about this machine (providers and keys, backups on disk) exist only here."""
+        if not host.local_routes:
+            raise HTTPException(404, "Not Found")
+
     app = FastAPI(
-        title="Kataki RPAI engine", version=__version__, dependencies=[Depends(require_token)]
+        title="Kataki RPAI engine",
+        version=__version__,
+        dependencies=[Depends(require_token), Depends(this_host)],
     )
 
     @app.exception_handler(sqlite3.OperationalError)
@@ -472,7 +487,7 @@ def create_app(
             "version": __version__,
             "schema": schema,
             "channel": features.channel(),
-            "host": "desktop",
+            "host": host.name,
         }
 
     @app.get("/features")
@@ -535,11 +550,11 @@ def create_app(
             "has_key": bool(get_key(row["name"])),
         }
 
-    @app.get("/providers")
+    @app.get("/providers", dependencies=[Depends(local_only)])
     async def list_providers():
         return [provider_out(r) for r in conn.execute("SELECT * FROM providers ORDER BY name")]
 
-    @app.post("/providers", status_code=201)
+    @app.post("/providers", status_code=201, dependencies=[Depends(local_only)])
     async def add_provider(p: ProviderIn):
         try:
             with conn:
@@ -553,7 +568,7 @@ def create_app(
             roles.set_key(p.name, p.api_key)
         return provider_out(_row(conn, "SELECT * FROM providers WHERE id=?", (pid,)))
 
-    @app.patch("/providers/{pid}")
+    @app.patch("/providers/{pid}", dependencies=[Depends(local_only)])
     async def edit_provider(pid: int, p: ProviderPatch):
         old = _row(conn, "SELECT * FROM providers WHERE id=?", (pid,))
         fields = p.model_dump(exclude_unset=True, exclude={"api_key"})
@@ -570,7 +585,7 @@ def create_app(
             roles.delete_key(name)
         return provider_out(_row(conn, "SELECT * FROM providers WHERE id=?", (pid,)))
 
-    @app.delete("/providers/{pid}", status_code=204)
+    @app.delete("/providers/{pid}", status_code=204, dependencies=[Depends(local_only)])
     async def remove_provider(pid: int):
         old = _row(conn, "SELECT * FROM providers WHERE id=?", (pid,))
         with conn:
@@ -580,7 +595,7 @@ def create_app(
             conn.execute("DELETE FROM providers WHERE id=?", (pid,))
         roles.delete_key(old["name"])
 
-    @app.get("/providers/detect")
+    @app.get("/providers/detect", dependencies=[Depends(local_only)])
     async def detect_providers():
         """Model servers already running on this machine, for the first-run wizard."""
 
@@ -592,7 +607,7 @@ def create_app(
         found = await asyncio.gather(*(probe(n, u) for n, u in LOCAL_SERVERS.items()))
         return [f for f in found if f]
 
-    @app.get("/providers/{pid}/models")
+    @app.get("/providers/{pid}/models", dependencies=[Depends(local_only)])
     async def provider_models(pid: int):
         p = _row(conn, "SELECT * FROM providers WHERE id=?", (pid,))
         try:
@@ -1646,7 +1661,7 @@ def create_app(
 
     if db_path is not None:
 
-        @app.get("/storage")
+        @app.get("/storage", dependencies=[Depends(local_only)])
         async def storage():
             """Where the library lives on this computer, and how big it is (K10)."""
 
@@ -1678,16 +1693,16 @@ def create_app(
                 "total": disk.total,
             }
 
-        @app.get("/backups")
+        @app.get("/backups", dependencies=[Depends(local_only)])
         async def list_backups():
             return backups.listing(db_path)
 
-        @app.post("/backups", status_code=201)
+        @app.post("/backups", status_code=201, dependencies=[Depends(local_only)])
         async def back_up_now():
             keep = conn.execute("SELECT value FROM settings WHERE key='backups.keep'").fetchone()
             return backups.make(conn, db_path, json.loads(keep[0]) if keep else "7")
 
-        @app.post("/backups/{name}/restore", status_code=202)
+        @app.post("/backups/{name}/restore", status_code=202, dependencies=[Depends(local_only)])
         async def restore_backup(name: str):
             """Asked for now, done at the next start (the app restarts to finish)."""
             try:
