@@ -598,7 +598,11 @@
   /* ---------- the scene ---------- */
   function renderProse(t) {
     if (typeof t !== 'string') return t;
-    return t.split(/(\*[^*]+\*)/).map(function (s, i) { return /^\*[^*]+\*$/.test(s) ? h('em', { key: i }, s.slice(1, -1)) : s; });
+    // *an action* in the action colour; _a thought_ (at word edges, so snake_case stays a word) dim, with no markers shown
+    return t.split(/(\*[^*\n]+\*|(?<![\w*])_[^_\n]+?_(?!\w))/).map(function (s, i) {
+      return /^\*[^*\n]+\*$/.test(s) ? h('em', { key: i, className: 'k-act' }, s.slice(1, -1))
+        : /^_[^_\n]+_$/.test(s) ? h('em', { key: i, className: 'k-think' }, s.slice(1, -1)) : s;
+    });
   }
   var SPEAKER = { liv: 'var(--speaker-liv)', mike: 'var(--speaker-mike)', theo: 'var(--speaker-theo)' };
   function SceneStage(p) {
@@ -630,11 +634,15 @@
       h('button', { type: 'button', disabled: p.disabled, onClick: p.onEdit }, h(Icon, { name: 'edit', size: 14 }), p.editLabel || 'Edit'), h('button', { type: 'button', disabled: p.disabled, onClick: p.onHide }, h(Icon, { name: 'eyeoff', size: 14 }), p.hideLabel || 'Hide'),
       p.onMore ? h('button', { type: 'button', 'aria-label': 'Line menu', onClick: p.onMore }, h(Icon, { name: 'dots', size: 15 })) : null);
   }
+  var LINE_ICON = { think: 'thought', whisper: 'ear' };
+  var LINE_NOTE = { think: 'thinks', whisper: 'whispers' };
   function ChatLine(p) {
     var time = p.exact ? h(Stamp, { exact: p.exact, detail: p.timeDetail, open: p.timeOpen, tone: 'scene' }, p.time) : h('span', { className: 'k-line__time' }, p.time);
-    return h('article', { id: p.id, tabIndex: p.tools ? 0 : undefined, onContextMenu: p.onContextMenu, onKeyDown: p.onKeyDown, className: cx('k-line', p.dim && 'k-line--dim', p.hover && 'is-hover', p.tools && 'has-tools') },
+    // mode: 'think' | 'whisper' | 'narrate' (unset = said aloud). Narration has no speaker; the others name how it was meant.
+    var how = p.mode && p.mode !== 'narrate' ? h('span', { className: 'k-line__how' }, h(Icon, { name: LINE_ICON[p.mode], size: 13 }), p.modeNote || LINE_NOTE[p.mode]) : null;
+    return h('article', { id: p.id, tabIndex: p.tools ? 0 : undefined, onContextMenu: p.onContextMenu, onKeyDown: p.onKeyDown, className: cx('k-line', p.mode && 'k-line--' + p.mode, p.dim && 'k-line--dim', p.hover && 'is-hover', p.tools && 'has-tools') },
       p.tools ? p.tools : p.hover ? h(LineTools, { take: p.take }) : null,
-      h('div', { className: 'k-line__head' }, h('span', { className: 'k-line__who', style: { color: p.color || SPEAKER[p.speaker] || 'var(--scene-ink)' } }, p.name), time,
+      h('div', { className: 'k-line__head' }, p.mode === 'narrate' || !p.name ? null : h('span', { className: 'k-line__who', style: { color: p.color || SPEAKER[p.speaker] || 'var(--scene-ink)' } }, p.name), how, time,
         p.recalled ? h('span', { className: 'k-line__spark', 'aria-label': 'Drew on memory' }, h(Icon, { name: 'spark', size: 14, color: 'var(--event-memory)' })) : null,
         p.writing ? h('span', { className: 'k-line__time' }, 'writing…') : null),
       h('p', { className: 'k-line__text' }, renderProse(p.text), p.writing ? h('span', { className: 'k-caret' }) : null),

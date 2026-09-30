@@ -104,6 +104,33 @@ def test_the_reader_is_told_which_lines_were_whispered_or_thought(conn, story):
     assert "Aren (thinking; no one hears): I'm so tired of secrets." in body
 
 
+def test_each_kind_of_line_reads_unmistakably_in_a_prompt():
+    names = {1: "Aren", 2: "Mira", 3: "Tobin"}
+
+    def line(text, speaker=1, audience=None, viewer=2):
+        m = {"speaker_id": speaker, "text": text, "audience": None}
+        if audience is not None:
+            m["audience"] = json.dumps(audience)
+        return context._line(m, names, viewer)
+
+    assert line("*leans in* Hello.") == "Aren: *leans in* Hello."
+    assert line("Meet me out back.", audience=[2]) == "Aren (whispering to Mira): Meet me out back."
+    assert line("Meet me out back.", audience=[2], viewer=None) == "Aren whispers to Mira."
+    assert line("He knows.", audience=[], viewer=1) == "Aren (thinking; no one hears): He knows."
+    assert line("The rain stops.", speaker=None) == "Narration: The rain stops."
+    # an inline thought reaches only its thinker; everyone else hears the rest
+    assert line("*leans in* that's _interesting_.") == "Aren: *leans in* that's."
+    assert line("that's _interesting_", viewer=1) == "Aren: that's (thinking: interesting)"
+    assert line("call it my_file_name") == "Aren: call it my_file_name"
+
+
+def test_an_inline_thought_never_reaches_anyone_elses_prompt(conn, story):
+    say(conn, story, "*smiles* Of course. _He's lying._")
+    assert "lying" not in prompt(conn, story, "Mira")
+    assert "lying" not in prompt(conn, story, None)
+    assert "(thinking: He's lying.)" in prompt(conn, story, "Aren")
+
+
 @pytest.mark.anyio
 async def test_asking_someone_absent_to_speak_is_refused_before_anything_is_written(
     conn, story, backend

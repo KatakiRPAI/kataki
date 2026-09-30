@@ -590,6 +590,17 @@ body { margin: 0; font-family: var(--font-ui); background: var(--ground); color:
 .k-line__spark { display: inline-flex; align-self: center; }
 .k-line__text { margin: 6px 0 0; font-family: var(--font-story); font-size: 19px; line-height: 1.55; color: var(--scene-ink); text-wrap: pretty; }
 .k-line__text em { color: var(--scene-action); }
+/* How a line reads: said = plain ink; *acts* italic in the action colour; _thoughts_ dim and
+   quiet with a soft tint; a whole thought gets a left rule; a whisper is small and muted;
+   narration has no speaker and reads as the story's own prose. */
+.k-line__text em.k-think, .k-bubble em.k-think { color: var(--scene-muted); opacity: .85; font-weight: 300; background: rgba(255,230,200,.06); border-radius: 6px; padding-inline: 4px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.k-line__how { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-style: italic; color: var(--scene-muted); }
+.k-line--think .k-line__text { font-style: italic; color: var(--scene-muted); opacity: .9; border-inline-start: 2px solid var(--scene-border); padding-inline-start: 12px; }
+.k-line--think .k-line__text em.k-think { background: none; padding: 0; }
+.k-line--whisper .k-line__text { font-size: 16px; color: var(--scene-muted); letter-spacing: .01em; }
+.k-line--narrate .k-line__head { justify-content: center; }
+.k-line--narrate .k-line__text { max-width: 36em; margin-inline: auto; text-align: center; color: var(--scene-action); }
+[dir="rtl"] .k-line--think .k-line__text, [dir="rtl"] .k-line__how { font-style: normal; }
 [dir="rtl"] .k-line__text em { font-style: normal; }
 .k-line__reacts { display: flex; flex-wrap: wrap; gap: 6px; margin-block-start: 9px; }
 .k-caret { display: inline-block; width: 8px; height: 19px; background: var(--event-memory); vertical-align: -3px; margin-inline-start: 2px; border-radius: 1px; animation: k-blink 1s steps(2) infinite; }
