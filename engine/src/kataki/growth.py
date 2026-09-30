@@ -365,3 +365,58 @@ def take(conn: sqlite3.Connection, story_id: int, who: int, deep, work: dict, pa
               [mems[s]["id"] for s in dict.fromkeys(item["sources"])], "seed", now,
               delta=step(item.get("trait")), message_id=message_id, run_id=run_id)  # fmt: skip
     return warn
+
+
+# --- reinforcement (note 17 §6), at every skip's tick: zero calls, every level -------------------
+
+TTL = 30 * clock.DAY  # ponytail: a seed not borne out in this long passes (kept, viewable)
+STOP = frozenset(
+    "that this with from have been into about when what were they them their there then than"
+    " your just more some very also only over again after before still even ever never always"
+    " learned learnt became become grown began".split()
+)
+
+
+def stems(text: str) -> set[str]:
+    """A ring's content words, cut to five letters so 'helped' meets 'help' (ponytail: words
+    only, no embedder)."""
+    return {w[:5] for w in re.findall(r"[a-z]+", text.lower()) if len(w) >= 4 and w not in STOP}
+
+
+def evidence(conn, who: int, r: dict, path: list, now: int) -> dict:
+    """What bears a ring out: memories she holds, dated after it, that share a content word with
+    it (its own sources aside), and how many scenes they span."""
+    want = stems(r["text"])
+    if not want or not path:
+        return {"memories": 0, "scenes": 0}
+    live = db.live_runs(conn, path[-1]["story_id"], path[-1]["id"])
+    know, args = db.live_filter(live, "k.run_id")
+    rows = conn.execute(
+        "SELECT DISTINCT m.id, m.detail, m.story_time FROM memories m"
+        " JOIN knowledge k ON k.memory_id=m.id"
+        f" WHERE k.knower_id=? AND m.hidden=0 AND m.story_time>? AND m.story_time<=? AND {know}",
+        [who, r["story_time"], now, *args],
+    ).fetchall()
+    hits = [
+        m for m in rows
+        if m["id"] not in r["sources"]
+        and want & {w[:5] for w in re.findall(r"[a-z]+", m["detail"].lower())}
+    ]  # fmt: skip
+    return {
+        "memories": len(hits),
+        "scenes": len({_scene(conn, m["id"], m["story_time"]) for m in hits}),
+    }
+
+
+def reinforce(conn, who: int, path: list, now: int, message_id: int, run_id: int) -> None:
+    """Her seeds, at a skip: borne out by three memories from two later scenes, a ring; not
+    borne out in thirty story-days, past. Rows on the skip's run (inside the caller's
+    transaction); a ring, a locked or a rejected one is never touched."""
+    for r in current(conn, who, path):
+        if r["status"] != "seed" or r["kind"] not in RINGS:
+            continue
+        ev = evidence(conn, who, r, path, now)
+        if ev["memories"] >= EVIDENCE and ev["scenes"] >= SCENES:
+            again(conn, r, "ring", now, message_id, run_id)
+        elif now - r["story_time"] >= TTL:
+            again(conn, r, "past", now, message_id, run_id)

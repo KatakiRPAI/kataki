@@ -112,7 +112,7 @@ def ent(conn, story, name):
 def test_accept_reject_lock_are_new_versions(conn, story):
     mira = ent(conn, story, "Mira")
     with conn:
-        seed = growth.write(conn, story, mira, "habit", "learned to ask for help", [1, 2, 3],
+        seed = growth.write(conn, story, mira, "habit", "learned to ask for help", [97, 98, 99],
                             "seed", 0, delta={"warmth": 2})  # fmt: skip
     path = chat.active_path(conn, story)
     [r] = growth.current(conn, mira, path)
@@ -120,7 +120,7 @@ def test_accept_reject_lock_are_new_versions(conn, story):
     accepted = growth.act(conn, seed, "accept")
     [r] = growth.current(conn, mira, path)
     assert (r["id"], r["status"], r["supersedes_id"]) == (accepted, "ring", seed)
-    assert r["sources"] == [1, 2, 3] and r["message_id"] is None and r["run_id"] is None
+    assert r["sources"] == [97, 98, 99] and r["message_id"] is None and r["run_id"] is None
     assert inner.profile(conn, mira)["axes"]["warmth"][0] == 52
     growth.act(conn, accepted, "reject")
     [r] = growth.current(conn, mira, path)
@@ -341,3 +341,64 @@ async def test_a_failed_call_or_no_deep_section_leaves_a_warning(local_model, ca
     backend.say(json.dumps(DIARY))  # a diary, but no deep section: the diary is kept
     assert await between.think(conn, backend.llm, story, run, tobin)
     assert "missing" in raw(conn, run)["deep_warnings"][str(tobin)][0]
+
+
+# --- reinforcement (note 17 §6): a seed takes hold only when later scenes bear it out -----------
+
+
+def seeded(conn, cards, status="seed"):
+    story = make(conn, cards)
+    mira, aren = ent(conn, story, "Mira"), ent(conn, story, "Aren")
+    chat.append_message(conn, story, "user", "Hello, Mira.", aren)
+    with conn:
+        rid = growth.write(conn, story, mira, "habit", "learned to ask for help", [97, 98, 99],
+                           status, 0, delta={"warmth": 2})  # fmt: skip
+    return story, mira, rid
+
+
+def bear_out(conn, story, mira, days=(1, 1, 2)):
+    for n, d in enumerate(days):
+        hers(conn, story, mira, f"Mira asked Tobin for help with the nets ({n}).", d * DAY)
+
+
+def skip_now(conn, story, words="three days later") -> int:
+    turns.say(conn, story, skip=words)
+    return between.at_skip(conn, story, chat.active_path(conn, story))
+
+
+def status(conn, story, mira) -> str:
+    return growth.current(conn, mira, chat.active_path(conn, story))[0]["status"]
+
+
+def test_a_seed_borne_out_in_two_later_scenes_becomes_a_ring(conn, cards):
+    story, mira, _ = seeded(conn, cards)
+    bear_out(conn, story, mira)
+    assert inner.profile(conn, mira)["axes"]["warmth"][0] == 50
+    run = skip_now(conn, story)
+    [r] = growth.current(conn, mira, chat.active_path(conn, story))
+    assert (r["status"], r["run_id"]) == ("ring", run)
+    assert inner.profile(conn, mira)["axes"]["warmth"][0] == 52  # now it counts
+
+
+def test_too_little_evidence_keeps_it_a_seed_and_long_unconfirmed_it_passes(conn, cards):
+    story, mira, _ = seeded(conn, cards)
+    bear_out(conn, story, mira, days=(1, 1, 1))  # three memories, one scene
+    skip_now(conn, story)
+    assert status(conn, story, mira) == "seed"
+    skip_now(conn, story, "a month later")
+    assert status(conn, story, mira) == "past"
+
+
+def test_locked_or_rejected_are_never_touched_and_lite_reinforces_too(conn, cards):
+    setting(conn, "mind.level", "lite")
+    story, mira, rid = seeded(conn, cards)
+    bear_out(conn, story, mira)
+    skip_now(conn, story)
+    assert status(conn, story, mira) == "ring"  # code only, zero calls
+    story, mira, rid = seeded(conn, cards, "locked")
+    skip_now(conn, story, "two months later")
+    assert status(conn, story, mira) == "locked"
+    story, mira, rid = seeded(conn, cards, "rejected")
+    bear_out(conn, story, mira)
+    skip_now(conn, story)
+    assert status(conn, story, mira) == "rejected"

@@ -594,7 +594,15 @@ class _Tick:
                         passed += 1
 
     def reinforce(self, cast: list[int]) -> None:
-        """Growth seeds later scenes bore out become rings; old unconfirmed ones pass (slice 8)."""
+        """Growth seeds later scenes bore out become rings; old unconfirmed ones pass (slice 8).
+        A failure costs only that."""
+        try:
+            if not features.enabled(self.conn, "mind.growth"):
+                return
+            for who in cast:
+                growth.reinforce(self.conn, who, self.path, self.now, self.skip["id"], self.run)
+        except Exception as e:
+            logging.getLogger(__name__).warning("rings not reinforced: %s", e)
 
     def version(self, teller: int, hearer: int, memory: int, live: set[int]) -> None:
         """What is passed on is the teller's own version of it (slice 6), if they hold one."""
