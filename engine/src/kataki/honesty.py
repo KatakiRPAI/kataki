@@ -538,3 +538,61 @@ def ooc(text: str) -> str | None:
     if ARE_YOU_AI.search(text or ""):
         return "ai"
     return "ooc" if OOC.search(text or "") else None
+
+
+# --- what the app shows (spec §8.3 slice 4) ----------------------------------------------------
+
+LABEL = {
+    "truth": "told the truth", "soften": "softened it", "hedge": "hedged",
+    "hint": "let a hint slip", "omit": "kept it quiet", "evade": "refused to say",
+    "deflect": "changed the subject", "exaggerate": "exaggerated",
+    "white_lie": "told a white lie", "self_lie": "lied to cover it", "confess": "confessed",
+    "double_down": "stuck to the story",
+}  # fmt: skip
+
+
+def public(conn: sqlite3.Connection, story_id: int, owner_id: int, path: list) -> list[dict]:
+    """Her secrets as Peek shows them: what it is, who it is kept from, whether it is still
+    hidden, doubted or out, and what she said instead the last time it came up."""
+    story = conn.execute("SELECT persona_entity_id FROM stories WHERE id=?", (story_id,)).fetchone()
+    persona = story["persona_entity_id"]
+    names = dict(conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)))
+    decided = [  # her replies on this branch, with what she decided in each
+        (m, json.loads(m["gen"]).get("honest") or {})
+        for m in path
+        if m["role"] == "assistant" and m["speaker_id"] == owner_id and m["gen"]
+    ]
+    told = _told(path, owner_id)
+    others = [
+        r[0]
+        for r in conn.execute(
+            "SELECT id FROM entities WHERE story_id=? AND kind='character' AND id!=?",
+            (story_id, owner_id),
+        )
+    ]
+    out = []
+    for sec in held(conn, owner_id, path):
+        mine = [(m, h) for m, h in decided if h.get("secret") == sec["id"]]
+        doubt = {h["to"] for _, h in mine if h.get("caught") and h.get("to") is not None}
+        doubt |= {o for o in others if _doubted(conn, story_id, owner_id, sec, path, o)}
+        gave = told.get(sec["id"], set())
+        m, h = mine[-1] if mine else (None, None)
+        hide = sec["conceal_from"]
+        out.append(
+            {
+                "id": sec["id"], "text": sec["text"], "keys": sec["keys"], "topic": sec["topic"],
+                "cover": sec["cover"], "motive": sec["motive"], "stakes": sec["stakes"],
+                "sincere": sec["sincere"],
+                "conceal_from": hide if hide == "all" else [
+                    {"id": i, "name": names.get(i, "someone"), "you": i == persona} for i in hide
+                ],
+                "status": "exposed" if gave else "suspected" if doubt - gave else "hidden",
+                "suspected_by": sorted(names.get(i, "someone") for i in doubt),
+                "told": sorted(names.get(i, "someone") for i in gave),
+                "said": m and {
+                    "move": h["move"], "label": LABEL.get(h["move"], h["move"]),
+                    "text": m["text"][:120], "message_id": m["id"], "caught": h.get("caught"),
+                },
+            }
+        )  # fmt: skip
+    return out

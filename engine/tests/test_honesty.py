@@ -6,7 +6,7 @@ import re
 
 import pytest
 
-from kataki import chat, honesty, inner, library, turns
+from kataki import chat, honesty, inner, library, mind, people, turns
 
 SECRET = {
     "text": "The ring in the drawer was her late brother's.",
@@ -518,3 +518,61 @@ async def test_the_messages_route_marks_the_ooc_aside(conn, liar, backend):
     client = TestClient(app, headers={"Authorization": "Bearer t"})
     lines = client.get(f"/stories/{liar}/messages").json()
     assert [(m["ooc"], m["hidden"]) for m in lines[-2:]] == [(True, True)] * 2
+
+
+# --- Peek and the Mind graph -------------------------------------------------------------------
+
+
+def peek(conn, story, name="Mira") -> list:
+    row = conn.execute("SELECT * FROM stories WHERE id=?", (story,)).fetchone()
+    return next(p for p in people.people(conn, row) if p["name"] == name)["secrets"]
+
+
+@pytest.mark.anyio
+async def test_peek_shows_the_secret_what_she_said_instead_and_who_doubts_her(conn, liar, backend):
+    [before] = peek(conn, liar)
+    assert (before["status"], before["said"], before["conceal_from"]) == ("hidden", None, "all")
+    assert before["text"] == SECRET["text"] and before["cover"] == SECRET["cover"]
+    backend.say("It was my grandmother's.", "I told you: my grandmother's.")
+    await play(turns.turn(conn, backend.llm, liar, ASK))
+    [s] = peek(conn, liar)
+    reply = chat.active_path(conn, liar)[-1]["id"]
+    assert s["status"] == "hidden" and s["said"] == {
+        "move": "self_lie", "label": "lied to cover it", "text": "It was my grandmother's.",
+        "message_id": reply, "caught": None,
+    }  # fmt: skip
+    await play(turns.turn(conn, backend.llm, liar, "You're lying, Mira."))
+    [s] = peek(conn, liar)
+    assert (s["status"], s["suspected_by"], s["said"]["move"]) == (
+        "suspected",
+        ["Aren"],
+        "double_down",
+    )
+    assert peek(conn, liar, "Tobin") == []
+
+
+@pytest.mark.anyio
+async def test_peek_shows_a_confessed_secret_as_exposed(conn, cards, local_model, backend):
+    story = make(conn, cards, [SECRET | {"stakes": 0.2}], {"axes": {"honesty": [90, 5]}})
+    backend.say("It was my brother's.")
+    await play(turns.turn(conn, backend.llm, story, ASK))
+    [s] = peek(conn, story)
+    assert (s["status"], s["told"], s["said"]["move"]) == ("exposed", ["Aren", "Tobin"], "truth")
+
+
+@pytest.mark.anyio
+async def test_the_mind_graph_shows_what_she_decided(conn, liar, backend):
+    backend.say("It was my grandmother's.")
+    await play(turns.turn(conn, backend.llm, liar, ASK))
+    graph = mind.mind(conn, chat.active_path(conn, liar)[-1]["id"])
+    node = next(n for n in graph["nodes"] if n["id"] == "honest")
+    assert (node["column"], node["kind"], node["title"]) == ("decide", "honest", "Honest?")
+    assert node["text"] == "Lied to cover it: “It was my grandmother's.”" and node["gold"]
+    assert node["detail"]["move"] == "self_lie" and node["detail"]["cover"] == SECRET["cover"]
+    assert {"from": "honest", "to": "spoke", "gold": True} in graph["links"]
+
+
+@pytest.mark.anyio
+async def test_switched_off_peek_shows_no_secrets(conn, liar):
+    conn.execute("INSERT INTO settings(key, value) VALUES('features.mind.secrets', 'false')")
+    assert peek(conn, liar) == []
