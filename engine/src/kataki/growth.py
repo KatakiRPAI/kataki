@@ -77,9 +77,10 @@ def gate(item: dict, kind: str, memories: dict[str, dict], people: dict[str, int
         return "it was empty"
     if not isinstance(sources, list) or not sources:
         return "it cited no source"
-    if bad := [s for s in sources if s not in memories]:
+    if bad := [s for s in sources if not isinstance(s, str) or s not in memories]:
         return f"it cited an unknown memory ({bad[0]})"
-    if kind == "relationship" and item.get("about") not in people:
+    about = item.get("about")
+    if kind == "relationship" and not (isinstance(about, str) and about in people):
         return "it was about someone it was not shown"
     if len(line.split()) > WORDS[kind] or (
         kind == "self" and len(re.findall(r"[.!?]+(?:\s|$)", line.strip())) > SENTENCES
@@ -206,3 +207,161 @@ def profile_drift(conn: sqlite3.Connection, who: int) -> dict[str, int]:
 
 def since(r: dict, epoch: int) -> str:
     return clock.label(r["story_time"], epoch)
+
+
+# --- the deep pass (note 22 §3 B2): when, on what, and what comes of it -------------------------
+
+DEEP_SKIP = {"premium": clock.DAY}  # ponytail: a skip this long calls for a deep pass ...
+LONG = 7 * clock.DAY  # ... on standard (note 14 §6: "about 7 story-days")
+PILE = 40  # new memories since her last deep pass that call for one (note 14 §6)
+WORK = 30  # ponytail: her memories the call is shown (note 22 §3: "about 30 items")
+PEOPLE_MAX = 6  # people it may write a line about
+TRIGGER = "between"
+
+
+def _last(conn, story_id: int, who: int, path: list, skip_id: int) -> int | None:
+    """The story time of her last deep pass on this branch that ran, or None."""
+    ids = [m["id"] for m in path if m["id"] != skip_id]
+    if not ids:
+        return None
+    times = {m["id"]: m["story_time"] for m in path}
+    rows = conn.execute(
+        f"SELECT to_message_id, raw FROM extraction_runs WHERE story_id=? AND trigger=?"
+        f" AND status='ok' AND to_message_id IN ({','.join('?' * len(ids))})",
+        [story_id, TRIGGER, *ids],
+    ).fetchall()
+    done = []
+    for r in rows:
+        raw = json.loads(r["raw"] or "{}")
+        if str(who) in (raw.get("deep") or {}) and (raw.get("b1") or {}).get(str(who)) == "ok":
+            done.append(times[r["to_message_id"]])
+    return max(done, default=None)
+
+
+def trigger(
+    conn: sqlite3.Connection, story_id: int, who: int, path: list, level: str
+) -> str | None:
+    """Whether the skip at the end of `path` calls for her deep pass, and why: `long_skip`,
+    `memories` (enough new ones since the last), `arc` (a chapter closed since). Code, zero
+    calls; lite never gets one."""
+    if level == "lite" or not path:
+        return None
+    skip = path[-1]
+    if skip["skip_minutes"] >= DEEP_SKIP.get(level, LONG):
+        return "long_skip"
+    last = _last(conn, story_id, who, path, skip["id"])
+    after = -1 if last is None else last
+    live = db.live_runs(conn, story_id, skip["id"])
+    know, args = db.live_filter(live, "k.run_id")
+    n = conn.execute(
+        "SELECT COUNT(DISTINCT m.id) FROM memories m JOIN knowledge k ON k.memory_id=m.id"
+        f" WHERE k.knower_id=? AND m.story_id=? AND m.hidden=0 AND m.story_time>?"
+        f" AND m.story_time<=? AND {know}",
+        [who, story_id, after, skip["story_time"], *args],
+    ).fetchone()[0]
+    if n >= PILE:
+        return "memories"
+    ids = [m["id"] for m in path]
+    times = {m["id"]: m["story_time"] for m in path}
+    for (to,) in conn.execute(
+        f"SELECT to_message_id FROM chapters WHERE story_id=? AND to_message_id IN"
+        f" ({','.join('?' * len(ids))})",
+        [story_id, *ids],
+    ):
+        if times[to] > after:
+            return "arc"
+    return None
+
+
+def _scene(conn, memory_id: int, t: int):
+    row = conn.execute(
+        "SELECT ms.scene_id FROM memories m LEFT JOIN messages ms ON ms.id=m.message_id"
+        " WHERE m.id=?",
+        (memory_id,),
+    ).fetchone()
+    return (row and row[0]) or f"day{t // clock.DAY}"
+
+
+def working(conn: sqlite3.Connection, story_id: int, who: int, now: int, known: list[dict]) -> dict:
+    """What the deep pass may use: her strongest and newest memories (`known`, from
+    retrieve.inspect: hers only, as she holds them) as handles, the people in the story as
+    handles, and every name the story has. Never an earlier reflection (C3)."""
+    held = [m for m in known if m["tier"] != "forgotten" and not m["hidden"]]
+    held.sort(key=lambda m: (-m["importance"], -m["story_time"]))
+    picked = sorted(held[:WORK], key=lambda m: (m["story_time"], m["memory_id"]))
+    memories = {}
+    for m in picked:
+        text = (m.get("version") or {}).get("text") or (
+            m["detail"] if m["tier"] == "sharp" else m["gist"]
+        )
+        memories[f"M{m['memory_id']}"] = {
+            "id": m["memory_id"], "text": text, "scene": _scene(conn, m["memory_id"], m["story_time"]),
+        }  # fmt: skip
+    story = conn.execute("SELECT persona_entity_id FROM stories WHERE id=?", (story_id,)).fetchone()
+    others = conn.execute(
+        "SELECT id, name FROM entities WHERE story_id=? AND kind='character' AND hidden=0"
+        " AND id<>?",
+        (story_id, who),
+    ).fetchall()
+    said = " ".join(m["text"] for m in memories.values()).lower()
+    others = sorted(others, key=lambda e: (e["id"] != story["persona_entity_id"],
+                                          -said.count(e["name"].lower())))  # fmt: skip
+    called = conn.execute(
+        "SELECT name FROM entities WHERE story_id=? UNION"
+        " SELECT a.alias FROM aliases a JOIN entities e ON e.id=a.entity_id WHERE e.story_id=?",
+        (story_id, story_id),
+    )
+    return {
+        "memories": memories,
+        "people": {f"P{e['id']}": e["id"] for e in others[:PEOPLE_MAX]},
+        "who": {f"P{e['id']}": e["name"] for e in others[:PEOPLE_MAX]},
+        "names": {w.lower() for (n,) in called for w in _words(n)},
+    }
+
+
+def take(conn: sqlite3.Connection, story_id: int, who: int, deep, work: dict, path: list,
+         message_id: int, run_id: int, now: int) -> list[str]:  # fmt: skip
+    """The deep section's items that pass the gate, as rows on the skip's run (inside the
+    caller's transaction): lines in force at once, superseding her previous one on the same
+    subject (never a locked one); rings as seeds with the nudge code gives them. -> warnings for
+    what was dropped."""
+    if not isinstance(deep, dict):
+        return ["The reflection was missing from the answer."]
+    mems, people, names = work["memories"], work["people"], work["names"]
+    warn: list[str] = []
+    before = current(conn, who, path)
+
+    def kept(item, kind, what) -> bool:
+        why = "it was malformed" if not isinstance(item, dict) else gate(
+            item, kind, mems, people, names)  # fmt: skip
+        if why:
+            warn.append(f"{what} was dropped: {why}.")
+        return why is None
+
+    def line(kind: str, item: dict, subject: int | None) -> None:
+        old = next((r for r in before if r["kind"] == kind and r["subject_id"] == subject
+                    and r["status"] == "ring"), None)  # fmt: skip
+        write(conn, story_id, who, kind, " ".join(item["line"].split()),
+              [mems[s]["id"] for s in dict.fromkeys(item["sources"])], "ring", now,
+              subject=subject, supersedes=old and old["id"], message_id=message_id,
+              run_id=run_id)  # fmt: skip
+
+    rel = deep.get("relationship") if isinstance(deep.get("relationship"), list) else []
+    seen: set[int] = set()
+    for item in rel[:2]:
+        if kept(item, "relationship", "A line about someone") and people[item["about"]] not in seen:
+            seen.add(people[item["about"]])
+            line("relationship", item, people[item["about"]])
+    if deep.get("self") is not None and kept(deep["self"], "self", "The line about herself"):
+        line("self", deep["self"], None)
+    rings = deep.get("rings") if isinstance(deep.get("rings"), list) else []
+    for item in rings[:2]:
+        if not kept(item, "ring", "A growth ring"):
+            continue
+        if item.get("kind") not in RINGS:
+            warn.append("A growth ring was dropped: it was malformed.")
+            continue
+        write(conn, story_id, who, item["kind"], " ".join(item["claim"].split()),
+              [mems[s]["id"] for s in dict.fromkeys(item["sources"])], "seed", now,
+              delta=step(item.get("trait")), message_id=message_id, run_id=run_id)  # fmt: skip
+    return warn

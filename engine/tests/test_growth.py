@@ -161,3 +161,183 @@ def test_another_branchs_reflection_does_not_count(conn, story):
                      message_id=a, run_id=run)  # fmt: skip
     assert len(growth.current(conn, mira, chat.path_to(conn, a))) == 1
     assert growth.current(conn, mira, chat.path_to(conn, b)) == []
+
+
+# --- the deep pass (note 22 §3 B2) -----------------------------------------------------------------
+
+from kataki import between, clock, turns  # noqa: E402
+
+DAY = clock.DAY
+DIARY = {"diary": "A long week. I kept the office going.", "worth_telling": [], "seeds": [],
+         "preoccupation": "the ledger"}  # fmt: skip
+
+
+def setting(conn, key: str, value) -> None:
+    conn.execute(
+        "INSERT OR REPLACE INTO settings(key, value) VALUES(?, ?)", (key, json.dumps(value))
+    )
+    conn.commit()
+
+
+@pytest.fixture
+def cards(conn):
+    return {n: library.create_item(conn, "character", n) for n in ("Mira", "Tobin", "Aren")}
+
+
+def make(conn, cards) -> int:
+    return library.create_story(
+        conn, "Low Tide", character_ids=[cards["Mira"], cards["Tobin"]], persona_id=cards["Aren"]
+    )
+
+
+def hers(conn, story: int, who: int, detail: str, t: int = 0, importance: int = 8) -> int:
+    mid = conn.execute(
+        "INSERT INTO memories(story_id, kind, story_time, detail, gist, importance)"
+        " VALUES(?, 'event', ?, ?, ?, ?)",
+        (story, t, detail, detail, importance),
+    ).lastrowid
+    conn.execute(
+        "INSERT INTO knowledge(knower_id, memory_id, source, learned_story_time)"
+        " VALUES(?, ?, 'witnessed', ?)",
+        (who, mid, t),
+    )
+    conn.commit()
+    return mid
+
+
+def skipped(conn, cards, words="eight days later"):
+    story = make(conn, cards)
+    mira, tobin, aren = (ent(conn, story, n) for n in ("Mira", "Tobin", "Aren"))
+    chat.append_message(conn, story, "user", "See you, Mira.", aren)
+    mems = [
+        hers(conn, story, mira, "Aren carried Mira's crates up from the harbour.", 0),
+        hers(conn, story, mira, "Mira asked Aren to help her with the ledger.", 10),
+        hers(conn, story, mira, "Aren came back to the office after a storm.", DAY + 10),
+    ]
+    secret = hers(conn, story, tobin, "Tobin buried the strongbox under the pier.", 0)
+    turns.say(conn, story, skip=words)
+    run = between.at_skip(conn, story, chat.active_path(conn, story))
+    return story, run, mira, aren, mems, secret
+
+
+def raw(conn, run) -> dict:
+    row = conn.execute("SELECT raw FROM extraction_runs WHERE id=?", (run,)).fetchone()
+    return json.loads(row[0])
+
+
+def test_a_long_skip_calls_for_a_deep_pass_and_a_short_one_not(conn, cards):
+    story, run, mira, *_ = skipped(conn, cards)
+    tobin = ent(conn, story, "Tobin")
+    assert raw(conn, run)["deep"] == {str(mira): "long_skip", str(tobin): "long_skip"}
+    _, run2, *_ = skipped(conn, cards, "two days later")
+    assert "deep" not in raw(conn, run2)
+
+
+def test_lite_and_off_never_reflect(conn, cards):
+    setting(conn, "mind.level", "lite")
+    _, run, *_ = skipped(conn, cards)
+    assert "deep" not in raw(conn, run)
+    setting(conn, "mind.level", "standard")
+    setting(conn, "features.mind.growth", False)
+    _, run, *_ = skipped(conn, cards)
+    assert "deep" not in raw(conn, run)
+
+
+def test_forty_new_memories_or_a_closed_chapter_call_for_one(conn, cards):
+    story = make(conn, cards)
+    mira, aren = ent(conn, story, "Mira"), ent(conn, story, "Aren")
+    chat.append_message(conn, story, "user", "Hello.", aren)
+    for i in range(growth.PILE):
+        hers(conn, story, mira, f"Small thing number {i}.", i)
+    path = chat.path_to(conn, turns.say(conn, story, skip="two days later"))
+    assert growth.trigger(conn, story, mira, path, "standard") == "memories"
+    assert growth.trigger(conn, story, mira, path, "lite") is None
+    story2 = make(conn, cards)
+    a = chat.append_message(conn, story2, "user", "Hello.", ent(conn, story2, "Aren"))
+    chapter = library.open_chapter(conn, story2, "One", a)
+    library.close_chapter(conn, chapter, a)
+    path = chat.path_to(conn, turns.say(conn, story2, skip="two days later"))
+    mira2 = ent(conn, story2, "Mira")
+    assert growth.trigger(conn, story2, mira2, path, "standard") == "arc"
+    run = between.at_skip(conn, story2, path)  # her deep pass ran on that skip
+    done = raw(conn, run) | {"b1": {str(mira2): "ok"}}
+    conn.execute("UPDATE extraction_runs SET raw=? WHERE id=?", (json.dumps(done), run))
+    path = chat.path_to(conn, turns.say(conn, story2, skip="two days later"))
+    assert growth.trigger(conn, story2, mira2, path, "standard") is None  # that arc is behind her
+
+
+GOOD = {
+    "relationship": [{"about": None, "line": "He keeps coming back, even after the storm.",
+                      "sources": None}],
+    "self": {"line": "I ask for help now.", "sources": None},
+    "rings": [
+        {"kind": "habit", "claim": "learned to ask for help", "sources": None, "trait": "softer"},
+        {"kind": "belief", "claim": "Captain Vey will save the harbour", "sources": None,
+         "trait": "none"},
+    ],
+}  # fmt: skip
+
+
+def answer(mems, aren, line: str | None = None) -> dict:
+    deep = json.loads(json.dumps(GOOD))
+    handles = [f"M{m}" for m in mems]
+    deep["relationship"][0] |= {"about": f"P{aren}", "sources": handles[:2]}
+    if line:
+        deep["relationship"][0]["line"] = line
+    deep["self"]["sources"] = handles[1:2]
+    for r in deep["rings"]:
+        r["sources"] = handles
+    return DIARY | {"deep": deep}
+
+
+@pytest.mark.anyio
+async def test_the_one_diary_call_reflects_on_her_own_memories_only(local_model, cards, backend):
+    conn = local_model
+    story, run, mira, aren, mems, secret = skipped(conn, cards)
+    backend.say(json.dumps(answer(mems, aren)))
+    assert await between.think(conn, backend.llm, story, run, mira)
+    assert len(backend.requests) == 1  # no second call
+    sent = "\n".join(m["content"] for m in backend.requests[0]["messages"])
+    assert f"M{mems[0]}: Aren carried Mira's crates" in sent and f"P{aren}: Aren" in sent
+    assert "strongbox" not in sent and f"M{secret}" not in sent
+    assert "deep" in json.dumps(backend.requests[0].get("response_format", {}))
+    path = chat.active_path(conn, story)
+    rows = {r["kind"]: r for r in growth.current(conn, mira, path)}
+    assert rows["relationship"]["status"] == "ring" and rows["relationship"]["subject_id"] == aren
+    assert rows["self"]["status"] == "ring"
+    assert rows["habit"]["status"] == "seed" and rows["habit"]["trait_delta"] == {"yielding": 2}
+    assert "belief" not in rows  # a new name: dropped
+    assert all(r["run_id"] == run for r in rows.values())
+    [warning] = raw(conn, run)["deep_warnings"][str(mira)]
+    assert "Vey" in warning
+    assert inner.profile(conn, mira)["axes"]["yielding"][0] == 50  # a seed nudges nothing yet
+    chat.set_skip(conn, path[-1]["id"], 0)  # undo the skip: it all goes
+    assert growth.current(conn, mira, chat.active_path(conn, story)) == []
+
+
+@pytest.mark.anyio
+async def test_a_second_deep_pass_replaces_her_line_but_keeps_rings(local_model, cards, backend):
+    conn = local_model
+    story, run, mira, aren, mems, _ = skipped(conn, cards)
+    backend.say(json.dumps(answer(mems, aren)))
+    await between.think(conn, backend.llm, story, run, mira)
+    turns.say(conn, story, skip="two weeks later")
+    run2 = between.at_skip(conn, story, chat.active_path(conn, story))
+    backend.say(json.dumps(answer(mems, aren, "He stays.")))
+    await between.think(conn, backend.llm, story, run2, mira)
+    rows = growth.current(conn, mira, chat.active_path(conn, story))
+    assert [r["text"] for r in rows if r["kind"] == "relationship"] == ["He stays."]
+    assert len([r for r in rows if r["kind"] == "habit"]) == 2  # rings only add
+
+
+@pytest.mark.anyio
+async def test_a_failed_call_or_no_deep_section_leaves_a_warning(local_model, cards, backend):
+    conn = local_model
+    story, run, mira, *_ = skipped(conn, cards)
+    backend.say("not json", "still not json")
+    assert not await between.think(conn, backend.llm, story, run, mira)
+    assert "did not run" in raw(conn, run)["deep_warnings"][str(mira)][0]
+    tobin = ent(conn, story, "Tobin")
+    backend.say(json.dumps(DIARY))  # a diary, but no deep section: the diary is kept
+    assert await between.think(conn, backend.llm, story, run, tobin)
+    assert "missing" in raw(conn, run)["deep_warnings"][str(tobin)][0]
