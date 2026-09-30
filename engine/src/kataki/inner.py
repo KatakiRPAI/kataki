@@ -193,6 +193,10 @@ def appraise(event: str, strength: float, prof: dict, state: dict) -> list[tuple
         "apology": [("relieved", 0.4)] if hurting else [],
         "good_news": [("glad", 0.5)],
         "praise": [("glad", 0.4 + 0.3 * warm / 100)],
+        "affection": [("fond", 0.6)],
+        "flirt": [("fond", 0.3 + 0.3 * warm / 100)],
+        "joke": [("amused", 0.5)],
+        "snub": [("annoyed" if dom >= 50 else "hurt", 0.4)],
     }[event]
     if event in ("insult", "threat") and prof["anxiety"] >= 0.5:
         felt.append(("anxious", 0.6 * prof["anxiety"]))
@@ -245,11 +249,31 @@ def regulate(state: dict, prof: dict) -> dict:
     return {**state, "shown": shown, "reg_load": load}
 
 
-EVENTS = ("threat", "insult", "bad_news", "apology", "good_news", "praise")  # first match wins
+EVENTS = (
+    "threat",
+    "insult",
+    "bad_news",
+    "apology",
+    "affection",
+    "good_news",
+    "praise",
+    "flirt",
+    "joke",
+    "snub",
+)  # first match wins
 WORDS = {
     "threat": r"\b(i'?ll|i will|gonna) (kill|hurt|end) you\b|\bor else\b|\byou'?ll regret\b",
     "insult": r"\b(idiot|stupid|useless|pathetic|worthless|loser|moron|shut up|hate you"
-    r"|disgusting|liar)\b",
+    r"|disgusting|liar|fool|arrogant|coward|jerk)\b",
+    # touch, flirting, laughter and being ignored: before these, a kiss or a snub did nothing on
+    # lite. ponytail: words and *actions* only, no negation, like the rest
+    "affection": r"\b(kiss(es|ed|ing)?|hugs?|hugged|hugging|embraces?|embraced|cuddles?"
+    r"|nuzzles?|caress(es|ed)?|holds? (his|her|their|your) hand)\b",
+    "flirt": r"\b(winks?|winked|flirts?|flirting|handsome|gorgeous|cute|sexy"
+    r"|you look (good|nice|great|lovely|stunning))\b",
+    "joke": r"\b(ha(ha)+|he(he)+|lol|lmao|jokes?|joking|kidding|funny|laughs?|laughing)\b",
+    "snub": r"\b(ignores?|ignored|ignoring|walks? (past|away)|turns? (my|his|her|their) back"
+    r"|without a word|whatever|not listening|leave me alone|go away)\b",
     "bad_news": r"\b(died|passed away|got fired|lost my|broke up|bad news|in (the )?hospital)\b",
     "apology": r"\b(i'?m sorry|i apologi[sz]e|forgive me|my fault|i was wrong)\b",
     "good_news": r"\b(got the job|got in|we won|good news|i passed|engaged|promoted)\b",
@@ -332,6 +356,8 @@ def public(state: dict, prof: dict) -> dict | None:
         "tell": shown and shown["tell"],
         "word": word,
         "why": top and top["cause"],
+        # every feeling held, strongest first, for the character card (0-1, faded to now)
+        "emotions": [{"label": e["label"], "i": e["i"], "why": e["cause"]} for e in emotions],
     }
 
 
@@ -479,6 +505,10 @@ EFFECT = {  # what a line aimed at her does to her needs (note 17 §1: SDT thwar
     "apology": {"relatedness": 0.1},
     "good_news": {"stimulation": 0.2},
     "bad_news": {"relatedness": 0.05},
+    "affection": {"relatedness": 0.15},
+    "flirt": {"relatedness": 0.05, "stimulation": 0.05},
+    "joke": {"stimulation": 0.15},
+    "snub": {"relatedness": -0.15},
 }
 BOSSY = re.compile(
     r"\b(you (?:will|must|have to|need to) (?!be\b)|do as i say|do what i say|obey\b|i order you"

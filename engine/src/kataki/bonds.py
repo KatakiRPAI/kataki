@@ -16,8 +16,8 @@ import sqlite3
 
 from kataki import chat, clock, db, inner, knobs
 
-DIMS = ("closeness", "trust", "respect", "familiarity")  # the dimensions events move so far
-SHOWN = ("trust", "closeness", "respect")  # the ones worth a word
+DIMS = ("closeness", "trust", "respect", "attraction", "familiarity")  # what events move so far
+SHOWN = ("trust", "closeness", "respect", "attraction")  # the ones worth a word
 # note 22's EVENT list, less the five that code detects in later slices (neglect_gap,
 # favouritism_shown, lie_discovered, disclosure_unreciprocated, secret_betrayed).
 # event: ({dimension: change at intensity 1}, kind, half-life in story days)
@@ -41,14 +41,22 @@ EVENTS: dict[str, tuple[dict[str, float], str, int]] = {
     "apology_hollow": ({"respect": -1}, "decay", 3),
     "amends_made": ({"trust": 2}, "decay", 30),  # and forgives every open grudge
     "help_refused": ({"closeness": -2, "trust": -1}, "decay", 7),
+    # our own, not note 22's: before these a flirt was at best a compliment and a kiss nothing
+    "flirt": ({"attraction": 2, "closeness": 1}, "decay", 14),
+    "affection": ({"closeness": 3, "attraction": 3, "trust": 1}, "decay", 21),  # welcome touch
 }
 REPAIR = frozenset({"apology_sincere", "amends_made"})
 STICKY_FLOOR = 0.4  # ponytail: an unforgiven grudge never fades below this share of itself
 REPAIR_DAYS = 30  # ponytail: forgiven, it halves in this many story days / (0.5 + forgiveness)
-SCENE_CAP = {"closeness": 8, "trust": 10}  # ponytail: the most one scene can raise either
+SCENE_CAP = {
+    "closeness": 8,
+    "trust": 10,
+    "attraction": 8,
+}  # ponytail: the most one scene can raise either
 START_CLOSENESS = 20  # ponytail: where a pair starts, for diminishing returns only
 HARSH = {"gentle": 0.5, "realistic": 1.0, "harsh": 1.5}  # Realism › Relationships, on losses
 FADED = 1.0  # a cause weaker than this is no longer worth naming
+RECENT, RECENT_MIN = 4, 0.2  # the card's latest causes, and how faded one may be and still show
 
 
 def _fade(minutes: int, half_life: int | None) -> float:
@@ -94,8 +102,10 @@ def standing(rows: list[dict], dst: int, now: int) -> dict:
         c = causes.setdefault(key, {"event": r["event"], "cause": r["cause"],
                                     "t": r["story_time"], "kind": r["kind"],
                                     "forgiven": fix is not None, "weight": 0.0,
-                                    "id": r["id"]})  # fmt: skip
+                                    "id": r["id"], "moves": {}})  # fmt: skip
         c["weight"] += abs(r["value"] * left)
+        if r["dim"] in SHOWN:
+            c["moves"][r["dim"]] = round(c["moves"].get(r["dim"], 0) + r["value"] * left, 1)
         if r["kind"] == "sticky":
             if fix is None:
                 grudge = c
@@ -105,6 +115,11 @@ def standing(rows: list[dict], dst: int, now: int) -> dict:
     return {
         **{d: round(v, 1) for d, v in moved.items()},
         "causes": top[:2],
+        # the latest things they did, still felt at all: the "why" beside the bars
+        "recent": sorted(
+            (c for c in causes.values() if c["weight"] >= RECENT_MIN),
+            key=lambda c: (-c["t"], -(c["id"] or 0)),
+        )[:RECENT],
         "grudge": grudge,
         "forgiven": forgiven,
     }
@@ -214,6 +229,10 @@ RULED = {  # inner.sense's events, as the ledger names them
     "praise": "compliment",
     "good_news": "shared_joy",
     "bad_news": "vulnerable_disclosure",
+    "affection": "affection",
+    "flirt": "flirt",
+    "joke": "shared_joy",
+    "snub": "dismissal",
 }
 
 
@@ -332,6 +351,8 @@ def sentences(st: dict, name: str, now: int) -> list[str]:
              "you trust them {much}less than before"),
         _how(st["closeness"], "you feel {much}closer to them", "you feel {much}further from them"),
         _how(st["respect"], "you respect them {much}more", "you respect them {much}less"),
+        _how(st["attraction"], "you are {much}more drawn to them",
+             "you are {much}less drawn to them"),
     ]  # fmt: skip
     moved = [m for m in moved if m]
     if not moved and not st["grudge"]:
@@ -357,6 +378,7 @@ def summary(st: dict) -> str:
         _how(st["trust"], "trusts {much}more", "trusts {much}less"),
         _how(st["closeness"], "{much}closer", "{much}further"),
         _how(st["respect"], "respects {much}more", "respects {much}less"),
+        _how(st["attraction"], "{much}more drawn", "{much}less drawn"),
         "holds a grudge" if st["grudge"] else "has forgiven" if st["forgiven"] else "",
     ]
     return " · ".join(p for p in parts if p)
@@ -367,7 +389,8 @@ def public(st: dict, other_id: int, other: str, you: bool, epoch: int) -> dict:
 
     def cause(c: dict) -> dict:
         return {"event": c["event"], "cause": c["cause"], "since": clock.label(c["t"], epoch),
-                "kind": c["kind"], "forgiven": c["forgiven"], "id": c.get("id")}  # fmt: skip
+                "kind": c["kind"], "forgiven": c["forgiven"], "id": c.get("id"),
+                "moves": c.get("moves", {})}  # fmt: skip
 
     return {
         "other_id": other_id,
@@ -377,6 +400,7 @@ def public(st: dict, other_id: int, other: str, you: bool, epoch: int) -> dict:
         "words": summary(st),
         "grudge": cause(st["grudge"]) if st["grudge"] else None,
         "causes": [cause(c) for c in st["causes"]],
+        "recent": [cause(c) for c in st.get("recent", [])],
     }
 
 

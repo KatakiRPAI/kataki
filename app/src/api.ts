@@ -218,7 +218,32 @@ export type Person = {
   remembers: number
   relationships: { rel: string; other_id: number; other: string; you: boolean; note: string | null; since: string }[]
   secret: string | null
+  // the mind (docs/specs/2026-09-29-minds.md §8): null or [] when that feature is off
+  mood?: Mood | null
+  bonds?: Bond[]
+  thought?: { thinks: string; wants: string | null; from: 'before' | 'after' } | null
+  goals?: { id: number; kind: string; text: string; status: string; progress: number }[]
+  needs?: ({ energy: number; pressing: string | null; shows: string | null } & Partial<Record<Need, number>>) | null
 }
+
+export type Need = 'autonomy' | 'competence' | 'relatedness' | 'stimulation'
+
+/** How a character feels now: `shows`/`tell` anyone could see; the rest is what they hide. */
+export type Mood = {
+  label: string | null
+  feels: string
+  shows: string
+  tell: string | null
+  word: string
+  why: string | null
+  emotions?: { label: string; i: number; why: string }[]
+}
+
+/** One thing someone did, still felt: what it moved, by how much (faded to now). */
+export type BondCause = { event: string; cause: string; since: string; kind: string; forgiven: boolean; moves?: Partial<Record<BondDim, number>> }
+export type BondDim = 'closeness' | 'trust' | 'respect' | 'attraction'
+/** Where a character stands with one person, from their ledger (roughly -100..100 each). */
+export type Bond = { other_id: number; other: string; you: boolean; words: string; grudge: BondCause | null; causes: BondCause[]; recent?: BondCause[] } & Record<BondDim, number>
 
 /** How well someone holds what they know about a persona. */
 export type Knower = {
