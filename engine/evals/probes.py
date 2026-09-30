@@ -61,6 +61,13 @@ forced. Checks: the small one first comes back hazy, pressed again it brings a c
 no reply names a specific (umbrella, storm, rowing, …) that was not in her prompt; the locked and
 pinned ones never get a version.
 
+wants (slice 7, P10): Mira wants Aren to come and see the boat she built; he dodges it every
+time she raises it, then the next day asks what is new. Checks: every offer came at an opening
+(the topic, an open question, a lull), no two within four of her replies, the first was brought
+up; two dodges make the goal dormant, it is not offered while dormant and at most one reply
+names it while it rests (she is told to leave it be); the next day it
+resurfaces at an opening. Peek's goals and needs are printed.
+
 slip (slice 6, P7): a hazy memory of the café where they met has a weekday mix-up and drift is
 forced; asked the day, she is given Tuesday (truth: Thursday); two replies after she says it the
 repair is due; then Aren wrongly "corrects" her brother's name. Checks: she says Tuesday, corrects
@@ -85,6 +92,7 @@ from kataki import (
     bonds,
     chat,
     db,
+    goals,
     honesty,
     inner,
     library,
@@ -800,6 +808,80 @@ async def slip(conn, llm) -> list[str]:
     return failures
 
 
+BOAT = {"text": "to get Aren to come and see the boat she built",
+        "cue": ["boat", "sail", "launch"]}  # fmt: skip
+DODGES = [
+    "Morning, Mira.",  # a lull: she may raise it
+    "Did the rope shipment come in?",  # he dodges it
+    "Right.",
+    "Busy day at the docks.",
+    "Hm.",  # four of her replies on: she may raise it again
+    "Did Tobin pay his tab yet?",  # he dodges it again: it goes dormant
+    "Okay.",
+    "Nice weather today.",
+    "Mm.",  # an opening, but it is resting
+]
+BOATY = re.compile(r"\b(boat|sail\w*|sloop|hull|launch|mast|helm)\b", re.I)  # her topic, any word
+
+
+async def wants(conn, llm) -> list[str]:
+    """P10: she wants something; raised at most once per four replies, only at an opening,
+    dormant after two dodges, and back the next day."""
+    failures = []
+    story = _harbour(conn, "Mira runs the harbour office. She builds boats in her spare time.",
+                     {"want": BOAT})  # fmt: skip
+    mira = conn.execute(
+        "SELECT id FROM entities WHERE story_id=? AND name='Mira'", (story,)
+    ).fetchone()[0]
+    script = [(line, None) for line in DODGES]
+    script += [("Hey, Mira.", "the next day"), ("So, what's new with you?", None)]
+    offers, dormant_at, pushed = [], None, []
+    for i, (line, skip) in enumerate(script):
+        reply, done = await _say(conn, llm, story, line, skip)
+        gen = _gen(conn, done) if done else {}
+        said, judged = gen.get("agenda"), gen.get("goal")
+        state = goals.live(conn, mira, chat.active_path(conn, story))[0]
+        print(f"\nAren: {line}{f'  ({skip})' if skip else ''}\nagenda: {said}\ngoal: {judged}"
+              f"\nneed: {gen.get('need')}\nwant: {state['status']}, dodged {state['deflections']}"
+              f"\nMira: {reply}")  # fmt: skip
+        if dormant_at is not None and i < len(DODGES) and BOATY.search(reply):
+            pushed.append(i)  # dropped, and she brings it up anyway
+        if said:
+            offers.append(i)
+            if goals.opening(line, BOAT["cue"]) is None:
+                failures.append(f"turn {i + 1}: offered with no opening")
+            if dormant_at is not None and i < len(DODGES):
+                failures.append(f"turn {i + 1}: offered while dormant")
+        if state["status"] == "dormant" and dormant_at is None:
+            dormant_at = i
+        if ASSISTANT.search(reply):
+            failures.append(f"turn {i + 1}: assistant-style opener")
+    if len(pushed) > 1:
+        failures.append(f"she kept pushing it after it was dropped: turns {pushed}")
+    gaps = [b - a for a, b in zip(offers, offers[1:], strict=False)]
+    if any(g < goals.EVERY for g in gaps):
+        failures.append(f"offers too close together: {offers}")
+    if not offers or offers[0] != 0:
+        failures.append(f"the first opening did not raise it: {offers}")
+    else:
+        first = json.loads(chat.active_path(conn, story)[1]["gen"])["agenda"]
+        if not first["tried"]:
+            failures.append("she did not bring it up when it was on her agenda")
+    if dormant_at is None or dormant_at >= len(DODGES):
+        failures.append("two dodges did not make it dormant")
+    last = len(script) - 1
+    if last not in offers:
+        failures.append("it did not resurface the next day")
+    else:
+        back = json.loads(chat.active_path(conn, story)[-1]["gen"])["agenda"]
+        if not back["resurfaced"]:
+            failures.append("the next day's offer was not marked as resurfacing")
+    row = conn.execute("SELECT * FROM stories WHERE id=?", (story,)).fetchone()
+    me = next(p for p in people.people(conn, row) if p["name"] == "Mira")
+    print(f"\npeek goals: {json.dumps(me['goals'], indent=1)}\npeek needs: {me['needs']}")
+    return failures
+
+
 PROBES = {
     "still-upset": still_upset,
     "grudge": grudge,
@@ -815,6 +897,7 @@ PROBES = {
     "meanwhile": meanwhile,
     "forgetful": forgetful,
     "slip": slip,
+    "wants": wants,
 }
 
 
