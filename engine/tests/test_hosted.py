@@ -98,11 +98,13 @@ def test_anything_else_is_nobody(headers):
 class FakeGateway:
     """The service's side of §8.4, in-process: a balance per user and a ledger."""
 
-    def __init__(self, prices=None, broke=(), down=0, reject=()):
+    def __init__(self, prices=None, broke=(), down=0, reject=(), lose=0):
         self.prices, self.broke, self.down = prices or {}, set(broke), down
         self.reject = set(reject)  # usage_ids it answers 422 (a row it can never take)
+        self.lose, self.lost = lose, []  # rows it records, then answers 504: the reply was lost
         self.asked: list[str] = []
         self.posts: Counter[str] = Counter()  # usage_id → POSTs that reached the gateway
+        self.taken: Counter[str] = Counter()  # usage_id → POSTs it answered 2xx: once, ever
         self.ledger: dict[str, dict[str, int]] = {}  # user → usage_id → micro-dollars
         self.auth: set[str] = set()
 
@@ -121,6 +123,11 @@ class FakeGateway:
             return httpx2.Response(422)
         spent = usage.micros(self.prices, row)
         self.ledger.setdefault(row["user"], {})[row["usage_id"]] = spent  # idempotent
+        if self.lose:
+            self.lose -= 1
+            self.lost.append(row["usage_id"])
+            return httpx2.Response(504)
+        self.taken[row["usage_id"]] += 1
         return httpx2.Response(200, json={})
 
     def client(self, clock=lambda: 0.0) -> hosted.Gateway:
@@ -165,6 +172,20 @@ def test_the_meter_is_tried_twice_then_raises():
     assert list(fake.ledger["alice"]) == ["u1"]
     with pytest.raises(httpx2.HTTPError):
         FakeGateway(down=2).client().meter("alice", row())
+
+
+def test_the_ledger_bills_whole_micro_dollars_from_the_tokens():
+    fake = FakeGateway(PRICES)
+    call = {**row(), "model": "rp-model", "prompt_tokens": 1000, "completion_tokens": 100}
+    fake.client().meter("alice", call)
+    assert fake.ledger == {"alice": {"u1": 420}}  # 1000 × 0.3 + 100 × 1.2 micro-dollars
+
+
+def test_a_retry_after_a_lost_reply_carries_the_same_usage_id():
+    fake = FakeGateway(PRICES, lose=1)  # it took the row; its answer never came back
+    fake.client().meter("alice", {**row(), "model": "rp-model"})
+    assert fake.lost == ["u1"] and fake.posts == {"u1": 2}
+    assert list(fake.ledger["alice"]) == ["u1"]
 
 
 def test_the_outbox_sends_what_the_meter_could_not(conn):
