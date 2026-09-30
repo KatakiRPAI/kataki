@@ -929,6 +929,8 @@ def _work(conn, story_id: int, who: int, run: sqlite3.Row, skip: sqlite3.Row) ->
         return work
     except Exception as e:
         logging.getLogger(__name__).warning("deep pass skipped for %s: %s", who, e)
+        with contextlib.suppress(Exception), conn:
+            _warn(conn, run["id"], who, ["The reflection was skipped: something went wrong."])
         return None
 
 

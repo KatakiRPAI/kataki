@@ -571,3 +571,19 @@ async def test_with_no_memories_yet_there_is_nothing_to_reflect_on(local_model, 
     assert await between.think(conn, backend.llm, story, run, mira)
     assert "deep" not in json.dumps(backend.requests[0].get("response_format", {}))
     assert "no memories" in raw(conn, run)["deep_warnings"][str(mira)][0]
+
+
+@pytest.mark.anyio
+async def test_a_broken_deep_pass_costs_only_itself_and_says_so(
+    local_model, cards, backend, monkeypatch
+):
+    conn = local_model
+    story, run, mira, *_ = skipped(conn, cards)
+
+    def boom(*a, **k):
+        raise RuntimeError("no")
+
+    monkeypatch.setattr(growth, "working", boom)
+    backend.say(json.dumps(DIARY))
+    assert await between.think(conn, backend.llm, story, run, mira)  # the diary still lands
+    assert "skipped" in raw(conn, run)["deep_warnings"][str(mira)][0]
