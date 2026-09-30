@@ -567,3 +567,22 @@ async def test_a_delivery_failure_never_breaks_the_turn(conn, story, backend, mo
     backend.say("the tide turned")
     events = await play(turns.turn(conn, backend.llm, story, "Evening, Mira."))
     assert events[-1][0] == "done" and events[-1][1]["delivery"] is None
+
+
+async def test_a_local_reply_carries_the_anti_slop_preset(conn, story, backend):
+    conn.execute("UPDATE providers SET base_url='http://127.0.0.1:8080/v1'")
+    conn.commit()
+    backend.say("Fine.", "Fine again.")
+    await play(turns.turn(conn, backend.llm, story, "Evening, Mira."))
+    body = backend.requests[0]
+    assert body["min_p"] == 0.05 and body["dry_multiplier"] == 0.8
+    assert body["xtc_probability"] == 0.5  # nothing decided, nothing recalled: XTC too
+    _set(conn, "features.mind.texting", False)  # the preset does not depend on texting
+    await play(turns.turn(conn, backend.llm, story, "Mira?"))
+    assert backend.requests[1]["min_p"] == 0.05
+
+
+async def test_an_online_reply_carries_no_preset(conn, story, backend):
+    backend.say("Fine.")
+    await play(turns.turn(conn, backend.llm, story, "Evening, Mira."))
+    assert "min_p" not in backend.requests[0] and "dry_base" not in backend.requests[0]

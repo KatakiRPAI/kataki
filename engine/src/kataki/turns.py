@@ -41,7 +41,7 @@ from kataki import (
     roles,
     thought,
 )
-from kataki.llm import LLM, LLMError
+from kataki.llm import LLM, LLMError, anti_slop
 
 Event = tuple[str, Any]
 NARRATOR = "narrator"
@@ -779,8 +779,14 @@ async def _generate(
             except Exception as e:
                 logging.getLogger(__name__).warning("leak check skipped: %s", e)
                 guard = honesty.Guard([])
+            try:  # anti-slop samplers (slice 9); XTC only when no fact has to come out right
+                calm = not decide and not built_recalled
+                samplers = anti_slop(ep, xtc=calm)
+            except Exception as e:
+                logging.getLogger(__name__).warning("samplers skipped: %s", e)
+                samplers = {}
             stream = llm.chat_stream(
-                ep, built.messages, stop=stops, max_tokens=built.response_reserve
+                ep, built.messages, samplers, stop=stops, max_tokens=built.response_reserve
             )
             async with aclosing(stream) as stream:
                 async for kind, value in stream:
