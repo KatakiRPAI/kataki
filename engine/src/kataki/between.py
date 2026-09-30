@@ -156,6 +156,8 @@ def diary(minutes: int, lived: list[dict], routine: list[str], worry: str | None
 
 KINDS = ("worry", "rumination", "plan", "unfinished", "intrusive", "idea")
 WORDS = {"diary": 80, "telling": 20, "seed": 20, "preoccupation": 15}
+# a line said to the user ("Next time, just stay") is a message, not news of her own days
+ADDRESSED = re.compile(r"\b(you|your|you're|yours)\b", re.IGNORECASE)
 
 
 def schema() -> dict:
@@ -201,7 +203,9 @@ def read(data: dict) -> dict:
     return {
         "diary": _clip(said, WORDS["diary"]),
         "worth_telling": [
-            _clip(t, WORDS["telling"]) for t in tell if isinstance(t, str) and t.strip()
+            _clip(t, WORDS["telling"])
+            for t in tell
+            if isinstance(t, str) and t.strip() and not ADDRESSED.search(t)
         ][:2],
         "seeds": [
             {"kind": s["kind"], "text": _clip(s["text"], WORDS["seed"]), "weight": s["weight"]}
@@ -554,9 +558,12 @@ You write what went on inside {name} while time passed off-screen in an ongoing 
 app that keeps the character's mind. What happened to {name} is given and fixed: never \
 contradict it, and never invent new people, places or big events; small everyday details are \
 fine. Write in {name}'s own voice, first person. Reply with JSON only.
-- diary: two or three sentences about the time that passed.
-- worth_telling: zero to two things {name} would want to tell {user} next time, each at most \
-20 words. Only things from above.
+- diary: {name}'s private diary of the time that passed: two or three sentences, first person \
+("I"), about {name}'s own days, addressed to no one.
+- worth_telling: zero to two pieces of news from {name}'s own days that {name} would bring up \
+with {user}: something that happened to {name} or that {name} did, told as a fact in first \
+person ("I finally fixed the lantern"), at most 20 words each. Never a message or a plea to \
+{user}, never about {user}. Empty when nothing happened.
 - seeds: one to three things on {name}'s mind now. kind: worry (something that might go wrong), \
 rumination (something past they keep replaying), plan (something they mean to do), unfinished \
 (something left open), intrusive (a thought that keeps coming back), idea (something new they \

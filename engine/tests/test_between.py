@@ -96,7 +96,14 @@ def test_the_diary_calls_output_is_validated():
     got = between.read(
         {
             "diary": "I missed the harbour. " * 60,
-            "worth_telling": ["I got a callback", " ", 3, "a", "b"],
+            "worth_telling": [
+                "Next time, just stay with you.",
+                "I got a callback",
+                " ",
+                3,
+                "a",
+                "b",
+            ],
             "seeds": [
                 {"kind": "worry", "text": "whether the callback comes", "weight": 2},
                 {"kind": "grudge", "text": "x", "weight": 2},
