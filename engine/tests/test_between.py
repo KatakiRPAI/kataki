@@ -507,6 +507,14 @@ async def test_back_after_two_days_she_shows_relief_tells_her_news_and_asks_abou
     monkeypatch.setattr(between, "P_EVENT", 1.0)
     story, _ = scene(conn, cards, mira=ANXIOUS | {"events": [AUDITION]})
     mira = ent(conn, story, "Mira")
+    run = between.at_skip(conn, story, chat.active_path(conn, story))
+    with conn:  # the diary call's own news, weighing more, still comes after what happened
+        conn.execute(
+            "INSERT INTO seeds(story_id, entity_id, kind, text, weight, story_time, message_id,"
+            " run_id) SELECT story_id, entity_id, 'news', 'I fixed a lantern', 1.0, story_time,"
+            " message_id, run_id FROM seeds WHERE run_id=? LIMIT 1",
+            (run,),
+        )
     backend.say("{}", "Oh! You're here.", "It went badly, honestly.")  # {}: the memory reader
     await play(turns.turn(conn, backend.llm, story, "Mira, I'm back.", speaker=mira))
     said = directive_of(backend)
@@ -519,7 +527,9 @@ async def test_back_after_two_days_she_shows_relief_tells_her_news_and_asks_abou
     await play(turns.turn(conn, backend.llm, story, "What's new?", speaker=mira))
     later = directive_of(backend)
     assert "relief" not in later and "froze on the second monologue" not in later  # once
-    assert "onmind" not in gen_of(conn, story)  # nothing else on her mind
+    got = gen_of(conn, story)["onmind"]  # then the news not told yet, in the mind block
+    assert (got["text"], got["reentry"]) == ("I fixed a lantern", False)
+    assert "On your mind: I fixed a lantern (something to tell Aren)" in tail_of(backend)
 
 
 @pytest.mark.anyio

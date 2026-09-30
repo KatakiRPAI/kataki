@@ -562,7 +562,7 @@ fine. Write in {name}'s own voice, first person. Reply with JSON only.
 ("I"), about {name}'s own days, addressed to no one.
 - worth_telling: zero to two pieces of news from {name}'s own days that {name} would bring up \
 with {user}: something that happened to {name} or that {name} did, told as a fact in first \
-person ("I finally fixed the lantern"), at most 20 words each. Never a message or a plea to \
+person, at most 20 words each. Never a message or a plea to \
 {user}, never about {user}. Empty when nothing happened.
 - seeds: one to three things on {name}'s mind now. kind: worry (something that might go wrong), \
 rumination (something past they keep replaying), plan (something they mean to do), unfinished \
@@ -821,10 +821,11 @@ def on_mind(
         if mine is not None and not any(
             m["role"] == "assistant" and m["speaker_id"] == who for m in after
         ):
-            news = next(
+            news = min(  # what really happened (the tick's events) before the diary's words
                 (s for s in seeds if s["kind"] == "news" and s["run_id"] == run["id"]
                  and s["id"] not in offered),
-                None,
+                key=lambda s: (not s["payload"].get("event"), -s["now"]),
+                default=None,
             )  # fmt: skip
             worry = next(
                 (s for s in seeds if s["payload"].get("absence") and s["run_id"] == run["id"]),
