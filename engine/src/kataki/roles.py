@@ -116,8 +116,8 @@ async def probe_kind(llm: LLM, ep: Endpoint) -> str:
     """Ask for one word and watch the stream: thoughts before text mean a reasoning model."""
     body = {**ep.params.get("body", {}), "max_tokens": 256}
     natural = replace(ep, params={**ep.params, "thinking": "default", "body": body})
-    stream = llm.chat_stream(
-        natural, [{"role": "user", "content": "Reply with the single word: ok"}]
+    stream = llm.chat_stream(  # max_tokens also as extra: online, the body filter drops it
+        natural, [{"role": "user", "content": "Reply with the single word: ok"}], max_tokens=256
     )
     try:
         async for kind, text in stream:
