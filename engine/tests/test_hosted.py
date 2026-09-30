@@ -4,6 +4,7 @@ each, who they are only from the gateway's signed headers."""
 import asyncio
 import json
 import time
+from collections import Counter
 from pathlib import Path
 
 import httpx2
@@ -87,9 +88,11 @@ def test_anything_else_is_nobody(headers):
 class FakeGateway:
     """The service's side of §8.4, in-process: a balance per user and a ledger."""
 
-    def __init__(self, prices=None, broke=(), down=0):
+    def __init__(self, prices=None, broke=(), down=0, reject=()):
         self.prices, self.broke, self.down = prices or {}, set(broke), down
+        self.reject = set(reject)  # usage_ids it answers 422 (a row it can never take)
         self.asked: list[str] = []
+        self.posts: Counter[str] = Counter()  # usage_id → POSTs that reached the gateway
         self.ledger: dict[str, dict[str, int]] = {}  # user → usage_id → micro-dollars
         self.auth: set[str] = set()
 
@@ -99,10 +102,13 @@ class FakeGateway:
             user = request.url.params["user"]
             self.asked.append(user)
             return httpx2.Response(200, json={"ok": user not in self.broke})
+        row = json.loads(request.content)
+        self.posts[row["usage_id"]] += 1
         if self.down:
             self.down -= 1
             return httpx2.Response(503)
-        row = json.loads(request.content)
+        if row["usage_id"] in self.reject:
+            return httpx2.Response(422)
         spent = usage.micros(self.prices, row)
         self.ledger.setdefault(row["user"], {})[row["usage_id"]] = spent  # idempotent
         return httpx2.Response(200, json={})
@@ -160,11 +166,26 @@ def test_the_outbox_sends_what_the_meter_could_not(conn):
         )
     conn.commit()
     down = FakeGateway(down=2)  # u2 cannot be sent: it stops there, u3 waits behind it
-    assert down.client().resend("alice", conn) == 0
+    with pytest.raises(httpx2.HTTPError):
+        down.client().resend("alice", conn)
+    assert set(down.posts) == {"u2"}
     fake = FakeGateway()
     assert fake.client().resend("alice", conn) == 2
     assert list(fake.ledger["alice"]) == ["u2", "u3"]
     assert conn.execute("SELECT count(*) FROM usage_log WHERE metered=0").fetchone()[0] == 0
+
+
+def test_a_row_the_gateway_rejects_is_set_aside_and_the_rest_still_go(conn):
+    for n in (1, 2):
+        conn.execute(
+            "INSERT INTO usage_log(role, model, usage_id) VALUES('rp', 'm', ?)", (f"u{n}",)
+        )
+    conn.commit()
+    fake = FakeGateway(reject={"u1"})  # a 422: sending it again will never help
+    assert fake.client().resend("alice", conn) == 1
+    assert list(fake.ledger["alice"]) == ["u2"]
+    metered = dict(conn.execute("SELECT usage_id, metered FROM usage_log").fetchall())
+    assert metered == {"u1": 2, "u2": 1}  # 2: rejected, left for someone to look at
 
 
 # --- kataki serve --hosted: a library per user, opened on demand ---------------------------------
@@ -298,6 +319,23 @@ async def test_the_sweep_closes_idle_libraries_and_empties_the_outbox(tmp_path):
     lib.busy = 0
     await app.sweep()
     assert app.opened("alice") is None
+
+
+@pytest.mark.anyio
+async def test_a_sweep_stops_resending_once_the_gateway_is_down(tmp_path):
+    fake = FakeGateway(PRICES, down=99)
+    app = service(tmp_path, fake)
+    for user in ("alice", "bob"):
+        lib = app.open(user)
+        lib.conn.execute(
+            "INSERT INTO usage_log(role, model, usage_id) VALUES('rp', 'rp-model', ?)", (user,)
+        )
+        lib.conn.commit()
+    fake.posts.clear()
+    await app.sweep()
+    assert sum(fake.posts.values()) == 2  # alice's one row, tried twice; bob waits for the next
+    for user in ("alice", "bob"):
+        await app.close(user)
 
 
 def twelve_lines(conn) -> int:

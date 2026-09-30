@@ -108,8 +108,9 @@ class Gateway:
                     raise
 
     def resend(self, user: str, conn: sqlite3.Connection) -> int:
-        """The outbox: rows the meter could not take, sent again oldest first, until one fails.
-        Returns how many went."""
+        """The outbox: rows the meter could not take, sent again oldest first. Returns how many
+        went. A row the gateway refuses for good (a 4xx other than 401, 408, 429) is set aside
+        as `metered=2` and the rest still go; any other failure stops it and raises."""
         sent = 0
         for r in conn.execute(
             "SELECT * FROM usage_log WHERE metered=0 AND usage_id IS NOT NULL ORDER BY id"
@@ -129,8 +130,14 @@ class Gateway:
             }
             try:
                 self.meter(user, {**row, "estimated": bool(r["estimated"])})
-            except httpx2.HTTPError:
-                break
+            except httpx2.HTTPStatusError as e:
+                code = e.response.status_code
+                if not 400 <= code < 500 or code in (401, 408, 429):
+                    raise
+                log.warning("gateway refused usage %s (%s): set aside", r["usage_id"], code)
+                with conn:
+                    conn.execute("UPDATE usage_log SET metered=2 WHERE id=?", (r["id"],))
+                continue
             with conn:
                 conn.execute("UPDATE usage_log SET metered=1 WHERE id=?", (r["id"],))
             sent += 1
@@ -233,7 +240,10 @@ class Hosted:
             conn, lib.token, lib.llm, worker_delay=self.worker_delay, host=lib.host
         )
         self._open[user] = lib
-        self.gateway.resend(user, conn)  # what the last session could not bill
+        try:
+            self.gateway.resend(user, conn)  # what the last session could not bill
+        except httpx2.HTTPError as e:  # the sweep tries again
+            log.warning("outbox for %s not sent: %s", user, type(e).__name__)
         return lib
 
     async def _evict(self) -> None:
@@ -273,13 +283,18 @@ class Hosted:
         lib.conn.close()
 
     async def sweep(self) -> None:
-        """Close what has been idle too long; send the outbox of what stays open."""
-        now = time.monotonic()
+        """Close what has been idle too long; send the outbox of what stays open, until the
+        gateway fails once (then the rest wait for the next sweep, not a timeout each)."""
+        now, down = time.monotonic(), False
         for user, lib in list(self._open.items()):
             if not lib.busy and now - lib.last >= self.idle:
                 await self.close(user)
-            else:
-                self.gateway.resend(user, lib.conn)
+            elif not down:
+                try:
+                    self.gateway.resend(user, lib.conn)
+                except httpx2.HTTPError as e:
+                    log.warning("outbox for %s not sent: %s", user, type(e).__name__)
+                    down = True
 
     async def _sweeping(self) -> None:
         while True:
