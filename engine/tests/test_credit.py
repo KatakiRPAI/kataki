@@ -110,16 +110,50 @@ def test_the_host_gets_a_dollar_estimate(local_model, backend):
     assert seen == [("rp", pytest.approx((100 * 1.0 + 500 * 2.0) / 1e6))]
 
 
-def test_an_unpriced_call_is_asked_about_with_no_estimate(local_model, backend):
+def test_an_unpriced_call_is_refused_online_and_never_sent(local_model, backend):
+    """A model with no price cannot be billed, so online it is not run (the host never sees an
+    estimate of None)."""
     seen = []
     llm = backend.llm
     create_app(local_model, "t", llm, host=online(allow=lambda ep, est: seen.append(est) or 1))
-    backend.say(httpx2.Response(200, json={"data": [{"index": 0, "embedding": [0.1]}]}))
 
     import asyncio
 
-    asyncio.run(llm.embed(ep("embed", "unlisted"), ["x"]))
-    assert seen == [None]
+    with pytest.raises(NoCredit):
+        asyncio.run(llm.embed(ep("embed", "unlisted"), ["x"]))
+    assert seen == [] and backend.requests == []
+
+
+def test_online_a_roles_raw_json_cannot_change_what_is_billed(local_model, backend):
+    """Online, a role's body params may tune the sampler, never the model, the count, the
+    usage report or the length the gate priced."""
+    llm = backend.llm
+    create_app(local_model, "t", llm, host=online())
+    body = {
+        "model": "pricey",
+        "n": 8,
+        "stream_options": {"include_usage": False},
+        "max_tokens": None,
+        "temperature": 0.3,
+        "min_p": 0.05,
+    }
+    backend.say("Hi.")
+
+    import asyncio
+
+    async def go():
+        rp = Endpoint("http://fake/v1", "rp-model", role="rp", params={"body": body})
+        return [e async for e in llm.chat_stream(rp, ASK, max_tokens=500)]
+
+    asyncio.run(go())
+    sent = backend.requests[0]
+    assert (sent["model"], sent["max_tokens"], sent["temperature"], sent["min_p"]) == (
+        "rp-model",
+        500,
+        0.3,
+        0.05,
+    )
+    assert "n" not in sent and sent["stream_options"] == {"include_usage": True}
 
 
 def test_the_online_gate_fails_closed():

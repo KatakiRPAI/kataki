@@ -58,7 +58,7 @@ from kataki import (
     usage,
 )
 from kataki.host import Host, LocalHost
-from kataki.llm import LLM, LLMError, NoCredit
+from kataki.llm import LLM, SAMPLER_KEYS, LLMError, NoCredit
 
 LOCAL_SERVERS = {  # where the first-run wizard looks for a model already running here
     "llama.cpp": "http://127.0.0.1:8080/v1",
@@ -327,9 +327,14 @@ def create_app(
     if llm.on_usage is None:  # a test may bring its own meter
         llm.on_usage = functools.partial(host.on_usage, conn)
     if host.allow is not None:  # the credit gate (track B3), priced in dollars for the host
-        llm.allow = lambda ep, ask: host.allow(
-            ep, usage.cost(host.price_table(conn), ep.model, ep.role, ask)
-        )
+
+        def gate(ep, ask) -> bool:
+            estimate = usage.cost(host.price_table(conn), ep.model, ep.role, ask)
+            return estimate is not None and host.allow(ep, estimate)  # unpriced: not billable
+
+        llm.allow = gate
+    if not host.local_routes:  # online: a role's raw JSON tunes the sampler, not the bill
+        llm.body_keys = SAMPLER_KEYS
     worker = extract.Worker(conn, llm, get_key, delay=worker_delay)
     extract.recover(conn)
 

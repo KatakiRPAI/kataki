@@ -21,7 +21,7 @@ class Host:
     name: str = "desktop"
     get_key: Callable[[str], str | None] = roles.get_key
     meter: Callable[[dict], None] | None = None  # after the usage_log row: bill it
-    allow: Callable[[Endpoint, float | None], bool] | None = None  # None: never refuses
+    allow: Callable[[Endpoint, float], bool] | None = None  # None: never refuses
     channel: Callable[[], str] = features.from_env
     prices: Callable[[], dict] | None = None  # None: the library's own `prices` setting
     local_routes: bool = True
@@ -56,7 +56,7 @@ class OnlineHost(Host):
         *,
         get_key: Callable[[str], str | None],
         meter: Callable[[dict], None],
-        allow: Callable[[Endpoint, float | None], bool],
+        allow: Callable[[Endpoint, float], bool],
         channel: Callable[[], str],
         prices: Callable[[], dict],
     ):

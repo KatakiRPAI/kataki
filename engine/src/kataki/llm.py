@@ -32,6 +32,14 @@ RETRY_AFTER = 2.0  # seconds before asking a busy provider again; doubled each t
 BUSY = (429, 502, 503)  # busy or briefly down: nothing was generated, so nothing is billed
 TRIES = 3
 THINKING_TEMPERATURE = 0.6  # Qwen's recommended thinking-mode temperature
+# Online, a role's raw JSON may tune these and nothing else: never the model, the count, the usage
+# report or the length the credit gate priced (track B3).
+SAMPLER_KEYS = frozenset(
+    ("temperature", "top_p", "top_k", "min_p", "typical_p", "top_a", "tfs", "seed", "stop")
+    + ("repetition_penalty", "frequency_penalty", "presence_penalty", "logit_bias")
+    + ("dry_multiplier", "dry_base", "dry_allowed_length", "dry_sequence_breakers")
+    + ("xtc_threshold", "xtc_probability", "mirostat", "mirostat_tau", "mirostat_eta")
+)
 ASK_OUT = 1000  # ponytail: output tokens the credit gate assumes when a request names no limit
 SPELLED_OUT = (
     "Reply with one JSON object that follows this JSON schema exactly, field names and all:\n"
@@ -163,6 +171,8 @@ class LLM:
         # asked before every request with (endpoint, estimated usage): False refuses it
         # (NoCredit). None, the desktop: nothing is ever refused (track B3)
         self.allow: Callable[[Endpoint, dict], bool] | None = None
+        # the role body keys that reach a request; None, the desktop: all of them, verbatim
+        self.body_keys: frozenset[str] | None = None
 
     async def aclose(self) -> None:
         await self._client.aclose()
@@ -171,15 +181,21 @@ class LLM:
     def _headers(api_key: str | None) -> dict:
         return {"Authorization": f"Bearer {api_key}"} if api_key else {}
 
-    @staticmethod
-    def _body(ep: Endpoint, messages: list[dict], **extra) -> dict:
+    def _own(self, ep: Endpoint) -> dict:
+        """The role's raw JSON: verbatim on the desktop, only `body_keys` online."""
+        said = ep.params.get("body", {})
+        if self.body_keys is None:
+            return said
+        return {k: v for k, v in said.items() if k in self.body_keys}
+
+    def _body(self, ep: Endpoint, messages: list[dict], **extra) -> dict:
         room = {"max_tokens": THINKING_MAX_TOKENS} if ep.thinks else {}
         body = {"model": ep.model, "messages": messages, **room, **extra}
         if (thinking := ep.params.get("thinking", "default")) != "default":
             body["chat_template_kwargs"] = {"enable_thinking": thinking == "enabled"}
         if effort := ep.params.get("reasoning_effort"):
             body["reasoning_effort"] = effort
-        body.update(ep.params.get("body", {}))  # the user's raw JSON wins, verbatim
+        body.update(self._own(ep))  # the user's raw JSON wins
         return body
 
     async def _send(self, method: str, url: str, api_key: str | None, body: dict | None = None):
@@ -411,7 +427,7 @@ class LLM:
         body["response_format"] = fmt
         if instructions:
             body["instructions"] = instructions
-        body.update(ep.params.get("body", {}))  # the user's raw JSON wins, verbatim
+        body.update(self._own(ep))  # the user's raw JSON wins
         self._gate(ep, {"prompt_tokens": len(text)})  # speech is priced by the character
         r = await self._send("POST", f"{ep.base_url.rstrip('/')}/audio/speech", ep.api_key, body)
         self._check(r)

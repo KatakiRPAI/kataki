@@ -101,7 +101,10 @@ def test_a_turn_under_a_beta_host_sees_beta(local_model, backend, monkeypatch):
     aren = library.create_item(conn, "character", "Aren")
     story = library.create_story(conn, "s", character_ids=[mira], persona_id=aren)
     backend.say("Hello.")
-    app = create_app(conn, TOKEN, backend.llm, host=online(channel=lambda: "beta"))
+    priced = {"rp-model": {"input": 1.0, "output": 1.0}}  # online, an unpriced model is refused
+    app = create_app(
+        conn, TOKEN, backend.llm, host=online(channel=lambda: "beta", prices=lambda: priced)
+    )
     with TestClient(app) as client:
         r = client.post(f"/stories/{story}/turn", json={"text": "Hi."}, headers=AUTH)
     assert "event: done" in r.text
