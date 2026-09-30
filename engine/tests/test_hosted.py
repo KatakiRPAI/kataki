@@ -9,6 +9,7 @@ from pathlib import Path
 import httpx2
 import pytest
 import uvicorn
+from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
 from kataki import __main__ as cli
@@ -248,6 +249,40 @@ def test_past_the_limit_the_least_recent_library_closes(tmp_path):
         client.get("/health", headers=now_signed("bob"))
         assert app.opened("alice") is None and app.opened("bob") is not None
         assert len(client.get("/library", headers=now_signed()).json()) == 1  # still there
+
+
+@pytest.mark.anyio
+async def test_a_library_is_never_closed_under_a_request_that_came_while_evicting(tmp_path):
+    app = service(tmp_path, max_open=1)
+    alice, carol = app.open("alice"), app.open("carol")
+    closing, inside, done = asyncio.Event(), asyncio.Event(), asyncio.Event()
+    real = alice.llm.aclose
+
+    async def slow_close():  # alice's close is still awaiting when carol's request comes
+        closing.set()
+        await done.wait()
+        await real()
+
+    async def held_app(scope, receive, send):
+        inside.set()
+        await done.wait()
+        await JSONResponse({})(scope, receive, send)
+
+    held_app.state = carol.app.state  # its worker, for the close at the end
+    alice.llm.aclose, carol.app = slow_close, held_app
+    async with httpx2.AsyncClient(
+        transport=httpx2.ASGITransport(app), base_url="http://engine"
+    ) as client:
+        bob = asyncio.create_task(client.get("/health", headers=now_signed("bob")))
+        await closing.wait()
+        theirs = asyncio.create_task(client.get("/health", headers=now_signed("carol")))
+        await inside.wait()
+        done.set()
+        assert (await bob).status_code == (await theirs).status_code == 200
+    assert app.opened("alice") is None and app.opened("carol") is carol
+    carol.conn.execute("SELECT 1")  # still open: it was in use
+    for user in list(app._open):
+        await app.close(user, force=True)
 
 
 @pytest.mark.anyio

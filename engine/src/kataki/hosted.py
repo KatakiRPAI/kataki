@@ -238,10 +238,10 @@ class Hosted:
 
     async def _evict(self) -> None:
         """Past the limit, close the least recently used libraries with nothing in flight."""
-        for user in [u for u, x in self._open.items() if not x.busy]:
+        for user in list(self._open):
             if len(self._open) <= self.max_open:
                 return
-            await self.close(user)
+            await self.close(user)  # skips one a request reached while an earlier close awaited
 
     def _allow(self, user: str, conn: sqlite3.Connection):
         def allow(ep: Endpoint, estimate: float) -> bool:
@@ -254,11 +254,15 @@ class Hosted:
 
         return allow
 
-    async def close(self, user: str) -> None:
+    async def close(self, user: str, *, force: bool = False) -> None:
         """Close a library: its background job is cancelled (the read it was doing is discarded
-        at the next open, and read again), then its model client and its file."""
-        if (lib := self._open.pop(user, None)) is None:
+        at the next open, and read again), then its model client and its file. One with a
+        request in flight stays open unless `force` (shutdown): checked and removed in one
+        synchronous step, so no request can arrive in between."""
+        lib = self._open.get(user)
+        if lib is None or (lib.busy and not force):
             return
+        del self._open[user]
         worker = lib.app.state.worker
         worker.cancel()
         try:
@@ -318,6 +322,6 @@ class Hosted:
                 if self._sweeper:
                     self._sweeper.cancel()
                 for user in list(self._open):
-                    await self.close(user)
+                    await self.close(user, force=True)
                 await send({"type": "lifespan.shutdown.complete"})
                 return
