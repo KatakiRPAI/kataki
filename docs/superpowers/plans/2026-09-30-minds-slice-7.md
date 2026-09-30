@@ -52,51 +52,51 @@
 
 ### Task 1: The slice-7 contract for the UI
 
-- [ ] §8.3 **Slice 7** block: `mind.goals`; card fields; `people[].goals`, `people[].needs`; `gen.agenda`, `gen.goal`, `gen.need`; the side call's `agenda`; the Mind graph Goal and Body nodes; B1's goal change.
-- [ ] Commit: `docs: minds slice 7 plan and API contract for the UI`
+- [x] §8.3 **Slice 7** block: `mind.goals`; card fields; `people[].goals`, `people[].needs`; `gen.agenda`, `gen.goal`, `gen.need`; the side call's `agenda`; the Mind graph Goal and Body nodes; B1's goal change.
+- [x] Commit: `docs: minds slice 7 plan and API contract for the UI`
 
 ### Task 2: v15 `goals` and `mind.goals`
 
 **Files:** `db.py` (`SCHEMA_VERSION = 15`), `features.py`, `chat.py` (a clock edit shifts a between run's goal rows), `library.py` (merge remaps them); tests `test_db.py` (`test_v15_adds_goals`: a v14 library opens at v15, a row inserts, bad tier/status fail the CHECK, deleting the anchoring message cascades), `test_features.py`.
 
-- [ ] Commit: `feat(engine): v15 goals, and the mind.goals feature`
+- [x] Commit: `feat(engine): v15 goals, and the mind.goals feature`
 
 ### Task 3: Goals from the card
 
 **Files:** `goals.py` (`seed`, `cues`, `live`), `library.py` (seed at story creation); tests `test_goals.py` (new).
 
-- [ ] Tests: want (string or dict), need, fear and explicit goals become rows (need/fear dormant); a malformed entry is skipped, never fatal; cue words drop stop words and names; `live` gives the latest version per key on this branch.
-- [ ] Commit: `feat(engine): a character's want, need and fear become her goals`
+- [x] Tests: want (string or dict), need, fear and explicit goals become rows (need/fear dormant); a malformed entry is skipped, never fatal; cue words drop stop words and names; `live` gives the latest version per key on this branch.
+- [x] Commit: `feat(engine): a character's want, need and fear become her goals`
 
 ### Task 4: The agenda
 
 **Files:** `goals.py` (`opening`, `pick`, `judge`, `tried`, `relabel`), `turns.py`, `after.py` (`agenda` outcome); tests `test_goals.py`.
 
-- [ ] Tests: the opening (topic, asked, lull, none; none on an event); an offer only at an opening, at most once every four of her replies, with a directive that names no number; not when a secret, re-entry or repair directive is there; the seed row stays out when it fires; tried by the cue; a dodge is judged on the user's line (anchored there), two dodges make it dormant and it is not offered again until it has rested, then it resurfaces; taken up resets the dodges; the side call's label replaces the rules' judgment; lite makes no extra call; off → nothing; a failure never breaks the turn.
-- [ ] Commit: `feat(engine): she brings up what she wants at an opening, and lets it go when you dodge it (minds slice 7)`
+- [x] Tests: the opening (topic, asked, lull, none; none on an event); an offer only at an opening, at most once every four of her replies, with a directive that names no number; not when a secret, re-entry or repair directive is there; the seed row stays out when it fires; tried by the cue; a dodge is judged on the user's line (anchored there), two dodges make it dormant and it is not offered again until it has rested, then it resurfaces; taken up resets the dodges; the side call's label replaces the rules' judgment; lite makes no extra call; off → nothing; a failure never breaks the turn.
+- [x] Commit: `feat(engine): she brings up what she wants at an opening, and lets it go when you dodge it (minds slice 7)`
 
 ### Task 5: Needs and energy
 
 **Files:** `inner.py` (`NEEDS`, `energy`, `drive`, `tick` drift, `need_row`), `turns.py`; tests `test_inner.py`, `test_goals.py`.
 
-- [ ] Tests: energy is high mid-afternoon, low before dawn, shifted by chronotype; drives drift to rest in closed form and move with insults, orders and praise; the most pressing need below threshold becomes one row, not within three replies of the last; the tired row says to deny it; no digits; off → nothing.
-- [ ] Commit: `feat(engine): she gets tired late at night and has needs of her own, shown, never announced`
+- [x] Tests: energy is high mid-afternoon, low before dawn, shifted by chronotype; drives drift to rest in closed form and move with insults, orders and praise; the most pressing need below threshold becomes one row, not within three replies of the last; the tired row says to deny it; no digits; off → nothing.
+- [x] Commit: `feat(engine): she gets tired late at night and has needs of her own, shown, never announced`
 
 ### Task 6: Goals between scenes
 
 **Files:** `between.py` (`schema(goals)`, `read`, `_ask`, `_write`), `goals.py` (`change`); tests `test_between.py`.
 
-- [ ] Tests: with goals the call's schema has one optional `goal`; a change writes one row on the run (undone with the skip); a bad handle is dropped; without goals the call is unchanged.
-- [ ] Commit: `feat(engine): time away can move one of her goals`
+- [x] Tests: with goals the call's schema has one optional `goal`; a change writes one row on the run (undone with the skip); a bad handle is dropped; without goals the call is unchanged.
+- [x] Commit: `feat(engine): time away can move one of her goals`
 
 ### Task 7: Peek and the Mind graph
 
 **Files:** `people.py` (`goals`, `needs`), `mind.py` (Goal and Body nodes), `goals.public`; tests `test_api.py`, `test_mind.py`.
 
-- [ ] Commit: `feat(engine): Peek shows what she wants and needs, and the Mind graph shows the goal a reply pursued`
+- [x] Commit: `feat(engine): Peek shows what she wants and needs, and the Mind graph shows the goal a reply pursued`
 
 ### Task 8: Probe, real-model check, progress
 
-- [ ] P10 `wants`: Mira wants Aren to come and see the boat she built (cue: boat, sail, launch); ten lines, every raise dodged, then the next day. Pass: every offer at an opening; no two offers within four of her replies; the first offer is tried; two dodges → dormant, and no offer while dormant; the next day it resurfaces at an opening.
-- [ ] Run P10 and the regressions still-upset, grudge, leak, absence, slip on HF (under $0.30); fix root causes with a test; record in §0.
-- [ ] Commit: `test(engine): minds slice 7 probe`, `docs: minds slice 7 progress`
+- [x] P10 `wants`: Mira wants Aren to come and see the boat she built (cue: boat, sail, launch); ten lines, every raise dodged, then the next day. Pass: every offer at an opening; no two offers within four of her replies; the first offer is tried; two dodges → dormant, and no offer while dormant; the next day it resurfaces at an opening.
+- [x] Run P10 and the regressions still-upset, grudge, leak, absence, slip on HF (under $0.30); fix root causes with a test; record in §0.
+- [x] Commit: `test(engine): minds slice 7 probe`, `docs: minds slice 7 progress`
