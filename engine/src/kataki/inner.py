@@ -17,7 +17,7 @@ import sqlite3
 
 import numpy as np
 
-from kataki import chat, db, knobs
+from kataki import chat, db, growth, knobs
 
 DEFAULT = {  # research note 22 §1; the profile editor fills the rest later
     "axes": {  # [mean 0-100, spread 0-30]
@@ -80,8 +80,14 @@ def shape(own: dict) -> dict:
 
 
 def profile(conn: sqlite3.Connection, entity_id: int) -> dict:
-    """The character's mind profile: their library item's `data.mind` over the defaults."""
-    return shape(knobs.own(conn, entity_id).get("mind") or {})
+    """The character's mind profile: their library item's `data.mind` over the defaults, with
+    the capped drift their growth rings in this story give them (slice 8)."""
+    prof = shape(knobs.own(conn, entity_id).get("mind") or {})
+    for axis, d in growth.profile_drift(conn, entity_id).items():
+        if axis in prof["axes"]:
+            mean_, spread = prof["axes"][axis]
+            prof["axes"][axis] = [max(0, min(100, mean_ + d)), spread]
+    return prof
 
 
 def mean(prof: dict, axis: str) -> float:
