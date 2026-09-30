@@ -1,11 +1,12 @@
 """Slice 4: she keeps a secret, lies to protect it by code's decision, never says it aloud in
 front of the wrong person, and steps out of the story for a sincere question."""
 
+import json
 import re
 
 import pytest
 
-from kataki import chat, honesty, inner, library
+from kataki import chat, honesty, inner, library, turns
 
 SECRET = {
     "text": "The ring in the drawer was her late brother's.",
@@ -225,3 +226,114 @@ def test_the_cover_is_quoted_like_the_reply():
     assert honesty.scrub("*Shrugs.* “Mine.” “It was my brother's.”", GUARDS)[0] == (
         "*Shrugs.* “Mine.” “It was my grandmother's.”"
     )
+
+
+# --- in the turn -------------------------------------------------------------------------------
+
+LIAR = {"axes": {"honesty": [25, 5]}}
+
+
+@pytest.fixture
+def liar(local_model, cards):
+    return make(local_model, cards, [SECRET], LIAR)
+
+
+async def play(stream):
+    return [e async for e in stream]
+
+
+def shown(events) -> str:
+    return "".join(v for k, v in events if k == "token")
+
+
+def leaf(conn, story):
+    m = chat.active_path(conn, story)[-1]
+    return m["text"], json.loads(m["gen"])
+
+
+def directive_of(backend, i=0) -> str:
+    return backend.requests[i]["messages"][-1]["content"].split("[Directive]")[1]
+
+
+@pytest.mark.anyio
+async def test_asked_about_it_she_tells_her_cover_story(conn, liar, backend):
+    backend.say("It was my grandmother's.")
+    await play(turns.turn(conn, backend.llm, liar, "Mira, whose ring is in your drawer?"))
+    asked = directive_of(backend)
+    assert 'you say: "It was my grandmother\'s."' in asked and SECRET["text"] in asked
+    assert "[Directive]" not in backend.requests[0]["messages"][0]["content"]  # not cached
+    _, gen = leaf(conn, liar)
+    mira, aren = ent(conn, liar, "Mira"), ent(conn, liar, "Aren")
+    assert gen["honest"] == {
+        "secret": honesty.held(conn, mira, chat.active_path(conn, liar))[0]["id"],
+        "move": "self_lie", "why": "probe", "caught": None, "to": aren,
+        "inputs": {"stakes": 0.8, "closeness": 0.2, "honesty": 25, "candor": 50},
+        "told": [],
+    }  # fmt: skip
+    assert gen["trace"]["gate"] == ["secret_topical", "probe"]
+    assert gen["trace"]["think"] == "secret"
+
+
+@pytest.mark.anyio
+async def test_an_unrelated_line_asks_nothing_of_her(conn, liar, backend):
+    backend.say("Calm, for once.")
+    await play(turns.turn(conn, backend.llm, liar, "Mira, any ships in from the south?"))
+    assert SECRET["text"] not in json.dumps(backend.requests[0]["messages"])
+    _, gen = leaf(conn, liar)
+    assert "honest" not in gen and "gate" not in gen["trace"]
+
+
+@pytest.mark.anyio
+async def test_accused_after_she_lied_a_liar_sticks_to_her_story(conn, liar, backend):
+    backend.say("It was my grandmother's.", "I told you. My grandmother's.")
+    await play(turns.turn(conn, backend.llm, liar, "Mira, whose ring is in your drawer?"))
+    await play(turns.turn(conn, backend.llm, liar, "You're lying. Admit it."))
+    assert "Stick to your story" in directive_of(backend, 1)
+    _, gen = leaf(conn, liar)
+    assert (gen["honest"]["move"], gen["honest"]["caught"]) == ("double_down", "accused")
+
+
+@pytest.mark.anyio
+async def test_pressed_an_honest_one_confesses_and_it_is_no_longer_kept_from_him(
+    conn, cards, local_model, backend
+):
+    story = make(conn, cards, [SECRET | {"stakes": 0.5}], {"axes": {"honesty": [90, 5]}})
+    lines = ["Mira, whose ring is that?", "Whose ring, Mira?", "Please, whose ring is it?"]
+    backend.say("Nothing.", "Leave it.", "It was my brother's.", "He was kind.")
+    for line in lines:
+        await play(turns.turn(conn, backend.llm, story, line))
+    _, gen = leaf(conn, story)
+    assert (gen["honest"]["move"], gen["honest"]["caught"]) == ("confess", "pressed")
+    assert gen["honest"]["told"] == sorted([ent(conn, story, "Aren"), ent(conn, story, "Tobin")])
+    await play(turns.turn(conn, backend.llm, story, "Tell me about the ring, Mira."))
+    assert "honest" not in leaf(conn, story)[1]  # told: nothing left to keep from them
+
+
+@pytest.mark.anyio
+async def test_kept_from_no_one_here_it_is_not_in_the_prompt(conn, cards, local_model, backend):
+    story = make(conn, cards, [SECRET | {"conceal_from": [cards["Tobin"]]}], LIAR)
+    chat.set_presence(conn, story, ent(conn, story, "Tobin"), False)
+    backend.say("A ring.")
+    await play(turns.turn(conn, backend.llm, story, "Mira, whose ring is that?"))
+    assert SECRET["text"] not in json.dumps(backend.requests[0]["messages"])
+
+
+@pytest.mark.anyio
+async def test_lite_decides_the_same_by_code_and_off_decides_nothing(conn, liar, backend):
+    conn.execute("INSERT INTO settings(key, value) VALUES('mind.level', '\"lite\"')")
+    backend.say("It was my grandmother's.", "It was my grandmother's.")
+    await play(turns.turn(conn, backend.llm, liar, "Mira, whose ring is in your drawer?"))
+    assert "you say:" in directive_of(backend)
+    conn.execute("INSERT INTO settings(key, value) VALUES('features.mind.secrets', 'false')")
+    await play(turns.turn(conn, backend.llm, liar, "Mira, whose ring is in your drawer?"))
+    assert SECRET["text"] not in json.dumps(backend.requests[1]["messages"])
+    assert "honest" not in leaf(conn, liar)[1]
+
+
+@pytest.mark.anyio
+async def test_an_opinion_on_his_poem_gets_a_move_by_temperament(conn, cards, local_model, backend):
+    story = make(conn, cards, [], {"axes": {"candor": [85, 5]}})
+    backend.say("It's bad.")
+    await play(turns.turn(conn, backend.llm, story, "Mira, I wrote a poem. What do you think?"))
+    assert honesty.FACE_SAY["truth"] in directive_of(backend)
+    assert leaf(conn, story)[1]["honest"]["why"] == "face"

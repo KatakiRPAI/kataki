@@ -26,6 +26,7 @@ from kataki import (
     embed,
     extract,
     features,
+    honesty,
     images,
     inner,
     knobs,
@@ -360,6 +361,15 @@ async def _generate(
     except Exception as e:
         logging.getLogger(__name__).warning("stance skipped for story %s: %s", story_id, e)
         decide, check, hold = "", False, False
+    secret = None  # what she does about the truth this reply (slice 4), decided by code
+    try:
+        if speaker_id is not None and features.enabled(conn, "mind.secrets"):
+            secret = honesty.read(conn, story_id, speaker_id, path, inner.profile(conn, speaker_id))
+    except Exception as e:
+        logging.getLogger(__name__).warning("secrets skipped for story %s: %s", story_id, e)
+        secret = None
+    if secret and secret["directive"]:
+        decide = " ".join(p for p in (decide, secret["directive"]) if p)
     think_why = None  # why the header was asked, for gen.trace.think
     try:
         voice = thought.mode(conn, ep, speaker_id)
@@ -372,6 +382,7 @@ async def _generate(
                 chat.scene_of(conn, story_id, path),
                 check,
                 bool(pending.get(speaker_id)),
+                hot=bool(secret and secret["hot"]),
             )
         ):
             header_ask, think_why = thought.ask(name, ep.think_tags), reason
@@ -381,6 +392,8 @@ async def _generate(
     first = " ".join(p for p in (decide, header_ask) if p)
 
     trace: dict = {"why": why, "ms": {}, "think": think_why}
+    if secret and secret["gate"]:
+        trace["gate"] = secret["gate"]
     at = time.monotonic()
     built = context.build(
         conn, story_id, speaker_id, ep, leaf_id=parent_id, inside=inside, directive=first
@@ -590,6 +603,8 @@ async def _generate(
                 logging.getLogger(__name__).warning("mood not kept: %s", e)
             if stood:
                 gen["bonds"] = stood
+            if secret and secret["honest"]:
+                gen["honest"] = secret["honest"]
             message_id = chat.add_child(
                 conn, story_id, parent_id, "assistant", text, speaker_id, skip, gen
             )

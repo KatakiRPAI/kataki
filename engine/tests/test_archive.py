@@ -137,7 +137,7 @@ def test_an_older_library_is_brought_up_to_date_on_the_way_in(conn, full, tmp_pa
             "ALTER TABLE entities DROP COLUMN looks;"
             " ALTER TABLE messages DROP COLUMN expression;"
             " DROP TABLE books; DROP TABLE chapters; DROP TABLE story_links;"
-            " DROP TABLE opinions; DROP TABLE mind_states; DROP TABLE usage_log;"
+            " DROP TABLE secrets; DROP TABLE opinions; DROP TABLE mind_states; DROP TABLE usage_log;"
             " DROP INDEX ix_ent_origin; ALTER TABLE stories DROP COLUMN book_order;"
             " PRAGMA user_version=6;"
         )

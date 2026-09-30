@@ -44,11 +44,19 @@ def mode(conn: sqlite3.Connection, ep: Endpoint, speaker_id: int | None) -> str 
 THINK_FIRST = ("when it matters", "always", "never")
 
 
-def why(conn: sqlite3.Connection, speaker_id: int, path: list, scene_id, armed: bool, event: bool):
+def why(
+    conn: sqlite3.Connection,
+    speaker_id: int,
+    path: list,
+    scene_id,
+    armed: bool,
+    event: bool,
+    hot: bool = False,  # a secret of theirs is on the table (slice 4)
+):
     """Why this reply is written from a header, or None when it is not: "always" and "never" are
     the setting `mind.thinkFirst` (the character's own `data.mind.thinkFirst` wins); by default
-    only when it matters: the opener check is armed, the latest line carried an event, or
-    they have not thought yet in this scene. Elsewhere the header would only cost the first word
+    only when it matters: the opener check is armed, a secret is on the table, the latest line
+    carried an event, or they have not thought yet in this scene. Elsewhere the header would only cost the first word
     ~2 s (minds spec §8.3, note 22 §7)."""
     mine = (knobs.own(conn, speaker_id).get("mind") or {}).get("thinkFirst")
     how = mine if mine in THINK_FIRST else knobs.setting(conn, "mind.thinkFirst", THINK_FIRST[0])
@@ -58,6 +66,8 @@ def why(conn: sqlite3.Connection, speaker_id: int, path: list, scene_id, armed: 
         return "always"
     if armed:
         return "armed"
+    if hot:
+        return "secret"
     if event:
         return "event"
     for m in reversed(path):  # one thought in this scene is enough until something else matters

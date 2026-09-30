@@ -17,7 +17,7 @@ import json
 import re
 import sqlite3
 
-from kataki import db, inner
+from kataki import bonds, chat, db, inner
 
 MOVES = (
     "truth", "soften", "hedge", "hint", "omit", "evade", "deflect", "exaggerate", "white_lie",
@@ -383,3 +383,118 @@ class Guard:
             return ""
         done, self.held = self.held, ""
         return self._release(done)
+
+
+# --- the gate and the decision, for one reply (note 22 §2 steps 5 and 7a) ----------------------
+
+PRESSURE = 3  # ponytail: the third question on it in the asker's last six lines presses her
+DOUBT = 0.5  # ponytail: a hearer's belief in her claim at or below this is doubt (extract.BELIEF)
+RECENT = 3  # the pending line and the two before it put a secret on the table
+TELLING = frozenset({"truth", "confess"})
+
+
+def _close(conn, speaker_id: int, path: list, other: int | None) -> float:
+    """How close she is to `other`, 0-1: where a pair starts, moved by her ledger (slice 2)."""
+    moved = 0.0
+    if other is not None:
+        now = path[-1]["story_time"] if path else 0
+        moved = bonds.standing(bonds.ledger(conn, speaker_id, path), other, now)["closeness"]
+    return round(min(1.0, max(0.0, (bonds.START_CLOSENESS + moved) / 100)), 2)
+
+
+def _told(path: list, speaker_id: int) -> dict[int, set[int]]:
+    """Who each secret has been told to on this branch: those who heard her truth or confession."""
+    out: dict[int, set[int]] = {}
+    for m in path:
+        if m["role"] == "assistant" and m["speaker_id"] == speaker_id and m["gen"]:
+            said = json.loads(m["gen"]).get("honest") or {}
+            if said.get("secret") and said.get("told"):
+                out.setdefault(said["secret"], set()).update(said["told"])
+    return out
+
+
+def _doubted(conn, story_id: int, speaker_id: int, sec: dict, path: list, who: int) -> bool:
+    """Does `who` doubt what she has claimed on this topic (their live belief in it, which
+    extraction lowers when a contradiction is believed)?"""
+    live = db.live_runs(conn, story_id, path[-1]["id"]) if path else set()
+    where, args = db.live_filter(live, "k.run_id")
+    rows = conn.execute(
+        "SELECT m.id, m.detail, k.belief FROM knowledge k JOIN memories m ON m.id=k.memory_id"
+        f" WHERE k.knower_id=? AND m.kind='claim' AND m.asserted_by=? AND {where}"
+        " ORDER BY k.id",
+        [who, speaker_id, *args],
+    )
+    latest = {r["id"]: r for r in rows}  # the latest live row per claim is its belief now
+    return any(r["belief"] <= DOUBT for r in latest.values() if topical(sec, r["detail"]))
+
+
+def read(conn: sqlite3.Connection, story_id: int, speaker_id: int, path: list, prof: dict):
+    """What she does about the truth in this reply, or None when nothing is at stake:
+    {"gate": codes, "hot": a secret is on the table, "guards": [(keys, cover)] for every secret
+    kept from someone here, "directive": words for [Directive], "honest": gen.honest}."""
+    if not path:
+        return None
+    scene_id = chat.scene_of(conn, story_id, path)
+    here = [e["id"] for e in chat.present_entities(conn, scene_id, path) if e["id"] != speaker_id]
+    persona = conn.execute(
+        "SELECT persona_entity_id FROM stories WHERE id=?", (story_id,)
+    ).fetchone()[0]
+    names = dict(conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)))
+    heard = [m for m in path if m["id"] in chat.heard_by(conn, path, speaker_id)]
+    last = heard[-1] if heard else None
+    pending = last if last is not None and last["role"] == "user" else None
+    asker = (pending["speaker_id"] if pending else None) or persona
+    told = _told(path, speaker_id)
+    guards, hot = [], []
+    for sec in held(conn, speaker_id, path):
+        hide = (
+            here if sec["conceal_from"] == "all" else [i for i in sec["conceal_from"] if i in here]
+        )
+        hide = [i for i in hide if i not in told.get(sec["id"], set())]
+        if not hide:
+            continue  # nobody here it is kept from: nothing to decide, nothing to guard
+        if not sec["sincere"]:
+            guards.append((sec["keys"], sec["cover"]))
+        if any(topical(sec, m["text"]) for m in heard[-RECENT:]):
+            hot.append((sec, hide))
+    close = _close(conn, speaker_id, path, asker)
+    inputs = {"closeness": close, "honesty": inner.mean(prof, "honesty"),
+              "candor": inner.mean(prof, "candor")}  # fmt: skip
+    user = names.get(asker) or "them"
+    gate, honest, words_ = [], None, ""
+    if hot:
+        sec, hide = max(hot, key=lambda h: h[0]["stakes"])
+        gate = ["secret_topical"]
+        probed = pending is not None and question(pending["text"])
+        if probed:
+            gate.append("probe")
+        asked = [  # the asker's recent questions while it was on the table
+            i for i, m in enumerate(heard)
+            if m["role"] == "user" and m["speaker_id"] == asker and question(m["text"])
+            and any(topical(sec, x["text"]) for x in heard[max(0, i - RECENT + 1) : i + 1])
+        ]  # fmt: skip
+        mine = [i for i, m in enumerate(heard) if m["role"] == "user" and m["speaker_id"] == asker]
+        caught = None
+        if pending is not None and ACCUSE.search(pending["text"]):
+            caught = "accused"
+        elif asker is not None and _doubted(conn, story_id, speaker_id, sec, path, asker):
+            caught = "doubted"
+        elif probed and len([i for i in asked if i in mine[-6:]]) >= PRESSURE:
+            caught = "pressed"
+        move = decide(sec, prof, close, probed or bool(caught), caught)
+        said = claims(conn, story_id, speaker_id, sec, path) if move in LIES else []
+        words_ = directive(sec, move, user, said, caught)
+        honest = {
+            "secret": sec["id"], "move": move, "why": "probe" if probed else "topical",
+            "caught": caught, "to": asker, "inputs": {"stakes": sec["stakes"], **inputs},
+            "told": sorted(hide) if move in TELLING and not sec["sincere"] else [],
+        }  # fmt: skip
+    elif pending is not None and FACE.search(pending["text"]):
+        move = face_move(prof, close)
+        words_ = directive(None, move, user, [], None)
+        honest = {"secret": None, "move": move, "why": "face", "caught": None, "to": asker,
+                  "inputs": {"stakes": None, **inputs}, "told": []}  # fmt: skip
+    if not guards and honest is None:
+        return None
+    return {"gate": gate, "hot": bool(hot), "guards": guards, "directive": words_,
+            "honest": honest}  # fmt: skip
