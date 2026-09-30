@@ -4,7 +4,7 @@ import sqlite3
 from importlib.resources import files
 from pathlib import Path
 
-SCHEMA_VERSION = 13
+SCHEMA_VERSION = 14
 # version -> the SQL that brings a library up from the version before it; schema.sql is v1
 MIGRATIONS = {
     2: "ALTER TABLE entities ADD COLUMN examples TEXT NOT NULL DEFAULT ''",  # example dialogue
@@ -120,6 +120,25 @@ MIGRATIONS = {
         " message_id INTEGER REFERENCES messages ON DELETE CASCADE,"
         " run_id INTEGER REFERENCES extraction_runs ON DELETE CASCADE);"
         "CREATE INDEX ix_seeds ON seeds(entity_id, story_time);"
+    ),
+    14: (  # minds slice 6: what each character's memory has become (her version; the truth row
+        # is never touched), and three memory columns: how it felt, the minor details she could
+        # mix up (with the truth), and whether it may never be distorted or forgotten (note 22
+        # §1; `user` = a version the user set in the ledger)
+        "CREATE TABLE recollections("
+        " id INTEGER PRIMARY KEY,"
+        " knower_id INTEGER NOT NULL REFERENCES entities ON DELETE CASCADE,"
+        " memory_id INTEGER NOT NULL REFERENCES memories ON DELETE CASCADE,"
+        " parent_id INTEGER REFERENCES recollections ON DELETE SET NULL,"
+        " basis TEXT NOT NULL CHECK(basis IN('alt','retelling','intrusion','source_swap',"
+        "'recount','user')),"
+        " text TEXT NOT NULL, story_time INTEGER NOT NULL, scene_id INTEGER,"
+        " message_id INTEGER REFERENCES messages ON DELETE CASCADE,"
+        " run_id INTEGER REFERENCES extraction_runs ON DELETE CASCADE);"
+        "CREATE INDEX ix_recollections ON recollections(knower_id, memory_id);"
+        "ALTER TABLE memories ADD COLUMN valence REAL;"
+        "ALTER TABLE memories ADD COLUMN alts TEXT;"
+        "ALTER TABLE memories ADD COLUMN core_locked INTEGER NOT NULL DEFAULT 0;"
     ),
 }
 

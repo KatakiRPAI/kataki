@@ -55,3 +55,7 @@ def test_the_api_lists_features(conn):
     assert body["features"]["mind.secrets"]["stage"] == "alpha"
     assert body["features"]["mind.offscreen"]["stage"] == "alpha"
     assert client.get("/health").json()["host"] == "desktop"
+
+
+def test_misremembering_ships_at_alpha():
+    assert features.FEATURES["mind.recall"] == "alpha"
