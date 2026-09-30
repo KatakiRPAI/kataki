@@ -8,10 +8,12 @@ audio is made only when the app asks for it.
 ponytail: the pause and speed numbers are starting points (note 18 gives none); tune by ear.
 """
 
+import hashlib
+import json
 import re
 import sqlite3
 
-from kataki import features, knobs, roles
+from kataki import features, knobs, media, roles
 
 TONES = ("neutral", "warm", "cheerful", "excited", "anxious", "sad", "hurt", "cold", "angry",
          "flat")  # fmt: skip
@@ -117,3 +119,103 @@ def cue(gen, text: str, own: dict | None = None) -> dict:
         "tags": [tag] if tag else [],
         "by": by,
     }
+
+
+# --- what is said, and the cache (spec §8.3 slice 10) ---------------------------------------
+
+QUOTE = re.compile(r'"([^"\n]+)"|\u201c([^\u201d\n]+)\u201d')
+SOUND = {  # a tag for a voice that has none (Kokoro): note 18 §6, degrade to text
+    "laugh": "Ha!", "chuckle": "Heh.", "sigh": "Hah...", "gasp": "Oh!", "sniff": "",
+    "groan": "Ugh.", "hum": "Hmm.",
+}  # fmt: skip
+TONE_WORDS = {
+    "neutral": "evenly", "warm": "warmly", "cheerful": "brightly", "excited": "excitedly",
+    "anxious": "nervously", "sad": "sadly, quietly", "hurt": "quietly, a little hurt",
+    "cold": "coolly", "angry": "angrily", "flat": "flatly, without interest",
+}  # fmt: skip
+HOW_MUCH = {1: ", only slightly", 2: "", 3: ", strongly"}
+DEFAULT_VOICE = "af_heart"  # Kokoro's; a role or a character names another
+KEEP = 4  # renders kept per reply (another voice, an edited line)
+
+
+def _sound(tag: str, mode: str) -> str:
+    return {"brackets": f"[{tag}]", "angle": f"<{tag}>"}.get(mode, SOUND.get(tag, ""))
+
+
+def speakable(text: str, cue: dict, mode: str = "text") -> str:
+    """What she actually says: the quoted speech of prose (narration is not her voice), else
+    the whole reply without actions; the cue's tag rendered for the engine (`mode`: text,
+    brackets, angle) where she made the sound, or first. "" when there is nothing to say."""
+    text, _ = untag(text or "")
+    tag = (cue.get("tags") or [None])[0]
+    token = _sound(tag, mode) if tag else ""
+    placed = False
+    quotes = [a or b for a, b in QUOTE.findall(text)]
+    if quotes:
+        said = " ".join(q.strip() for q in quotes)
+    else:
+
+        def act(m: re.Match) -> str:
+            nonlocal placed
+            if token and not placed and acted(m.group(0)) == tag:
+                placed = True
+                return f" {token} "
+            return " "
+
+        said = ACTION.sub(act, text)
+    bare = " ".join(said.replace(token, " ").split()) if token else " ".join(said.split())
+    if not bare:
+        return ""
+    if token and not placed:
+        said = f"{token} {said}"
+    return " ".join(said.split())
+
+
+def instruct(cue: dict) -> str:
+    """The tone as a sentence, for speech models that follow instructions (gpt-4o-mini-tts)."""
+    return f"Speak {TONE_WORDS[cue['tone']]}{HOW_MUCH[cue['intensity']]}."
+
+
+class Refused(Exception):
+    def __init__(self, status: int, message: str):
+        super().__init__(message)
+        self.status = status
+
+
+async def render(conn: sqlite3.Connection, llm, message_id: int, get_key=roles.get_key) -> dict:
+    """A reply's audio: from the cache when this line in this voice was made before (no call,
+    no cost), else one call to the `voice` model, saved as media. Raises Refused."""
+    m = conn.execute("SELECT * FROM messages WHERE id=?", (message_id,)).fetchone()
+    if m is None or m["role"] != "assistant" or m["speaker_id"] is None:
+        raise Refused(404, "Only a character's reply has a voice.")
+    if not on(conn, m["speaker_id"]):
+        raise Refused(409, "Voice is off for this character, or no voice model is set.")
+    ep = roles.resolve(conn, "voice", m["story_id"], get_key)
+    own = knobs.own(conn, m["speaker_id"]).get("voice")
+    own = own if isinstance(own, dict) else {}
+    gen = json.loads(m["gen"] or "{}")
+    got = cue(gen, m["text"], own)
+    said = speakable(m["text"], got, ep.params.get("tags", "text"))
+    if not said:
+        raise Refused(422, "This reply has nothing to say out loud.")
+    name = str(own.get("name") or ep.params.get("voice") or DEFAULT_VOICE)
+    fmt = ep.params.get("format", "mp3")
+    told = instruct(got) if ep.params.get("instructions") else None
+    key = hashlib.sha256(
+        json.dumps([said, name, got["speed"], told, fmt, ep.model, ep.base_url]).encode()
+    ).hexdigest()[:32]
+    kept = gen.get("voice") if isinstance(gen.get("voice"), dict) else {}
+    audio = kept.get("audio") if isinstance(kept.get("audio"), dict) else {}
+    out = {"cue": got, "voice": name, "chars": len(said)}
+    if key in audio and media.find(conn, audio[key]):
+        return {"media": audio[key], "url": f"/media/{audio[key]}", "cached": True, **out}
+    data = await llm.speech(ep, said, name, got["speed"], fmt, told)
+    file = media.save(conn, data, media.sniff_audio(data))
+    audio = {**dict(list(audio.items())[-(KEEP - 1) :]), key: file}
+    with conn:
+        conn.execute(
+            "UPDATE messages SET gen=json_set(COALESCE(gen, '{}'), '$.voice.audio', json(?))"
+            " WHERE id=?",
+            (json.dumps(audio), message_id),
+        )
+    return {"media": file, "url": f"/media/{file}", "cached": False, **out}

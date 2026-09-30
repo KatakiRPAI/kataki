@@ -18,6 +18,8 @@ from urllib.parse import urlsplit
 
 import httpx2
 
+from kataki import media
+
 Event = tuple[str, Any]  # ("thought" | "token", text) ... then ("done", {"usage": ...})
 DEFAULT_THINK_TAGS = ("<think>", "</think>")
 # A thinking model on a hosted provider: together caps a request that names no limit at 2048
@@ -345,6 +347,30 @@ class LLM:
                     {"role": "user", "content": fix},
                 ]
         raise LLMError(f"invalid JSON output after one retry: {error}")
+
+    async def speech(
+        self,
+        ep: Endpoint,
+        text: str,
+        voice: str,
+        speed: float = 1.0,
+        fmt: str = "mp3",
+        instructions: str | None = None,
+    ) -> bytes:
+        """Speak `text` (minds slice 10): OpenAI's `POST /audio/speech`, which OpenAI, Together,
+        Kokoro-FastAPI and Orpheus-FastAPI all take. Metered as characters (speech is priced
+        per character), so the desktop's spend and online billing see it. No retry: it costs."""
+        body = {"model": ep.model, "input": text, "voice": voice, "speed": speed}
+        body["response_format"] = fmt
+        if instructions:
+            body["instructions"] = instructions
+        body.update(ep.params.get("body", {}))  # the user's raw JSON wins, verbatim
+        r = await self._send("POST", f"{ep.base_url.rstrip('/')}/audio/speech", ep.api_key, body)
+        self._check(r)
+        if media.sniff_audio(r.content) is None:
+            raise LLMError(f"{ep.base_url} sent no audio: {r.content[:120]!r}")
+        self._used(ep, {"prompt_tokens": len(text)})
+        return r.content
 
     async def list_models(self, base_url: str, api_key: str | None) -> list[str]:
         r = await self._send("GET", f"{base_url.rstrip('/')}/models", api_key)

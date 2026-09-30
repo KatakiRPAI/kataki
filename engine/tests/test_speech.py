@@ -120,3 +120,145 @@ def test_untag_takes_out_speech_tags_only():
     assert text == "Oh, stop. Fine. [OOC] and *sighs*" and tags == ["laugh", "sigh"]
     assert speech.untag("No tags here.") == ("No tags here.", [])
     assert speech.untag("[Laugh]\nLine two.") == ("Line two.", ["laugh"])
+
+
+# --- what is said ----------------------------------------------------------------------------
+
+CUE = {"tone": "neutral", "intensity": 1, "pause_ms": 250, "speed": 1.0, "tags": [], "by": "code"}
+
+
+def test_prose_speaks_only_her_quoted_words():
+    text = '*Mira sets the glass down.* "Early tide." She looks away. \u201cCome by tomorrow.\u201d'
+    assert speech.speakable(text, CUE) == "Early tide. Come by tomorrow."
+
+
+def test_chat_speaks_everything_but_her_actions():
+    assert speech.speakable("honestly? *shrugs* no idea\nask Tobin", CUE) == (
+        "honestly? no idea ask Tobin"
+    )
+    assert speech.speakable("*nods*", CUE) == ""  # nothing to say
+    assert speech.speakable("[laughs] *sighs*", {**CUE, "tags": ["sigh"]}) == ""
+
+
+def test_the_tag_is_rendered_for_the_engine_where_she_made_the_sound():
+    sigh = {**CUE, "tags": ["sigh"]}
+    text = "Fine. *sighs* Whatever you want."
+    assert speech.speakable(text, sigh) == "Fine. Hah... Whatever you want."
+    assert speech.speakable(text, sigh, "brackets") == "Fine. [sigh] Whatever you want."
+    assert speech.speakable(text, sigh, "angle") == "Fine. <sigh> Whatever you want."
+    laugh = {**CUE, "tags": ["laugh"]}
+    assert speech.speakable('"You wish."', laugh, "brackets") == "[laugh] You wish."
+    assert speech.speakable("sure", {**CUE, "tags": ["sniff"]}) == "sure"  # no sound for it
+
+
+def test_instructions_are_words():
+    got = speech.instruct({**CUE, "tone": "hurt", "intensity": 3})
+    assert got.startswith("Speak") and not any(ch.isdigit() for ch in got)
+
+
+# --- the adapter and the cache ---------------------------------------------------------------
+
+MP3 = b"ID3\x04\x00\x00\x00\x00\x00\x00" + b"\x00" * 64
+
+
+def _audio(data=MP3, status=200):
+    import httpx2
+
+    return httpx2.Response(status, content=data)
+
+
+@pytest.fixture
+def voiced(mira):
+    conn = mira["conn"]
+    _voice_role(conn)
+    _set(conn, "voice.on", True)
+    from kataki import chat
+
+    line = chat.add_child(conn, mira["story"], None, "user", "Evening.", None)
+    gen = {"mind": _mood("sad", feels="very sad")}
+    reply = chat.add_child(
+        conn, mira["story"], line, "assistant", '*sighs* "Evening."', mira["id"], 0, gen
+    )
+    return {**mira, "reply": reply}
+
+
+@pytest.mark.anyio
+async def test_speech_posts_the_openai_shape_and_meters_characters(voiced, backend):
+    from kataki import roles
+
+    conn = voiced["conn"]
+    backend.say(_audio())
+    llm = backend.llm
+    used = []
+    llm.on_usage = lambda ep, usage: used.append((ep.role, usage))
+    ep = roles.resolve(conn, "voice", get_key=lambda _: "k")
+    got = await llm.speech(ep, "Evening.", "af_heart", 0.9, "mp3", "Speak sadly.")
+    assert got == MP3
+    assert backend.requests[-1] == {
+        "model": "kokoro",
+        "input": "Evening.",
+        "voice": "af_heart",
+        "speed": 0.9,
+        "response_format": "mp3",
+        "instructions": "Speak sadly.",
+    }
+    assert used == [("voice", {"prompt_tokens": len("Evening.")})]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("reply", [_audio(b"<html>busy</html>"), _audio(b"nope", 500)])
+async def test_speech_raises_on_an_error_or_no_audio(voiced, backend, reply):
+    from kataki import roles
+    from kataki.llm import LLMError
+
+    backend.say(reply)
+    ep = roles.resolve(voiced["conn"], "voice", get_key=lambda _: None)
+    with pytest.raises(LLMError):
+        await backend.llm.speech(ep, "Evening.", "af_heart", 1.0, "mp3")
+
+
+@pytest.mark.anyio
+async def test_render_saves_once_and_replays_for_free(voiced, backend):
+    from kataki import chat, media
+
+    conn = voiced["conn"]
+    backend.say(_audio())
+    first = await speech.render(conn, backend.llm, voiced["reply"])
+    assert first["cached"] is False and first["voice"] == "af_heart"
+    assert first["url"] == f"/media/{first['media']}" and first["media"].endswith(".mp3")
+    assert media.find(conn, first["media"]).read_bytes() == MP3
+    assert first["cue"]["tone"] == "sad" and first["cue"]["tags"] == ["sigh"]
+    assert backend.requests[-1]["input"] == "Hah... Evening."
+    assert first["chars"] == len("Hah... Evening.")
+    again = await speech.render(conn, backend.llm, voiced["reply"])
+    assert again == {**first, "cached": True} and len(backend.requests) == 1
+    gen = json.loads(chat.get_message(conn, voiced["reply"])["gen"])
+    assert list(gen["voice"]["audio"].values()) == [first["media"]]
+
+    library.update_item(conn, voiced["lib"], data={"voice": {"name": "bf_emma"}})
+    backend.say(_audio(MP3 + b"\x01"))
+    other = await speech.render(conn, backend.llm, voiced["reply"])
+    assert other["cached"] is False and backend.requests[-1]["voice"] == "bf_emma"
+
+
+@pytest.mark.anyio
+async def test_render_refuses_what_it_cannot_say(voiced, backend):
+    from kataki import chat
+
+    conn = voiced["conn"]
+    with pytest.raises(speech.Refused) as e:
+        await speech.render(conn, backend.llm, 999)
+    assert e.value.status == 404
+    user_line = chat.get_message(conn, voiced["reply"])["parent_id"]
+    with pytest.raises(speech.Refused) as e:
+        await speech.render(conn, backend.llm, user_line)
+    assert e.value.status == 404
+    silent = chat.add_child(conn, voiced["story"], None, "assistant", "*nods*", voiced["id"])
+    with pytest.raises(speech.Refused) as e:
+        await speech.render(conn, backend.llm, silent)
+    assert e.value.status == 422
+    _set(conn, "voice.on", False)
+    with pytest.raises(speech.Refused) as e:
+        await speech.render(conn, backend.llm, voiced["reply"])
+    assert e.value.status == 409
+    assert backend.requests == []
