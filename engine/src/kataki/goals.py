@@ -15,7 +15,7 @@ import logging
 import re
 import sqlite3
 
-from kataki import chat, db
+from kataki import chat, clock, db
 
 TIERS = ("ambition", "project", "today")
 STATUSES = ("active", "dormant", "done", "failed", "dropped")
@@ -317,3 +317,24 @@ def change(conn, g: dict, how: str, tactic: str | None, message_id: int, run_id:
     return write(
         conn, g, message_id, run_id, now, **moved, **({"tactic": tactic} if tactic else {})
     )
+
+
+# --- what the app shows (spec §8.3 slice 7) ------------------------------------------------------
+
+
+def public(conn: sqlite3.Connection, who: int, path: list, epoch: int) -> list[dict]:
+    """Peek's view of her goals: each one as it stands on this branch, and the latest reply
+    that had it on its agenda."""
+    raised: dict[str, dict] = {}
+    for m in _mine(path, who):
+        if said := _gen(m).get("agenda"):
+            raised[said.get("key")] = {"message_id": m["id"], "why": said.get("why"),
+                                       "tried": said.get("tried")}  # fmt: skip
+    return [
+        {"id": g["id"], "key": g["key"],
+         "kind": g["key"] if g["key"] in ("want", *PURSUED) else "goal",
+         "tier": g["tier"], "text": g["text"], "status": g["status"],
+         "progress": g["progress"], "dodged": g["deflections"], "tactic": g["tactic"],
+         "since": clock.label(g["story_time"], epoch), "raised": raised.get(g["key"])}
+        for g in live(conn, who, path)
+    ]  # fmt: skip

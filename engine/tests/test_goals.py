@@ -401,3 +401,47 @@ def test_the_diary_call_drops_a_goal_it_was_not_given():
     assert got["goal"]["change"] == "done" and len(got["goal"]["tactic"].split()) == 12
     assert "goal" not in between.read(DIARY)  # no goals: unchanged
     assert "goal" in between.schema(["G1"])["properties"]
+
+
+# --- Peek and the Mind graph ---------------------------------------------------------------------
+
+from kataki import mind, people  # noqa: E402
+
+
+def peek(conn, story: int, name: str = "Mira") -> dict:
+    row = conn.execute("SELECT * FROM stories WHERE id=?", (story,)).fetchone()
+    return next(p for p in people.people(conn, row) if p["name"] == name)
+
+
+@pytest.mark.anyio
+async def test_peek_shows_what_she_wants_and_needs_and_the_graph_the_goal_a_reply_pursued(
+    local_model, cards, backend
+):
+    conn = local_model
+    story = make(conn, cards, {"want": BOAT, "fear": "being left behind"})
+    with conn:
+        conn.execute("UPDATE stories SET epoch_offset_min=? WHERE id=?", (2 * 60, story))
+    await talk(conn, backend, story, "Morning.", "The boat is finished!")
+    await talk(conn, backend, story, "Did Tobin pay?", "Yes.")
+    me = peek(conn, story)
+    want, fear = me["goals"]
+    assert (want["kind"], want["status"], want["dodged"], want["progress"]) == (
+        "want",
+        "active",
+        1,
+        0,
+    )
+    first = path(conn, story)[1]["id"]
+    assert want["raised"] == {"message_id": first, "why": "lull", "tried": True}
+    assert (fear["kind"], fear["status"], fear["raised"]) == ("fear", "dormant", None)
+    assert me["needs"]["energy"] < 0.3 and me["needs"]["pressing"] == "energy"
+    assert "deny it" in me["needs"]["shows"] and "competence" in me["needs"]
+    graph = mind.mind(conn, first)
+    goal = next(n for n in graph["nodes"] if n["id"] == "goal")
+    assert goal["text"] == f"Wants: {BOAT['text']}" and goal["column"] == "decide"
+    assert {"from": "goal", "to": "spoke", "gold": True} in graph["links"]
+    body = next(n for n in graph["nodes"] if n["id"] == "need")
+    assert body["title"] == "Body" and "deny it" in body["text"]
+    setting(conn, "features.mind.goals", False)
+    me = peek(conn, story)
+    assert me["goals"] == [] and me["needs"] is None
