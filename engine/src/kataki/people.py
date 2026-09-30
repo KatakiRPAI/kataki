@@ -166,6 +166,8 @@ def _seeds(conn, entity_id: int, path: list, names: dict, epoch: int) -> list[di
     """What is on their mind from their life between scenes (minds slice 5); a failure costs
     only this."""
     try:
+        if between._off(conn, entity_id):  # their own dial is off: nothing to show
+            return []
         return between.public(conn, entity_id, path, names, epoch)
     except Exception as e:
         logging.getLogger(__name__).warning("seeds not shown for %s: %s", entity_id, e)

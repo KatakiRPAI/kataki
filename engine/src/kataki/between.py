@@ -19,7 +19,7 @@ import re
 import sqlite3
 from collections.abc import Callable
 
-from kataki import bonds, chat, clock, db, features, inner, knobs, retrieve, roles
+from kataki import bonds, chat, clock, db, features, honesty, inner, knobs, retrieve, roles
 from kataki.activation import FIDELITY
 from kataki.llm import LLM
 
@@ -236,7 +236,16 @@ BEAT_FEEL = {True: ("glad", 0.5), False: ("sad", 0.6)}  # an offstage beat's moo
 TOLD_BELIEF = 0.7  # gossip is believed, a little less than being there (note 16 §6)
 GOSSIP_MAX = 2  # facts one passes to another per skip
 GOSSIP_MIN = 4  # importance a fact needs to be worth passing on
-MISSED = {"anxious": "worried", "fearful": "worried", "avoidant": "cooler"}
+
+
+def missed(ab: dict) -> str | None:
+    """How the time away landed, from what absence() decided, never from the style alone: a
+    short absence is just a short absence (§6 rule 1)."""
+    if ab["worry"]:
+        return "worried"
+    if ab["style"] in ("avoidant", "fearful") and dict(ab["cool"]).get("closeness"):
+        return "cooler"
+    return "glad" if ab["glad"] else None
 
 
 def _skip(path: list) -> dict | None:
@@ -405,7 +414,7 @@ class _Tick:
         if seen is not None:
             gap = self.now - seen
             ab = absence(prof, gap, open_thread=thread)
-            out["missed"] = MISSED.get(ab["style"]) or ("glad" if ab["glad"] else None)
+            out["missed"] = missed(ab)
             if ab["worry"]:
                 text = (
                     f"why {self.user} never answered"
@@ -466,6 +475,16 @@ class _Tick:
         together = [c for c in cast if c in here]
         live = db.live_runs(self.conn, self.story_id, self.skip["id"]) - {self.run}
         know, args = db.live_filter(live, "k.run_id")
+        hidden: dict[
+            int, list
+        ] = {}  # per hearer: the keys (and memories) of secrets kept from them
+        for owner in together:
+            for sec in honesty.held(self.conn, owner, self.path):
+                for b in together:
+                    if b != owner and (sec["conceal_from"] == "all" or b in sec["conceal_from"]):
+                        hidden.setdefault(b, []).append(sec["keys"])
+                        if sec["memory_id"]:
+                            hidden[b].append(sec["memory_id"])
         for a in together:
             gossip = inner.profile(self.conn, a)["social"].get("gossip", 0.3)
             gossip = min(1.0, max(0.0, gossip)) if isinstance(gossip, (int, float)) else 0.3
@@ -475,9 +494,10 @@ class _Tick:
                     continue
                 st = bonds.standing(rows, b, self.now)
                 facts = self.conn.execute(
-                    "SELECT m.id, m.importance, m.covert FROM memories m"
+                    "SELECT m.id, m.detail, m.importance, m.covert FROM memories m"
                     " JOIN knowledge k ON k.memory_id=m.id AND k.knower_id=?"
-                    f" WHERE m.story_id=? AND m.hidden=0 AND m.common=0 AND m.importance>=?"
+                    f" WHERE m.story_id=? AND m.hidden=0 AND m.common=0 AND m.covert=0"
+                    " AND m.importance>=?"
                     f" AND m.tags_text NOT LIKE '%diary%' AND m.story_time<=? AND {know}"
                     " AND k.belief>=0.5"
                     " AND NOT EXISTS(SELECT 1 FROM knowledge k3 WHERE k3.knower_id=? AND"
@@ -486,10 +506,12 @@ class _Tick:
                     " AND me.entity_id=?) ORDER BY m.importance DESC, m.id DESC LIMIT 10",
                     [a, self.story_id, GOSSIP_MIN, self.now, *args, b, b],
                 ).fetchall()
-                passed = 0
+                passed, kept = 0, hidden.get(b, [])
                 for f in facts:
                     if passed >= GOSSIP_MAX:
                         break
+                    if f["id"] in kept or any(honesty.leak(f["detail"], k) for k in kept if k):
+                        continue  # a secret kept from b never reaches b by gossip
                     p = gossip_p(level(st["closeness"]), level(st["trust"]), gossip,
                                  f["importance"], bool(f["covert"]))  # fmt: skip
                     if self.rng(a, b, "gossip", f["id"]).random() < p:
@@ -897,8 +919,13 @@ def away(conn: sqlite3.Connection, story: dict) -> dict:
     epoch, moments = story["epoch_offset_min"], json.loads(story["overrides"]).get("moments", [])
     names = dict(conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story["id"],)))
     people = []
+    never = knobs.setting(conn, "mind.level", "standard") == "lite" or (
+        roles.resolve(conn, "utility", story["id"], roles.get_key) is None
+    )  # the calls owed will never run: the card must not wait for them
     for who in raw.get("tracked", []):
         status, mine = raw["b1"].get(str(who)), raw["people"].get(str(who), {})
+        if status == "pending" and never:
+            status = "code"
         news = [
             r[0]
             for r in conn.execute(

@@ -437,6 +437,7 @@ def roster(conn: sqlite3.Connection, story_id: int, chunk: list) -> tuple[list[s
         memories = conn.execute(
             "SELECT DISTINCT m.* FROM memories m JOIN memory_entities me ON me.memory_id=m.id"
             f" WHERE m.story_id=? AND m.hidden=0 AND {live_sql}"
+            " AND m.tags_text NOT LIKE '%offscreen%'"  # a life between scenes is not transcript
             f" AND me.entity_id IN ({','.join('?' * len(focus))}) ORDER BY m.id DESC LIMIT ?",
             [story_id, *live_args, *focus, MAX_MEMORIES],
         ).fetchall()
@@ -685,7 +686,8 @@ class Worker:
         aside for a reply like a memory read does."""
         for run_id, who in between.todo(self.conn, story_id):
             if (ep := roles.resolve(self.conn, "utility", story_id, self.get_key)) is None:
-                return
+                between._mark(self.conn, run_id, who, "failed")  # no model: never owed forever
+                continue
             self._base_url = ep.base_url
             try:
                 await between.think(self.conn, self.llm, story_id, run_id, who, self.get_key, ep)

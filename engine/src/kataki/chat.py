@@ -324,11 +324,31 @@ def set_skip(conn: sqlite3.Connection, message_id: int, minutes: int) -> None:
             (message_id, delta),
         )
         stale = conn.execute(
-            down + "SELECT id FROM extraction_runs WHERE to_message_id IN (SELECT id FROM down)",
+            down + "SELECT id, trigger, to_message_id FROM extraction_runs"
+            " WHERE to_message_id IN (SELECT id FROM down)",
             (message_id,),
         ).fetchall()
+        # a later skip's life between scenes (minds slice 5) is not re-readable: it moves with
+        # the clock instead; only the job of the skip whose length changed goes
+        kept = [
+            r["id"] for r in stale if r["trigger"] == "between" and r["to_message_id"] != message_id
+        ]
+        for run in kept:
+            for table, column in (
+                ("seeds", "story_time"),
+                ("memories", "story_time"),
+                ("knowledge", "learned_story_time"),
+                ("opinions", "story_time"),
+            ):
+                conn.execute(f"UPDATE {table} SET {column}={column}+? WHERE run_id=?", (delta, run))
+            conn.execute(
+                "UPDATE mind_states SET story_time=story_time+?,"
+                " state=json_set(state, '$.t', json_extract(state, '$.t')+?) WHERE run_id=?",
+                (delta, delta, run),
+            )  # fmt: skip
     for run in stale:
-        db.discard_run(conn, run["id"])
+        if run["id"] not in kept:
+            db.discard_run(conn, run["id"])
 
 
 def new_scene(

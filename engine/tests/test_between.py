@@ -595,6 +595,9 @@ def api(conn, backend):
 def test_the_while_you_were_away_card(conn, cards, api, monkeypatch):
     monkeypatch.setattr(between, "P_EVENT", 1.0)
     story = make(conn, cards, mira=ANXIOUS | {"events": [AUDITION]})
+    conn.execute("INSERT INTO providers(id, name, base_url) VALUES(1, 'local', 'http://fake/v1')")
+    conn.execute("INSERT INTO model_roles(role, provider_id, model) VALUES('rp', 1, 'm')")
+    conn.commit()
     assert api.get(f"/stories/{story}/away").json() == {"away": None}
     line(conn, story, "Aren", "I have to go, Mira.")
     line(conn, story, "Mira", "Will you come to the harbour tomorrow?")
@@ -651,3 +654,166 @@ def test_a_first_reply_long_after_the_skip_does_not_greet(conn, cards):
         line(conn, story, "Aren", f"Line {i}.")
         line(conn, story, "Mira", "Mm.")
     assert between.on_mind(conn, story, tobin, chat.active_path(conn, story), "Aren") is None
+
+
+# --- review fixes ------------------------------------------------------------------------------
+
+
+def test_a_short_absence_is_just_a_short_absence(conn, cards):
+    story = make(
+        conn, cards, mira=ANXIOUS, tobin={"attachment": {"anxiety": 0.2, "avoidance": 0.8}}
+    )
+    line(conn, story, "Aren", "Back soon.")
+    line(conn, story, "Mira", "Will you bring bread?")
+    turns.say(conn, story, skip="three hours later")
+    run = between.at_skip(conn, story, chat.active_path(conn, story))
+    raw = json.loads(
+        conn.execute("SELECT raw FROM extraction_runs WHERE id=?", (run,)).fetchone()[0]
+    )
+    assert {p["missed"] for p in raw["people"].values()} == {None}
+    path = chat.active_path(conn, story)
+    for who in ("Mira", "Tobin"):
+        got = between.on_mind(conn, story, ent(conn, story, who), path, "Aren")
+        assert got is None or not got["directive"]
+    card = between.away(
+        conn, dict(conn.execute("SELECT * FROM stories WHERE id=?", (story,)).fetchone())
+    )
+    assert {p["missed_you"] for p in card["away"]["people"]} == {None}
+
+
+def test_nudging_an_earlier_clock_keeps_the_between_job(conn, cards):
+    story, skip = scene(conn, cards, mira=ANXIOUS)
+    run = between.at_skip(conn, story, chat.active_path(conn, story))
+    mira = ent(conn, story, "Mira")
+    before = {(s["id"], s["story_time"]) for s in seeds(conn, mira)}
+    diary = conn.execute(
+        "SELECT id, story_time FROM memories WHERE run_id=? AND tags_text LIKE '%diary%'", (run,)
+    ).fetchone()
+    first = chat.active_path(conn, story)[1]["id"]
+    chat.set_skip(conn, first, 30)
+    assert {(i, t + 30) for i, t in before} == {
+        (s["id"], s["story_time"]) for s in seeds(conn, mira)
+    }
+    moved = conn.execute("SELECT story_time FROM memories WHERE id=?", (diary["id"],)).fetchone()
+    assert moved[0] == diary["story_time"] + 30
+    state = conn.execute(
+        "SELECT state, story_time FROM mind_states WHERE run_id=?", (run,)
+    ).fetchone()
+    assert json.loads(state["state"])["t"] == state["story_time"]
+    assert run in db.live_runs(conn, story)
+
+
+def test_gossip_never_passes_a_covert_fact_or_a_concealed_secret(conn, cards, monkeypatch):
+    monkeypatch.setattr(between, "gossip_p", lambda *a, **k: 1.0)
+    library.update_item(
+        conn,
+        cards["Tobin"],
+        data={"mind": {"secrets": [{"text": "Tobin drowned his brother.", "keys": ["drowned"]}]}},
+    )
+    story = library.create_story(
+        conn, "Low Tide", character_ids=[cards["Mira"], cards["Tobin"]], persona_id=cards["Aren"]
+    )
+    mira, tobin = ent(conn, story, "Mira"), ent(conn, story, "Tobin")
+    facts = []
+    for detail, covert in (("A whispered plan.", 1), ("Tobin drowned the old dog.", 0)):
+        fact = conn.execute(
+            "INSERT INTO memories(story_id, kind, story_time, detail, gist, importance, covert)"
+            " VALUES(?, 'event', 0, ?, ?, 8, ?)",
+            (story, detail, detail, covert),
+        ).lastrowid
+        conn.execute(
+            "INSERT INTO knowledge(knower_id, memory_id, source, learned_story_time)"
+            " VALUES(?, ?, 'witnessed', 0)",
+            (tobin, fact),
+        )
+        facts.append(fact)
+    conn.commit()
+    line(conn, story, "Tobin", "Quiet night.")
+    turns.say(conn, story, skip="the next morning")
+    between.at_skip(conn, story, chat.active_path(conn, story))
+    assert not conn.execute(
+        f"SELECT 1 FROM knowledge WHERE knower_id=? AND memory_id IN ({facts[0]}, {facts[1]})",
+        (mira,),
+    ).fetchone()
+
+
+def test_the_card_is_done_when_the_calls_can_never_run(conn, cards):
+    story, _ = scene(conn, cards, mira=ANXIOUS)  # standard, but no model is set at all
+    between.at_skip(conn, story, chat.active_path(conn, story))
+    row = dict(conn.execute("SELECT * FROM stories WHERE id=?", (story,)).fetchone())
+    assert between.away(conn, row)["away"]["done"]
+    setting(conn, "mind.level", "lite")
+    assert between.away(conn, row)["away"]["done"]
+
+
+def test_merged_people_keep_their_seeds(conn, cards):
+    story, _ = scene(conn, cards, mira=ANXIOUS)
+    between.at_skip(conn, story, chat.active_path(conn, story))
+    mira, tobin = ent(conn, story, "Mira"), ent(conn, story, "Tobin")
+    n = len(seeds(conn, mira))
+    library.merge_entities(conn, tobin, mira)
+    assert len(seeds(conn, tobin)) >= n and seeds(conn, mira) == []
+
+
+def test_offscreen_memories_stay_out_of_the_readers_earlier_memories(conn, cards, monkeypatch):
+    monkeypatch.setattr(between, "P_EVENT", 1.0)
+    story, _ = scene(conn, cards, mira=ANXIOUS | {"events": [AUDITION]})
+    between.at_skip(conn, story, chat.active_path(conn, story))
+    line(conn, story, "Aren", "Mira, how did it go?")
+    _, memories = extract.roster(conn, story, chat.active_path(conn, story)[-1:])
+    assert not any("froze" in m or "went by" in m for m in memories)
+
+
+def test_peek_hides_the_seeds_of_a_character_who_opted_out(conn, cards):
+    from kataki import people
+
+    story, _ = scene(conn, cards, mira=ANXIOUS)
+    between.at_skip(conn, story, chat.active_path(conn, story))
+    library.update_item(
+        conn, cards["Mira"], data={"mind": ANXIOUS, "realism": {"offscreen": "off"}}
+    )
+    row = conn.execute("SELECT * FROM stories WHERE id=?", (story,)).fetchone()
+    assert next(p for p in people.people(conn, row) if p["name"] == "Mira")["seeds"] == []
+
+
+@pytest.mark.anyio
+async def test_a_reply_cancels_the_diary_call_and_it_stays_owed(local_model, cards):
+    import asyncio
+
+    import httpx2
+
+    from kataki.llm import LLM
+
+    conn = local_model
+    story, _ = scene(conn, cards, mira=ANXIOUS)
+    run = between.at_skip(conn, story, chat.active_path(conn, story))
+    started = asyncio.Event()
+
+    async def slow(request):
+        started.set()
+        await asyncio.sleep(30)
+
+    worker = extract.Worker(conn, LLM(transport=httpx2.MockTransport(slow)), delay=0)
+    worker.poke(story)
+    await started.wait()
+    worker.turn_started(story, base_url="http://fake/v1")
+    await worker.idle()
+    raw = json.loads(
+        conn.execute("SELECT raw FROM extraction_runs WHERE id=?", (run,)).fetchone()[0]
+    )
+    assert raw["b1"][str(ent(conn, story, "Mira"))] == "pending"
+
+
+@pytest.mark.anyio
+async def test_lite_end_to_end_makes_no_call_but_the_reply(local_model, cards, backend):
+    conn = local_model
+    setting(conn, "mind.level", "lite")
+    story = make(conn, cards, mira=ANXIOUS)
+    line(conn, story, "Mira", "Will you come?")
+    backend.say("You came.")
+    await play(turns.turn(conn, backend.llm, story, "Hi Mira.", skip="five hours later"))
+    assert len(backend.requests) == 1
+    assert conn.execute("SELECT COUNT(*) FROM extraction_runs WHERE trigger='between'").fetchone()[
+        0
+    ]
+    assert between.todo(conn, story) == []

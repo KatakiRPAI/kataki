@@ -1360,6 +1360,7 @@ def create_app(
             _patch(conn, "messages", message_id, {"hidden": p.hidden})
         if p.skip_minutes is not None:
             chat.set_skip(conn, message_id, p.skip_minutes)
+            meanwhile(m["story_id"])  # a changed skip gets its life between scenes again
         return messages(m["story_id"])
 
     @app.post("/stories/{story_id}/presence")
