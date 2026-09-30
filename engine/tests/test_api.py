@@ -1426,3 +1426,83 @@ def test_a_memory_can_be_made_sharp_again(api, story, conn):
     assert tier() != "sharp"
     assert api.post(f"/memories/{m['id']}/sharpen", params={"knower": mira}).status_code == 200
     assert tier() == "sharp"
+
+
+# --- minds slice 6: the memory ledger, her version, Lock and Correct -------------------------
+
+
+def test_the_ledger_shows_her_version_beside_the_truth_and_why_something_is_missing(
+    api, story, conn
+):
+    mira = cast(api, story)["Mira"]["id"]
+    detail = "Mira and Aren met at the Blue Gull café on Thursday."
+    made = api.post(
+        f"/stories/{story}/memories",
+        json={"detail": detail, "gist": "Mira and Aren met at a café.", "knower_ids": [mira]},
+    ).json()
+    with conn:  # the memory reader's fields, as it would write them
+        conn.execute(
+            "UPDATE memories SET valence=0.6, alts=? WHERE id=?",
+            ('[{"slot": "when", "right": "on Thursday", "wrong": "on Tuesday"}]', made["id"]),
+        )
+    locked = api.patch(f"/memories/{made['id']}", json={"core_locked": True}).json()
+    assert locked["core_locked"] == 1  # Lock
+    [row] = api.get(f"/stories/{story}/memories?knower={mira}").json()
+    assert (row["valence"], row["core_locked"], row["version"], row["why_not"]) == (
+        0.6, True, None, None
+    )  # fmt: skip
+    assert row["alts"] == [{"slot": "when", "right": "on Thursday", "wrong": "on Tuesday"}]
+
+    mine = "Mira and Aren met at a café, on Tuesday."
+    got = api.post(f"/memories/{made['id']}/version", json={"knower": mira, "text": mine})
+    assert got.status_code == 201  # Correct: the user sets her version
+    assert got.json()["version"]["text"] == mine and got.json()["version"]["basis"] == "user"
+    [person] = [p for p in api.get(f"/stories/{story}/people").json() if p["name"] == "Mira"]
+    assert [(v["memory_id"], v["truth"], v["version"]) for v in person["versions"]] == [
+        (made["id"], detail, mine)
+    ]
+    back = api.post(f"/memories/{made['id']}/version", json={"knower": mira, "text": None})
+    assert back.json()["version"] is None  # back on the truth
+    assert conn.execute("SELECT detail FROM memories WHERE id=?", (made["id"],)).fetchone()[0] == (
+        detail
+    )  # the truth row never changed
+    assert api.post(f"/memories/{made['id']}/version", json={"knower": 999}).status_code == 404
+
+    # "she forgot" and "the app lost it" are told apart
+    with conn:
+        conn.execute(
+            "UPDATE memories SET core_locked=0, story_time=-9999999 WHERE id=?", (made["id"],)
+        )
+        conn.execute(
+            "UPDATE knowledge SET learned_story_time=-9999999 WHERE memory_id=?", (made["id"],)
+        )
+    [gone] = api.get(f"/stories/{story}/memories?knower={mira}").json()
+    assert (gone["tier"], gone["why_not"]) == ("forgotten", "faded")
+    with conn:
+        conn.execute("UPDATE memories SET story_time=0 WHERE id=?", (made["id"],))
+        conn.execute("UPDATE knowledge SET learned_story_time=0 WHERE memory_id=?", (made["id"],))
+        conn.execute(
+            "INSERT INTO context_log(story_id, speaker_id, budget, sections, memories, est_tokens)"
+            " VALUES(?, ?, 8192, '[]', ?, 0)",
+            (
+                story,
+                mira,
+                json.dumps([{"memory_id": made["id"], "tier": "sharp", "rendered": "dropped"}]),
+            ),
+        )
+    [cut] = api.get(f"/stories/{story}/memories?knower={mira}").json()
+    assert cut["why_not"] == "budget"
+
+
+def test_only_a_character_has_a_version_and_it_is_kept_short(api, story, conn):
+    who = cast(api, story)
+    made = api.post(
+        f"/stories/{story}/memories",
+        json={"detail": "They met on Thursday.", "knower_ids": [who["Mira"]["id"]]},
+    ).json()
+    place = conn.execute("SELECT id FROM entities WHERE kind='place'").fetchone()[0]
+    assert api.post(f"/memories/{made['id']}/version", json={"knower": place}).status_code == 404
+    long = api.post(
+        f"/memories/{made['id']}/version", json={"knower": who["Mira"]["id"], "text": "x" * 5000}
+    )
+    assert long.status_code == 422

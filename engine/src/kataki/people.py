@@ -9,7 +9,7 @@ import json
 import logging
 import sqlite3
 
-from kataki import between, bonds, chat, clock, db, features, honesty, inner, retrieve
+from kataki import between, bonds, chat, clock, db, features, honesty, inner, recollect, retrieve
 
 TIERS = ("sharp", "hazy", "forgotten")
 
@@ -174,6 +174,26 @@ def _seeds(conn, entity_id: int, path: list, names: dict, epoch: int) -> list[di
         return []
 
 
+VERSIONS = 5
+
+
+def _versions(conn, entity_id: int, path: list, known: list[dict]) -> list[dict]:
+    """Peek's "her version vs the truth" (spec §8.3 slice 6), newest first; guarded."""
+    try:
+        due = {s["memory_id"] for s in recollect.open_slips(conn, entity_id, path)}
+        mine = [m for m in known if m["version"] and m["version"]["basis"] != "recount"]
+        mine.sort(key=lambda m: m["story_time"], reverse=True)
+        return [
+            {"memory_id": m["memory_id"], "truth": m["detail"], "version": m["version"]["text"],
+             "basis": m["version"]["basis"], "since": m["version"]["since"],
+             "correction": "due" if m["version"]["basis"] == "alt" and m["memory_id"] in due else None}
+            for m in mine[:VERSIONS]
+        ]  # fmt: skip
+    except Exception as e:
+        logging.getLogger(__name__).warning("versions not shown for %s: %s", entity_id, e)
+        return []
+
+
 def people(conn: sqlite3.Connection, story: sqlite3.Row) -> list[dict]:
     """One entry per AI character: where they are, what they hold, what is on their mind, what
     they know about you, and how they stand towards everyone."""
@@ -201,6 +221,7 @@ def people(conn: sqlite3.Connection, story: sqlite3.Row) -> list[dict]:
     thinking = features.enabled(conn, "mind.thought")
     secretive = features.enabled(conn, "mind.secrets")
     offscreen = features.enabled(conn, "mind.offscreen")
+    human = features.enabled(conn, "mind.recall")
 
     out = []
     for e in conn.execute(
@@ -236,6 +257,7 @@ def people(conn: sqlite3.Connection, story: sqlite3.Row) -> list[dict]:
                 "thought": _thought(path, e["id"]) if thinking else None,
                 "secrets": _secrets(conn, story_id, e["id"], path) if secretive else [],
                 "seeds": _seeds(conn, e["id"], path, names, epoch) if offscreen else [],
+                "versions": _versions(conn, e["id"], path, known) if human else [],
             }
         )
     return out

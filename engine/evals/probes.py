@@ -55,6 +55,18 @@ logged by the tick); Aren asks how her week was. Checks: the setback is her memo
 (at most two), the reply mentions it or it was offered to her, never says it went well, and asks
 Aren something back.
 
+forgetful (slice 6, P6): a small memory half a year back is asked about, then pressed; a trivial
+one six years back is simply gone; a locked vow and a pinned fact have mix-ups and drift is
+forced. Checks: the small one first comes back hazy, pressed again it brings a cue or a strain;
+no reply names a specific (umbrella, storm, rowing, …) that was not in her prompt; the locked and
+pinned ones never get a version.
+
+slip (slice 6, P7): a hazy memory of the café where they met has a weekday mix-up and drift is
+forced; asked the day, she is given Tuesday (truth: Thursday); two replies after she says it the
+repair is due; then Aren wrongly "corrects" her brother's name. Checks: she says Tuesday, corrects
+herself to Thursday exactly two of her replies later, the slip is closed, the hold is armed and
+she keeps Tobin. (Display typos with a fix, P7's third check, wait for slice 9.)
+
 Replies are printed for a human to judge. Each probe gets a fresh temporary library.
 """
 
@@ -77,6 +89,7 @@ from kataki import (
     inner,
     library,
     people,
+    recollect,
     retrieve,
     thought,
     turns,
@@ -632,6 +645,161 @@ async def meanwhile(conn, llm) -> list[str]:
     return failures
 
 
+YEAR = 365 * 1440
+
+
+def _memory(conn, story: int, detail: str, gist: str, importance: int, back: int = 0,
+            alts: list | None = None, locked: bool = False, pinned: bool = False) -> int:  # fmt: skip
+    """A memory Mira holds, `back` story minutes old, about Aren (not linked to her own name, so
+    a greeting that names her does not bring it up and press it before the probe asks)."""
+    ids = dict(conn.execute("SELECT name, id FROM entities WHERE story_id=?", (story,)))
+    words = re.findall(r"[a-z]{4,}", detail.lower())[:6]
+    mid = library.add_memory(conn, story, detail, gist, importance=importance,
+                             knower_ids=[ids["Mira"]], entity_ids=[ids["Aren"]],
+                             tags=words, pinned=pinned)  # fmt: skip
+    with conn:
+        conn.execute(
+            "UPDATE memories SET story_time=story_time-?, alts=?, core_locked=? WHERE id=?",
+            (back, json.dumps(alts) if alts else None, int(locked), mid),
+        )
+        conn.execute(
+            "UPDATE knowledge SET learned_story_time=learned_story_time-? WHERE memory_id=?",
+            (back, mid),
+        )
+    return mid
+
+
+def _prompt_tail(conn, done: dict) -> str:
+    row = conn.execute(
+        "SELECT prompt FROM context_log WHERE message_id=? ORDER BY id DESC", (done["message_id"],)
+    ).fetchone()
+    return json.loads(row[0])[-1]["content"] if row and row[0] else ""
+
+
+def _note(conn, done: dict, memory: int) -> dict | None:
+    """How a memory reached this reply's prompt (the context log's breakdown), or None."""
+    row = conn.execute(
+        "SELECT memories FROM context_log WHERE message_id=? ORDER BY id DESC",
+        (done["message_id"],),
+    ).fetchone()
+    shown = json.loads(row[0]) if row and row[0] else []
+    return next((m for m in shown if m["memory_id"] == memory and m["rendered"] != "dropped"), None)
+
+
+LENT = "Mira lent Aren her blue umbrella at the Gull tavern during the spring storm."
+RACE = "Mira beat Aren's cousin Pell in a rowing race at the midsummer fair."
+VOW = "Mira swore on her mother's grave never to sail again."
+# the answers only her memory holds ("storm" is out: in a harbour it is scenery, not recall)
+SPECIFIC = re.compile(r"\b(blue|umbrella|rowing|midsummer|pell|cousin)\b", re.I)
+
+
+async def forgetful(conn, llm) -> list[str]:
+    """P6: forgetful but honest. A small memory a year back is pressed twice; a trivial one six
+    years back is simply gone; a locked vow and a pinned fact with mix-ups never drift."""
+    failures = []
+    was = recollect.drift_p
+    recollect.drift_p = lambda importance, style: 1.0  # any memory that may drift, drifts
+    try:
+        story = _harbour(conn, "Mira runs the harbour office. She and Aren go back years.")
+        lent = _memory(conn, story, LENT, "Mira once lent Aren something.", 4, YEAR // 2)
+        _memory(conn, story, RACE, "Mira won some contest once.", 2, 6 * YEAR)
+        vow = _memory(conn, story, VOW, "Mira swore never to sail again.", 6, YEAR,
+                      alts=[{"slot": "who", "right": "her mother's", "wrong": "her father's"}],
+                      locked=True)  # fmt: skip
+        pin = _memory(conn, story, "The harbour office opens at dawn.", "It opens early.", 5,
+                      alts=[{"slot": "when", "right": "at dawn", "wrong": "at noon"}],
+                      pinned=True)  # fmt: skip
+        script = [
+            "Morning.",
+            "Mira, do you remember what you lent me, back at the tavern?",
+            "Come on, Mira, what was it you lent me at the tavern? Think.",
+            "Mira, remember the race at the fair? Who did you beat?",
+            "Mira, why did you swear never to sail again?",
+        ]
+        notes = []
+        for line in script:
+            reply, done = await _say(conn, llm, story, line)
+            tail = _prompt_tail(conn, done)
+            note = _note(conn, done, lent)
+            notes.append(note)
+            how = note and (note["tier"], note.get("cue"), note.get("effortful"))
+            print(f"\nAren: {line}\nlent: {how}\nMira: {reply}")
+            invented = {w.lower() for w in SPECIFIC.findall(reply)} - {
+                w.lower() for w in SPECIFIC.findall(tail)
+            }
+            if invented:
+                failures.append(f"{line!r}: invented detail {sorted(invented)}")
+        seen = [n for n in notes if n]
+        if not seen or seen[0]["tier"] != "hazy" or seen[0].get("effortful") is not None:
+            failures.append(f"the lent memory did not first come back hazy ({seen[:1]})")
+        if not any(n.get("cue") or n.get("effortful") is not None for n in seen[1:2]):
+            failures.append(f"pressed a second time: no cue and no strain ({seen[1:2]})")
+        drifted = conn.execute(
+            "SELECT COUNT(*) FROM recollections WHERE memory_id IN (?, ?)", (vow, pin)
+        ).fetchone()[0]
+        if drifted:
+            failures.append("a locked or pinned memory was distorted")
+    finally:
+        recollect.drift_p = was
+    return failures
+
+
+CAFE = "Mira and Aren first met at the Blue Gull café on Thursday."
+WEEKDAY = [{"slot": "when", "right": "on Thursday", "wrong": "on Tuesday"}]
+AGREED = re.compile(r"\b(yes|yeah|right|that's right)\b[^.?!]*tomas", re.I)
+
+
+async def slip(conn, llm) -> list[str]:
+    """P7: self-correcting. A planted slip (the weekday of a hazy memory) is said, then put right
+    on schedule; later the user wrongly "corrects" a fact she holds sharply, and she keeps it."""
+    failures = []
+    was = recollect.drift_p
+    recollect.drift_p = lambda importance, style: 1.0  # plant the slip on the first recall
+    try:
+        story = _harbour(conn, "Mira runs the harbour office. She and Aren go back years.")
+        _memory(conn, story, CAFE, "Mira and Aren first met at a café.", 5, YEAR, alts=WEEKDAY)
+        _memory(conn, story, "Mira's brother is called Tobin.", "Mira has a brother.", 8)
+        mira = conn.execute(
+            "SELECT id FROM entities WHERE story_id=? AND name='Mira'", (story,)
+        ).fetchone()[0]
+        script = [
+            "Morning.",
+            "Mira, what day was it that we first met at the Blue Gull café? I forget.",
+            "Ha. Feels like a lifetime ago.",
+            "Anyway, how's the office been?",
+            "Mira, you said your brother's name is Tomas, didn't you?",
+        ]
+        said_wrong = fixed_at = planted = None
+        for i, line in enumerate(script):
+            reply, done = await _say(conn, llm, story, line)
+            got = _gen(conn, done).get("recall")
+            print(f"\nAren: {line}\nrecall: {got}\nMira: {reply}")
+            if planted is None and (got or {}).get("drift"):
+                planted = i
+            if said_wrong is None and planted is not None and re.search(r"tuesday", reply, re.I):
+                said_wrong = i
+            if (got or {}).get("correction"):
+                fixed_at = i
+                if not re.search(r"thursday", reply, re.I):
+                    failures.append("the correction was due but the reply never said Thursday")
+            if i == len(script) - 1:
+                if not (got and got["hold"]):
+                    failures.append("the wrong correction did not arm the hold")
+                if not re.search(r"tobin", reply, re.I) or AGREED.search(reply):
+                    failures.append("she gave up her brother's name")
+        if said_wrong is None:
+            failures.append("she never said the planted day (Tuesday)")
+        elif fixed_at is None:
+            failures.append("the slip was said but never corrected")
+        elif fixed_at != said_wrong + 2:
+            failures.append(f"corrected on reply {fixed_at + 1}, not two after the slip")
+        if recollect.open_slips(conn, mira, chat.active_path(conn, story)):
+            failures.append("the slip is still open")
+    finally:
+        recollect.drift_p = was
+    return failures
+
+
 PROBES = {
     "still-upset": still_upset,
     "grudge": grudge,
@@ -645,6 +813,8 @@ PROBES = {
     "ooc": ooc,
     "absence": absence,
     "meanwhile": meanwhile,
+    "forgetful": forgetful,
+    "slip": slip,
 }
 
 

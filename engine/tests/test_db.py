@@ -248,12 +248,19 @@ def test_a_new_library_needs_no_copy(tmp_path):
     assert not (tmp_path / "backups").exists()
 
 
+# migration 14, exactly reversed, so a test can stand a library at an earlier version
+UNDO_V14 = (
+    "DROP TABLE IF EXISTS recollections; ALTER TABLE memories DROP COLUMN valence;"
+    " ALTER TABLE memories DROP COLUMN alts; ALTER TABLE memories DROP COLUMN core_locked;"
+)
+
+
 def test_v10_adds_minds_and_usage(tmp_path):
     path = tmp_path / "v9.db"
     old = db.connect(path)  # today's schema, then pretend it is v9 without the new tables
     old.executescript(
-        "DROP TABLE IF EXISTS seeds; DROP TABLE IF EXISTS secrets; DROP TABLE IF EXISTS opinions;"
-        " DROP TABLE IF EXISTS mind_states;"
+        UNDO_V14 + "DROP TABLE IF EXISTS seeds; DROP TABLE IF EXISTS secrets;"
+        " DROP TABLE IF EXISTS opinions; DROP TABLE IF EXISTS mind_states;"
         " DROP TABLE IF EXISTS usage_log;"
     )
     old.execute("PRAGMA user_version=9")
@@ -302,7 +309,8 @@ def test_v11_adds_the_relationship_ledger(tmp_path):
     path = tmp_path / "v10.db"
     old = db.connect(path)  # today's schema, then pretend it is v10 without the ledger
     old.executescript(
-        "DROP TABLE IF EXISTS seeds; DROP TABLE IF EXISTS secrets; DROP TABLE IF EXISTS opinions;"
+        UNDO_V14
+        + "DROP TABLE IF EXISTS seeds; DROP TABLE IF EXISTS secrets; DROP TABLE IF EXISTS opinions;"
     )
     old.execute("PRAGMA user_version=10")
     old.commit()
@@ -334,7 +342,7 @@ def test_v11_adds_the_relationship_ledger(tmp_path):
 def test_v12_adds_secrets(tmp_path):
     path = tmp_path / "v11.db"
     old = db.connect(path)  # today's schema, then pretend it is v11 without secrets
-    old.executescript("DROP TABLE IF EXISTS seeds; DROP TABLE IF EXISTS secrets;")
+    old.executescript(UNDO_V14 + "DROP TABLE IF EXISTS seeds; DROP TABLE IF EXISTS secrets;")
     old.execute("PRAGMA user_version=11")
     old.commit()
     old.close()
@@ -366,7 +374,7 @@ def test_v12_adds_secrets(tmp_path):
 def test_v13_adds_seeds(tmp_path):
     path = tmp_path / "v12.db"
     old = db.connect(path)  # today's schema, then pretend it is v12 without seeds
-    old.executescript("DROP TABLE IF EXISTS seeds;")
+    old.executescript(UNDO_V14 + "DROP TABLE IF EXISTS seeds;")
     old.execute("PRAGMA user_version=12")
     old.commit()
     old.close()
@@ -402,5 +410,56 @@ def test_v13_adds_seeds(tmp_path):
     )
     conn.execute("DELETE FROM stories WHERE id=?", (story,))
     assert conn.execute("SELECT COUNT(*) FROM seeds").fetchone()[0] == 0
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION == 13
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION
+    conn.close()
+
+
+def test_v14_adds_recollections_and_memory_columns(tmp_path):
+    path = tmp_path / "v13.db"
+    old = db.connect(path)  # today's schema, then pretend it is v13
+    old.executescript(UNDO_V14)
+    story = _story(old)
+    kept = old.execute(  # a memory from before: it keeps its words, and gains the new columns
+        "INSERT INTO memories(story_id, kind, story_time, detail, gist, importance, is_true)"
+        " VALUES(?, 'event', 0, 'They met on Thursday.', 'They met.', 5, 1)",
+        (story,),
+    ).lastrowid
+    old.execute("PRAGMA user_version=13")
+    old.commit()
+    old.close()
+
+    conn = db.connect(path)
+    m = conn.execute("SELECT * FROM memories WHERE id=?", (kept,)).fetchone()
+    assert (m["detail"], m["valence"], m["alts"], m["core_locked"]) == (
+        "They met on Thursday.",
+        None,
+        None,
+        0,
+    )
+    mira = conn.execute(
+        "INSERT INTO entities(story_id, kind, name) VALUES(?, 'character', 'Mira')", (story,)
+    ).lastrowid
+    line = _msg(conn, story, None, "when did we meet?")
+    for basis in ("alt", "retelling", "recount", "user"):
+        conn.execute(
+            "INSERT INTO recollections(knower_id, memory_id, basis, text, story_time, message_id)"
+            " VALUES(?, ?, ?, 'They met on Tuesday.', 0, ?)",
+            (mira, kept, basis, line),
+        )
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(
+            "INSERT INTO recollections(knower_id, memory_id, basis, text, story_time)"
+            " VALUES(?, ?, 'dream', 'x', 0)",
+            (mira, kept),
+        )
+    conn.execute("DELETE FROM messages WHERE id=?", (line,))  # the line it hung on goes: so do they
+    assert conn.execute("SELECT COUNT(*) FROM recollections").fetchone()[0] == 0
+    conn.execute(
+        "INSERT INTO recollections(knower_id, memory_id, basis, text, story_time)"
+        " VALUES(?, ?, 'user', 'x', 0)",
+        (mira, kept),
+    )
+    conn.execute("DELETE FROM memories WHERE id=?", (kept,))
+    assert conn.execute("SELECT COUNT(*) FROM recollections").fetchone()[0] == 0
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION == 14
     conn.close()

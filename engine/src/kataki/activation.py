@@ -2,7 +2,7 @@
 
     dt_j = max(now - t_j, 10)                          story minutes
     B    = min(0, ln sum_j w_j * dt_j^-d)              ACT-R base level; recall is rehearsal
-    A    = B + 3.0*(imp/10) + 1.5*S + 1.0*G + F - 2.0*superseded + noise
+    A    = B + 3.0*(imp/10) + 1.5*S + 1.0*G + F - 2.0*superseded + noise (+ M, minds slice 6)
 
 Two activations are kept. A_all counts every access and decides whether the memory comes
 to mind at all. A_detail counts only accesses where the detail itself was present
@@ -76,10 +76,12 @@ def score(
     superseded: bool = False,
     noise: float = 0.0,
     d: float = DECAY,
+    mood: float = 0.0,  # the mood term, already weighted (recollect.congruence; minds slice 6)
 ) -> Score:
     accesses = list(accesses)
     rest = (
-        W_IMPORTANCE * importance / 10
+        mood
+        + W_IMPORTANCE * importance / 10
         + W_RELEVANCE * relevance
         + W_GRAPH * graph
         + FIDELITY[source]

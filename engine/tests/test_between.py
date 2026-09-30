@@ -834,3 +834,32 @@ def test_the_diarys_worries_never_crowd_out_the_worry_about_you(conn, cards):
     got = between.open_seeds(conn, mira, chat.active_path(conn, story))
     assert "why Aren never answered" in [s["text"] for s in got if s["kind"] == "worry"]
     assert len([s for s in got if s["kind"] == "worry"]) == 2
+
+
+def test_gossip_passes_on_the_tellers_own_version(conn, cards, monkeypatch):
+    monkeypatch.setattr(between, "gossip_p", lambda *a, **k: 1.0)
+    story = make(conn, cards)
+    mira, tobin = ent(conn, story, "Mira"), ent(conn, story, "Tobin")
+    fact = conn.execute(
+        "INSERT INTO memories(story_id, kind, story_time, detail, gist, importance)"
+        " VALUES(?, 'event', 0, 'The harbour master took a bribe.', 'A bribe.', 7)",
+        (story,),
+    ).lastrowid
+    conn.execute(
+        "INSERT INTO knowledge(knower_id, memory_id, source, learned_story_time)"
+        " VALUES(?, ?, 'witnessed', 0)",
+        (tobin, fact),
+    )
+    his = conn.execute(  # Tobin's own version (set by the user: no anchor)
+        "INSERT INTO recollections(knower_id, memory_id, basis, text, story_time)"
+        " VALUES(?, ?, 'user', 'The harbour master took two bribes.', 0)",
+        (tobin, fact),
+    ).lastrowid
+    conn.commit()
+    line(conn, story, "Tobin", "Quiet night.")
+    turns.say(conn, story, skip="the next morning")
+    run = between.at_skip(conn, story, chat.active_path(conn, story))
+    [hers] = conn.execute("SELECT * FROM recollections WHERE knower_id=?", (mira,)).fetchall()
+    assert (hers["text"], hers["parent_id"], hers["basis"], hers["run_id"]) == (
+        "The harbour master took two bribes.", his, "retelling", run
+    )  # fmt: skip

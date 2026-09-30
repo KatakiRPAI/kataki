@@ -11,10 +11,12 @@ render     sharp -> detail, hazy -> gist; pressing a hazy memory makes them stra
 rehearse   being recalled is an access, at most one per scene
 """
 
+import json
+import logging
 import re
 import sqlite3
 
-from kataki import activation, chat, db, knobs
+from kataki import activation, chat, clock, db, features, knobs, recollect
 from kataki.activation import Access
 from kataki.context import Recalled
 
@@ -59,8 +61,12 @@ def _ids(rows) -> set[int]:
     return {r[0] for r in rows}
 
 
-def _assess(conn, m, knower_id, known, now, live_scenes, live, relevance, graph, wobble, d):
-    """One memory, one knower: (how they know it, is it superseded, activation score)."""
+def _assess(
+    conn, m, knower_id, known, now, live_scenes, live, relevance, graph, wobble, d, mood=None
+):
+    """One memory, one knower: (how they know it, is it superseded, activation score). A locked
+    memory (minds slice 6, `mood` given means the feature is on) is never forgotten: at worst
+    hazy."""
     live_sql, live_args = db.live_filter(live)
     source = known["source"] if known else "innate"
     learned = known["learned_story_time"] if known else m["story_time"]
@@ -87,7 +93,10 @@ def _assess(conn, m, knower_id, known, now, live_scenes, live, relevance, graph,
         superseded=superseded,
         noise=wobble,
         d=d,
+        mood=mood or 0.0,
     )
+    if s.tier is None and mood is not None and m["core_locked"]:
+        s = activation.Score(s.base_all, s.base_detail, s.a_all, s.a_detail, "hazy")
     return source, superseded, s
 
 
@@ -114,6 +123,7 @@ def recall(
     d: float = activation.DECAY,
     leaf_id: int | None = None,  # recall as of this message (a regenerate); default: active leaf
     vector_ranks: dict[int, int] | None = None,  # from embed.py, when an embedder is set
+    mood: float | None = None,  # her mood's valence now (inner.py), for mood-congruent recall
 ) -> list[Recalled]:
     path = chat.path_to(conn, leaf_id) if leaf_id else chat.active_path(conn, story_id)
     if not path:
@@ -183,6 +193,17 @@ def recall(
         conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)).fetchall()
     )
     ours = live_scenes(conn, story_id, path)
+    human = _human(conn)  # minds slice 6: the human effects of memory, or today's recall exactly
+    here = {e["entity_id"] for e in present}
+    on_path = {p["id"] for p in path}
+    slip = True  # no new slip: off, early in the story, the dial, or one already open
+    if human and len(path) > recollect.EARLY:
+        try:
+            slip = recollect.dial(conn, knower_id) == "faithful" or bool(
+                recollect.open_slips(conn, knower_id, path)
+            )
+        except Exception as e:
+            logging.getLogger(__name__).warning("no slips for %s: %s", knower_id, e)
 
     results = []
     for m in rows:
@@ -200,9 +221,10 @@ def recall(
 
         relevance = relevance_of(m["id"])
         wobble = activation.noise(knower_id, m["id"], scene_id or 0) if noise else 0.0
+        tilt = recollect.congruence(m["valence"], mood, m["importance"]) if human else None
         source, superseded, s = _assess(
             conn, m, knower_id, known, now, ours, live, relevance, graph.get(m["id"], 0.0),
-            wobble, d,
+            wobble, d, tilt,
         )  # fmt: skip
         if s.tier is None:
             continue  # forgotten, for now
@@ -212,8 +234,29 @@ def recall(
             effortful = activation.effortful_recall(s.a_detail, knower_id, m["id"], scene_id or 0)
         sharp = s.tier == "sharp" or bool(effortful)
         body = m["detail"] if sharp else m["gist"]
-        if effortful:
+        mine, drift, cue = None, None, None
+        if human:  # her own version wins, even over a strain; or a hazy detail drifts
+            mine, drift = _mine(
+                conn,
+                m,
+                knower_id,
+                "sharp" if effortful else s.tier,
+                live,
+                on_path,
+                now,
+                scene_id,
+                slip,
+            )
+            slip = slip or drift is not None  # one new slip at a time
+        if mine:
+            body = mine
+        elif effortful:
             body = f"(after straining to recall) {body}"
+        elif human and effortful is False:  # on the tip of her tongue: true pieces, no more
+            cue = _cues(conn, m, here, knower_id, now)
+            body = recollect.tip(body, cue) if cue else body
+        elif human and not sharp and m["gist"] != m["detail"]:  # said, so she won't fill it in
+            body = recollect.lost(body)
         if source in HEARSAY:
             who = names.get(known["told_by_id"], "someone") if known["told_by_id"] else "someone"
             body = f"{HEARSAY[source].format(who=who)} {body}"
@@ -239,6 +282,9 @@ def recall(
                     "noise": round(wobble, 3),
                     "superseded": superseded,
                     "effortful": effortful,
+                    **({"M": round(tilt, 3)} if tilt is not None else {}),
+                    **({"cue": cue} if cue else {}),
+                    **({"drift": drift} if drift else {}),
                 },
             )
         )
@@ -251,6 +297,8 @@ def recall(
             for r in results:
                 if "elsewhere" in r.breakdown:
                     continue  # another life's memory: this scene is no rehearsal there
+                if "drift" in r.breakdown:  # the slip becomes hers, the truth kept beside it
+                    _plant(conn, story_id, knower_id, r, path[-1], scene_id)
                 won = bool(r.breakdown["effortful"])
                 conn.execute(
                     "INSERT INTO accesses(knower_id, memory_id, scene_id, kind, story_time, sharp,"
@@ -268,6 +316,68 @@ def recall(
                     ),
                 )
     return results
+
+
+def _human(conn: sqlite3.Connection) -> bool:
+    """mind.recall (slice 6), guarded: unreadable means today's recall."""
+    try:
+        return features.enabled(conn, "mind.recall")
+    except Exception as e:
+        logging.getLogger(__name__).warning("recall effects off: %s", e)
+        return False
+
+
+def _mine(conn, m, knower_id: int, tier: str, live, on_path, now, scene_id, slip: bool):
+    """(her version's words or None, the alt that drifts now or None), guarded: a failure
+    renders the truth as before. A detail drifts only in a hazy memory with alts that is not
+    locked, not canon, and has no version yet, by a roll fixed for the scene (note 14 D2)."""
+    try:
+        row = recollect.version(conn, knower_id, m["id"], live, on_path, now)
+        if row is not None:
+            if row["basis"] == "recount" and tier == "sharp":
+                return None, None  # put right, and sharp: the full detail, not the recount
+            return recollect.differs(row, m), None
+        alts = recollect.alts_of(m)
+        if (slip or tier != "hazy" or not alts or m["core_locked"] or m["pinned"]
+                or m["importance"] >= recollect.CANON):  # fmt: skip
+            return None, None
+        p = recollect.drift_p(m["importance"], recollect.dial(conn, knower_id))
+        if activation.hash01("drift", knower_id, m["id"], scene_id or 0) >= p:
+            return None, None
+        alt = alts[int(activation.hash01("alt", knower_id, m["id"], scene_id or 0) * len(alts))]
+        return recollect.with_detail(m["gist"], alt["wrong"]), alt
+    except Exception as e:
+        logging.getLogger(__name__).warning("no version for memory %s: %s", m["id"], e)
+        return None, None
+
+
+def _plant(conn, story_id: int, knower_id: int, r: Recalled, at, scene_id: int) -> None:
+    try:
+        conn.execute("SAVEPOINT plant")
+        m = conn.execute("SELECT * FROM memories WHERE id=?", (r.memory_id,)).fetchone()
+        recollect.plant(conn, story_id, knower_id, m, r.breakdown["drift"], at, scene_id)
+        conn.execute("RELEASE plant")
+    except Exception as e:
+        conn.execute("ROLLBACK TO plant")
+        conn.execute("RELEASE plant")
+        logging.getLogger(__name__).warning("slip not kept for %s: %s", r.memory_id, e)
+
+
+def _cues(conn: sqlite3.Connection, m, here: set[int], knower_id: int, now: int) -> list[str]:
+    """recollect.cues for this memory, from its stored people and place; guarded."""
+    try:
+        linked = [
+            dict(r)
+            for r in conn.execute(
+                "SELECT e.id, e.kind, e.name FROM memory_entities me"
+                " JOIN entities e ON e.id=me.entity_id WHERE me.memory_id=? ORDER BY e.id",
+                (m["id"],),
+            )
+        ]
+        return recollect.cues(linked, here, knower_id, m["emotion"], now - m["story_time"])
+    except Exception as e:
+        logging.getLogger(__name__).warning("no cues for memory %s: %s", m["id"], e)
+        return []
 
 
 # Clarity, one definition on every screen: how a memory would come back if it came up.
@@ -291,6 +401,11 @@ def inspect(
     names = dict(
         conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)).fetchall()
     )
+    human = _human(conn)
+    floor = 0.0 if human else None  # a locked memory is never forgotten (slice 6)
+    on_path = {p["id"] for p in path}
+    cut = _cut(conn, story_id, knower_id) if human else set()
+    epoch = conn.execute("SELECT epoch_offset_min FROM stories WHERE id=?", (story_id,)).fetchone()
     out = []
     for m in conn.execute(
         f"SELECT * FROM memories WHERE story_id=? AND story_time<=? AND {live_sql} ORDER BY id",
@@ -306,6 +421,7 @@ def inspect(
         source, superseded, s = _assess(
             conn, m, knower_id, known, now, ours, live,
             CLARITY_CUE["relevance"], CLARITY_CUE["graph"], 0.0, knobs.decay(conn, knower_id),
+            floor,
         )  # fmt: skip
         out.append(
             {
@@ -325,9 +441,60 @@ def inspect(
                 "B": round(s.base_all, 3),
                 "superseded": superseded,
                 "story_time": m["story_time"],
+                "valence": m["valence"],
+                "alts": recollect.alts_of(m) or None,
+                "core_locked": bool(m["core_locked"]),
+                "version": (
+                    _version_of(conn, m, knower_id, live, on_path, now, epoch[0]) if human else None
+                ),
+                "why_not": (
+                    ("faded" if s.tier is None else "budget" if m["id"] in cut else None)
+                    if human
+                    else None
+                ),
             }
         )
     return sorted(out, key=lambda r: r["A"], reverse=True)
+
+
+def _version_of(conn, m, knower_id, live, on_path, now, epoch: int) -> dict | None:
+    """The ledger's `version` (spec §8.3 slice 6): her own version when it is not the truth."""
+    row = recollect.version(conn, knower_id, m["id"], live, on_path, now)
+    if recollect.differs(row, m) is None:
+        return None
+    return {"text": row["text"], "basis": row["basis"], "since": clock.label(row["story_time"], epoch),
+            "message_id": row["message_id"]}  # fmt: skip
+
+
+def _cut(conn, story_id: int, knower_id: int) -> set[int]:
+    """Memories recalled for her last prompt but cut for room: the app lost them, not she."""
+    row = conn.execute(
+        "SELECT memories FROM context_log WHERE story_id=? AND speaker_id=? ORDER BY id DESC",
+        (story_id, knower_id),
+    ).fetchone()
+    if row is None or not row["memories"]:
+        return set()
+    return {m["memory_id"] for m in json.loads(row["memories"]) if m.get("rendered") == "dropped"}
+
+
+def clarity(conn, story_id: int, knower_id: int, memory_id: int, path: list, live) -> str | None:
+    """How she would recall this memory at the end of `path` if asked about it directly (the
+    ledger's cue): "sharp", "hazy", or None (forgotten, or she never knew it). Read-only."""
+    now = path[-1]["story_time"] if path else 0
+    m = conn.execute("SELECT * FROM memories WHERE id=?", (memory_id,)).fetchone()
+    know_sql, know_args = db.live_filter(live, "k.run_id")
+    known = conn.execute(
+        f"SELECT k.* FROM knowledge k WHERE k.knower_id=? AND k.memory_id=? AND {know_sql}"
+        " ORDER BY k.id DESC LIMIT 1",
+        [knower_id, memory_id, *know_args],
+    ).fetchone()
+    if m is None or (known is None and not m["common"]):
+        return None
+    _, _, s = _assess(
+        conn, m, knower_id, known, now, live_scenes(conn, story_id, path), live,
+        CLARITY_CUE["relevance"], CLARITY_CUE["graph"], 0.0, knobs.decay(conn, knower_id), 0.0,
+    )  # fmt: skip
+    return s.tier
 
 
 # --- what another story, linked to this one, still leaves her with ------------------------------
