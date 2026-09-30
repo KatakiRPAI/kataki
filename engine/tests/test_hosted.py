@@ -495,3 +495,24 @@ def test_the_cli_binds_to_this_machine_and_needs_its_secrets(tmp_path, monkeypat
     assert ran["host"] == "127.0.0.1" and isinstance(ran["app"], hosted.Hosted)
     cli.main([*args, "--bind", "0.0.0.0"])
     assert ran["host"] == "0.0.0.0"
+
+
+def test_a_403_stops_the_outbox_and_a_409_counts_as_sent(conn):
+    conn.execute("INSERT INTO usage_log(role, model, usage_id) VALUES('rp', 'm', 'u1')")
+    conn.commit()
+    client = FakeGateway().client()
+
+    def answering(code):
+        def meter(user, row):
+            req = httpx2.Request("POST", "http://gw/meter")
+            raise httpx2.HTTPStatusError("no", request=req, response=httpx2.Response(code))
+
+        return meter
+
+    client.meter = answering(403)  # a rotated key or a wrong URL: never park the row
+    with pytest.raises(httpx2.HTTPStatusError):
+        client.resend("alice", conn)
+    assert conn.execute("SELECT metered FROM usage_log").fetchone()[0] == 0
+    client.meter = answering(409)  # the gateway already has it
+    assert client.resend("alice", conn) == 1
+    assert conn.execute("SELECT metered FROM usage_log").fetchone()[0] == 1

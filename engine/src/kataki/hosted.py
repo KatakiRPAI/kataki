@@ -121,8 +121,9 @@ class Gateway:
 
     def resend(self, user: str, conn: sqlite3.Connection) -> int:
         """The outbox: rows the meter could not take, sent again oldest first. Returns how many
-        went. A row the gateway refuses for good (a 4xx other than 401, 408, 429) is set aside
-        as `metered=2` and the rest still go; any other failure stops it and raises."""
+        went. A row the gateway refuses as malformed (400, 422) is set aside as `metered=2` and the
+        rest still go; 409 means the gateway already has it; any other failure stops it and
+        raises, so a wrong URL or a rotated key never parks the outbox."""
         sent = 0
         for r in conn.execute(
             "SELECT * FROM usage_log WHERE metered=0 AND usage_id IS NOT NULL ORDER BY id"
@@ -145,8 +146,13 @@ class Gateway:
                 self.meter(user, {**row, "estimated": bool(r["estimated"])})
             except httpx2.HTTPStatusError as e:
                 code = e.response.status_code
-                if not 400 <= code < 500 or code in (401, 408, 429):
+                if code not in (400, 409, 422):
                     raise
+                if code == 409:  # already billed under this usage_id
+                    with conn:
+                        conn.execute("UPDATE usage_log SET metered=1 WHERE id=?", (r["id"],))
+                    sent += 1
+                    continue
                 log.warning("gateway refused usage %s (%s): set aside", r["usage_id"], code)
                 with conn:
                     conn.execute("UPDATE usage_log SET metered=2 WHERE id=?", (r["id"],))
@@ -299,6 +305,8 @@ class Hosted:
         gateway fails once (then the rest wait for the next sweep, not a timeout each)."""
         now, down = time.monotonic(), False
         for user, lib in list(self._open.items()):
+            if self._open.get(user) is not lib:  # closed (or reopened) while we awaited
+                continue
             if not lib.busy and now - lib.last >= self.idle:
                 await self.close(user)
             elif not down:
