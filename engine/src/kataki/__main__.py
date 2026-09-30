@@ -58,6 +58,29 @@ def serve(db_path: Path, parent_watch: bool, port: int = 0, web: Path | None = N
     server.run(sockets=[sock])
 
 
+def serve_hosted(args: argparse.Namespace) -> None:
+    """Kataki online (spec §8.4, track B4): many users, a library each, behind the gateway."""
+    from kataki import hosted
+
+    signing, key = hosted.secret("secret"), hosted.secret("key")
+    if not (signing and key and args.root and args.catalogue and args.gateway):
+        sys.exit(
+            "kataki serve --hosted needs --root, --catalogue and --gateway, and the gateway's"
+            " secrets in KATAKI_GATEWAY_SECRET and KATAKI_GATEWAY_KEY (or the keychain)."
+        )
+    app = hosted.Hosted(
+        args.root,
+        signing.encode(),
+        hosted.Gateway(args.gateway, key),
+        args.catalogue,
+        max_open=args.max_open,
+        idle=args.idle,
+        daily_cap=args.daily_cap,
+        max_calls=args.max_calls,
+    )
+    uvicorn.run(app, host=args.bind, port=args.port or 8000, log_level="warning", lifespan="on")
+
+
 def _auto_backup(conn, db_path: Path) -> None:
     """Settings › Data › Backups: daily by default, in the background once the engine is up."""
     import time
@@ -115,11 +138,22 @@ def main(argv: list[str] | None = None) -> None:
     s.add_argument("--parent-watch", action="store_true", help="exit when stdin closes")
     s.add_argument("--port", type=int, default=0, help="default: any free port")
     s.add_argument("--web", type=Path, help="serve the built app (app/dist-web) under /app/")
+    s.add_argument("--hosted", action="store_true", help="Kataki online: a library per user")
+    s.add_argument("--root", type=Path, help="hosted: the folder that holds every user's library")
+    s.add_argument("--catalogue", type=Path, help="hosted: the service's providers and prices")
+    s.add_argument("--gateway", help="hosted: the gateway's base URL (allow, usage)")
+    s.add_argument("--bind", default="127.0.0.1", help="hosted: the address to listen on")
+    s.add_argument("--daily-cap", type=float, default=5.0, help="hosted: $ per user per day")
+    s.add_argument("--max-calls", type=int, default=4, help="hosted: a user's calls in flight")
+    s.add_argument("--max-open", type=int, default=64, help="hosted: libraries open at once")
+    s.add_argument("--idle", type=float, default=900.0, help="hosted: seconds before one closes")
     c = sub.add_parser("chat", help="play a story in the terminal")
     c.add_argument("--db", type=Path, default=default_db_path())
     c.add_argument("--story", type=int, help="default: the newest story")
     args = parser.parse_args(argv)
-    if args.cmd == "serve":
+    if args.cmd == "serve" and args.hosted:
+        serve_hosted(args)
+    elif args.cmd == "serve":
         serve(args.db, args.parent_watch, args.port, args.web)
     elif args.cmd == "chat":
         asyncio.run(chat(args.db, args.story))

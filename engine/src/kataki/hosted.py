@@ -6,14 +6,33 @@ is the desktop's own app (`create_app`) with an `OnlineHost` bound to that one u
 one user does can be gated or billed as another's.
 """
 
+import asyncio
+import contextlib
 import hashlib
 import hmac
+import json
+import logging
+import os
 import re
+import secrets
 import sqlite3
 import time
+from collections import OrderedDict
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
+from pathlib import Path
 
 import httpx2
+import keyring
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
+
+from kataki import db, roles
+from kataki.host import OnlineHost
+from kataki.llm import LLM, DailyCap, Endpoint
+from kataki.server import create_app
+
+log = logging.getLogger(__name__)
 
 USER = re.compile(r"[A-Za-z0-9_-]{1,64}")  # a library id names a folder: nothing else gets in
 WINDOW = 60  # seconds a signature is good for, either way (clock skew, and no replays after)
@@ -116,3 +135,189 @@ class Gateway:
                 conn.execute("UPDATE usage_log SET metered=1 WHERE id=?", (r["id"],))
             sent += 1
         return sent
+
+
+def secret(name: str) -> str | None:
+    """The gateway's shared secrets live in the env or the OS keychain, never in a library:
+    `KATAKI_GATEWAY_SECRET` / `KATAKI_GATEWAY_KEY`, else keychain `kataki-gateway`/`secret`|`key`."""
+    if said := os.environ.get(f"KATAKI_GATEWAY_{name.upper()}"):
+        return said
+    with contextlib.suppress(keyring.errors.KeyringError):
+        return keyring.get_password("kataki-gateway", name)
+    return None
+
+
+def _catalogue(path: Path) -> tuple[list, list, dict]:
+    """The service's providers, model roles and prices, from a library file built for it."""
+    c = sqlite3.connect(f"file:{Path(path).as_posix()}?mode=ro", uri=True)
+    try:
+        providers = c.execute("SELECT id, name, base_url, extra FROM providers").fetchall()
+        models = c.execute(
+            "SELECT role, provider_id, model, kind, detected_kind, params FROM model_roles"
+        ).fetchall()
+        prices = c.execute("SELECT value FROM settings WHERE key='prices'").fetchone()
+    finally:
+        c.close()
+    return providers, models, json.loads(prices[0]) if prices else {}
+
+
+@dataclass
+class Library:
+    """One user's open library: its own connection, model client, host and app."""
+
+    user: str
+    conn: sqlite3.Connection
+    llm: LLM
+    token: str
+    channel: str = "stable"
+    host: OnlineHost | None = None
+    app: FastAPI | None = None
+    busy: int = 0  # requests in flight: never closed under them
+    last: float = field(default_factory=time.monotonic)
+
+
+class Hosted:
+    """The ASGI app of `kataki serve --hosted`: signed request in, the user's library out."""
+
+    def __init__(
+        self,
+        root: Path,
+        signing: bytes,
+        gateway: Gateway,
+        catalogue: Path,
+        *,
+        get_key: Callable[[str], str | None] = roles.get_key,  # the service's keys
+        max_open: int = 64,
+        idle: float = 900.0,  # seconds unused before a library closes
+        daily_cap: float = 5.0,  # dollars a user may spend a day (UTC)
+        max_calls: int = 4,  # a user's model calls in flight
+        worker_delay: float = 3.0,
+        transport: httpx2.AsyncBaseTransport | None = None,  # tests script the providers here
+    ):
+        self.root, self.signing, self.gateway = Path(root), signing, gateway
+        self.providers, self.models, self.prices = _catalogue(catalogue)
+        self.get_key, self.max_open, self.idle = get_key, max_open, idle
+        self.daily_cap, self.max_calls, self.worker_delay = daily_cap, max_calls, worker_delay
+        self.transport = transport
+        self._open: OrderedDict[str, Library] = OrderedDict()
+        self._sweeper: asyncio.Task | None = None
+
+    def opened(self, user: str) -> Library | None:
+        return self._open.get(user)
+
+    def open(self, user: str) -> Library:
+        """The user's library, opened now if it is not already. Synchronous, so two first
+        requests at once cannot open it twice."""
+        if lib := self._open.get(user):
+            self._open.move_to_end(user)
+            return lib
+        conn = db.connect(self.root / user / "library.db")
+        with conn:  # the service owns routing: its catalogue, whatever the library held
+            conn.execute("DELETE FROM model_roles")
+            conn.execute("DELETE FROM providers")
+            conn.executemany("INSERT INTO providers VALUES(?, ?, ?, ?)", self.providers)
+            conn.executemany(
+                "INSERT INTO model_roles(role, provider_id, model, kind, detected_kind, params)"
+                " VALUES(?, ?, ?, ?, ?, ?)",
+                self.models,
+            )
+        lib = Library(user, conn, LLM(self.transport, self.max_calls), secrets.token_urlsafe(32))
+        lib.host = OnlineHost(
+            get_key=self.get_key,
+            meter=lambda row: self.gateway.meter(user, row),
+            allow=self._allow(user, conn),
+            channel=lambda: lib.channel,
+            prices=lambda: self.prices,
+        )
+        lib.app = create_app(
+            conn, lib.token, lib.llm, worker_delay=self.worker_delay, host=lib.host
+        )
+        self._open[user] = lib
+        self.gateway.resend(user, conn)  # what the last session could not bill
+        return lib
+
+    async def _evict(self) -> None:
+        """Past the limit, close the least recently used libraries with nothing in flight."""
+        for user in [u for u, x in self._open.items() if not x.busy]:
+            if len(self._open) <= self.max_open:
+                return
+            await self.close(user)
+
+    def _allow(self, user: str, conn: sqlite3.Connection):
+        def allow(ep: Endpoint, estimate: float) -> bool:
+            today = conn.execute(
+                "SELECT coalesce(sum(cost), 0) FROM usage_log WHERE at >= date('now')"
+            ).fetchone()[0]
+            if round((today + estimate) * 1e6) > round(self.daily_cap * 1e6):
+                raise DailyCap("You have reached today's spending limit. It resets at 00:00 UTC.")
+            return self.gateway.allow(user, estimate)
+
+        return allow
+
+    async def close(self, user: str) -> None:
+        """Close a library: its background job is cancelled (the read it was doing is discarded
+        at the next open, and read again), then its model client and its file."""
+        if (lib := self._open.pop(user, None)) is None:
+            return
+        worker = lib.app.state.worker
+        worker.cancel()
+        try:
+            await worker.idle()
+        except Exception as e:  # a job that had failed must not keep the library open
+            log.warning("background job for %s ended badly: %s", user, e)
+        await lib.llm.aclose()
+        lib.conn.close()
+
+    async def sweep(self) -> None:
+        """Close what has been idle too long; send the outbox of what stays open."""
+        now = time.monotonic()
+        for user, lib in list(self._open.items()):
+            if not lib.busy and now - lib.last >= self.idle:
+                await self.close(user)
+            else:
+                self.gateway.resend(user, lib.conn)
+
+    async def _sweeping(self) -> None:
+        while True:
+            await asyncio.sleep(max(self.idle / 4, 1.0))
+            try:
+                await self.sweep()
+            except Exception as e:  # the sweeper outlives any one bad library
+                log.warning("sweep failed: %s", e)
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] == "lifespan":
+            return await self._lifespan(receive, send)
+        if scope["type"] != "http":
+            return
+        headers = {k.decode("latin-1").lower(): v.decode("latin-1") for k, v in scope["headers"]}
+        if (found := who(self.signing, headers, time.time())) is None:
+            refused = JSONResponse({"detail": "missing or invalid gateway signature"}, 401)
+            return await refused(scope, receive, send)
+        user, channel = found
+        lib = self.open(user)
+        lib.channel = channel
+        # the library's own app still wants its bearer token: the signature stood in for it
+        inner = [(k, v) for k, v in scope["headers"] if k.lower() != b"authorization"]
+        inner.append((b"authorization", f"Bearer {lib.token}".encode()))
+        lib.busy += 1
+        try:
+            await self._evict()
+            await lib.app({**scope, "headers": inner}, receive, send)
+        finally:
+            lib.busy -= 1
+            lib.last = time.monotonic()
+
+    async def _lifespan(self, receive, send) -> None:
+        while True:
+            message = await receive()
+            if message["type"] == "lifespan.startup":
+                self._sweeper = asyncio.create_task(self._sweeping())
+                await send({"type": "lifespan.startup.complete"})
+            elif message["type"] == "lifespan.shutdown":
+                if self._sweeper:
+                    self._sweeper.cancel()
+                for user in list(self._open):
+                    await self.close(user)
+                await send({"type": "lifespan.shutdown.complete"})
+                return

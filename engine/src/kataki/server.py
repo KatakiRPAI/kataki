@@ -370,6 +370,7 @@ def create_app(
         version=__version__,
         dependencies=[Depends(require_token), Depends(this_host)],
     )
+    app.state.worker = worker  # online, closing a library stops its background job (B5)
 
     @app.exception_handler(sqlite3.OperationalError)
     async def no_room(request: Request, e: sqlite3.OperationalError):
