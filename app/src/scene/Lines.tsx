@@ -5,6 +5,7 @@ import type { Cast, Item, LineSignal, Message, Signals, Story } from '../api'
 import { K } from '../ds'
 import { face, fullTime, twelve } from '../hooks'
 import { t } from '../strings'
+import { kind } from './modes'
 import { later } from './time'
 
 export type LineActions = {
@@ -35,7 +36,6 @@ export default function Lines({ story, messages, cast, signals, advanced, busy, 
   reading?: boolean
   found?: number
 }) {
-  const persona = story.persona?.name
   const entity = (id: number | null) => cast.entities.find((e) => e.id === id)
   const name = (id: number) => entity(id)?.name ?? '?'
   const list = (ids: number[]) => new Intl.ListFormat('en', { type: 'conjunction' }).format(ids.map(name))
@@ -73,7 +73,7 @@ export default function Lines({ story, messages, cast, signals, advanced, busy, 
     if (m.role !== 'system') {
       const signal = signals?.lines[m.id]
       out.push(
-        <Line key={m.id} m={m} story={story} persona={persona} signal={signal} advanced={advanced && !reading} busy={busy} reading={reading}
+        <Line key={m.id} m={m} story={story} signal={signal} advanced={advanced && !reading} busy={busy} reading={reading}
           colour={colour(m)} editing={editing === m.id} dim={editing !== undefined && m.id > editing}
           after={shown.length - 1 - shown.indexOf(m)} newest={m.id === lastReply?.id} flash={m.id === found}
           onEditing={(on) => onEditing(on ? m.id : undefined)} act={act} name={name} list={list} itemOf={itemOf} />,
@@ -93,22 +93,21 @@ export default function Lines({ story, messages, cast, signals, advanced, busy, 
   return <>{out}</>
 }
 
-function Line({ m, story, persona, signal, advanced, busy, reading, colour, editing, dim, after, newest, flash, onEditing, act, name, list, itemOf }: {
-  m: Message; story: Story; persona?: string; signal?: LineSignal; advanced: boolean; busy: boolean; reading?: boolean
+function Line({ m, story, signal, advanced, busy, reading, colour, editing, dim, after, newest, flash, onEditing, act, name, list, itemOf }: {
+  m: Message; story: Story; signal?: LineSignal; advanced: boolean; busy: boolean; reading?: boolean
   colour: string; editing: boolean; dim: boolean; after: number; newest: boolean; flash: boolean
   onEditing: (on: boolean) => void; act: LineActions; name: (id: number) => string; list: (ids: number[]) => string
   itemOf: (entityId: number | null) => Item | undefined
 }) {
   const [draft, setDraft] = useState(m.text)
   const [allReacts, setAllReacts] = useState(false)
-  const who = m.role === 'user' ? (m.speaker ?? persona ?? t('scene.narrator')) : (m.speaker ?? t('scene.narrator'))
+  // No speaker means narration, whoever wrote it: it is shown without a name.
+  const how = kind(m)
+  const who = m.speaker ?? t('scene.narrator')
   const [take, takes] = m.swipe
   const isReply = m.role === 'assistant' && m.parent_id !== null
   const fresh = newest && isReply && take === takes
-  const marks = [
-    m.edited && t('line.edited'), m.finish === 'stopped' && t('line.stopped'),
-    m.audience?.length === 0 && t('line.thought'), m.audience?.length ? t('line.whisper', { names: list(m.audience) }) : null,
-  ].filter(Boolean).join(' · ')
+  const marks = [m.edited && t('line.edited'), m.finish === 'stopped' && t('line.stopped')].filter(Boolean).join(' · ')
   const time = [twelve(m.clock), marks].filter(Boolean).join(' · ')
 
   if (editing) {
@@ -136,6 +135,7 @@ function Line({ m, story, persona, signal, advanced, busy, reading, colour, edit
   return (
     <div className={flash ? 'line-flash' : undefined}>
       <K.ChatLine id={`line-${m.id}`} speaker={String(m.speaker_id ?? m.role)} color={colour} name={who} time={time}
+        mode={how} modeNote={how === 'whisper' ? t('line.whisper', { names: list(m.audience ?? []) }) : how === 'think' ? t('line.thought') : undefined}
         exact={m.clock.slice(-5)} timeDetail={fullTime(m.clock, m.date)} text={m.text} dim={dim} tools={tools}
         recalled={!!recall} thought={m.think_ms ? t('scene.thought', { s: Math.max(1, Math.round(m.think_ms / 1000)) }) : undefined}
         onContextMenu={reading ? undefined : (e: MouseEvent) => { e.preventDefault(); act.menu(e, m) }}

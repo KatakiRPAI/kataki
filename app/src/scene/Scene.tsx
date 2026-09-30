@@ -14,7 +14,7 @@ import { classify, err } from '../errors'
 import { Delete, Export } from '../sky/Stories'
 import Backstage from './Backstage'
 import Lines, { type LineActions } from './Lines'
-import { force, read, type Mode } from './modes'
+import { force, kind, read, type Mode } from './modes'
 import { CharacterCard, FindBar, PassTime, ScenePlace, StorySettings, type Pass } from './Overlays'
 import { later } from './time'
 import { Board, defaults } from './Widgets'
@@ -53,7 +53,7 @@ export default function Scene() {
   )
   useTitle(data?.story.title)
   const [live, setLive] = useState<Live | null>(null)
-  const [said, setSaid] = useState<string | null>(null)
+  const [said, setSaid] = useState<{ text: string; mode?: 'whisper' | 'narrate' } | null>(null)
   const [failed, setFailed] = useState('')
   const [draft, setDraft] = useState('')
   const home = pref<Mode>('story.composerMode', 'Auto') // a mode picked in the menu is for one line, then this again
@@ -190,7 +190,7 @@ export default function Scene() {
       }
       return reload()
     }
-    if (how.text) setSaid(how.text)
+    if (how.text) setSaid({ text: how.text, mode: how.mode === 'Narrate' || !persona ? 'narrate' : how.mode === 'Whisper' ? 'whisper' : undefined })
     await generate(`/stories/${id}/turn`, { text: how.text || null, speaker, audience, skip: extra.skip ?? null, narrate: how.mode === 'Narrate' })
   }
   // Lines typed while a reply was writing go out in order, one turn each.
@@ -250,7 +250,7 @@ export default function Scene() {
     swipe: (m, step) => api(`/stories/${id}/swipe`, 'POST', { message_id: m.id, step }).then(reload),
     retake: (m) => generate(`/stories/${id}/regenerate`, {}, { replacing: m.id }),
     save: (m, text) => api(`/messages/${m.id}`, 'PATCH', { text }).then(reload),
-    rewrite: (m, text) => { setSaid(m.role === 'user' ? text : null); generate(`/messages/${m.id}/rewrite`, { text }, { rewriting: m.id }) },
+    rewrite: (m, text) => { setSaid(m.role === 'user' ? { text, mode: kind(m) === 'narrate' ? 'narrate' : undefined } : null); generate(`/messages/${m.id}/rewrite`, { text }, { rewriting: m.id }) },
     hide: (m, hidden) => {
       api(`/messages/${m.id}`, 'PATCH', { hidden }).then(reload)
       if (hidden) toast(t('toast.hidden'), { icon: 'eyeoff', action: t('toast.undo'), onAction: () => api(`/messages/${m.id}`, 'PATCH', { hidden: false }).then(reload) }, 6000)
@@ -472,7 +472,7 @@ export default function Scene() {
             }>
               <Lines story={story} messages={shown} cast={cast} signals={signals} advanced={advanced} busy={!!live} editing={editing} onEditing={setEditing}
                 colour={colour} itemOf={itemOf} act={act} found={found} />
-              {said && <K.ChatLine speaker="user" color="var(--speaker-liv)" name={persona ?? t('scene.narrator')} time="" text={said} />}
+              {said && <K.ChatLine speaker="user" color="var(--speaker-liv)" name={persona ?? t('scene.narrator')} time="" text={said.text} mode={said.mode} />}
               {live && (
                 <K.ChatLine speaker={String(live.speakerId)} color={colour({ role: 'assistant', speaker_id: live.speakerId } as Message)} name={live.speaker || '…'} time=""
                   text={live.text} writing thought={live.thinkMs ? t('scene.thought', { s: Math.max(1, Math.round(live.thinkMs / 1000)) }) : undefined} />

@@ -775,7 +775,7 @@ async def _generate(
     stops = [f"\n{names[i]}:" for i in who_else][:MAX_STOPS]
 
     parts, thoughts, done = [], [], {}
-    prefix, opener, dropped = _Prefix(name or "Narrator"), _Opener(False), ""
+    prefix, opener, dropped = _Prefix(name or "Narration"), _Opener(False), ""
     header, before = thought.Header(False, "", ep.think_tags), None
     guard = honesty.Guard([])
     finish, error, message_id, text, skip = "stopped", None, None, "", 0
@@ -786,7 +786,7 @@ async def _generate(
         for attempt in range(2):  # a second take only when the first opened like an assistant
             parts, thoughts, before = [], [], None  # before: thought pieces before the 1st word
             first_thought = first_token = first_word = None  # a retake times its own take
-            prefix, opener = _Prefix(name or "Narrator"), _Opener(hold and not attempt)
+            prefix, opener = _Prefix(name or "Narration"), _Opener(hold and not attempt)
             header = thought.Header(voice == "inline", name or "", ep.think_tags)
             try:  # on the table: by sentences, the cover in place; else by words, no cover
                 unheld = [(keys, None) for keys, _ in guards]

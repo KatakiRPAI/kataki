@@ -75,6 +75,19 @@ def audience_of(message) -> list[int] | None:
     return None if message["audience"] is None else json.loads(message["audience"])
 
 
+# An inline thought: `_like this_` at word edges, so snake_case stays a word (app/src/scene/modes.ts)
+THOUGHT = re.compile(r"(?<![\w*])_([^_\n]+?)_(?!\w)")
+
+
+def thoughts(text: str, keep: bool) -> str:
+    """A line with its _inline thoughts_ kept as `(thinking: …)` for the thinker, or taken out
+    for everyone else, who never heard them."""
+    if keep or not THOUGHT.search(text):
+        return THOUGHT.sub(r"(thinking: \1)", text)
+    gone = re.sub(r"[ \t]+([.,!?;:…])", r"\1", re.sub(r"[ \t]{2,}", " ", THOUGHT.sub("", text)))
+    return gone.strip() or "…"
+
+
 def named(conn: sqlite3.Connection, text: str, ids: list[int]) -> list[int]:
     """The people a line names (by any alias), in the order it first names them; at the same
     spot, the longer alias wins ("Mira Vale" over "Mira")."""

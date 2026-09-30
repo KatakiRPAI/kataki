@@ -548,7 +548,7 @@ def prompt(conn: sqlite3.Connection, story_id: int, chunk: list) -> tuple[list[d
         return f" (whispering to {' and '.join(names.get(i, 'someone') for i in audience)})"
 
     transcript = "\n".join(
-        f"[{i}] {names.get(m['speaker_id'], 'Narration')}{how(m)}: {m['text']}"
+        f"[{i}] {names.get(m['speaker_id'], 'Narration')}{how(m)}: {chat.thoughts(m['text'], keep=True)}"
         for i, m in enumerate(chunk, 1)
     )
     body = "Roster:\n" + "\n".join(entity_lines)

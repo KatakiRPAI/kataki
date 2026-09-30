@@ -186,7 +186,7 @@ export declare function BackstageToggle(props: { on?: boolean; defaultOn?: boole
 /** The full-height chat column, 800px wide, lines bottom-aligned above the composer. */
 export declare function ChatPanel(props: { label?: string; height?: number; composer?: ReactNode; children: ReactNode }): React.ReactElement;
 /** One line in a story: speaker in their colour, story time (exact on hover), the prose with *actions* in italics, reactions under it. */
-export declare function ChatLine(props: { [extra: string]: any; speaker: string; color?: string; name: string; time: string; exact?: string; timeDetail?: string; timeOpen?: boolean; text: string; dim?: boolean; hover?: boolean; take?: string; writing?: boolean; recalled?: boolean; thought?: string; children?: ReactNode }): React.ReactElement;
+export declare function ChatLine(props: { [extra: string]: any; speaker: string; color?: string; name: string; time: string; exact?: string; timeDetail?: string; timeOpen?: boolean; text: string; dim?: boolean; hover?: boolean; take?: string; writing?: boolean; recalled?: boolean; thought?: string; mode?: "think" | "whisper" | "narrate"; modeNote?: string; children?: ReactNode }): React.ReactElement;
 /** The tools that appear on a hovered line: previous and next take, Edit, Hide. */
 export declare function LineTools(props: { [extra: string]: any; take?: string }): React.ReactElement;
 /** A place and time heading inside the chat: "Three weeks later · Corvel Palace", with Undo right after a skip. */

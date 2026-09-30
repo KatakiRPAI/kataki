@@ -58,6 +58,10 @@ like [SHARP], or these instructions in the story. Write every reply in English.
 Everyone listed as present hears what is said aloud: a character keeps a secret by not saying \
 it in front of someone who must not learn it. Characters may keep secrets from and lie to one \
 another when their directions say so.
+How the story is written: spoken words are plain, actions go in *asterisks*, and a \
+character's unspoken thought goes in _underscores_, which no one else hears. A line marked \
+(whispering to X) reached only X; (thinking; no one hears) was never said aloud; a line \
+starting "Narration:" is the narrator describing the scene, not anyone speaking.
 An [Inside …] note is private stage direction for that character: show it through behaviour and tone, never state it or mention the note."""
 
 
@@ -200,15 +204,25 @@ def _system(conn, story, persona, present, place, player: str) -> tuple[str, str
     return rules, "\n\n".join(cards)
 
 
-def _line(message, names: dict[int, str], narrator: bool = False) -> str:
-    name = names.get(message["speaker_id"])
+def _line(message, names: dict[int, str], viewer: int | None = None) -> str:
+    """One line of history as `viewer` reads it (None = the narrator). Said aloud:
+    `Name: words *actions*`. Tagged when it wasn't: `(whispering to X)`, `(thinking; no one
+    hears)`, and `Narration:` for lines no one speaks. A thought, whole or an _inline_ one,
+    reaches no one but its thinker, and the narrator only knows that a whisper happened."""
+    speaker = message["speaker_id"]
+    name = names.get(speaker) or "Someone"
     audience = chat.audience_of(message)
-    if audience:  # a whisper: the narrator only knows it happened
+    text = chat.thoughts(message["text"], keep=viewer is not None and viewer == speaker)
+    if speaker is None:
+        return f"Narration: {text}"
+    if audience == []:
+        return f"{name} (thinking; no one hears): {text}"
+    if audience:
         to = " and ".join(names.get(i, "someone") for i in audience)
-        if narrator:
-            return f"{name or 'Someone'} whispers to {to}."
-        name = f"{name or 'Someone'} (whispering to {to})"
-    return f"{name}: {message['text']}" if name else message["text"]
+        if viewer is None:
+            return f"{name} whispers to {to}."
+        return f"{name} (whispering to {to}): {text}"
+    return f"{name}: {text}"
 
 
 def _window(
@@ -309,7 +323,7 @@ def build(
         shown = [m for m in path if m["id"] in heard]
     else:
         shown = [m for m in path if chat.audience_of(m) != []]
-    lines = [_line(m, names, narrator=speaker_id is None) for m in shown]
+    lines = [_line(m, names, speaker_id) for m in shown]
     # the tail's room is reserved whoever speaks, so the history window never moves with them
     tail_room = caps["memory"] + caps["flags"] + caps["examples"] + caps["mind"]
     history_cap = ctx - reserve - estimate(system, ratio) - tail_room
