@@ -51,7 +51,11 @@ def _pictures_of(conn: sqlite3.Connection) -> list[Path]:
     blobs = media.folder(conn)
     if not blobs.is_dir():
         return []
-    return sorted(p for p in blobs.iterdir() if p.is_file() and media.NAME.fullmatch(p.name))
+    return sorted(  # voice audio is a cache (slice 10): made again on request, never exported
+        p
+        for p in blobs.iterdir()
+        if p.is_file() and media.NAME.fullmatch(p.name) and p.suffix[1:] not in media.AUDIO
+    )
 
 
 def _holds(conn: sqlite3.Connection) -> dict:

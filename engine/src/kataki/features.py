@@ -22,6 +22,7 @@ FEATURES = {
     "mind.goals": "alpha",  # slice 7: wants on an agenda at an opening, needs and energy
     "mind.growth": "alpha",  # slice 8: reflection on big skips, growth rings, group speaker score
     "mind.texting": "alpha",  # slice 9: bursts, delays, corrected typos, length and register
+    "mind.voice": "alpha",  # slice 10: a spoken cue per reply, speech through a voice model
 }
 
 

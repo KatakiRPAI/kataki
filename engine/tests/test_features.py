@@ -62,3 +62,4 @@ def test_misremembering_ships_at_alpha():
     assert features.FEATURES["mind.goals"] == "alpha"
     assert features.FEATURES["mind.growth"] == "alpha"
     assert features.FEATURES["mind.texting"] == "alpha"
+    assert features.FEATURES["mind.voice"] == "alpha"

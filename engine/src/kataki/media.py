@@ -14,7 +14,10 @@ from pathlib import Path
 
 MAX_BYTES = 20 * 1024 * 1024  # PORTRAIT_TOO_LARGE: "PNG, JPG or WEBP, up to 20 MB"
 TYPES = {"png": "image/png", "jpg": "image/jpeg", "gif": "image/gif", "webp": "image/webp"}
-NAME = re.compile(r"[0-9a-f]{64}\.(png|jpg|gif|webp)")
+# a reply's voice (minds slice 10): served like images, never taken as an upload
+AUDIO = {"mp3": "audio/mpeg", "wav": "audio/wav", "ogg": "audio/ogg", "flac": "audio/flac"}
+TYPES |= AUDIO
+NAME = re.compile(r"[0-9a-f]{64}\.(png|jpg|gif|webp|mp3|wav|ogg|flac)")
 
 
 def sniff(data: bytes) -> str | None:
@@ -27,6 +30,19 @@ def sniff(data: bytes) -> str | None:
         return "gif"
     if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
         return "webp"
+    return None
+
+
+def sniff_audio(data: bytes) -> str | None:
+    """The audio format a speech server sent, from its first bytes, or None."""
+    if data.startswith(b"ID3") or (len(data) > 1 and data[0] == 0xFF and data[1] & 0xE0 == 0xE0):
+        return "mp3"
+    if data[:4] == b"RIFF" and data[8:12] == b"WAVE":
+        return "wav"
+    if data.startswith(b"OggS"):
+        return "ogg"
+    if data.startswith(b"fLaC"):
+        return "flac"
     return None
 
 

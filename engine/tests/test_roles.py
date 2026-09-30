@@ -107,7 +107,16 @@ def test_a_story_can_override_a_role(lib):
 def test_routing_table_shows_where_each_role_gets_its_model(lib):
     set_role(lib, "rp", 1, "rp-8b", detected="standard")
     table = {row["role"]: row for row in roles.routing(lib)}
-    assert set(table) == {"rp", "narrator", "utility", "reasoning", "embed", "image", "music"}
+    assert set(table) == {
+        "rp",
+        "narrator",
+        "utility",
+        "reasoning",
+        "embed",
+        "image",
+        "music",
+        "voice",
+    }
     assert table["rp"]["inherited_from"] is None and table["rp"]["effective_model"] == "rp-8b"
     assert table["reasoning"]["inherited_from"] == "rp"
     assert table["reasoning"]["effective_kind"] == "standard"

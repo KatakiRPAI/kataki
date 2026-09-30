@@ -14,7 +14,7 @@ import sqlite3
 import time
 from collections.abc import Callable
 
-from kataki import bonds, chat, features, goals, images, inner, knobs, roles, thought
+from kataki import bonds, chat, features, goals, images, inner, knobs, roles, speech, thought
 from kataki.llm import LLM
 
 PROMPT = """\
@@ -66,10 +66,19 @@ AGENDA_ASK = {
 }
 
 
-def schema(handles: list[str], afterthought: bool = False, agenda: str | None = None) -> dict:
+VOICE_ASK = (  # slice 10 (note 22 §2 step 12): only when the speaker is voiced
+    "Also give voice: how {name}'s reply sounds said aloud: its tone, and tag: one sound "
+    "({name} laughing, sighing, ...) only if the reply itself makes one, else null."
+)
+
+
+def schema(
+    handles: list[str], afterthought: bool = False, agenda: str | None = None, voice: bool = False
+) -> dict:
     """The labels, every list closed: feelings, events, faces, and only the people here; with
     `afterthought`, also the thought a reasoning model's reply was said with (slice 3); with
-    `agenda` ("offer" | "judge"), the agenda outcome (slice 7)."""
+    `agenda` ("offer" | "judge"), the agenda outcome (slice 7); with `voice`, how the reply
+    sounds (slice 10)."""
     level = {"type": "integer", "enum": [1, 2, 3]}
     out = {
         "type": "object",
@@ -121,6 +130,17 @@ def schema(handles: list[str], afterthought: bool = False, agenda: str | None = 
     if agenda in AGENDA:
         out["properties"]["agenda"] = {"type": "string", "enum": list(AGENDA[agenda])}
         out["required"].append("agenda")
+    if voice:
+        out["properties"]["voice"] = {
+            "type": "object",
+            "properties": {
+                "tone": {"type": "string", "enum": list(speech.TONES)},
+                "tag": {"type": ["string", "null"], "enum": [*speech.TAGS, None]},
+            },
+            "required": ["tone", "tag"],
+            "additionalProperties": False,
+        }
+        out["required"].append("voice")
     return out
 
 
@@ -132,7 +152,7 @@ def _word(x, allowed) -> bool:
     return isinstance(x, str) and x in allowed
 
 
-def read(data: dict, handles: list[str], agenda: str | None = None) -> dict:
+def read(data: dict, handles: list[str], agenda: str | None = None, voice: bool = False) -> dict:
     """Validate the labels. Unusable as a whole (no feeling from the list, no face) raises
     ValueError, so the model is asked once more; a bad event is only dropped."""
     felt = data.get("felt")
@@ -171,7 +191,21 @@ def read(data: dict, handles: list[str], agenda: str | None = None) -> dict:
         }
         | _afterthought(data)
         | _agenda(data, agenda)
+        | _voice(data, voice)
     )
+
+
+def _voice(data: dict, asked: bool) -> dict:
+    """How it sounds, only when asked; a value off the list is None (code's cue stands)."""
+    if not asked:
+        return {}
+    said = data.get("voice") if isinstance(data.get("voice"), dict) else {}
+    return {
+        "voice": {
+            "tone": said.get("tone") if said.get("tone") in speech.TONES else None,
+            "tag": said.get("tag") if said.get("tag") in speech.TAGS else None,
+        }
+    }
 
 
 def _agenda(data: dict, agenda: str | None) -> dict:
@@ -221,6 +255,7 @@ async def _ask(
     get_key,
     afterthought: bool = False,
     agenda: dict | None = None,
+    voice: bool = False,
 ) -> dict | None:
     if (ep := roles.resolve(conn, "utility", story_id, get_key)) is None:
         return None
@@ -248,14 +283,15 @@ async def _ask(
             + f"[The line to judge: what did THIS line do to {name}?]\n{line}\n\n"
             f"[{name}'s reply: for position, yielded and face only]\n{reply[-1500:]}"
             + (f"\n\n{AFTERTHOUGHT.format(name=name)}" if afterthought else "")
-            + (f"\n\n{AGENDA_ASK[mode].format(name=name, text=agenda['text'])}" if mode else ""),
+            + (f"\n\n{AGENDA_ASK[mode].format(name=name, text=agenda['text'])}" if mode else "")
+            + (f"\n\n{VOICE_ASK.format(name=name)}" if voice else ""),
         },
     ]
     return await llm.complete_json(
         ep,
         ask,
-        schema(handles, afterthought, mode),
-        lambda d: read(d, handles, mode),
+        schema(handles, afterthought, mode, voice),
+        lambda d: read(d, handles, mode, voice),
         name="after",
     )
 
@@ -361,6 +397,7 @@ async def run(
     get_key: Callable[[str], str | None],
     afterthought: bool = False,  # a reasoning model replied: ask what they thought (slice 3)
     agenda: dict | None = None,  # slice 7: {"mode": "offer" | "judge", <gen.agenda | gen.goal>}
+    voice: bool = False,  # slice 10: the speaker is voiced: also label how the reply sounds
 ) -> dict | None:
     """The side call for one reply, applied. -> the labels, or None when it was skipped.
     ponytail: inline after the reply, before `done`, as the face call ran; move it to a
@@ -369,7 +406,7 @@ async def run(
     try:
         seen = _scene(conn, story_id, path, speaker_id)
         got = await _ask(
-            conn, llm, story_id, speaker_id, reply, seen, get_key, afterthought, agenda
+            conn, llm, story_id, speaker_id, reply, seen, get_key, afterthought, agenda, voice
         )
         if got is not None:
             _apply(conn, story_id, path, speaker_id, message_id, got, state, seen)

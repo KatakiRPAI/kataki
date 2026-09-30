@@ -4,7 +4,7 @@ import sqlite3
 from importlib.resources import files
 from pathlib import Path
 
-SCHEMA_VERSION = 16
+SCHEMA_VERSION = 17
 # version -> the SQL that brings a library up from the version before it; schema.sql is v1
 MIGRATIONS = {
     2: "ALTER TABLE entities ADD COLUMN examples TEXT NOT NULL DEFAULT ''",  # example dialogue
@@ -175,6 +175,27 @@ MIGRATIONS = {
         " message_id INTEGER REFERENCES messages ON DELETE CASCADE,"
         " run_id INTEGER REFERENCES extraction_runs ON DELETE CASCADE);"
         "CREATE INDEX ix_reflections ON reflections(knower_id);"
+    ),
+    17: (  # minds slice 10: a `voice` role (speech). SQLite cannot widen a CHECK in place, so
+        # the table is rebuilt with every row kept; nothing references model_roles. The first
+        # destructive migration, so it is one transaction: a failure half-way changes nothing
+        "BEGIN;"
+        # a role left pointing at a deleted provider (foreign keys were off once) would fail
+        # the copy and keep the library shut: it is unset, as deleting the provider does
+        "UPDATE model_roles SET provider_id=NULL, model=NULL"
+        " WHERE provider_id IS NOT NULL AND provider_id NOT IN (SELECT id FROM providers);"
+        "CREATE TABLE model_roles_new("
+        " role TEXT PRIMARY KEY CHECK(role IN('rp','narrator','utility','reasoning','embed',"
+        "'image','music','voice')),"
+        " provider_id INTEGER REFERENCES providers, model TEXT,"
+        " kind TEXT NOT NULL DEFAULT 'auto' CHECK(kind IN('auto','reasoning','standard')),"
+        " detected_kind TEXT CHECK(detected_kind IN('reasoning','standard')),"
+        " params TEXT NOT NULL DEFAULT '{}');"
+        "INSERT INTO model_roles_new SELECT role, provider_id, model, kind, detected_kind, params"
+        " FROM model_roles;"
+        "DROP TABLE model_roles;"
+        "ALTER TABLE model_roles_new RENAME TO model_roles;"
+        "COMMIT;"
     ),
 }
 
