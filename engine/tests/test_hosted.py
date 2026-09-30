@@ -84,6 +84,9 @@ def test_a_signature_is_good_for_its_own_request_only(method, target):
         signed(at=NOW - 61),  # stale: a replay
         signed(at=NOW + 61),
         {**signed(), "x-kataki-time": "soon"},
+        {**signed(), "x-kataki-time": f" {NOW}"},  # digits and nothing else, as signed
+        {**signed(), "x-kataki-time": f"+{NOW}"},
+        {**signed(), "x-kataki-time": f"{NOW:_}"},
         signed(user="../bob"),  # signed, but it names a folder: never trusted to
         signed(user=""),
         signed(user="Alice"),  # lowercase only: `alice`'s folder on a case-blind disk
@@ -471,7 +474,10 @@ def test_the_cli_binds_to_this_machine_and_needs_its_secrets(tmp_path, monkeypat
     monkeypatch.setenv("KATAKI_GATEWAY_KEY", "k")
     with pytest.raises(SystemExit):
         cli.main(args)
-    monkeypatch.setenv("KATAKI_GATEWAY_SECRET", "s")
+    monkeypatch.setenv("KATAKI_GATEWAY_SECRET", "s" * 31)  # too short to sign with
+    with pytest.raises(SystemExit):
+        cli.main(args)
+    monkeypatch.setenv("KATAKI_GATEWAY_SECRET", "s" * 32)
     cli.main(args)
     assert ran["host"] == "127.0.0.1" and isinstance(ran["app"], hosted.Hosted)
     cli.main([*args, "--bind", "0.0.0.0"])

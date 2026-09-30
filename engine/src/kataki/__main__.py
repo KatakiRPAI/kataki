@@ -68,6 +68,8 @@ def serve_hosted(args: argparse.Namespace) -> None:
             "kataki serve --hosted needs --root, --catalogue and --gateway, and the gateway's"
             " secrets in KATAKI_GATEWAY_SECRET and KATAKI_GATEWAY_KEY (or the keychain)."
         )
+    if len(signing.encode()) < 32:
+        sys.exit("KATAKI_GATEWAY_SECRET must be at least 32 bytes.")
     app = hosted.Hosted(
         args.root,
         signing.encode(),

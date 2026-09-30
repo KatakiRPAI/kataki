@@ -58,10 +58,9 @@ def who(
     method and target; else None."""
     user = headers.get("x-kataki-user", "")
     channel = headers.get("x-kataki-channel", "")
-    try:
-        at = int(headers.get("x-kataki-time", ""))
-    except ValueError:
-        return None
+    if not re.fullmatch(r"[0-9]{1,12}", stamp := headers.get("x-kataki-time", "")):
+        return None  # digits only: exactly what was signed, never " 12", "+12" or "1_2"
+    at = int(stamp)
     said = headers.get("x-kataki-sig", "")
     if not USER.fullmatch(user) or abs(now - at) > WINDOW:
         return None
