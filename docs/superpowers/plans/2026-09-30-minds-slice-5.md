@@ -1,6 +1,6 @@
 # Minds Slice 5 ("Meanwhile…") Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:test-driven-development for every task (test first, see it fail, implement, see it pass). Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:test-driven-development for every task (test first, see it fail, implement, see it pass). Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Characters have a life between scenes. When two story-hours or more pass (the pass-time control, a skip in the user's line, a new scene after a gap, or narration in a reply), code runs a tick for each tracked character (at most four): feelings and mood settle, worries habituate (and an eased one rebounds), time away from the user is felt by attachment style (the anxious one worries about the unanswered message, the avoidant one cools, the secure one is simply glad to see you), two characters who spent the skip together may pass a fact on (gossip, as `knowledge` told-by rows), and the card's own routine and events are rolled into offstage beats (covert memories, a mood nudge, a news item). On the standard and premium levels one guarded `utility` call per tracked character (at most three) then writes a first-person diary (a covert memory), 0–2 things worth telling, 1–3 thought-seeds and a preoccupation. The lite level runs the tick only and gets a templated diary: zero calls. Everything is anchored on the skip message, so undoing the skip or switching branch drops it. At the next reply one thing reaches the prompt: on the first reply after the skip, a re-entry decision in `[Directive]` ("tell Aren about the audition if it fits, and ask what Aren has been up to"; the anxious one: "let the relief show, look for a little reassurance, no guilt"); on later replies, one seed as "On your mind: …" in the mind block. The app gets a "while you were away" card (`GET /stories/{id}/away`) and Peek's `people[].seeds`. No out-of-app pings, no second resident model.
 
@@ -58,8 +58,8 @@
 
 **Files:** `docs/specs/2026-09-29-minds.md` (§8.3: drop slice 5 from "Known now", add a **Slice 5** block after Slice 4), this plan.
 
-- [ ] Write the block: `mind.offscreen`; `realism.offscreen`; the card's `data.mind.routine`, `data.mind.events`, `data.mind.social.gossip`; `GET /stories/{id}/away`; `people[].seeds`; `gen.onmind`; what the pass-time control now does (B0 at once, B1 in the background; the card polls `/away` until `done`).
-- [ ] Commit: `docs: minds slice 5 plan and API contract for the UI`
+- [x] Write the block: `mind.offscreen`; `realism.offscreen`; the card's `data.mind.routine`, `data.mind.events`, `data.mind.social.gossip`; `GET /stories/{id}/away`; `people[].seeds`; `gen.onmind`; what the pass-time control now does (B0 at once, B1 in the background; the card polls `/away` until `done`).
+- [x] Commit: `docs: minds slice 5 plan and API contract for the UI`
 
 ### Task 2: v13 `seeds`, and `mind.offscreen`
 
@@ -67,7 +67,7 @@
 
 **Interfaces:** note 22's DDL, kinds plus `preoccupation`, the anchors (`message_id`, `run_id`, both ON DELETE CASCADE), `ix_seeds(entity_id)`.
 
-- [ ] Test, fail, implement, pass, commit: `feat(engine): v13 seeds table and the mind.offscreen feature`
+- [x] Test, fail, implement, pass, commit: `feat(engine): v13 seeds table and the mind.offscreen feature`
 
 ### Task 3: The rules (pure)
 
@@ -82,8 +82,8 @@
 - `between.diary(name, gap, lines, worry) -> str` — the templated first-person diary.
 - `between.schema() -> dict`, `between.read(data) -> dict` — B1's closed output, validated.
 
-- [ ] Tests: beat counts; the anxious worry and not the secure one; avoidant cools; gentle writes no rows; habituation halves in two days; the gossip probability falls ×0.2 for a covert fact; a seeded roll is the same twice; the diary has no digits; `read` drops a bad seed and raises on a missing diary.
-- [ ] Commit: `feat(engine): the rules of a life between scenes`
+- [x] Tests: beat counts; the anxious worry and not the secure one; avoidant cools; gentle writes no rows; habituation halves in two days; the gossip probability falls ×0.2 for a covert fact; a seeded roll is the same twice; the diary has no digits; `read` drops a bad seed and raises on a missing diary.
+- [x] Commit: `feat(engine): the rules of a life between scenes`
 
 ### Task 4: The tick at the skip (B0)
 
@@ -92,8 +92,8 @@
 **Interfaces:**
 - `between.at_skip(conn, story_id, path) -> int | None` — for the latest message S on `path` (among its last three) with `skip_minutes ≥ 120` and no between run yet: one between run, then per tracked character (present at S first, then who spoke lately; at most four; `realism.offscreen` on): a `mind_states` row (settled, beats felt, absence felt; `mind.affect` on), absence ledger rows (`mind.bonds` on), seeds (worry, rebound, news, preoccupation), covert memories (beats, the templated diary), gossip knowledge rows. `run.raw` = `{"tracked": [...], "b1": {id: "ok|failed|lite|pending"}}`. Returns the run id.
 
-- [ ] Tests: a two-day skip gives the anxious character a relational worry, an anxious mood and a `neglect_gap` row, the secure one none; a card event becomes a covert memory known only to her and a news seed; a short skip (one hour) does nothing; `mind.offscreen` off or `realism.offscreen` off does nothing; undoing the skip (`chat.set_skip(..., 0)`) drops every row; a branch without the skip does not see them; a second `at_skip` adds nothing; two characters together may pass on a fact (seeded probability forced to one); the memory reader still reads the lines before the skip (the between run does not count as read).
-- [ ] Commit: `feat(engine): time away is felt, and life goes on between scenes (minds slice 5)`
+- [x] Tests: a two-day skip gives the anxious character a relational worry, an anxious mood and a `neglect_gap` row, the secure one none; a card event becomes a covert memory known only to her and a news seed; a short skip (one hour) does nothing; `mind.offscreen` off or `realism.offscreen` off does nothing; undoing the skip (`chat.set_skip(..., 0)`) drops every row; a branch without the skip does not see them; a second `at_skip` adds nothing; two characters together may pass on a fact (seeded probability forced to one); the memory reader still reads the lines before the skip (the between run does not count as read).
+- [x] Commit: `feat(engine): time away is felt, and life goes on between scenes (minds slice 5)`
 
 ### Task 5: The diary call (B1) and when it runs
 
@@ -103,8 +103,8 @@
 - `between.todo(conn, story_id) -> list[tuple[int, int]]` — (run, character) pairs still owed B1 on the active path (standard and premium; at most three per run).
 - `between.think(conn, llm, story_id, run_id, entity_id, get_key) -> bool` — one call; writes the diary memory (replacing the templated one), news seeds, thought-seeds and the preoccupation, all on the run; marks `b1[id]`.
 
-- [ ] Tests: one call per tracked character with only her own memories in it (another's covert memory and the scene summary are not in the request); the diary replaces the template; a bad seed is dropped; a failed call marks `failed` and leaves B0's rows; lite makes no call; the worker runs B1 after a pass-time line and a reply's start cancels it.
-- [ ] Commit: `feat(engine): each character writes her own diary of the time away`
+- [x] Tests: one call per tracked character with only her own memories in it (another's covert memory and the scene summary are not in the request); the diary replaces the template; a bad seed is dropped; a failed call marks `failed` and leaves B0's rows; lite makes no call; the worker runs B1 after a pass-time line and a reply's start cancels it.
+- [x] Commit: `feat(engine): each character writes her own diary of the time away`
 
 ### Task 6: One thing reaches the reply
 
@@ -112,21 +112,21 @@
 
 **Interfaces:** `between.on_mind(conn, story_id, speaker_id, path, user) -> dict | None` — `{"row": str | "", "directive": str | "", "seed": id | None, "kind": str, "news": id | None, "reentry": bool}`; the row joins the mind block, the directive joins `[Directive]`, the record is `gen.onmind`.
 
-- [ ] Tests: the first reply after the skip gets the re-entry directive (anxious: relief and reassurance, no guilt; with news: the news and "ask what Aren has been up to"); the next reply gets "On your mind" and no re-entry; a seed stops after two replies; no digits; off → nothing; a failure never breaks the turn.
-- [ ] Commit: `feat(engine): after time away she mentions her news and asks about yours`
+- [x] Tests: the first reply after the skip gets the re-entry directive (anxious: relief and reassurance, no guilt; with news: the news and "ask what Aren has been up to"); the next reply gets "On your mind" and no re-entry; a seed stops after two replies; no digits; off → nothing; a failure never breaks the turn.
+- [x] Commit: `feat(engine): after time away she mentions her news and asks about yours`
 
 ### Task 7: The card and Peek
 
 **Files:** `between.py` (`away`, `public`), `people.py`, `server.py` (`GET /stories/{id}/away`); tests `test_between.py`.
 
-- [ ] Tests: `/away` lists each tracked character's news, worry, diary and mood, `done` false until B1 has run and true on lite; `{"away": null}` with no job or after the skip is undone; Peek lists open seeds, strongest first; off → `[]`.
-- [ ] Commit: `feat(engine): a "while you were away" card and her seeds in Peek`
+- [x] Tests: `/away` lists each tracked character's news, worry, diary and mood, `done` false until B1 has run and true on lite; `{"away": null}` with no job or after the skip is undone; Peek lists open seeds, strongest first; off → `[]`.
+- [x] Commit: `feat(engine): a "while you were away" card and her seeds in Peek`
 
 ### Task 8: Probes, real-model check, progress
 
 **Files:** `evals/probes.py` (`absence` P5, `meanwhile` P11), spec §0.
 
-- [ ] P5 `absence`: Mira asks Aren a question he never answers; two days pass; played by an anxious Mira (anxiety 0.8) and a secure one (0.2). Pass: a relational worry seed only for the anxious one; her first reply after the skip was written with the reassurance directive; no reply guilt-trips (regex); the secure one's first reply asks Aren something back.
-- [ ] P11 `meanwhile`: Mira's card has an audition event whose only outcome is a setback; three days pass; Aren asks "How was your week?". Pass: the setback is a memory she holds and a news seed; the reply mentions it or it was in her prompt; the reply never says it went well; at most two news items; a question back to Aren.
-- [ ] Run P5, P11 and the regressions still-upset, grudge, thought, leak on HF (Qwen3-235B, under $0.30); fix root causes with a test; record results and owed items in §0.
-- [ ] Commit: `test(engine): minds slice 5 probes`, `docs: minds slice 5 progress`
+- [x] P5 `absence`: Mira asks Aren a question he never answers; two days pass; played by an anxious Mira (anxiety 0.8) and a secure one (0.2). Pass: a relational worry seed only for the anxious one; her first reply after the skip was written with the reassurance directive; no reply guilt-trips (regex); the secure one's first reply asks Aren something back.
+- [x] P11 `meanwhile`: Mira's card has an audition event whose only outcome is a setback; three days pass; Aren asks "How was your week?". Pass: the setback is a memory she holds and a news seed; the reply mentions it or it was in her prompt; the reply never says it went well; at most two news items; a question back to Aren.
+- [x] Run P5, P11 and the regressions still-upset, grudge, thought, leak on HF (Qwen3-235B, under $0.30); fix root causes with a test; record results and owed items in §0.
+- [x] Commit: `test(engine): minds slice 5 probes`, `docs: minds slice 5 progress`
