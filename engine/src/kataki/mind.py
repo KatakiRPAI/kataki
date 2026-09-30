@@ -241,6 +241,14 @@ def mind(conn: sqlite3.Connection, message_id: int) -> dict | None:
                 inside.append((body, True))
         except Exception as e:
             logging.getLogger(__name__).warning("goal not shown: %s", e)
+        try:  # what she has made of her story, when a reflection rode in (slice 8)
+            if (grown := gen.get("growth")) and grown.get("text"):
+                ring = node(
+                    "growth", "inside", "growth", "Growth", grown["text"], None, True, grown
+                )
+                inside.append((ring, True))
+        except Exception as e:
+            logging.getLogger(__name__).warning("growth not shown: %s", e)
 
         card = conn.execute("SELECT description FROM entities WHERE id=?", (who,)).fetchone()
         if card and card["description"]:

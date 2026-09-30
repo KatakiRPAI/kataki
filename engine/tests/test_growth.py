@@ -402,3 +402,70 @@ def test_locked_or_rejected_are_never_touched_and_lite_reinforces_too(conn, card
     bear_out(conn, story, mira)
     skip_now(conn, story)
     assert status(conn, story, mira) == "rejected"
+
+
+# --- one line in the mind block (note 22 §4 row 3) -----------------------------------------------
+
+from kataki import mind as graph  # noqa: E402
+
+
+async def reply_to(conn, backend, story, text="Hello, Mira.", says="Hello."):
+    backend.say(says)
+    mira = ent(conn, story, "Mira")
+    events = [e async for e in turns.turn(conn, backend.llm, story, text, speaker=mira)]
+    assert events[-1][0] == "done", events[-1]
+    tail = backend.requests[-1]["messages"][-1]["content"]
+    gen = json.loads(chat.active_path(conn, story)[-1]["gen"])
+    return tail, gen
+
+
+def reflect(conn, story, who, kind, text, status="ring", subject=None) -> int:
+    with conn:
+        return growth.write(conn, story, who, kind, text, [97, 98, 99], status, 0, subject=subject)
+
+
+@pytest.mark.anyio
+async def test_her_line_about_the_one_she_answers_reaches_the_reply(local_model, cards, backend):
+    conn = local_model
+    story = make(conn, cards)
+    mira, aren = ent(conn, story, "Mira"), ent(conn, story, "Aren")
+    reflect(conn, story, mira, "habit", "learned to ask for help")
+    rid = reflect(conn, story, mira, "relationship", "He keeps coming back.", subject=aren)
+    reflect(conn, story, mira, "scar", "never trusts a promise", "seed")
+    tail, gen = await reply_to(conn, backend, story)
+    assert "How you have come to see Aren: “He keeps coming back.”" in tail
+    assert "ask for help" not in tail and "promise" not in tail  # one line; a seed never
+    assert gen["growth"]["reflection"] == rid and gen["growth"]["kind"] == "relationship"
+    node = next(n for n in graph.mind(conn, chat.active_path(conn, story)[-1]["id"])["nodes"]
+                if n["id"] == "growth")  # fmt: skip
+    assert node["title"] == "Growth" and node["column"] == "inside" and node["gold"]
+
+
+@pytest.mark.anyio
+async def test_else_her_strongest_ring_and_never_a_rejected_one(local_model, cards, backend):
+    conn = local_model
+    story = make(conn, cards)
+    mira = ent(conn, story, "Mira")
+    reflect(conn, story, mira, "habit", "learned to ask for help", "locked")
+    growth.act(conn, reflect(conn, story, mira, "stance", "stands up to bullies"), "reject")
+    tail, gen = await reply_to(conn, backend, story)
+    assert "Something that has changed in you: learned to ask for help." in tail
+    assert "bullies" not in tail and gen["growth"]["kind"] == "habit"
+
+
+@pytest.mark.anyio
+async def test_off_or_broken_the_turn_goes_on_without_it(local_model, cards, backend, monkeypatch):
+    conn = local_model
+    story = make(conn, cards)
+    reflect(conn, story, ent(conn, story, "Mira"), "habit", "learned to ask for help")
+    setting(conn, "features.mind.growth", False)
+    tail, gen = await reply_to(conn, backend, story)
+    assert "ask for help" not in tail and "growth" not in gen
+    setting(conn, "features.mind.growth", True)
+
+    def boom(*a, **k):
+        raise RuntimeError("no")
+
+    monkeypatch.setattr(growth, "line", boom)
+    tail, gen = await reply_to(conn, backend, story, "Still there?")
+    assert "growth" not in gen

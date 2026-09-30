@@ -28,6 +28,7 @@ from kataki import (
     extract,
     features,
     goals,
+    growth,
     honesty,
     images,
     inner,
@@ -480,9 +481,21 @@ async def _generate(
         need = None
     if need:
         mind_rows.append(need["text"])
+    grown = None  # slice 8: at most one reflection, about the one she answers or herself
+    try:
+        if speaker_id is not None and features.enabled(conn, "mind.growth"):
+            last = path[-1]["speaker_id"] if path else None
+            answering = last if last not in (None, speaker_id) else story["persona_entity_id"]
+            grown = growth.line(conn, speaker_id, path, answering, names.get(answering))
+    except Exception as e:
+        logging.getLogger(__name__).warning("growth skipped for story %s: %s", story_id, e)
+        grown = None
     try:
         inside = (
-            inner.block(names.get(speaker_id, ""), ties + felt + mind_rows)
+            inner.block(
+                names.get(speaker_id, ""),
+                ties + ([grown["text"]] if grown else []) + felt + mind_rows,
+            )
             if speaker_id is not None
             else ""
         )
@@ -792,6 +805,8 @@ async def _generate(
                     gen["goal"] = judged
                 if need:
                     gen["need"] = need
+                if grown:
+                    gen["growth"] = grown
             except Exception as e:
                 logging.getLogger(__name__).warning("goal not kept: %s", e)
             try:

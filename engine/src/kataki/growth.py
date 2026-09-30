@@ -420,3 +420,24 @@ def reinforce(conn, who: int, path: list, now: int, message_id: int, run_id: int
             again(conn, r, "ring", now, message_id, run_id)
         elif now - r["story_time"] >= TTL:
             again(conn, r, "past", now, message_id, run_id)
+
+
+# --- what reaches her reply: one line at most (note 22 §4 row 3; C17) ----------------------------
+
+
+def line(conn, who: int, path: list, answering: int | None, name: str | None) -> dict | None:
+    """Her line about whoever she answers, else her strongest ring (locked first, then newest),
+    as one row of the mind block, in words. Seeds, past and rejected ones never reach it.
+    -> {"reflection", "kind", "text"} or None."""
+    rows = [r for r in current(conn, who, path) if r["status"] in COUNTS]
+    first = lambda rs: min(rs, key=lambda r: (r["status"] != "locked", -r["id"]), default=None)  # noqa: E731
+    r = first([r for r in rows if r["kind"] == "relationship" and r["subject_id"] == answering])
+    if r is not None and name:
+        text = f"How you have come to see {name}: “{r['text']}”"
+    elif (r := first([r for r in rows if r["kind"] in RINGS])) is not None:
+        text = f"Something that has changed in you: {r['text'].rstrip('.')}."
+    else:
+        return None
+    if re.search(r"\d", text):  # words, never numbers (the gate already holds this)
+        return None
+    return {"reflection": r["id"], "kind": r["kind"], "text": text}
