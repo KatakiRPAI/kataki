@@ -10,7 +10,7 @@ import json
 import logging
 import sqlite3
 
-from kataki import cards, chat, honesty
+from kataki import cards, chat, goals, honesty
 
 ITEM_FIELDS = ("name", "description", "private", "data")
 
@@ -188,6 +188,12 @@ def create_story(
             )
         except Exception as e:
             logging.getLogger(__name__).warning("secrets not seeded for story %s: %s", story_id, e)
+        try:  # ...and what they want (minds slice 7)
+            goals.seed(
+                conn, story_id, [(item, e) for (item, _), e in zip(cast, entity_ids, strict=True)]
+            )
+        except Exception as e:
+            logging.getLogger(__name__).warning("goals not seeded for story %s: %s", story_id, e)
 
         place_entity = None
         if place_id is not None:
