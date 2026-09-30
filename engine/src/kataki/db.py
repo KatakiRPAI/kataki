@@ -4,7 +4,7 @@ import sqlite3
 from importlib.resources import files
 from pathlib import Path
 
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 # version -> the SQL that brings a library up from the version before it; schema.sql is v1
 MIGRATIONS = {
     2: "ALTER TABLE entities ADD COLUMN examples TEXT NOT NULL DEFAULT ''",  # example dialogue
@@ -101,6 +101,25 @@ MIGRATIONS = {
         " message_id INTEGER REFERENCES messages ON DELETE CASCADE,"
         " run_id INTEGER REFERENCES extraction_runs ON DELETE CASCADE);"
         "CREATE INDEX ix_secrets ON secrets(owner_id);"
+    ),
+    13: (  # minds slice 5: what is on each character's mind (worries, news, plans...), written
+        # between scenes and anchored like the other minds tables (note 22 §1; `preoccupation`
+        # is the Between call's one-line "on her mind", which note 22's kinds have no home for)
+        "CREATE TABLE seeds("
+        " id INTEGER PRIMARY KEY,"
+        " story_id INTEGER NOT NULL REFERENCES stories ON DELETE CASCADE,"
+        " entity_id INTEGER NOT NULL REFERENCES entities ON DELETE CASCADE,"
+        " kind TEXT NOT NULL CHECK(kind IN('worry','rumination','plan','unfinished','intrusive',"
+        "'idea','news','correction','position','preoccupation')),"
+        " text TEXT NOT NULL, about_id INTEGER REFERENCES entities ON DELETE SET NULL,"
+        " memory_id INTEGER REFERENCES memories ON DELETE SET NULL,"
+        " weight REAL NOT NULL, half_life_min INTEGER, payload TEXT,"
+        " closes_id INTEGER REFERENCES seeds ON DELETE CASCADE,"
+        " close_kind TEXT CHECK(close_kind IN('resolved','told','eased','dropped')),"
+        " story_time INTEGER NOT NULL,"
+        " message_id INTEGER REFERENCES messages ON DELETE CASCADE,"
+        " run_id INTEGER REFERENCES extraction_runs ON DELETE CASCADE);"
+        "CREATE INDEX ix_seeds ON seeds(entity_id, story_time);"
     ),
 }
 
