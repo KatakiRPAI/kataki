@@ -384,7 +384,8 @@ def pending(conn: sqlite3.Connection, story_id: int) -> list[sqlite3.Row]:
     path = chat.active_path(conn, story_id)
     live = sorted(db.live_runs(conn, story_id))
     ends = conn.execute(
-        f"SELECT to_message_id FROM extraction_runs WHERE id IN ({','.join('?' * len(live))})",
+        f"SELECT to_message_id FROM extraction_runs WHERE trigger!='between'"
+        f" AND id IN ({','.join('?' * len(live))})",
         live,
     )
     covered = max((r[0] for r in ends), default=0)  # ids grow along a path

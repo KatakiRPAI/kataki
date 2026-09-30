@@ -19,6 +19,7 @@ from typing import Any
 
 from kataki import (
     after,
+    between,
     bonds,
     chat,
     clock,
@@ -305,6 +306,10 @@ async def _generate(
     ep = knobs.character_model(conn, speaker_id, ep, get_key)  # their own model, if they have one
     story = _story(conn, story_id)
     path = chat.path_to(conn, parent_id)
+    try:  # time just passed: the life between scenes first, so the mind below starts from it
+        between.at_skip(conn, story_id, path)
+    except Exception as e:
+        logging.getLogger(__name__).warning("between skipped for story %s: %s", story_id, e)
     names = dict(
         conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)).fetchall()
     )

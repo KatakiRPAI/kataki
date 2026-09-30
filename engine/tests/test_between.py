@@ -1,6 +1,7 @@
 """Slice 5: a life between scenes. Time away is felt by attachment style, the card's own life is
 rolled into offstage beats, each character writes a diary, and one thing reaches the reply."""
 
+import json
 import random
 import re
 
@@ -118,3 +119,223 @@ def test_the_diary_calls_output_is_validated():
         "seeds",
         "preoccupation",
     }
+
+
+# --- the tick at the skip (B0) -----------------------------------------------------------------
+
+from kataki import bonds, chat, db, extract, library, retrieve, turns  # noqa: E402
+
+AUDITION = {"text": "auditioned for the spring play", "bad": "froze on the second monologue"}
+
+
+@pytest.fixture
+def cards(conn):
+    return {n: library.create_item(conn, "character", n) for n in ("Mira", "Tobin", "Aren")}
+
+
+def make(conn, cards, mira: dict | None = None, tobin: dict | None = None) -> int:
+    library.update_item(conn, cards["Mira"], data={"mind": mira or {}})
+    library.update_item(conn, cards["Tobin"], data={"mind": tobin or {}})
+    return library.create_story(
+        conn, "Low Tide", character_ids=[cards["Mira"], cards["Tobin"]], persona_id=cards["Aren"]
+    )
+
+
+def ent(conn, story: int, name: str) -> int:
+    return conn.execute(
+        "SELECT id FROM entities WHERE story_id=? AND name=?", (story, name)
+    ).fetchone()[0]
+
+
+def line(conn, story: int, who: str, text: str, skip: int = 0) -> int:
+    role = "user" if who == "Aren" else "assistant"
+    return chat.append_message(conn, story, role, text, ent(conn, story, who), skip)
+
+
+def seeds(conn, entity: int) -> list:
+    return conn.execute("SELECT * FROM seeds WHERE entity_id=? ORDER BY id", (entity,)).fetchall()
+
+
+def setting(conn, key: str, value) -> None:
+    conn.execute(
+        "INSERT OR REPLACE INTO settings(key, value) VALUES(?, ?)", (key, json.dumps(value))
+    )
+    conn.commit()
+
+
+ANXIOUS = {"attachment": {"anxiety": 0.8, "avoidance": 0.2}}
+
+
+def scene(conn, cards, **kw) -> tuple[int, int]:
+    """Aren talks to Mira, she asks him something, and two days pass (the pass-time control)."""
+    story = make(conn, cards, **kw)
+    line(conn, story, "Aren", "I have to go, Mira.")
+    line(conn, story, "Mira", "Will you come to the harbour tomorrow?")
+    skip = turns.say(conn, story, skip="two days later")
+    return story, skip
+
+
+def test_a_two_day_skip_worries_the_anxious_one_only(conn, cards):
+    story, skip = scene(conn, cards, mira=ANXIOUS)
+    run = between.at_skip(conn, story, chat.active_path(conn, story))
+    assert run is not None
+    mira, tobin, aren = (ent(conn, story, n) for n in ("Mira", "Tobin", "Aren"))
+    [worry] = [s for s in seeds(conn, mira) if s["kind"] == "worry"]
+    assert worry["text"] == "why Aren never answered" and worry["about_id"] == aren
+    assert (worry["message_id"], worry["run_id"]) == (skip, run)
+    assert not [s for s in seeds(conn, tobin) if s["kind"] == "worry"]
+    path = chat.active_path(conn, story)
+    state = inner.current(conn, mira, path, inner.profile(conn, mira))
+    top = state["emotions"][0]
+    assert top["label"] == "anxious" and "two days" in top["cause"]
+    rows = [r for r in bonds.ledger(conn, mira, path) if r["event"] == "neglect_gap"]
+    assert rows and all(r["value"] < 0 for r in rows) and any(r["dim"] == "trust" for r in rows)
+    assert not [r for r in bonds.ledger(conn, tobin, path) if r["event"] == "neglect_gap"]
+    count = len(seeds(conn, mira))
+    assert between.at_skip(conn, story, path) is None  # once per skip
+    assert len(seeds(conn, mira)) == count
+
+
+def test_gentle_relationships_write_no_ledger_rows(conn, cards):
+    setting(conn, "realism.relationships", "gentle")
+    story, _ = scene(conn, cards, mira=ANXIOUS)
+    between.at_skip(conn, story, chat.active_path(conn, story))
+    assert conn.execute("SELECT COUNT(*) FROM opinions").fetchone()[0] == 0
+    assert [s["kind"] for s in seeds(conn, ent(conn, story, "Mira"))] == ["worry"]
+
+
+def test_a_card_event_becomes_her_covert_memory_and_news(conn, cards, monkeypatch):
+    monkeypatch.setattr(between, "P_EVENT", 1.0)
+    story, skip = scene(conn, cards, mira={"events": [AUDITION], "routine": ["rehearsed lines"]})
+    between.at_skip(conn, story, chat.active_path(conn, story))
+    mira, tobin = ent(conn, story, "Mira"), ent(conn, story, "Tobin")
+    [news] = [s for s in seeds(conn, mira) if s["kind"] == "news"]
+    assert news["text"] == "auditioned for the spring play, and froze on the second monologue"
+    event = conn.execute("SELECT * FROM memories WHERE id=?", (news["memory_id"],)).fetchone()
+    assert event["covert"] == 1 and "offscreen" in event["tags_text"]
+    assert event["to_message_id"] is None  # not in the transcript: recall must not skip it
+    known = {m["memory_id"] for m in retrieve.inspect(conn, story, mira)}
+    assert event["id"] in known
+    assert event["id"] not in {m["memory_id"] for m in retrieve.inspect(conn, story, tobin)}
+    diary = conn.execute(
+        "SELECT * FROM memories WHERE tags_text LIKE '%diary%' AND id IN"
+        " (SELECT memory_id FROM memory_entities WHERE entity_id=?)",
+        (mira,),
+    ).fetchone()
+    assert "I auditioned for the spring play, and froze" in diary["detail"]
+    state = inner.current(conn, mira, chat.active_path(conn, story), inner.profile(conn, mira))
+    assert state["mood"]["v"] < inner.baseline(inner.profile(conn, mira))["v"]  # still low
+
+
+def test_short_skips_and_switched_off_do_nothing(conn, cards):
+    story = make(conn, cards, mira=ANXIOUS)
+    line(conn, story, "Aren", "Back in an hour.")
+    turns.say(conn, story, skip="an hour later")
+    assert between.at_skip(conn, story, chat.active_path(conn, story)) is None
+    story, _ = scene(conn, cards, mira=ANXIOUS)
+    setting(conn, "realism.offscreen", "off")
+    assert between.at_skip(conn, story, chat.active_path(conn, story)) is None
+    setting(conn, "realism.offscreen", "on")
+    setting(conn, "features.mind.offscreen", False)
+    assert between.at_skip(conn, story, chat.active_path(conn, story)) is None
+    assert conn.execute("SELECT COUNT(*) FROM seeds").fetchone()[0] == 0
+
+
+def test_a_character_can_opt_out(conn, cards):
+    library.update_item(
+        conn, cards["Mira"], data={"mind": ANXIOUS, "realism": {"offscreen": "off"}}
+    )
+    story = library.create_story(
+        conn, "Low Tide", character_ids=[cards["Mira"], cards["Tobin"]], persona_id=cards["Aren"]
+    )
+    line(conn, story, "Mira", "Will you come?")
+    turns.say(conn, story, skip="two days later")
+    between.at_skip(conn, story, chat.active_path(conn, story))
+    mira, tobin = ent(conn, story, "Mira"), ent(conn, story, "Tobin")
+    assert seeds(conn, mira) == []
+    raw = json.loads(
+        conn.execute("SELECT raw FROM extraction_runs WHERE trigger='between'").fetchone()[0]
+    )
+    assert raw["tracked"] == [tobin]
+
+
+def test_undoing_the_skip_or_another_branch_drops_it(conn, cards, monkeypatch):
+    monkeypatch.setattr(between, "P_EVENT", 1.0)
+    story, skip = scene(conn, cards, mira=ANXIOUS | {"events": [AUDITION]})
+    run = between.at_skip(conn, story, chat.active_path(conn, story))
+    mira = ent(conn, story, "Mira")
+    other = chat.append_sibling(conn, skip, "— Later —")  # a take without the skip
+    chat.set_leaf(conn, story, other)
+    path = chat.active_path(conn, story)
+    assert run not in db.live_runs(conn, story)
+    assert not any("froze" in m["detail"] for m in retrieve.inspect(conn, story, mira))
+    state = inner.current(conn, mira, path, inner.profile(conn, mira))
+    assert state is None or not state["emotions"]
+    chat.set_leaf(conn, story, skip)
+    assert run in db.live_runs(conn, story)
+    chat.set_skip(conn, skip, 0)  # the undo chip
+    for table in ("seeds", "mind_states", "opinions", "memories"):
+        left = conn.execute(f"SELECT COUNT(*) FROM {table} WHERE run_id=?", (run,)).fetchone()[0]
+        assert left == 0, table
+
+
+def test_two_who_spent_the_skip_together_may_pass_a_fact_on(conn, cards, monkeypatch):
+    monkeypatch.setattr(between, "gossip_p", lambda *a, **k: 1.0)
+    story = make(conn, cards)
+    mira, tobin = ent(conn, story, "Mira"), ent(conn, story, "Tobin")
+    fact = conn.execute(
+        "INSERT INTO memories(story_id, kind, story_time, detail, gist, importance)"
+        " VALUES(?, 'event', 0, 'The harbour master took a bribe.', 'A bribe.', 7)",
+        (story,),
+    ).lastrowid
+    conn.execute(
+        "INSERT INTO knowledge(knower_id, memory_id, source, learned_story_time)"
+        " VALUES(?, ?, 'witnessed', 0)",
+        (tobin, fact),
+    )
+    conn.commit()
+    line(conn, story, "Tobin", "Quiet night.")
+    turns.say(conn, story, skip="the next morning")
+    run = between.at_skip(conn, story, chat.active_path(conn, story))
+    [told] = conn.execute(
+        "SELECT * FROM knowledge WHERE knower_id=? AND memory_id=?", (mira, fact)
+    ).fetchall()
+    assert (told["source"], told["told_by_id"], told["belief"], told["run_id"]) == (
+        "told",
+        tobin,
+        0.7,
+        run,
+    )
+    # Tobin's own diary never travels
+    assert not conn.execute(
+        "SELECT 1 FROM knowledge k JOIN memories m ON m.id=k.memory_id"
+        " WHERE k.knower_id=? AND m.tags_text LIKE '%diary%' AND m.id IN"
+        " (SELECT memory_id FROM memory_entities WHERE entity_id=?)",
+        (mira, tobin),
+    ).fetchone()
+
+
+def test_the_memory_reader_still_reads_the_lines_before_the_skip(conn, cards):
+    story, _ = scene(conn, cards, mira=ANXIOUS)
+    before = [m["id"] for m in extract.pending(conn, story)]
+    between.at_skip(conn, story, chat.active_path(conn, story))
+    assert [m["id"] for m in extract.pending(conn, story)] == before
+
+
+def test_an_eased_worry_rebounds_once_at_the_next_skip(conn, cards):
+    story, _ = scene(conn, cards, mira=ANXIOUS)
+    between.at_skip(conn, story, chat.active_path(conn, story))
+    mira = ent(conn, story, "Mira")
+    [first] = [s for s in seeds(conn, mira) if s["kind"] == "worry"]
+    line(conn, story, "Aren", "Sorry, I was away.")
+    line(conn, story, "Mira", "Oh. That's alright.")  # contact: the worry is eased
+    turns.say(conn, story, skip="seven hours later")
+    between.at_skip(conn, story, chat.active_path(conn, story))
+    worries = [s for s in seeds(conn, mira) if s["kind"] == "worry"]
+    assert len(worries) == 2
+    again = worries[-1]
+    assert again["text"] == first["text"] and again["weight"] == pytest.approx(first["weight"] / 2)
+    assert json.loads(again["payload"])["rebound_of"] == first["id"]
+    turns.say(conn, story, skip="seven hours later")  # once only
+    between.at_skip(conn, story, chat.active_path(conn, story))
+    assert len([s for s in seeds(conn, mira) if s["kind"] == "worry"]) == 2

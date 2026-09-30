@@ -12,10 +12,13 @@ ponytail: every constant here is an estimate from the research (notes 11 §3, 16
 tune them on the probes (evals/probes.py), not by feel.
 """
 
+import json
 import random
 import re
+import sqlite3
 
-from kataki import clock
+from kataki import bonds, chat, clock, db, features, inner, knobs
+from kataki.activation import FIDELITY
 
 DAY, HOUR = clock.DAY, clock.HOUR
 MIN_SKIP = 2 * HOUR  # a skip shorter than this is not time away
@@ -211,3 +214,331 @@ def read(data: dict) -> dict:
         if isinstance(pre, str) and pre.strip()
         else None,
     }
+
+
+# --- the tick at the skip (B0): zero calls, all levels ------------------------------------------
+
+TRIGGER = "between"  # an extraction_runs row that reads no transcript: the job's rows ride on it
+TRACK = 4  # ponytail: characters followed through a skip (note 22 §3: "up to 3-4")
+CALLS = 3  # ponytail: of those, how many get the diary call
+RECENT = 20  # lines back in which having spoken still counts as "on screen lately"
+REBOUND_MIN = 6 * HOUR  # a relational worry eased by contact comes back after this long
+REBOUND = 0.5  # at this share of itself, once
+NEGLECT_HALF = 7 * DAY  # ponytail: how fast the cooling of time apart fades
+BEAT_FEEL = {True: ("glad", 0.5), False: ("sad", 0.6)}  # an offstage beat's mood nudge
+TOLD_BELIEF = 0.7  # gossip is believed, a little less than being there (note 16 §6)
+GOSSIP_MAX = 2  # facts one passes to another per skip
+GOSSIP_MIN = 4  # importance a fact needs to be worth passing on
+MISSED = {"anxious": "worried", "fearful": "worried", "avoidant": "cooler"}
+
+
+def _skip(path: list) -> dict | None:
+    """The skip this path has just been through: the latest of its last three lines that moved
+    the clock two story-hours or more. Older skips have been lived through already."""
+    return next((m for m in reversed(path[-3:]) if m["skip_minutes"] >= MIN_SKIP), None)
+
+
+def run_of(conn: sqlite3.Connection, story_id: int, message_id: int) -> sqlite3.Row | None:
+    return conn.execute(
+        "SELECT * FROM extraction_runs WHERE story_id=? AND trigger=? AND to_message_id=?",
+        (story_id, TRIGGER, message_id),
+    ).fetchone()
+
+
+def job(conn: sqlite3.Connection, story_id: int, path: list) -> sqlite3.Row | None:
+    """The latest between run on this branch, if any."""
+    if not path:
+        return None
+    ids = [m["id"] for m in path]
+    return conn.execute(
+        f"SELECT * FROM extraction_runs WHERE story_id=? AND trigger=? AND status='ok'"
+        f" AND to_message_id IN ({','.join('?' * len(ids))}) ORDER BY to_message_id DESC LIMIT 1",
+        [story_id, TRIGGER, *ids],
+    ).fetchone()
+
+
+def _off(conn: sqlite3.Connection, entity_id: int) -> bool:
+    return knobs.dial(conn, entity_id, "offscreen", "on") == "off"
+
+
+def tracked(conn: sqlite3.Connection, story_id: int, path: list) -> list[int]:
+    """Who is followed through the skip: the AI characters here, then whoever spoke lately."""
+    scene_id = chat.scene_of(conn, story_id, path)
+    here = [
+        e["id"]
+        for e in chat.present_entities(conn, scene_id, path)
+        if e["is_ai"] and e["kind"] == "character"
+    ]
+    spoke = [m["speaker_id"] for m in reversed(path[-RECENT:]) if m["role"] == "assistant"]
+    ai = {
+        r[0]
+        for r in conn.execute(
+            "SELECT id FROM entities WHERE story_id=? AND kind='character' AND is_ai=1"
+            " AND hidden=0",
+            (story_id,),
+        )
+    }
+    return [c for c in dict.fromkeys([*here, *spoke]) if c in ai and not _off(conn, c)][:TRACK]
+
+
+class _Tick:
+    """One skip's job, written inside one transaction on its run."""
+
+    def __init__(self, conn, story_id: int, path: list, skip: dict, run: int):
+        self.conn, self.story_id, self.run, self.skip = conn, story_id, run, skip
+        self.path = path  # up to and including the skip message
+        self.now, self.minutes = skip["story_time"], skip["skip_minutes"]
+        self.start = self.now - self.minutes
+        story = conn.execute("SELECT * FROM stories WHERE id=?", (story_id,)).fetchone()
+        self.persona = story["persona_entity_id"]
+        self.names = dict(
+            conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,))
+        )
+        self.user = self.names.get(self.persona)
+        self.affect = features.enabled(conn, "mind.affect")
+        self.bonded = features.enabled(conn, "mind.bonds")
+
+    def rng(self, *key) -> random.Random:
+        """Seeded by the story, the skip and what is rolled: a retake rolls the same life."""
+        return random.Random(":".join(map(str, (self.story_id, self.skip["id"], *key))))
+
+    def seed(self, who: int, kind: str, text: str, weight: float, t: int | None = None,
+             about: int | None = None, memory: int | None = None, payload: dict | None = None) -> int:  # fmt: skip
+        return self.conn.execute(
+            "INSERT INTO seeds(story_id, entity_id, kind, text, about_id, memory_id, weight,"
+            " half_life_min, payload, story_time, message_id, run_id)"
+            " VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (self.story_id, who, kind, text, about, memory, round(weight, 3),
+             HALF_LIFE.get(kind, SEED_HALF), json.dumps(payload) if payload else None,
+             self.now if t is None else t, self.skip["id"], self.run),
+        ).lastrowid  # fmt: skip
+
+    def memory(self, who: int, detail: str, gist: str, importance: int, t: int, tags: list[str],
+               emotion: str | None = None) -> int:  # fmt: skip
+        """A covert memory only `who` holds: not in the transcript, so no message range."""
+        mid = self.conn.execute(
+            "INSERT INTO memories(story_id, kind, story_time, detail, gist, importance, emotion,"
+            " is_true, covert, tags_text, run_id, message_id)"
+            " VALUES(?, 'event', ?, ?, ?, ?, ?, 1, 1, ?, ?, ?)",
+            (self.story_id, t, detail, gist, importance, emotion, " ".join(tags), self.run,
+             self.skip["id"]),
+        ).lastrowid  # fmt: skip
+        self.conn.execute(
+            "INSERT INTO memory_entities(memory_id, entity_id, role) VALUES(?, ?, 'actor')",
+            (mid, who),
+        )
+        _tag(self.conn, mid, tags)
+        self.know(who, mid, "witnessed", None, 1.0, t)
+        return mid
+
+    def know(self, who: int, memory: int, source: str, told_by, belief: float, t: int) -> None:
+        self.conn.execute(
+            "INSERT INTO knowledge(knower_id, memory_id, source, told_by_id, learned_story_time,"
+            " fidelity, belief, run_id) VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
+            (who, memory, source, told_by, t, FIDELITY[source], belief, self.run),
+        )
+
+    def seeds_of(self, who: int) -> list[dict]:
+        """`who`'s live seeds before this skip (this branch, or the user's own)."""
+        where, args = db.anchor_filter(set(), {m["id"] for m in self.path})
+        rows = self.conn.execute(
+            f"SELECT * FROM seeds WHERE entity_id=? AND {where} ORDER BY id", [who, *args]
+        )
+        return [{**dict(r), "payload": json.loads(r["payload"] or "{}")} for r in rows]
+
+    def contact(self, who: int) -> tuple[int | None, bool]:
+        """When `who` last heard the user before the skip, and whether their own last word to
+        the user was a question left unanswered (an open thread)."""
+        before = self.path[:-1]  # the skip line itself is said after the time has passed
+        heard = chat.heard_by(self.conn, before, who)
+        last_user = next(
+            (m for m in reversed(before) if m["speaker_id"] == self.persona and m["id"] in heard),
+            None,
+        )
+        said = [m for m in before if m["role"] != "system" and m["id"] in heard]
+        thread = bool(said) and said[-1]["speaker_id"] == who and said[-1]["text"].rstrip(
+            " *\"”_").endswith("?")  # fmt: skip
+        return (last_user["story_time"] if last_user else None), thread
+
+    def one(self, who: int) -> dict:
+        """B0 for one character. -> what the card needs to know about it."""
+        conn, name = self.conn, self.names.get(who, "They")
+        prof = inner.profile(conn, who)
+        card = knobs.own(conn, who).get("mind")
+        card = card if isinstance(card, dict) else {}
+        state = None
+        if self.affect:
+            state = inner.current(conn, who, self.path, prof) or inner.fresh(prof, self.start)
+            state = inner.tick(state, self.start, prof)
+        mine = self.seeds_of(who)
+        # offstage beats, from the card's own life
+        lived = {s["payload"].get("event") for s in mine if s["kind"] == "news"}
+        routine = [r.strip() for r in card.get("routine") or [] if isinstance(r, str) and r.strip()]
+        n, done = beats(self.minutes), []
+        for b in range(n):
+            t = self.start + (b + 1) * self.minutes // (n + 1)
+            got = roll(self.rng(who, "beat", b), prof, card.get("events"), lived)
+            if got is None:
+                continue
+            lived.add(got["text"])
+            done.append(got)
+            said = f"{got['text']}, and {got['outcome']}"
+            label, i = BEAT_FEEL[got["good"]]
+            mid = self.memory(who, f"{name} {said}.", f"{name} {got['text']}.",
+                              5 if got["good"] else 6, t, ["offscreen"], label)  # fmt: skip
+            self.seed(who, "news", said, 0.6 if got["good"] else 0.7, t, memory=mid,
+                      payload={"event": got["text"], "good": got["good"]})  # fmt: skip
+            if state is not None:
+                state = inner.feel(inner.tick(state, t, prof), label, i, said, prof)
+        # time without the user, by attachment
+        out: dict = {"missed": None, "worry": None}
+        seen, thread = (None, False)
+        if self.persona is not None and self.persona != who:
+            seen, thread = self.contact(who)
+        if seen is not None:
+            gap = self.now - seen
+            ab = absence(prof, gap, open_thread=thread)
+            out["missed"] = MISSED.get(ab["style"]) or ("glad" if ab["glad"] else None)
+            if ab["worry"]:
+                text = (
+                    f"why {self.user} never answered"
+                    if thread
+                    else f"whether {self.user} is pulling away"
+                )
+                self.seed(who, "worry", text, ab["worry"], about=self.persona,
+                          payload={"absence": True})  # fmt: skip
+                out["worry"] = text
+                if state is not None:
+                    cause = f"no word from {self.user} in {span(gap).lower()}"
+                    state = inner.feel(
+                        inner.tick(state, self.now, prof), "anxious", ab["worry"], cause, prof
+                    )
+            else:
+                self.rebound(who, mine, prof)
+            dial = knobs.dial(conn, who, "relationships", "realistic")
+            harsh = 0.0 if dial == "gentle" else bonds.HARSH.get(dial, 1.0)
+            if self.bonded and harsh and ab["cool"]:
+                cause = f"no word from {self.user} in {span(gap).lower()}"
+                conn.executemany(
+                    "INSERT INTO opinions(story_id, src_id, dst_id, dim, value, kind,"
+                    " half_life_min, event, cause, story_time, message_id, run_id)"
+                    " VALUES(?, ?, ?, ?, ?, 'decay', ?, 'neglect_gap', ?, ?, ?, ?)",
+                    [(self.story_id, who, self.persona, dim, round(v * harsh, 2), NEGLECT_HALF,
+                      cause, self.now, self.skip["id"], self.run) for dim, v in ab["cool"]],
+                )  # fmt: skip
+        if state is not None:
+            with_rows = inner.regulate(inner.tick(state, self.now, prof), prof)
+            conn.execute(
+                "INSERT INTO mind_states(entity_id, story_time, state, message_id, run_id)"
+                " VALUES(?, ?, ?, ?, ?)",
+                (who, self.now, json.dumps(with_rows), self.skip["id"], self.run),
+            )
+        pick = routine[self.rng(who, "routine").randrange(len(routine))] if routine else None
+        if done or pick or out["worry"]:  # "nothing much happened" is not worth remembering
+            said = diary(self.minutes, done, [pick] if pick else [], out["worry"])
+            self.memory(who, said, said, 3, self.now, ["offscreen", "diary"])
+        return out
+
+    def rebound(self, who: int, mine: list[dict], prof: dict) -> None:
+        """Reassurance's rebound (note 11 §3): a relational worry that contact eased comes back
+        once, weaker, at the next skip of some hours, for someone anxious by nature."""
+        if prof["attachment"].get("anxiety", 0) < ATTACHED:
+            return
+        again = {s["payload"].get("rebound_of") for s in mine}
+        for s in mine:
+            if (s["kind"] == "worry" and s["payload"].get("absence") and s["id"] not in again
+                    and not s["payload"].get("rebound_of") and self.now - s["story_time"] >= REBOUND_MIN
+                    and eased(s, self.path)):  # fmt: skip
+                self.seed(who, "worry", s["text"], s["weight"] * REBOUND, about=s["about_id"],
+                          payload={"absence": True, "rebound_of": s["id"]})  # fmt: skip
+
+    def gossip(self, cast: list[int]) -> None:
+        """Two who spent the skip within reach of each other may pass a fact on (note 16 §6)."""
+        scene_id = chat.scene_of(self.conn, self.story_id, self.path)
+        here = {e["id"] for e in chat.present_entities(self.conn, scene_id, self.path)}
+        together = [c for c in cast if c in here]
+        live = db.live_runs(self.conn, self.story_id, self.skip["id"]) - {self.run}
+        know, args = db.live_filter(live, "k.run_id")
+        for a in together:
+            gossip = inner.profile(self.conn, a)["social"].get("gossip", 0.3)
+            gossip = min(1.0, max(0.0, gossip)) if isinstance(gossip, (int, float)) else 0.3
+            rows = bonds.ledger(self.conn, a, self.path)
+            for b in together:
+                if a == b:
+                    continue
+                st = bonds.standing(rows, b, self.now)
+                facts = self.conn.execute(
+                    "SELECT m.id, m.importance, m.covert FROM memories m"
+                    " JOIN knowledge k ON k.memory_id=m.id AND k.knower_id=?"
+                    f" WHERE m.story_id=? AND m.hidden=0 AND m.common=0 AND m.importance>=?"
+                    f" AND m.tags_text NOT LIKE '%diary%' AND m.story_time<=? AND {know}"
+                    " AND k.belief>=0.5"
+                    " AND NOT EXISTS(SELECT 1 FROM knowledge k3 WHERE k3.knower_id=? AND"
+                    " k3.memory_id=m.id)"
+                    " AND NOT EXISTS(SELECT 1 FROM memory_entities me WHERE me.memory_id=m.id"
+                    " AND me.entity_id=?) ORDER BY m.importance DESC, m.id DESC LIMIT 10",
+                    [a, self.story_id, GOSSIP_MIN, self.now, *args, b, b],
+                ).fetchall()
+                passed = 0
+                for f in facts:
+                    if passed >= GOSSIP_MAX:
+                        break
+                    p = gossip_p(level(st["closeness"]), level(st["trust"]), gossip,
+                                 f["importance"], bool(f["covert"]))  # fmt: skip
+                    if self.rng(a, b, "gossip", f["id"]).random() < p:
+                        self.know(b, f["id"], "told", a, TOLD_BELIEF, self.now)
+                        passed += 1
+
+
+def _tag(conn: sqlite3.Connection, memory_id: int, tags: list[str]) -> None:
+    for name in tags:
+        conn.execute("INSERT OR IGNORE INTO tags(name) VALUES(?)", (name,))
+        conn.execute(
+            "INSERT OR IGNORE INTO taggings(tag_id, obj, obj_id)"
+            " SELECT id, 'memory', ? FROM tags WHERE name=?",
+            (memory_id, name),
+        )
+
+
+def eased(seed: dict, path: list) -> bool:
+    """A relational worry is eased once its owner has answered the user after it was written."""
+    ids = [m["id"] for m in path]
+    if seed["message_id"] not in ids:
+        return False
+    after = path[ids.index(seed["message_id"]) + 1 :]
+    return any(m["role"] == "assistant" and m["speaker_id"] == seed["entity_id"] for m in after)
+
+
+def at_skip(conn: sqlite3.Connection, story_id: int, path: list) -> int | None:
+    """B0 for the skip this path has just been through, once: one between run, and on it each
+    tracked character's settled mood, time-apart ledger rows, worries, offstage beats, templated
+    diary, and gossip between those who were together. -> the run id, or None when there is no
+    new skip (or the feature, or the dial, is off)."""
+    if not path or not features.enabled(conn, "mind.offscreen"):
+        return None
+    skip = _skip(path)
+    if skip is None or run_of(conn, story_id, skip["id"]) is not None:
+        return None
+    upto = path[: [m["id"] for m in path].index(skip["id"]) + 1]
+    cast = tracked(conn, story_id, upto)
+    if not cast:
+        return None
+    lite = knobs.setting(conn, "mind.level", "standard") == "lite"
+    with conn:
+        run = conn.execute(
+            "INSERT INTO extraction_runs(story_id, from_message_id, to_message_id, trigger, status,"
+            " role, model, attempts, started_at, finished_at)"
+            " VALUES(?, 0, ?, ?, 'ok', 'code', '', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+            (story_id, skip["id"], TRIGGER),
+        ).lastrowid
+        tick = _Tick(conn, story_id, upto, dict(skip), run)
+        people = {str(c): tick.one(c) for c in cast}
+        tick.gossip(cast)
+        calls = [] if lite else cast[:CALLS]
+        raw = {
+            "tracked": cast,
+            "b1": {str(c): "pending" if c in calls else "lite" if lite else "code" for c in cast},
+            "people": people,
+        }
+        conn.execute("UPDATE extraction_runs SET raw=? WHERE id=?", (json.dumps(raw), run))
+    return run
