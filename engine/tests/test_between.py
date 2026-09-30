@@ -817,3 +817,20 @@ async def test_lite_end_to_end_makes_no_call_but_the_reply(local_model, cards, b
         0
     ]
     assert between.todo(conn, story) == []
+
+
+def test_the_diarys_worries_never_crowd_out_the_worry_about_you(conn, cards):
+    story, _ = scene(conn, cards, mira=ANXIOUS)
+    run = between.at_skip(conn, story, chat.active_path(conn, story))
+    mira = ent(conn, story, "Mira")
+    with conn:  # the diary call's own worries, weighing more
+        for text in ("the storm", "the rent"):
+            conn.execute(
+                "INSERT INTO seeds(story_id, entity_id, kind, text, weight, story_time, message_id,"
+                " run_id) SELECT story_id, entity_id, 'worry', ?, 0.95, story_time, message_id,"
+                " run_id FROM seeds WHERE run_id=? LIMIT 1",
+                (text, run),
+            )
+    got = between.open_seeds(conn, mira, chat.active_path(conn, story))
+    assert "why Aren never answered" in [s["text"] for s in got if s["kind"] == "worry"]
+    assert len([s for s in got if s["kind"] == "worry"]) == 2

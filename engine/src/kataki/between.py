@@ -786,7 +786,10 @@ def open_seeds(conn: sqlite3.Connection, who: int, path: list) -> list[dict]:
         if (w := weight(r, now)) >= FLOOR:
             out.append({**r, "now": round(w, 3)})
     out.sort(key=lambda r: -r["now"])
-    worries = [r["id"] for r in out if r["kind"] in WORRIES][:MAX_WORRIES]
+    ranked = sorted(
+        (r for r in out if r["kind"] in WORRIES), key=lambda r: not r["payload"].get("absence")
+    )
+    worries = [r["id"] for r in ranked][:MAX_WORRIES]  # the worry about the user first
     return [r for r in out if r["kind"] not in WORRIES or r["id"] in worries]
 
 
