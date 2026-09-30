@@ -339,3 +339,126 @@ def test_an_eased_worry_rebounds_once_at_the_next_skip(conn, cards):
     turns.say(conn, story, skip="seven hours later")  # once only
     between.at_skip(conn, story, chat.active_path(conn, story))
     assert len([s for s in seeds(conn, mira) if s["kind"] == "worry"]) == 2
+
+
+# --- the diary call (B1) -----------------------------------------------------------------------
+
+DIARY = {
+    "diary": "Two days of rain. I kept checking the door for Aren.",
+    "worth_telling": ["I finally fixed the lantern", "auditioned and froze on the monologue"],
+    "seeds": [
+        {"kind": "plan", "text": "ask Aren to the harbour fair", "weight": 2},
+        {"kind": "curse", "text": "x", "weight": 1},
+    ],
+    "preoccupation": "whether Aren still wants to see me",
+}
+
+
+def known_only_to(conn, story: int, who: int, detail: str) -> int:
+    mid = conn.execute(
+        "INSERT INTO memories(story_id, kind, story_time, detail, gist, importance, covert)"
+        " VALUES(?, 'event', 0, ?, ?, 6, 1)",
+        (story, detail, detail),
+    ).lastrowid
+    conn.execute(
+        "INSERT INTO memory_entities(memory_id, entity_id, role) VALUES(?, ?, 'actor')", (mid, who)
+    )
+    conn.execute(
+        "INSERT INTO knowledge(knower_id, memory_id, source, learned_story_time)"
+        " VALUES(?, ?, 'witnessed', 0)",
+        (who, mid),
+    )
+    conn.commit()
+    return mid
+
+
+def asked(backend) -> str:
+    return "\n".join(m["content"] for m in backend.requests[-1]["messages"])
+
+
+@pytest.mark.anyio
+async def test_each_character_writes_her_own_diary_from_her_own_mind(
+    local_model, cards, backend, monkeypatch
+):
+    conn = local_model
+    monkeypatch.setattr(between, "P_EVENT", 1.0)
+    story, skip = scene(conn, cards, mira=ANXIOUS | {"events": [AUDITION]})
+    mira, tobin = ent(conn, story, "Mira"), ent(conn, story, "Tobin")
+    known_only_to(conn, story, mira, "Mira keeps a blue lantern in the office.")
+    known_only_to(conn, story, tobin, "Tobin buried the strongbox under the pier.")
+    conn.execute(
+        "INSERT INTO summaries(story_id, text) VALUES(?, 'Everyone knows about the strongbox.')",
+        (story,),
+    )
+    conn.commit()
+    run = between.at_skip(conn, story, chat.active_path(conn, story))
+    assert between.todo(conn, story) == [(run, mira), (run, tobin)]
+    backend.say(json.dumps(DIARY))
+    assert await between.think(conn, backend.llm, story, run, mira)
+    said = asked(backend)
+    assert "blue lantern" in said and "froze on the second monologue" in said
+    assert "why Aren never answered" in said and "Will you come to the harbour" in said
+    assert "strongbox" not in said  # another's covert memory, and the all-seeing summary
+    diaries = conn.execute(
+        "SELECT detail FROM memories WHERE run_id=? AND tags_text LIKE '%diary%' AND id IN"
+        " (SELECT memory_id FROM memory_entities WHERE entity_id=?)",
+        (run, mira),
+    ).fetchall()
+    assert [d[0] for d in diaries] == [DIARY["diary"]]  # the template is gone
+    kinds = [(s["kind"], s["text"]) for s in seeds(conn, mira)]
+    assert ("news", "I finally fixed the lantern") in kinds
+    assert ("news", "auditioned and froze on the monologue") not in kinds  # already known news
+    assert ("plan", "ask Aren to the harbour fair") in kinds
+    assert ("preoccupation", "whether Aren still wants to see me") in kinds
+    assert all(s["run_id"] == run and s["message_id"] == skip for s in seeds(conn, mira))
+    assert between.todo(conn, story) == [(run, tobin)]
+    assert not await between.think(conn, backend.llm, story, run, mira)  # once
+
+
+@pytest.mark.anyio
+async def test_a_failed_diary_call_keeps_the_tick(local_model, cards, backend):
+    conn = local_model
+    story, _ = scene(conn, cards, mira=ANXIOUS)
+    run = between.at_skip(conn, story, chat.active_path(conn, story))
+    mira = ent(conn, story, "Mira")
+    before = len(seeds(conn, mira))
+    backend.say('{"diary": ""}', "not json")
+    assert not await between.think(conn, backend.llm, story, run, mira)
+    raw = json.loads(
+        conn.execute("SELECT raw FROM extraction_runs WHERE id=?", (run,)).fetchone()[0]
+    )
+    assert raw["b1"][str(mira)] == "failed"
+    assert len(seeds(conn, mira)) == before
+    assert (
+        conn.execute(
+            "SELECT COUNT(*) FROM memories WHERE run_id=? AND tags_text LIKE '%diary%'", (run,)
+        ).fetchone()[0]
+        == 1
+    )  # the templated one stays
+
+
+def test_lite_makes_no_call(conn, cards):
+    setting(conn, "mind.level", "lite")
+    story, _ = scene(conn, cards, mira=ANXIOUS)
+    run = between.at_skip(conn, story, chat.active_path(conn, story))
+    assert between.todo(conn, story) == []
+    raw = json.loads(
+        conn.execute("SELECT raw FROM extraction_runs WHERE id=?", (run,)).fetchone()[0]
+    )
+    assert set(raw["b1"].values()) == {"lite"}
+
+
+@pytest.mark.anyio
+async def test_the_worker_writes_the_diaries_after_the_pass_time_control(
+    local_model, cards, backend
+):
+    conn = local_model
+    story, _ = scene(conn, cards, mira=ANXIOUS)
+    between.at_skip(conn, story, chat.active_path(conn, story))
+    backend.say(json.dumps(DIARY), json.dumps(DIARY), "{}", "{}", "{}", "{}")
+    worker = extract.Worker(conn, backend.llm, delay=0)
+    worker.poke(story)
+    await worker.idle()
+    first = [m["content"] for m in backend.requests[0]["messages"]]
+    assert "diary" in first[0]  # the diaries come before the memory reader
+    assert between.todo(conn, story) == []

@@ -15,7 +15,7 @@ import json
 import re
 import sqlite3
 
-from kataki import chat, db, embed, knobs, library, retrieve, roles
+from kataki import between, chat, db, embed, knobs, library, retrieve, roles
 from kataki.activation import FIDELITY
 from kataki.llm import LLM, Endpoint, LLMError
 from kataki.models import extraction_schema, parse_extraction
@@ -663,6 +663,7 @@ class Worker:
 
     async def _work(self, story_id: int) -> None:
         await asyncio.sleep(self.delay)
+        await self._between(story_id)  # first: the time-skip card is waiting for them
         while job := due(self.conn, story_id, self.get_key):
             chunk, trigger, role, ep, attempts = job
             self._base_url = ep.base_url
@@ -678,3 +679,15 @@ class Worker:
             if status is None or status[0] != "ok":
                 return  # a failing model is not hammered; the next poke tries again
             await embed.refresh(self.conn, self.llm, story_id, self.get_key)
+
+    async def _between(self, story_id: int) -> None:
+        """The diaries a skip still owes (minds slice 5), one call per character, each stepping
+        aside for a reply like a memory read does."""
+        for run_id, who in between.todo(self.conn, story_id):
+            if (ep := roles.resolve(self.conn, "utility", story_id, self.get_key)) is None:
+                return
+            self._base_url = ep.base_url
+            try:
+                await between.think(self.conn, self.llm, story_id, run_id, who, self.get_key, ep)
+            finally:
+                self._base_url = None

@@ -13,12 +13,15 @@ tune them on the probes (evals/probes.py), not by feel.
 """
 
 import json
+import logging
 import random
 import re
 import sqlite3
+from collections.abc import Callable
 
-from kataki import bonds, chat, clock, db, features, inner, knobs
+from kataki import bonds, chat, clock, db, features, inner, knobs, retrieve, roles
 from kataki.activation import FIDELITY
+from kataki.llm import LLM
 
 DAY, HOUR = clock.DAY, clock.HOUR
 MIN_SKIP = 2 * HOUR  # a skip shorter than this is not time away
@@ -542,3 +545,179 @@ def at_skip(conn: sqlite3.Connection, story_id: int, path: list) -> int | None:
         }
         conn.execute("UPDATE extraction_runs SET raw=? WHERE id=?", (json.dumps(raw), run))
     return run
+
+
+# --- the diary call (B1): one per tracked character, in the background -------------------------
+
+PROMPT = """\
+You write what went on inside {name} while time passed off-screen in an ongoing story, for the \
+app that keeps the character's mind. What happened to {name} is given and fixed: never \
+contradict it, and never invent new people, places or big events; small everyday details are \
+fine. Write in {name}'s own voice, first person. Reply with JSON only.
+- diary: two or three sentences about the time that passed.
+- worth_telling: zero to two things {name} would want to tell {user} next time, each at most \
+20 words. Only things from above.
+- seeds: one to three things on {name}'s mind now. kind: worry (something that might go wrong), \
+rumination (something past they keep replaying), plan (something they mean to do), unfinished \
+(something left open), intrusive (a thought that keeps coming back), idea (something new they \
+thought of). text: at most 20 words. weight: 1 a little, 2 clearly, 3 a lot.
+- preoccupation: the one thing most on their mind, at most 15 words."""
+MEMORIES = 5  # of her own memories, the ones the call sees
+HEARD = 6  # the last lines she heard before the skip
+TELL_WEIGHT, PRE_WEIGHT = 0.5, 0.5  # ponytail: how much the call's news and preoccupation weigh
+
+
+def _raw(run: sqlite3.Row) -> dict:
+    raw = json.loads(run["raw"] or "{}")
+    raw.setdefault("b1", {})
+    raw.setdefault("people", {})
+    return raw
+
+
+def todo(conn: sqlite3.Connection, story_id: int) -> list[tuple[int, int]]:
+    """(run, character) pairs still owed their diary call: the latest skip on the active branch,
+    standard and premium only."""
+    if knobs.setting(conn, "mind.level", "standard") == "lite":
+        return []
+    run = job(conn, story_id, chat.active_path(conn, story_id))
+    if run is None:
+        return []
+    return [(run["id"], int(c)) for c, s in _raw(run)["b1"].items() if s == "pending"]
+
+
+def _words(text: str) -> set[str]:
+    return {w for w in re.findall(r"[a-z']+", text.lower()) if len(w) > 3}
+
+
+def _same(a: str, b: str) -> bool:
+    """Two news lines about the same thing (most of the shorter one's words are in the other)."""
+    wa, wb = _words(a), _words(b)
+    return bool(wa and wb) and len(wa & wb) >= 0.5 * min(len(wa), len(wb))
+
+
+def _ask(conn, story_id: int, who: int, run: sqlite3.Row, skip: sqlite3.Row, path: list) -> list:
+    """The call's input: only this character's own card, state and memories (never a scene
+    summary, which an all-seeing reader wrote)."""
+    names = dict(conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)))
+    story = conn.execute("SELECT persona_entity_id FROM stories WHERE id=?", (story_id,)).fetchone()
+    name, user = names.get(who, "them"), names.get(story["persona_entity_id"]) or "the others"
+    me = conn.execute("SELECT description FROM entities WHERE id=?", (who,)).fetchone()
+    mine = conn.execute(
+        "SELECT kind, text, payload FROM seeds WHERE run_id=? AND entity_id=? ORDER BY id",
+        (run["id"], who),
+    ).fetchall()
+    happened = [s["text"] for s in mine if s["kind"] == "news"]
+    minds = [s["text"] for s in mine if s["kind"] != "news"]
+    prof = inner.profile(conn, who)
+    state = inner.current(conn, who, path, prof)
+    mood = inner.public(state, prof) if state else None
+    ours = {r[0] for r in conn.execute("SELECT id FROM memories WHERE run_id=?", (run["id"],))}
+    known = [
+        m
+        for m in retrieve.inspect(conn, story_id, who, now=skip["story_time"])
+        if m["tier"] != "forgotten" and m["memory_id"] not in ours and not m["hidden"]
+    ]
+    known.sort(key=lambda m: (-m["importance"], -m["story_time"]))
+    remembered = [m["detail"] if m["tier"] == "sharp" else m["gist"] for m in known[:MEMORIES]]
+    heard = chat.heard_by(conn, path[:-1], who)
+    lines = [
+        f"{names.get(m['speaker_id'], 'Narration')}: {m['text'][-300:]}"
+        for m in [m for m in path[:-1] if m["id"] in heard and not m["hidden"]][-HEARD:]
+    ]
+    body = [
+        f"You are {name}. {(me['description'] if me else '')[:600]}".strip(),
+        f"Time that just passed off-screen: {span(skip['skip_minutes']).lower()}, away from {user}.",
+        "What happened to you meanwhile:\n"
+        + ("\n".join(f"- {h}" for h in happened) or "- nothing out of the ordinary"),
+    ]
+    if minds:
+        body.append("Already on your mind:\n" + "\n".join(f"- {t}" for t in minds))
+    if mood:
+        body.append(
+            f"How you feel now: {mood['feels']}" + (f" ({mood['why']})" if mood["why"] else "")
+        )
+    if remembered:
+        body.append("What you remember:\n" + "\n".join(f"- {r}" for r in remembered))
+    if lines:
+        body.append("The last things you heard before the time passed:\n" + "\n".join(lines))
+    return [
+        {"role": "system", "content": PROMPT.format(name=name, user=user)},
+        {"role": "user", "content": "\n\n".join(body)},
+    ]
+
+
+def _mark(conn: sqlite3.Connection, run_id: int, who: int, status: str) -> None:
+    row = conn.execute("SELECT * FROM extraction_runs WHERE id=?", (run_id,)).fetchone()
+    if row is None:
+        return
+    raw = _raw(row)
+    raw["b1"][str(who)] = status
+    with conn:
+        conn.execute("UPDATE extraction_runs SET raw=? WHERE id=?", (json.dumps(raw), run_id))
+
+
+def _write(conn, story_id: int, run: sqlite3.Row, skip: sqlite3.Row, who: int, got: dict) -> None:
+    """The call's words, on the run: the diary in place of the template, then the news she did
+    not have yet, her seeds and her preoccupation."""
+    tick = _Tick(conn, story_id, chat.path_to(conn, skip["id"]), dict(skip), run["id"])
+    old = conn.execute(
+        "SELECT m.id FROM memories m JOIN memory_entities me ON me.memory_id=m.id"
+        " WHERE m.run_id=? AND me.entity_id=? AND m.tags_text LIKE '%diary%'",
+        (run["id"], who),
+    ).fetchall()
+    for (mid,) in old:
+        conn.execute("DELETE FROM taggings WHERE obj='memory' AND obj_id=?", (mid,))
+        conn.execute("DELETE FROM memories WHERE id=?", (mid,))
+    tick.memory(who, got["diary"], got["diary"], 3, tick.now, ["offscreen", "diary"])
+    news = [
+        r[0]
+        for r in conn.execute(
+            "SELECT text FROM seeds WHERE run_id=? AND entity_id=? AND kind='news'",
+            (run["id"], who),
+        )
+    ]
+    for said in got["worth_telling"]:
+        if not any(_same(said, n) for n in news):
+            tick.seed(who, "news", said, TELL_WEIGHT, payload={"from": "diary"})
+            news.append(said)
+    for s in got["seeds"]:
+        tick.seed(who, s["kind"], s["text"], 0.3 * s["weight"])
+    if got["preoccupation"]:
+        tick.seed(who, "preoccupation", got["preoccupation"], PRE_WEIGHT)
+
+
+async def think(
+    conn: sqlite3.Connection,
+    llm: LLM,
+    story_id: int,
+    run_id: int,
+    who: int,
+    get_key: Callable[[str], str | None] = roles.get_key,
+    ep=None,
+) -> bool:
+    """B1 for one character: one `utility` call, validated, written on the run. -> whether it
+    wrote anything. A failure costs only the words: the tick's rows stay (`b1` = "failed", never
+    retried by itself, since the call may be paid). A cancel (a reply started) leaves it owed."""
+    run = conn.execute("SELECT * FROM extraction_runs WHERE id=?", (run_id,)).fetchone()
+    if run is None or run["trigger"] != TRIGGER or _raw(run)["b1"].get(str(who)) != "pending":
+        return False
+    active = {m["id"] for m in chat.active_path(conn, story_id)}
+    if run["to_message_id"] not in active:  # another branch now: it waits for its own
+        return False
+    ep = ep or roles.resolve(conn, "utility", story_id, get_key)
+    if ep is None:
+        return False
+    try:
+        skip = chat.get_message(conn, run["to_message_id"])
+        ask = _ask(conn, story_id, who, run, skip, chat.path_to(conn, skip["id"]))
+        got = await llm.complete_json(ep, ask, schema(), read, name="between")
+        if conn.execute("SELECT 1 FROM extraction_runs WHERE id=?", (run_id,)).fetchone() is None:
+            return False  # the skip was undone while the model was busy
+        with conn:
+            _write(conn, story_id, run, skip, who, got)
+    except Exception as e:  # never the turn's undoing, never retried unasked
+        logging.getLogger(__name__).warning("diary call failed for %s: %s", who, e)
+        _mark(conn, run_id, who, "failed")
+        return False
+    _mark(conn, run_id, who, "ok")
+    return True
