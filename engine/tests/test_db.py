@@ -252,7 +252,8 @@ def test_v10_adds_minds_and_usage(tmp_path):
     path = tmp_path / "v9.db"
     old = db.connect(path)  # today's schema, then pretend it is v9 without the new tables
     old.executescript(
-        "DROP TABLE IF EXISTS opinions; DROP TABLE IF EXISTS mind_states;"
+        "DROP TABLE IF EXISTS secrets; DROP TABLE IF EXISTS opinions;"
+        " DROP TABLE IF EXISTS mind_states;"
         " DROP TABLE IF EXISTS usage_log;"
     )
     old.execute("PRAGMA user_version=9")
@@ -300,7 +301,7 @@ def test_anchored_rows_follow_the_branch(conn):
 def test_v11_adds_the_relationship_ledger(tmp_path):
     path = tmp_path / "v10.db"
     old = db.connect(path)  # today's schema, then pretend it is v10 without the ledger
-    old.executescript("DROP TABLE IF EXISTS opinions;")
+    old.executescript("DROP TABLE IF EXISTS secrets; DROP TABLE IF EXISTS opinions;")
     old.execute("PRAGMA user_version=10")
     old.commit()
     old.close()
@@ -325,4 +326,36 @@ def test_v11_adds_the_relationship_ledger(tmp_path):
             (story, a, b),
         )
     assert conn.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION
+    conn.close()
+
+
+def test_v12_adds_secrets(tmp_path):
+    path = tmp_path / "v11.db"
+    old = db.connect(path)  # today's schema, then pretend it is v11 without secrets
+    old.executescript("DROP TABLE IF EXISTS secrets;")
+    old.execute("PRAGMA user_version=11")
+    old.commit()
+    old.close()
+
+    conn = db.connect(path)
+    story = _story(conn)
+    mira = conn.execute(
+        "INSERT INTO entities(story_id, kind, name) VALUES(?, 'character', 'Mira')", (story,)
+    ).lastrowid
+    conn.execute(
+        "INSERT INTO secrets(story_id, owner_id, text, keys, motive, cover, story_time)"
+        " VALUES(?, ?, 'It was her brother''s', '[\"brother\"]', 'protect_self', 'Gran''s', 0)",
+        (story, mira),
+    )
+    row = conn.execute("SELECT * FROM secrets").fetchone()
+    assert (row["conceal_from"], row["stakes"], row["sincere"]) == ('"all"', 0.5, 0)
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(
+            "INSERT INTO secrets(story_id, owner_id, text, motive, story_time)"
+            " VALUES(?, ?, 'x', 'spite', 0)",
+            (story, mira),
+        )
+    conn.execute("DELETE FROM stories WHERE id=?", (story,))
+    assert conn.execute("SELECT COUNT(*) FROM secrets").fetchone()[0] == 0
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION == 12
     conn.close()
