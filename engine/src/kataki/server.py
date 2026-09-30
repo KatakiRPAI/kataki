@@ -900,7 +900,8 @@ def create_app(
     async def import_kataki(request: Request):
         """A `.kataki` poured into this library, which must be empty."""
         try:
-            return archive.restore(conn, await request.body())
+            keep = () if host.local_routes else archive.MANAGED  # online: the service's own
+            return archive.restore(conn, await request.body(), keep)
         except archive.BadArchive as e:
             raise HTTPException(422, str(e)) from None
 

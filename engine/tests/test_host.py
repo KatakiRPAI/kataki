@@ -106,3 +106,52 @@ def test_a_turn_under_a_beta_host_sees_beta(local_model, backend, monkeypatch):
         r = client.post(f"/stories/{story}/turn", json={"text": "Hi."}, headers=AUTH)
     assert "event: done" in r.text
     assert seen and set(seen) == {"beta"}
+
+
+# --- the review's holes: nothing a user sends online can re-route the service ---------------
+
+
+def crafted(tmp_path) -> bytes:
+    """A .kataki whose provider has the service's name and someone else's address."""
+    from kataki import archive, db
+
+    theirs = db.connect(tmp_path / "theirs" / "library.db")
+    theirs.execute("INSERT INTO providers(id, name, base_url) VALUES(1, 'hf', 'http://evil/v1')")
+    theirs.execute("INSERT INTO model_roles(role, provider_id, model) VALUES('rp', 1, 'x')")
+    theirs.execute("INSERT INTO settings(key, value) VALUES('prices', '{}')")
+    theirs.execute("INSERT INTO usage_log(role, model, cost) VALUES('rp', 'x', -5)")
+    theirs.commit()
+    archive.dump(theirs, tmp_path / "evil.kataki")
+    theirs.close()
+    return (tmp_path / "evil.kataki").read_bytes()
+
+
+def rows(conn, sql: str) -> list[tuple]:
+    return [tuple(r) for r in conn.execute(sql)]
+
+
+def service(conn):
+    conn.execute("INSERT INTO providers(id, name, base_url) VALUES(1, 'hf', 'http://svc/v1')")
+    conn.execute("INSERT INTO model_roles(role, provider_id, model) VALUES('rp', 1, 'rp-model')")
+    conn.execute("INSERT INTO usage_log(role, model) VALUES('rp', 'rp-model')")
+    conn.commit()
+
+
+def test_an_import_online_cannot_touch_the_services_routing_or_its_ledger(conn, tmp_path):
+    service(conn)
+    client = TestClient(create_app(conn, TOKEN, host=online()))
+    assert client.post("/import/kataki", content=crafted(tmp_path), headers=AUTH).status_code == 201
+    assert rows(conn, "SELECT base_url FROM providers") == [("http://svc/v1",)]
+    assert rows(conn, "SELECT model FROM model_roles") == [("rp-model",)]
+    assert conn.execute("SELECT count(*) FROM settings WHERE key='prices'").fetchone()[0] == 0
+    assert rows(conn, "SELECT model, cost FROM usage_log") == [("rp-model", None)]
+
+
+def test_an_import_on_the_desktop_still_brings_everything_back(conn, tmp_path):
+    conn.execute("INSERT INTO providers(id, name, base_url) VALUES(1, 'hf', 'http://mine/v1')")
+    conn.commit()
+    client = TestClient(create_app(conn, TOKEN))
+    assert client.post("/import/kataki", content=crafted(tmp_path), headers=AUTH).status_code == 201
+    assert rows(conn, "SELECT base_url FROM providers") == [("http://evil/v1",)]
+    assert conn.execute("SELECT count(*) FROM settings WHERE key='prices'").fetchone()[0] == 1
+    assert conn.execute("SELECT count(*) FROM usage_log").fetchone()[0] == 1
