@@ -27,7 +27,7 @@ import keyring
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from kataki import db, roles
+from kataki import db, features, roles
 from kataki.host import OnlineHost
 from kataki.llm import LLM, DailyCap, Endpoint
 from kataki.server import create_app
@@ -187,7 +187,6 @@ class Library:
     conn: sqlite3.Connection
     llm: LLM
     token: str
-    channel: str = "stable"
     host: OnlineHost | None = None
     app: FastAPI | None = None
     busy: int = 0  # requests in flight: never closed under them
@@ -244,7 +243,7 @@ class Hosted:
             get_key=self.get_key,
             meter=lambda row: self.gateway.meter(user, row),
             allow=self._allow(user, conn),
-            channel=lambda: lib.channel,
+            channel=lambda: features.CURRENT.get() or "stable",  # this request's (below)
             prices=lambda: self.prices,
         )
         lib.app = create_app(
@@ -328,7 +327,7 @@ class Hosted:
             return await refused(scope, receive, send)
         user, channel = found
         lib = self.open(user)
-        lib.channel = channel
+        features.CURRENT.set(channel)  # this request's task only: never another request's
         # the library's own app still wants its bearer token: the signature stood in for it
         inner = [(k, v) for k, v in scope["headers"] if k.lower() != b"authorization"]
         inner.append((b"authorization", f"Bearer {lib.token}".encode()))

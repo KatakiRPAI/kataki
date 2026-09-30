@@ -354,6 +354,30 @@ async def test_a_library_is_never_closed_under_a_request_that_came_while_evictin
 
 
 @pytest.mark.anyio
+async def test_two_requests_of_one_user_each_keep_their_own_channel(tmp_path):
+    app = service(tmp_path)
+    first, second = asyncio.Event(), asyncio.Event()
+
+    async def evict():  # the beta request waits here until the alpha one has been in
+        if not first.is_set():
+            first.set()
+            await second.wait()
+        else:
+            second.set()
+
+    app._evict = evict
+    async with httpx2.AsyncClient(
+        transport=httpx2.ASGITransport(app), base_url="http://engine"
+    ) as client:
+        beta = asyncio.create_task(client.get("/health", auth=As("alice", "beta")))
+        await first.wait()
+        alpha = await client.get("/health", auth=As("alice", "alpha"))
+        assert alpha.json()["channel"] == "alpha"
+        assert (await beta).json()["channel"] == "beta"
+    await app.close("alice")
+
+
+@pytest.mark.anyio
 async def test_the_sweep_closes_idle_libraries_and_empties_the_outbox(tmp_path):
     fake = FakeGateway(PRICES)
     app = service(tmp_path, fake, idle=0)
