@@ -268,3 +268,58 @@ def test_social_traits_default_and_refuse_junk():
     assert P["social"] == {"forgiveness": 0.5, "trust_propensity": 0.5}
     prof = inner.shape({"social": {"forgiveness": 0.9, "trust_propensity": "lots"}})
     assert prof["social"] == {"forgiveness": 0.9, "trust_propensity": 0.5}
+
+
+# --- slice 7: needs and energy ------------------------------------------------------------------
+
+H = 60
+
+
+def test_energy_follows_the_clock_and_the_chronotype():
+    assert inner.energy(15 * H) > 0.8  # mid-afternoon
+    assert inner.energy(3 * H) < 0.15  # before dawn
+    assert inner.energy(1 * H) < inner.TIRED < inner.energy(21 * H)
+    owl = 3  # hours her day runs late
+    assert inner.energy(1 * H, owl) > inner.TIRED  # still going at one in the morning
+    assert inner.energy(10 * H, owl) < inner.energy(10 * H)  # and slow in the morning
+
+
+def test_needs_drift_to_rest_in_closed_form_and_move_with_what_is_said():
+    prof = inner.shape({})
+    state = inner.drive(inner.fresh(prof, 0), prof)
+    assert state["needs"] == inner.START
+    hurt = inner.drive(state, prof, "insult", "You're useless.")
+    assert hurt["needs"]["competence"] < state["needs"]["competence"]
+    bossed = inner.drive(state, prof, None, "You will do as I say, Mira.")
+    assert bossed["needs"]["autonomy"] < state["needs"]["autonomy"]
+    praised = inner.drive(hurt, prof, "praise", "You did so well today.")
+    assert praised["needs"]["competence"] > hurt["needs"]["competence"]
+    later = inner.tick(hurt, 12 * H, prof)  # half-way back to rest in twelve story-hours
+    rest = inner.rest(prof)["competence"]
+    assert later["needs"]["competence"] == pytest.approx(
+        rest + (hurt["needs"]["competence"] - rest) / 2, abs=0.002
+    )
+    once, twice = (
+        inner.tick(hurt, 6 * H, prof),
+        inner.tick(inner.tick(hurt, 3 * H, prof), 6 * H, prof),
+    )
+    assert once["needs"] == pytest.approx(twice["needs"], abs=0.002)
+    lonely = inner.shape({"attachment": {"anxiety": 0.9}})
+    assert inner.rest(lonely)["relatedness"] < inner.LOW < inner.rest(prof)["relatedness"]
+
+
+def test_the_most_pressing_need_shows_as_behaviour_outside_its_cooldown():
+    prof = inner.shape({})
+    state = inner.drive(inner.fresh(prof, 0), prof)
+    assert inner.need_row(state, prof, 15 * H, []) is None  # all met, wide awake
+    tired = inner.need_row(state, prof, 2 * H, [])
+    assert tired["need"] == "energy" and "deny" in tired["text"]
+    assert not re.search(r"\d", tired["text"])
+    assert inner.need_row(state, prof, 2 * H, ["energy"]) is None  # shown lately: not again
+    low = {**state, "needs": {**state["needs"], "competence": 0.1, "autonomy": 0.25}}
+    got = inner.need_row(low, prof, 15 * H, [])
+    assert got["need"] == "competence"  # the lowest first
+    assert inner.need_row(low, prof, 15 * H, ["competence"])["need"] == "autonomy"
+    assert inner.need_row(None, prof, 2 * H, [])["need"] == "energy"  # moods off: energy still
+    owl = inner.shape({"chronotype_h": "late"})  # a bad value is ignored
+    assert inner.need_row(None, owl, 2 * H, [])["need"] == "energy"

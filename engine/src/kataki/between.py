@@ -25,6 +25,7 @@ from kataki import (
     clock,
     db,
     features,
+    goals,
     honesty,
     inner,
     knobs,
@@ -167,14 +168,15 @@ def diary(minutes: int, lived: list[dict], routine: list[str], worry: str | None
 # --- the diary call's output (B1), closed and validated like after.py -------------------------
 
 KINDS = ("worry", "rumination", "plan", "unfinished", "intrusive", "idea")
-WORDS = {"diary": 80, "telling": 20, "seed": 20, "preoccupation": 15}
+WORDS = {"diary": 80, "telling": 20, "seed": 20, "preoccupation": 15, "tactic": 12}
 # a line said to the user ("Next time, just stay") is a message, not news of her own days
 ADDRESSED = re.compile(r"\b(you|your|you're|yours)\b", re.IGNORECASE)
 
 
-def schema() -> dict:
+def schema(goals_: list[str] = ()) -> dict:
+    """The diary call's JSON; with her goals' handles (slice 7), one optional goal change."""
     text = {"type": "string"}
-    return {
+    out = {
         "type": "object",
         "properties": {
             "diary": text,
@@ -197,15 +199,43 @@ def schema() -> dict:
         "required": ["diary", "worth_telling", "seeds", "preoccupation"],
         "additionalProperties": False,
     }
+    if goals_:
+        change = {
+            "type": "object",
+            "properties": {
+                "goal": {"type": "string", "enum": list(goals_)},
+                "change": {"type": "string", "enum": list(goals.CHANGES)},
+                "tactic": text,
+            },
+            "required": ["goal", "change", "tactic"],
+            "additionalProperties": False,
+        }
+        out["properties"]["goal"] = {"anyOf": [{"type": "null"}, change]}
+        out["required"].append("goal")
+    return out
+
+
+def _goal(data: dict, goals_: list[str]) -> dict:
+    """The one goal change, only when goals were given; anything off the lists is None."""
+    if not goals_:
+        return {}
+    g = data.get("goal")
+    ok = isinstance(g, dict) and g.get("goal") in goals_ and g.get("change") in goals.CHANGES
+    tactic = g.get("tactic") if ok and isinstance(g.get("tactic"), str) else ""
+    return {
+        "goal": {"goal": g["goal"], "change": g["change"], "tactic": _clip(tactic, WORDS["tactic"])}
+        if ok
+        else None
+    }
 
 
 def _clip(text: str, n: int) -> str:
     return " ".join(text.split()[:n])
 
 
-def read(data: dict) -> dict:
-    """Validate the diary call. No diary raises ValueError (it is asked once more); a bad seed or
-    news line is only dropped."""
+def read(data: dict, goals_: list[str] = ()) -> dict:
+    """Validate the diary call. No diary raises ValueError (it is asked once more); a bad seed,
+    news line or goal change is only dropped."""
     said = data.get("diary")
     if not isinstance(said, str) or not said.strip():
         raise ValueError("diary must be two or three sentences in the character's voice")
@@ -232,7 +262,7 @@ def read(data: dict) -> dict:
         "preoccupation": _clip(pre, WORDS["preoccupation"])
         if isinstance(pre, str) and pre.strip()
         else None,
-    }
+    } | _goal(data, goals_)
 
 
 # --- the tick at the skip (B0): zero calls, all levels ------------------------------------------
@@ -647,7 +677,8 @@ def _same(a: str, b: str) -> bool:
     return bool(wa and wb) and len(wa & wb) >= 0.5 * min(len(wa), len(wb))
 
 
-def _ask(conn, story_id: int, who: int, run: sqlite3.Row, skip: sqlite3.Row, path: list) -> list:
+def _ask(conn, story_id: int, who: int, run: sqlite3.Row, skip: sqlite3.Row, path: list,
+         wants: dict[str, dict] | None = None) -> list:  # fmt: skip
     """The call's input: only this character's own card, state and memories (never a scene
     summary, which an all-seeing reader wrote)."""
     names = dict(conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)))
@@ -692,10 +723,35 @@ def _ask(conn, story_id: int, who: int, run: sqlite3.Row, skip: sqlite3.Row, pat
         body.append("What you remember:\n" + "\n".join(f"- {r}" for r in remembered))
     if lines:
         body.append("The last things you heard before the time passed:\n" + "\n".join(lines))
+    system = PROMPT.format(name=name, user=user)
+    if wants:  # slice 7: what she is after, and the one change the time may have made
+        body.append(_wants(conn, who, path, wants))
+        system += GOAL.format(name=name)
     return [
-        {"role": "system", "content": PROMPT.format(name=name, user=user)},
+        {"role": "system", "content": system},
         {"role": "user", "content": "\n\n".join(body)},
     ]
+
+
+GOAL = """
+- goal: if the time that passed moved one of {name}'s goals (listed with their handles), that \
+one, else null. goal: its handle; change: progressed ({name} got closer), stalled (nothing moved, \
+but a new plan), done ({name} got it), dropped ({name} gave up on it), revived ({name} means to \
+try again); tactic: how {name} means to go about it now, at most 12 words. Only what fits what \
+happened."""
+
+
+def _wants(conn, who: int, path: list, wants: dict[str, dict]) -> str:
+    """Her goals for the diary call, with handles; what she needs and fears, as context only."""
+    rows = [f"- {h}: {g['text']}" + (" (you let it drop lately)" if g["status"] == "dormant"
+            else "") for h, g in wants.items()]  # fmt: skip
+    deep = {g["key"]: g["text"] for g in goals.live(conn, who, path) if g["key"] in goals.UNPURSUED}
+    out = "What you are after:\n" + "\n".join(rows)
+    if deep.get("need"):
+        out += f"\nDeep down, without quite knowing it, you need {deep['need']}."
+    if deep.get("fear"):
+        out += f"\nYou are afraid of {deep['fear']}."
+    return out
 
 
 def _mark(conn: sqlite3.Connection, run_id: int, who: int, status: str) -> None:
@@ -708,9 +764,10 @@ def _mark(conn: sqlite3.Connection, run_id: int, who: int, status: str) -> None:
         conn.execute("UPDATE extraction_runs SET raw=? WHERE id=?", (json.dumps(raw), run_id))
 
 
-def _write(conn, story_id: int, run: sqlite3.Row, skip: sqlite3.Row, who: int, got: dict) -> None:
+def _write(conn, story_id: int, run: sqlite3.Row, skip: sqlite3.Row, who: int, got: dict,
+           wants: dict[str, dict] | None = None) -> None:  # fmt: skip
     """The call's words, on the run: the diary in place of the template, then the news she did
-    not have yet, her seeds and her preoccupation."""
+    not have yet, her seeds, her preoccupation, and the one goal the time moved."""
     tick = _Tick(conn, story_id, chat.path_to(conn, skip["id"]), dict(skip), run["id"])
     old = conn.execute(
         "SELECT m.id FROM memories m JOIN memory_entities me ON me.memory_id=m.id"
@@ -736,6 +793,18 @@ def _write(conn, story_id: int, run: sqlite3.Row, skip: sqlite3.Row, who: int, g
         tick.seed(who, s["kind"], s["text"], 0.3 * s["weight"])
     if got["preoccupation"]:
         tick.seed(who, "preoccupation", got["preoccupation"], PRE_WEIGHT)
+    if (moved := got.get("goal")) and (g := (wants or {}).get(moved["goal"])):  # one, at most
+        goals.change(conn, g, moved["change"], moved["tactic"] or None, skip["id"], run["id"],
+                     tick.now)  # fmt: skip
+
+
+def _goals_of(conn, who: int, path: list) -> dict[str, dict]:
+    """Her open goals for the diary call (slice 7), or none; a failure costs only them."""
+    try:
+        return goals.handles(conn, who, path) if features.enabled(conn, "mind.goals") else {}
+    except Exception as e:
+        logging.getLogger(__name__).warning("goals not given to the diary call: %s", e)
+        return {}
 
 
 async def think(
@@ -761,12 +830,16 @@ async def think(
         return False
     try:
         skip = chat.get_message(conn, run["to_message_id"])
-        ask = _ask(conn, story_id, who, run, skip, chat.path_to(conn, skip["id"]))
-        got = await llm.complete_json(ep, ask, schema(), read, name="between")
+        path = chat.path_to(conn, skip["id"])
+        wants = _goals_of(conn, who, path)
+        ask = _ask(conn, story_id, who, run, skip, path, wants)
+        got = await llm.complete_json(
+            ep, ask, schema(list(wants)), lambda d: read(d, list(wants)), name="between"
+        )
         if conn.execute("SELECT 1 FROM extraction_runs WHERE id=?", (run_id,)).fetchone() is None:
             return False  # the skip was undone while the model was busy
         with conn:
-            _write(conn, story_id, run, skip, who, got)
+            _write(conn, story_id, run, skip, who, got, wants)
     except Exception as e:  # never the turn's undoing, never retried unasked
         logging.getLogger(__name__).warning("diary call failed for %s: %s", who, e)
         _mark(conn, run_id, who, "failed")

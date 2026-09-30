@@ -4,7 +4,7 @@ import sqlite3
 from importlib.resources import files
 from pathlib import Path
 
-SCHEMA_VERSION = 14
+SCHEMA_VERSION = 15
 # version -> the SQL that brings a library up from the version before it; schema.sql is v1
 MIGRATIONS = {
     2: "ALTER TABLE entities ADD COLUMN examples TEXT NOT NULL DEFAULT ''",  # example dialogue
@@ -139,6 +139,22 @@ MIGRATIONS = {
         "ALTER TABLE memories ADD COLUMN valence REAL;"
         "ALTER TABLE memories ADD COLUMN alts TEXT;"
         "ALTER TABLE memories ADD COLUMN core_locked INTEGER NOT NULL DEFAULT 0;"
+    ),
+    15: (  # minds slice 7: what each character wants, one row per version of each goal (`key`),
+        # anchored like the other minds tables (note 22 §1); the latest live row per key is it
+        "CREATE TABLE goals("
+        " id INTEGER PRIMARY KEY,"
+        " story_id INTEGER NOT NULL REFERENCES stories ON DELETE CASCADE,"
+        " entity_id INTEGER NOT NULL REFERENCES entities ON DELETE CASCADE,"
+        " key TEXT NOT NULL,"
+        " tier TEXT NOT NULL CHECK(tier IN('ambition','project','today')),"
+        " text TEXT NOT NULL, cue TEXT NOT NULL DEFAULT '',"
+        " priority REAL NOT NULL, progress REAL NOT NULL DEFAULT 0,"
+        " status TEXT NOT NULL CHECK(status IN('active','dormant','done','failed','dropped')),"
+        " tactic TEXT, deflections INTEGER NOT NULL DEFAULT 0, story_time INTEGER NOT NULL,"
+        " message_id INTEGER REFERENCES messages ON DELETE CASCADE,"
+        " run_id INTEGER REFERENCES extraction_runs ON DELETE CASCADE);"
+        "CREATE INDEX ix_goals ON goals(entity_id, key);"
     ),
 }
 

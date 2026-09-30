@@ -231,6 +231,16 @@ def mind(conn: sqlite3.Connection, message_id: int) -> dict | None:
                 link(honest, "spoke", True)
         except Exception as e:
             logging.getLogger(__name__).warning("honesty not shown: %s", e)
+        try:  # what she wanted, and her body, when the reply was written (slice 7)
+            if (said := gen.get("agenda")) and said.get("text"):
+                goal = node("goal", "decide", "goal", "Goal", f"Wants: {said['text']}",
+                            None, True, said)  # fmt: skip
+                link(goal, "spoke", True)
+            if (need := gen.get("need")) and need.get("text"):
+                body = node("need", "inside", "need", "Body", need["text"], None, True, need)
+                inside.append((body, True))
+        except Exception as e:
+            logging.getLogger(__name__).warning("goal not shown: %s", e)
 
         card = conn.execute("SELECT description FROM entities WHERE id=?", (who,)).fetchone()
         if card and card["description"]:

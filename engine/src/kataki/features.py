@@ -19,6 +19,7 @@ FEATURES = {
     "mind.secrets": "alpha",  # slice 4: secrets, lies, the leak filter, out-of-character honesty
     "mind.offscreen": "alpha",  # slice 5: a life between scenes, the "while you were away" card
     "mind.recall": "alpha",  # slice 6: mood-tilted recall, cues, her own version, slips and repair
+    "mind.goals": "alpha",  # slice 7: wants on an agenda at an opening, needs and energy
 }
 
 

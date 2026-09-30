@@ -11,6 +11,7 @@ probes (evals/probes.py), not by feel.
 
 import copy
 import json
+import math
 import re
 import sqlite3
 
@@ -159,7 +160,7 @@ def tick(state: dict, now: int, prof: dict) -> dict:
     emotions = [
         {**e, "i": round(e["i"] * fade, 3)} for e in state["emotions"] if e["i"] * fade >= FLOOR
     ]
-    return {
+    out = {
         **state,
         "emotions": emotions,
         "shown": state["shown"] if emotions else None,
@@ -167,6 +168,11 @@ def tick(state: dict, now: int, prof: dict) -> dict:
         "reg_load": round(state["reg_load"] * 0.5 ** (dt / LOAD_HALF_MIN), 3),
         "t": now,
     }
+    if isinstance(state.get("needs"), dict):  # slice 7: needs drift back to their resting level
+        r, k = rest(prof), 0.5 ** (dt / NEED_HALF_MIN)
+        out["needs"] = {n: round(r[n] + (v - r[n]) * k, 3) for n, v in state["needs"].items()
+                        if n in r and _num(v)}  # fmt: skip
+    return out
 
 
 def appraise(event: str, strength: float, prof: dict, state: dict) -> list[tuple[str, float]]:
@@ -406,10 +412,12 @@ def current(conn: sqlite3.Connection, entity_id: int, path: list, prof: dict) ->
     return json.loads(row["state"]) if row else None
 
 
-def react(conn: sqlite3.Connection, story_id: int, path: list, model=None) -> dict[int, dict]:
+def react(
+    conn: sqlite3.Connection, story_id: int, path: list, model=None, needs: bool = False
+) -> dict[int, dict]:
     """Everyone here after the latest line, as they are now: faded to the present, stirred by
     that line if it was aimed at them and meant something (the others only overheard it),
-    regulated. Nothing is written; the same
+    regulated; with `needs` (slice 7), their needs moved by it too. Nothing is written; the same
     path always gives the same answer, so a new take never feels it twice."""
     if not path:
         return {}
@@ -424,6 +432,7 @@ def react(conn: sqlite3.Connection, story_id: int, path: list, model=None) -> di
     hit = sense(last["text"], model) if last["role"] == "user" else None
     heard = [e["id"] for e in cast if last["id"] in chat.heard_by(conn, path, e["id"])]
     aimed = targets(conn, path, heard) if hit else set()
+    spoken = targets(conn, path, heard) if needs and last["role"] == "user" else set()
     out = {}
     for e in cast:
         prof = profile(conn, e["id"])
@@ -432,6 +441,10 @@ def react(conn: sqlite3.Connection, story_id: int, path: list, model=None) -> di
             cause = said(names.get(last["speaker_id"], "Someone"), last["text"])
             for label, intensity in appraise(*hit, prof, state):
                 state = feel(state, label, intensity, cause, prof)
+        if needs:  # said to her, the line moves her needs; overheard, only time does
+            to_her = e["id"] in spoken
+            event = hit[0] if hit and e["id"] in aimed else None
+            state = drive(state, prof, event, last["text"] if to_her else None)
         out[e["id"]] = regulate(state, prof)
     return out
 
@@ -443,3 +456,103 @@ def save(conn: sqlite3.Connection, states: dict[int, dict], message_id: int) -> 
             "INSERT INTO mind_states(entity_id, story_time, state, message_id) VALUES(?, ?, ?, ?)",
             [(eid, s["t"], json.dumps(s), message_id) for eid, s in states.items()],
         )
+
+
+# --- needs and energy (slice 7; note 17 §1, note 22 §1 and §4 row 6) -----------------------------
+
+NEEDS = ("autonomy", "competence", "relatedness", "stimulation")  # SDT, plus boredom's opposite
+START = {"autonomy": 0.6, "competence": 0.6, "relatedness": 0.5, "stimulation": 0.5}  # 1 = met
+NEED_HALF_MIN = 12 * 60  # ponytail: story minutes for a need to drift half-way back to rest
+LOW = 0.3  # ponytail: below this a need shows in behaviour
+TIRED = 0.3  # ponytail: and below this, energy
+NEED_COOL = 3  # ponytail: a need shown in one of her last this many replies waits
+EFFECT = {  # what a line aimed at her does to her needs (note 17 §1: SDT thwarting)
+    "insult": {"competence": -0.25, "relatedness": -0.1},
+    "threat": {"autonomy": -0.3},
+    "praise": {"competence": 0.2, "relatedness": 0.1},
+    "apology": {"relatedness": 0.1},
+    "good_news": {"stimulation": 0.2},
+    "bad_news": {"relatedness": 0.05},
+}
+BOSSY = re.compile(
+    r"\b(you (?:will|must|have to|need to) (?!be\b)|do as i say|do what i say|obey\b|i order you"
+    r"|because i said so|that'?s an order|don'?t argue)",
+    re.IGNORECASE,
+)
+CONTACT, DULL, LIVELY = 0.05, -0.015, 0.02  # ponytail: being talked to; a curt line; a real one
+CURT = 3  # words or fewer, and no question: a curt line
+
+
+def rest(prof: dict) -> dict[str, float]:
+    """Where each need settles on its own: relatedness lower for the anxiously attached (alone,
+    they get lonely), stimulation a little low (idle time bores)."""
+    anx = prof["attachment"].get("anxiety", 0.2)
+    anx = min(1.0, max(0.0, anx)) if _num(anx) else 0.2
+    return {"autonomy": 0.6, "competence": 0.6, "relatedness": round(0.45 - 0.3 * anx, 3),
+            "stimulation": 0.4}  # fmt: skip
+
+
+def drive(state: dict, prof: dict, event: str | None = None, text: str | None = None) -> dict:
+    """Her needs after a line: what it did to her (`event`, from sense), and, for a line said to
+    her (`text`), being talked to, bossed about, or given a curt answer. Starts them if new."""
+    needs = dict(state.get("needs") or START)
+    for k, d in EFFECT.get(event, {}).items():
+        needs[k] = needs.get(k, START[k]) + d
+    if text is not None:
+        if BOSSY.search(text):
+            needs["autonomy"] -= 0.2
+        needs["relatedness"] += CONTACT
+        words = len(text.split())
+        if words >= 8:
+            needs["stimulation"] += LIVELY
+        elif words <= CURT and "?" not in text:
+            needs["stimulation"] += DULL
+    return {**state, "needs": {k: round(min(1.0, max(0.0, v)), 3) for k, v in needs.items()}}
+
+
+def energy(minute_of_day: int, chronotype_h: float = 0) -> float:
+    """How much energy she has at this time of day, 0-1 (closed form, never stored): a circadian
+    curve peaking mid-afternoon and lowest before dawn, minus sleep pressure that builds after
+    about sixteen hours awake, peaks before dawn and is gone by her usual waking hour;
+    `chronotype_h` shifts her day later (+) or earlier (-).
+    ponytail: the two-process model with a fixed wake time; no sleep is tracked."""
+    h = (minute_of_day / 60 - chronotype_h) % 24
+    circadian = math.cos(2 * math.pi * (h - 15) / 24)
+    pressure = max(0.0, 1 - abs((h - 7) % 24 - 20) / 4)  # 0 at 23:00 and 07:00, 1 at 03:00
+    return round(min(1.0, max(0.0, 0.55 + 0.3 * circadian - 0.35 * pressure)), 3)
+
+
+ROWS = {  # the need as behaviour, never as an announcement (note 17 §1)
+    "energy": "Body: you're worn out. Shorter answers, little patience, a bit"
+    " snappish; if anyone says you seem tired, deny it.",
+    "autonomy": "Lately you have felt pushed around: you bristle at being told what to do and"
+    " want to make your own call.",
+    "competence": "Lately you have felt not good enough: touchy about criticism, keen to prove"
+    " yourself.",
+    "relatedness": "Lately you have felt lonely: you want closeness, and you ask about the other"
+    " person more.",
+    "stimulation": "You are restless and bored: you drift toward something new to do or talk"
+    " about.",
+}
+
+
+def levels(state: dict | None, prof: dict, minute_of_day: int) -> dict[str, float]:
+    """Energy now, and her drives if they are tracked."""
+    chrono = prof.get("chronotype_h", 0)
+    out = {"energy": energy(minute_of_day, chrono if _num(chrono) else 0)}
+    needs = (state or {}).get("needs")
+    return out | ({k: v for k, v in needs.items() if k in NEEDS} if isinstance(needs, dict) else {})
+
+
+def need_row(state: dict | None, prof: dict, minute_of_day: int, recent: list) -> dict | None:
+    """Row 6 of the mind block: the single most pressing need below its threshold and not shown
+    in her last few replies (`recent`), as behaviour. -> {"need", "text"} or None."""
+    low = [
+        (v / (TIRED if k == "energy" else LOW), k)
+        for k, v in levels(state, prof, minute_of_day).items()
+        if v < (TIRED if k == "energy" else LOW) and k not in recent
+    ]
+    if not low:
+        return None
+    k = min(low)[1]
+    return {"need": k, "text": ROWS[k]}

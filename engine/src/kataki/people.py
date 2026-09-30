@@ -9,7 +9,19 @@ import json
 import logging
 import sqlite3
 
-from kataki import between, bonds, chat, clock, db, features, honesty, inner, recollect, retrieve
+from kataki import (
+    between,
+    bonds,
+    chat,
+    clock,
+    db,
+    features,
+    goals,
+    honesty,
+    inner,
+    recollect,
+    retrieve,
+)
 
 TIERS = ("sharp", "hazy", "forgotten")
 
@@ -174,6 +186,32 @@ def _seeds(conn, entity_id: int, path: list, names: dict, epoch: int) -> list[di
         return []
 
 
+def _goals(conn, entity_id: int, path: list, epoch: int) -> list[dict]:
+    """What she wants (Peek; spec §8.3 slice 7); a failure costs only this."""
+    try:
+        return goals.public(conn, entity_id, path, epoch)
+    except Exception as e:
+        logging.getLogger(__name__).warning("goals not shown for %s: %s", entity_id, e)
+        return []
+
+
+def _needs(conn, entity_id: int, path: list, now: int, epoch: int) -> dict | None:
+    """Her energy now and her drives, if tracked (Peek; spec §8.3 slice 7); guarded."""
+    try:
+        prof = inner.profile(conn, entity_id)
+        state = inner.current(conn, entity_id, path, prof)
+        state = state and inner.tick(state, now, prof)
+        minute = (now + epoch) % clock.DAY
+        top = inner.need_row(state, prof, minute, [])
+        return inner.levels(state, prof, minute) | {
+            "pressing": top and top["need"],
+            "shows": top and top["text"],
+        }
+    except Exception as e:
+        logging.getLogger(__name__).warning("needs not shown for %s: %s", entity_id, e)
+        return None
+
+
 VERSIONS = 5
 
 
@@ -222,6 +260,7 @@ def people(conn: sqlite3.Connection, story: sqlite3.Row) -> list[dict]:
     secretive = features.enabled(conn, "mind.secrets")
     offscreen = features.enabled(conn, "mind.offscreen")
     human = features.enabled(conn, "mind.recall")
+    wanting = features.enabled(conn, "mind.goals")
 
     out = []
     for e in conn.execute(
@@ -258,6 +297,8 @@ def people(conn: sqlite3.Connection, story: sqlite3.Row) -> list[dict]:
                 "secrets": _secrets(conn, story_id, e["id"], path) if secretive else [],
                 "seeds": _seeds(conn, e["id"], path, names, epoch) if offscreen else [],
                 "versions": _versions(conn, e["id"], path, known) if human else [],
+                "goals": _goals(conn, e["id"], path, epoch) if wanting else [],
+                "needs": _needs(conn, e["id"], path, now, epoch) if wanting else None,
             }
         )
     return out
