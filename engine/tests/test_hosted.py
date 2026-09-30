@@ -456,7 +456,11 @@ async def test_the_daily_cap_refuses_before_the_gateway_is_asked(tmp_path):
     lib = app.open("alice")
     rp = Endpoint("http://fake/v1", "rp-model", role="rp")
     assert lib.host.allow(rp, 0.004)
-    lib.conn.execute("INSERT INTO usage_log(role, model, cost) VALUES('rp', 'rp-model', 0.008)")
+    # 10000 in, 4000 out: 7800 micro-dollars by the ledger's rule, whatever the display float says
+    lib.conn.execute(
+        "INSERT INTO usage_log(role, model, prompt_tokens, completion_tokens, cost)"
+        " VALUES('rp', 'rp-model', 10000, 4000, 0.0)"
+    )
     lib.conn.commit()
     with pytest.raises(DailyCap):
         lib.host.allow(rp, 0.004)

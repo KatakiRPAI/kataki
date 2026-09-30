@@ -27,7 +27,7 @@ import keyring
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from kataki import db, features, roles
+from kataki import db, features, roles, usage
 from kataki.host import OnlineHost
 from kataki.llm import LLM, DailyCap, Endpoint
 from kataki.server import create_app
@@ -267,10 +267,10 @@ class Hosted:
 
     def _allow(self, user: str, conn: sqlite3.Connection):
         def allow(ep: Endpoint, estimate: float) -> bool:
-            today = conn.execute(
-                "SELECT coalesce(sum(cost), 0) FROM usage_log WHERE at >= date('now')"
-            ).fetchone()[0]
-            if round((today + estimate) * 1e6) > round(self.daily_cap * 1e6):
+            # today's spend as the ledger bills it: whole micro-dollars from each row's tokens
+            rows = conn.execute("SELECT * FROM usage_log WHERE at >= date('now')").fetchall()
+            today = sum(usage.micros(self.prices, dict(r)) or 0 for r in rows)
+            if today + round(estimate * 1e6) > round(self.daily_cap * 1e6):
                 raise DailyCap("You have reached today's spending limit. It resets at 00:00 UTC.")
             return self.gateway.allow(user, estimate)
 
