@@ -733,6 +733,7 @@ async def think(
 # --- one thing reaches the reply (note 22 §4 row 5) ---------------------------------------------
 
 SURFACE = 2  # ponytail: replies one seed rides in before it is let go
+REENTRY_LINES = 4  # ponytail: a first reply this many lines after the skip still greets
 FLOOR = 0.15  # ponytail: a seed lighter than this is no longer on her mind
 MAX_WORRIES = 2  # note 11 §3: at most two worries count at once
 WORRIES = ("worry", "rumination")
@@ -818,8 +819,10 @@ def on_mind(
         raw, ids = _raw(run), [m["id"] for m in path]
         after = path[ids.index(run["to_message_id"]) + 1 :]
         mine = raw["people"].get(str(who))
-        if mine is not None and not any(
-            m["role"] == "assistant" and m["speaker_id"] == who for m in after
+        if (
+            mine is not None
+            and len(after) <= REENTRY_LINES
+            and not any(m["role"] == "assistant" and m["speaker_id"] == who for m in after)
         ):
             news = min(  # what really happened (the tick's events) before the diary's words
                 (s for s in seeds if s["kind"] == "news" and s["run_id"] == run["id"]

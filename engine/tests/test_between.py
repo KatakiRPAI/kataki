@@ -640,3 +640,14 @@ def test_on_lite_the_card_is_done_at_once_and_off_it_is_empty(conn, cards, api):
     setting(conn, "features.mind.offscreen", False)
     assert api.get(f"/stories/{story}/away").json() == {"away": None}
     assert all(p["seeds"] == [] for p in api.get(f"/stories/{story}/people").json())
+
+
+def test_a_first_reply_long_after_the_skip_does_not_greet(conn, cards):
+    story, _ = scene(conn, cards)
+    between.at_skip(conn, story, chat.active_path(conn, story))
+    tobin = ent(conn, story, "Tobin")
+    assert between.on_mind(conn, story, tobin, chat.active_path(conn, story), "Aren")
+    for i in range(3):
+        line(conn, story, "Aren", f"Line {i}.")
+        line(conn, story, "Mira", "Mm.")
+    assert between.on_mind(conn, story, tobin, chat.active_path(conn, story), "Aren") is None
