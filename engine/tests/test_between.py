@@ -556,3 +556,70 @@ async def test_off_reaches_nothing_and_a_failure_never_breaks_the_turn(
     monkeypatch.setattr(between, "on_mind", broken)
     events = await play(turns.turn(conn, backend.llm, story, "Mira?", speaker=mira))
     assert events[-1][0] == "done"
+
+
+# --- the card and Peek -------------------------------------------------------------------------
+
+
+@pytest.fixture
+def api(conn, backend):
+    from fastapi.testclient import TestClient
+
+    from kataki.server import create_app
+
+    client = TestClient(
+        create_app(conn, "t", llm=backend.llm, worker_delay=60),
+        headers={"Authorization": "Bearer t"},
+    )
+    with client:
+        yield client
+
+
+def test_the_while_you_were_away_card(conn, cards, api, monkeypatch):
+    monkeypatch.setattr(between, "P_EVENT", 1.0)
+    story = make(conn, cards, mira=ANXIOUS | {"events": [AUDITION]})
+    assert api.get(f"/stories/{story}/away").json() == {"away": None}
+    line(conn, story, "Aren", "I have to go, Mira.")
+    line(conn, story, "Mira", "Will you come to the harbour tomorrow?")
+    after = api.post(f"/stories/{story}/line", json={"skip": "two days later"}).json()
+    skip = after[-1]["id"]
+    card = api.get(f"/stories/{story}/away").json()["away"]
+    assert (card["message_id"], card["since"], card["done"], card["level"]) == (
+        skip,
+        "Two days",
+        False,  # the diaries are still owed
+        "standard",
+    )
+    mira, tobin = card["people"]
+    assert mira["name"] == "Mira" and not mira["done"] and mira["from"] == "template"
+    assert mira["news"] == ["auditioned for the spring play, and froze on the second monologue"]
+    assert mira["worry"] == "why Aren never answered" and mira["missed_you"] == "worried"
+    assert "I auditioned" in mira["diary"] and mira["mood"]["label"] == "anxious"
+    assert tobin["missed_you"] == "glad" and tobin["news"] == [] and tobin["diary"] is None
+    [seed] = [
+        s for s in next(p for p in api.get(f"/stories/{story}/people").json() if p["name"] == "Mira")[
+            "seeds"
+        ] if s["kind"] == "worry"
+    ]  # fmt: skip
+    assert (seed["text"], seed["about"], seed["strength"], seed["message_id"]) == (
+        "why Aren never answered",
+        "Aren",
+        "strong",
+        skip,
+    )
+    assert all(r["trigger"] != "between" for r in api.get(f"/stories/{story}/runs").json())
+    api.patch(f"/messages/{skip}", json={"skip_minutes": 0, "hidden": True})  # the undo chip
+    assert api.get(f"/stories/{story}/away").json() == {"away": None}
+    assert all(p["seeds"] == [] for p in api.get(f"/stories/{story}/people").json())
+
+
+def test_on_lite_the_card_is_done_at_once_and_off_it_is_empty(conn, cards, api):
+    setting(conn, "mind.level", "lite")
+    story = make(conn, cards, mira=ANXIOUS)
+    line(conn, story, "Mira", "Will you come?")
+    api.post(f"/stories/{story}/line", json={"skip": "two days later"})
+    card = api.get(f"/stories/{story}/away").json()["away"]
+    assert card["done"] and all(p["done"] for p in card["people"])
+    setting(conn, "features.mind.offscreen", False)
+    assert api.get(f"/stories/{story}/away").json() == {"away": None}
+    assert all(p["seeds"] == [] for p in api.get(f"/stories/{story}/people").json())

@@ -1266,6 +1266,12 @@ def create_app(
         what they know about you, and how they feel about everyone."""
         return people.people(conn, story_row(story_id))
 
+    @app.get("/stories/{story_id}/away")
+    async def get_away(story_id: int):
+        """While you were away: what each character's time between scenes held (minds slice 5).
+        The card polls this until `done`."""
+        return between.away(conn, story_row(story_id))
+
     @app.post("/stories/{story_id}/turn")
     async def take_turn(story_id: int, t: TurnIn):
         story_row(story_id)

@@ -9,7 +9,7 @@ import json
 import logging
 import sqlite3
 
-from kataki import bonds, chat, clock, db, features, honesty, inner, retrieve
+from kataki import between, bonds, chat, clock, db, features, honesty, inner, retrieve
 
 TIERS = ("sharp", "hazy", "forgotten")
 
@@ -162,6 +162,16 @@ def _secrets(conn, story_id: int, entity_id: int, path: list) -> list[dict]:
         return []
 
 
+def _seeds(conn, entity_id: int, path: list, names: dict, epoch: int) -> list[dict]:
+    """What is on their mind from their life between scenes (minds slice 5); a failure costs
+    only this."""
+    try:
+        return between.public(conn, entity_id, path, names, epoch)
+    except Exception as e:
+        logging.getLogger(__name__).warning("seeds not shown for %s: %s", entity_id, e)
+        return []
+
+
 def people(conn: sqlite3.Connection, story: sqlite3.Row) -> list[dict]:
     """One entry per AI character: where they are, what they hold, what is on their mind, what
     they know about you, and how they stand towards everyone."""
@@ -188,6 +198,7 @@ def people(conn: sqlite3.Connection, story: sqlite3.Row) -> list[dict]:
     tied = features.enabled(conn, "mind.bonds")
     thinking = features.enabled(conn, "mind.thought")
     secretive = features.enabled(conn, "mind.secrets")
+    offscreen = features.enabled(conn, "mind.offscreen")
 
     out = []
     for e in conn.execute(
@@ -222,6 +233,7 @@ def people(conn: sqlite3.Connection, story: sqlite3.Row) -> list[dict]:
                 "bonds": _bonds(conn, e["id"], path, names, persona_id, epoch) if tied else [],
                 "thought": _thought(path, e["id"]) if thinking else None,
                 "secrets": _secrets(conn, story_id, e["id"], path) if secretive else [],
+                "seeds": _seeds(conn, e["id"], path, names, epoch) if offscreen else [],
             }
         )
     return out

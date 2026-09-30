@@ -854,3 +854,72 @@ def on_mind(
         "record": {"seed": pick["id"], "kind": pick["kind"], "text": pick["text"], "news": None,
                    "reentry": False},
     }  # fmt: skip
+
+
+# --- what the app shows: the "while you were away" card, and Peek's seeds -----------------------
+
+
+def _strength(w: float) -> str:
+    return "strong" if w >= 0.6 else "some" if w >= 0.3 else "faint"
+
+
+def public(conn: sqlite3.Connection, who: int, path: list, names: dict, epoch: int) -> list[dict]:
+    """Peek's view of what is on their mind (spec §8.3), strongest first."""
+    return [
+        {"id": s["id"], "kind": s["kind"], "text": s["text"], "strength": _strength(s["now"]),
+         "about": names.get(s["about_id"]), "since": clock.label(s["story_time"], epoch),
+         "message_id": s["message_id"]}
+        for s in open_seeds(conn, who, path)
+    ]  # fmt: skip
+
+
+def away(conn: sqlite3.Connection, story: dict) -> dict:
+    """The latest skip's "while you were away" card on the active branch (spec §8.3), or
+    {"away": None}. Pulled by the app, never pushed."""
+    if not features.enabled(conn, "mind.offscreen"):
+        return {"away": None}
+    path = chat.active_path(conn, story["id"])
+    run = job(conn, story["id"], path)
+    if run is None:
+        return {"away": None}
+    raw, skip = _raw(run), chat.get_message(conn, run["to_message_id"])
+    epoch, moments = story["epoch_offset_min"], json.loads(story["overrides"]).get("moments", [])
+    names = dict(conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story["id"],)))
+    people = []
+    for who in raw.get("tracked", []):
+        status, mine = raw["b1"].get(str(who)), raw["people"].get(str(who), {})
+        news = [
+            r[0]
+            for r in conn.execute(
+                "SELECT text FROM seeds WHERE run_id=? AND entity_id=? AND kind='news'"
+                " ORDER BY weight DESC, id LIMIT 2",
+                (run["id"], who),
+            )
+        ]
+        diary = conn.execute(
+            "SELECT m.detail FROM memories m JOIN memory_entities me ON me.memory_id=m.id"
+            " WHERE m.run_id=? AND me.entity_id=? AND m.tags_text LIKE '%diary%'",
+            (run["id"], who),
+        ).fetchone()
+        state = conn.execute(
+            "SELECT state FROM mind_states WHERE run_id=? AND entity_id=?", (run["id"], who)
+        ).fetchone()
+        people.append(
+            {"id": who, "name": names.get(who), "done": status != "pending",
+             "from": "diary" if status == "ok" else "template",
+             "news": news, "worry": mine.get("worry"), "missed_you": mine.get("missed"),
+             "diary": diary[0] if diary else None,
+             "mood": state and inner.public(json.loads(state[0]), inner.profile(conn, who))}
+        )  # fmt: skip
+    start = skip["story_time"] - skip["skip_minutes"]
+    return {
+        "away": {
+            "message_id": skip["id"],
+            "since": span(skip["skip_minutes"]),
+            "from_date": clock.date(start, epoch, moments),
+            "date": clock.date(skip["story_time"], epoch, moments),
+            "done": all(p["done"] for p in people),
+            "level": knobs.setting(conn, "mind.level", "standard"),
+            "people": people,
+        }
+    }
