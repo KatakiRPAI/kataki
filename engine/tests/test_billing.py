@@ -84,6 +84,7 @@ def test_a_voice_row_is_priced_by_the_character(conn):
         {"rp-model": {"input": "x", "output": 1}},
         {"rp-model": {"output": 1}},
         {"rp-model": {"input": -1, "output": 1}},
+        {"rp-model": {"input": float("nan"), "output": 1}},  # online: unpriced, so refused
         ["rp-model"],
     ],
 )

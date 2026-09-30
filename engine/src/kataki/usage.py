@@ -34,9 +34,9 @@ def _micro(prices: dict, model: str, role: str, prompt, cached, completion) -> D
             cached = min(cached or 0, prompt)
             spent = (prompt - cached) * rates[0] + cached * rates[1]
             spent += (completion or 0) * rates[2]
+        return spent if min(rates) >= 0 and spent.is_finite() else None  # a NaN rate raises here
     except (AttributeError, KeyError, TypeError, ValueError, ArithmeticError):
         return None
-    return spent if min(rates) >= 0 and spent.is_finite() else None
 
 
 def cost(prices: dict, model: str, role: str, used: dict) -> float | None:
