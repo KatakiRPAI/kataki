@@ -249,7 +249,8 @@ def test_a_new_library_needs_no_copy(tmp_path):
 
 
 # migration 14, exactly reversed, so a test can stand a library at an earlier version
-UNDO_V15 = "DROP TABLE IF EXISTS goals;"
+UNDO_V16 = "DROP TABLE IF EXISTS reflections;"
+UNDO_V15 = UNDO_V16 + "DROP TABLE IF EXISTS goals;"
 UNDO_V14 = UNDO_V15 + (
     "DROP TABLE IF EXISTS recollections; ALTER TABLE memories DROP COLUMN valence;"
     " ALTER TABLE memories DROP COLUMN alts; ALTER TABLE memories DROP COLUMN core_locked;"
@@ -497,5 +498,45 @@ def test_v15_adds_goals(tmp_path):
             )
     conn.execute("DELETE FROM messages WHERE id=?", (line,))  # the line they hung on goes
     assert conn.execute("SELECT COUNT(*) FROM goals").fetchone()[0] == 0
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION == 15
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION
+    conn.close()
+
+
+def test_v16_adds_reflections(tmp_path):
+    path = tmp_path / "v15.db"
+    old = db.connect(path)  # today's schema, then pretend it is v15
+    old.executescript(UNDO_V16)
+    story = _story(old)
+    old.execute("PRAGMA user_version=15")
+    old.commit()
+    old.close()
+
+    conn = db.connect(path)
+    mira = conn.execute(
+        "INSERT INTO entities(story_id, kind, name) VALUES(?, 'character', 'Mira')", (story,)
+    ).lastrowid
+    line = _msg(conn, story, None, "eight days later")
+    run = conn.execute(
+        "INSERT INTO extraction_runs(story_id, from_message_id, to_message_id, trigger, status)"
+        " VALUES(?, 0, ?, 'between', 'ok')",
+        (story, line),
+    ).lastrowid
+    for kind, status in (("habit", "seed"), ("self", "ring"), ("scar", "locked")):
+        conn.execute(
+            "INSERT INTO reflections(story_id, knower_id, kind, text, sources, status, story_time,"
+            " run_id, message_id) VALUES(?, ?, ?, 'learned to ask for help', '[31]', ?, 0, ?, ?)",
+            (story, mira, kind, status, run, line),
+        )
+    row = conn.execute("SELECT * FROM reflections LIMIT 1").fetchone()
+    assert (row["strength"], row["trait_delta"], row["supersedes_id"]) == (0.5, None, None)
+    for kind, status in (("mood", "seed"), ("habit", "maybe")):
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(
+                "INSERT INTO reflections(story_id, knower_id, kind, text, sources, status,"
+                " story_time) VALUES(?, ?, ?, 'x', '[]', ?, 0)",
+                (story, mira, kind, status),
+            )
+    conn.execute("DELETE FROM extraction_runs WHERE id=?", (run,))  # the skip's job is undone
+    assert conn.execute("SELECT COUNT(*) FROM reflections").fetchone()[0] == 0
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION == 16
     conn.close()

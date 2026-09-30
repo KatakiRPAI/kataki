@@ -132,9 +132,9 @@ def test_an_older_library_is_brought_up_to_date_on_the_way_in(conn, full, tmp_pa
     with zipfile.ZipFile(io.BytesIO(blob)) as z, zipfile.ZipFile(older, "w") as out:
         inner = tmp_path / "inner.db"
         inner.write_bytes(z.read("library.db"))
-        old = sqlite3.connect(inner)  # migrations 7 to 15, exactly reversed: a real v6 library
+        old = sqlite3.connect(inner)  # migrations 7 to 16, exactly reversed: a real v6 library
         old.executescript(
-            "DROP TABLE goals; DROP TABLE recollections; ALTER TABLE memories DROP COLUMN valence;"
+            "DROP TABLE reflections; DROP TABLE goals; DROP TABLE recollections; ALTER TABLE memories DROP COLUMN valence;"
             " ALTER TABLE memories DROP COLUMN alts; ALTER TABLE memories DROP COLUMN core_locked;"
             " ALTER TABLE entities DROP COLUMN looks;"
             " ALTER TABLE messages DROP COLUMN expression;"
