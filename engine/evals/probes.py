@@ -97,8 +97,10 @@ typo may come, and the anti-slop preset is forced on for one reply. Checks: ever
 bursts join to the saved text and stay within the dial's cap and the delay bounds; every typo
 is followed by its correction and the saved text is clean; no prose reply gets a burst; the
 curt line's length class is shorter than the long line's; the preset reply arrives (sent, or
-refused and dropped). At least six of the eight texting replies must read as chat, and one of
-the two prose replies as prose (model compliance, printed).
+refused and dropped). Every texting reply the courier's rule reads as chat must be delivered
+as a text (a prose reading must have a reason: markup or over sixty words, printed), at least
+four of the eight must read as chat, and one of the two prose replies as prose (model
+compliance).
 
 Replies are printed for a human to judge. Each probe gets a fresh temporary library.
 """
@@ -1203,10 +1205,12 @@ async def texting(conn, llm) -> list[str]:
                 failures.append(f"line {i + 1}: the typo reached the saved text")
             if not delivery.chatty(text, "Mira") and plan["bursts"]:
                 failures.append(f"line {i + 1}: prose got bursts")
+            if delivery.chatty(text, "Mira") and plan["mode"] != "text":
+                failures.append(f"line {i + 1}: a chat reply to a text was not delivered as one")
     finally:
         delivery.TYPO_RATE = was
     print(f"\nchat-style replies: {chat_replies}/{len(TEXTS)}, typos planted: {typos}")
-    if chat_replies < 6:
+    if chat_replies < 4:
         failures.append(f"only {chat_replies} of {len(TEXTS)} texting replies read as chat")
     if CLASS[lengths.get("k", "medium")] >= CLASS[lengths.get(TEXTS[4], "medium")]:
         failures.append(f"a curt line got no shorter answer than a long one ({lengths})")
