@@ -10,6 +10,7 @@ import asyncio
 import contextlib
 import json
 import logging
+import math
 import re
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
@@ -177,6 +178,17 @@ class LLM:
             raise LLMError(f"cannot reach {url}: {e}") from e
         return r
 
+    @staticmethod
+    def _guess(messages: list[dict], streamed: int) -> dict:
+        """What a call used when the provider never said (stopped, dropped, failed mid-way, or a
+        backend that reports nothing): characters / 4 each way (track B2)."""
+        sent = sum(len(str(m.get("content") or "")) for m in messages)
+        return {
+            "prompt_tokens": math.ceil(sent / 4),
+            "completion_tokens": math.ceil(streamed / 4),
+            "estimated": True,
+        }
+
     def _used(self, ep: Endpoint, usage: dict | None) -> None:
         if usage and self.on_usage:
             try:
@@ -205,40 +217,49 @@ class LLM:
         refused = False
         splitter = ThinkSplitter(*ep.think_tags)
         usage = timings = None
+        live = metered = False  # a request that got a 2xx is metered once, however it ends
+        streamed = 0
         try:
-            for extra_samplers in tries:
-                body = self._body(
-                    ep, messages, stream=True, stream_options={"include_usage": True}, **extra
-                )
-                body = {**(extra_samplers or {}), **body}
-                async with self._stream(url, body, ep.api_key) as r:
-                    if r.status_code >= 400:
-                        await r.aread()
-                        if extra_samplers and r.status_code in (400, 422):
-                            refused = True  # the samplers, or something else? the retry tells
-                            continue
-                        self._check(r)
-                    if refused:  # only without them did it work: it refuses them, stop sending
-                        self._rejected.add(key)
-                    async for chunk in self._chunks(r, url):
-                        usage = chunk.get("usage") or usage
-                        timings = chunk.get("timings") or timings  # llama.cpp: cache hits here
-                        for choice in chunk.get("choices") or []:
-                            delta = choice.get("delta") or {}
-                            if thought := delta.get("reasoning_content") or delta.get("reasoning"):
-                                yield ("thought", thought)
-                            if content := delta.get("content"):
-                                for event in splitter.feed(content):
-                                    yield event
-                break
-        except httpx2.TransportError as e:
-            raise LLMError(f"cannot reach {url}: {e}") from e
-        for event in splitter.flush():
-            yield event
-        # ponytail: a reply stopped mid-stream never gets the final usage chunk, so it is not
-        # recorded; Kataki online meters those from streamed length (track B3)
-        self._used(ep, usage)
-        yield ("done", {"usage": usage, **({"timings": timings} if timings else {})})
+            try:
+                for extra_samplers in tries:
+                    body = self._body(
+                        ep, messages, stream=True, stream_options={"include_usage": True}, **extra
+                    )
+                    body = {**(extra_samplers or {}), **body}
+                    async with self._stream(url, body, ep.api_key) as r:
+                        if r.status_code >= 400:
+                            await r.aread()
+                            if extra_samplers and r.status_code in (400, 422):
+                                refused = True  # the samplers, or something else? retry tells
+                                continue
+                            self._check(r)
+                        if refused:  # only without them did it work: it refuses them, stop
+                            self._rejected.add(key)
+                        live = True
+                        async for chunk in self._chunks(r, url):
+                            usage = chunk.get("usage") or usage
+                            timings = chunk.get("timings") or timings  # llama.cpp: cache hits
+                            for choice in chunk.get("choices") or []:
+                                delta = choice.get("delta") or {}
+                                thought = delta.get("reasoning_content") or delta.get("reasoning")
+                                if thought:
+                                    streamed += len(thought)
+                                    yield ("thought", thought)
+                                if content := delta.get("content"):
+                                    streamed += len(content)
+                                    for event in splitter.feed(content):
+                                        yield event
+                    break
+            except httpx2.TransportError as e:
+                raise LLMError(f"cannot reach {url}: {e}") from e
+            for event in splitter.flush():
+                yield event
+            metered = True
+            self._used(ep, usage or self._guess(messages, streamed))
+            yield ("done", {"usage": usage, **({"timings": timings} if timings else {})})
+        finally:  # stopped, dropped for a retake, or failed mid-way: the final usage never came
+            if live and not metered:
+                self._used(ep, usage or self._guess(messages, streamed))
 
     @contextlib.asynccontextmanager
     async def _stream(self, url: str, body: dict, api_key: str | None):
@@ -293,7 +314,7 @@ class LLM:
             body["temperature"] = THINKING_TEMPERATURE if ep.thinks else 0
             if fmt:
                 body["response_format"] = fmt
-            text, finish, usage = [], None, None
+            text, finish, usage, live = [], None, None, False
             try:
                 async with self._stream(url, body, ep.api_key) as r:
                     if fmt and r.status_code in (400, 422):
@@ -302,6 +323,7 @@ class LLM:
                     if r.status_code >= 400:
                         await r.aread()
                         self._check(r)
+                    live = True
                     async for chunk in self._chunks(r, url):
                         usage = chunk.get("usage") or usage
                         for choice in chunk.get("choices") or []:
@@ -309,12 +331,14 @@ class LLM:
                             finish = choice.get("finish_reason") or finish
             except httpx2.TransportError as e:
                 raise LLMError(f"cannot reach {url}: {e}") from e
+            finally:  # a request that ran is metered once: finished, cut off, failed or cancelled
+                if live:
+                    self._used(ep, usage or self._guess(body["messages"], len("".join(text))))
             if finish == "length":  # cut off: asking again pays again
                 raise LLMError(
                     f"the model ran out of room ({body.get('max_tokens')} tokens) before it "
                     "finished answering"
                 )
-            self._used(ep, usage)
             return "".join(text)
         raise LLMError(f"{url} rejected every request form")  # unreachable: None is never skipped
 
@@ -385,5 +409,6 @@ class LLM:
         body = {"model": ep.model, "input": texts}
         r = await self._send("POST", f"{ep.base_url.rstrip('/')}/embeddings", ep.api_key, body)
         self._check(r)
-        self._used(ep, r.json().get("usage"))
+        said = r.json().get("usage")
+        self._used(ep, said or self._guess([{"content": t} for t in texts], 0))
         return [d["embedding"] for d in sorted(r.json()["data"], key=lambda d: d["index"])]

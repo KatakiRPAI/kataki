@@ -574,7 +574,7 @@ def test_v17_lets_the_voice_role_in(tmp_path):
     conn.execute("INSERT INTO model_roles(role, provider_id, model) VALUES('voice', 1, 'kokoro')")
     with pytest.raises(sqlite3.IntegrityError):
         conn.execute("INSERT INTO model_roles(role) VALUES('singer')")
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION == 17
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION
     conn.close()
 
 
@@ -635,5 +635,5 @@ def test_v17_unsets_a_role_left_pointing_at_a_deleted_provider(tmp_path):
         r["role"]: (r["provider_id"], r["model"]) for r in conn.execute("SELECT * FROM model_roles")
     }
     assert rows == {"rp": (1, "rp-8b"), "image": (None, None)}
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 17
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION
     conn.close()

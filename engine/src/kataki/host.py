@@ -26,8 +26,19 @@ class Host:
     prices: Callable[[], dict] | None = None  # None: the library's own `prices` setting
     local_routes: bool = True
 
+    def price_table(self, conn: sqlite3.Connection) -> dict:
+        """The host's prices, else the library's; none when the host's cannot be had (the call
+        is still recorded and metered, unpriced: the ledger prices it by its tokens)."""
+        if self.prices is None:
+            return usage.table(conn)
+        try:
+            return self.prices()
+        except Exception as e:
+            logging.getLogger(__name__).warning("price table unavailable: %s", e)
+            return {}
+
     def on_usage(self, conn: sqlite3.Connection, ep: Endpoint, used: dict) -> None:
-        row = usage.record(conn, ep, used)
+        row = usage.record(conn, ep, used, self.price_table(conn))
         if self.meter:
             self.meter(row)
 

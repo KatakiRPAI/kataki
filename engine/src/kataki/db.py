@@ -4,7 +4,7 @@ import sqlite3
 from importlib.resources import files
 from pathlib import Path
 
-SCHEMA_VERSION = 17
+SCHEMA_VERSION = 18
 # version -> the SQL that brings a library up from the version before it; schema.sql is v1
 MIGRATIONS = {
     2: "ALTER TABLE entities ADD COLUMN examples TEXT NOT NULL DEFAULT ''",  # example dialogue
@@ -195,6 +195,26 @@ MIGRATIONS = {
         " FROM model_roles;"
         "DROP TABLE model_roles;"
         "ALTER TABLE model_roles_new RENAME TO model_roles;"
+        "COMMIT;"
+    ),
+    18: (  # track B2: what each call cost when it was made, whether its numbers were estimated
+        # (the provider never said), and the id the online ledger matches it by (spec §8.4).
+        # Rebuilt rather than altered, in one transaction, so it copies exactly the v10 columns
+        "BEGIN;"
+        "CREATE TABLE usage_log_new("
+        " id INTEGER PRIMARY KEY,"
+        " story_id INTEGER REFERENCES stories ON DELETE SET NULL,"
+        " role TEXT NOT NULL, model TEXT NOT NULL,"
+        " prompt_tokens INTEGER NOT NULL DEFAULT 0, cached_tokens INTEGER NOT NULL DEFAULT 0,"
+        " completion_tokens INTEGER NOT NULL DEFAULT 0,"
+        " at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+        " cost REAL, estimated INTEGER NOT NULL DEFAULT 0, usage_id TEXT);"
+        "INSERT INTO usage_log_new(id, story_id, role, model, prompt_tokens, cached_tokens,"
+        " completion_tokens, at) SELECT id, story_id, role, model, prompt_tokens, cached_tokens,"
+        " completion_tokens, at FROM usage_log;"
+        "DROP TABLE usage_log;"
+        "ALTER TABLE usage_log_new RENAME TO usage_log;"
+        "CREATE INDEX ix_usage_story ON usage_log(story_id);"
         "COMMIT;"
     ),
 }
