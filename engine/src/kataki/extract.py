@@ -711,8 +711,8 @@ def recover(conn: sqlite3.Connection) -> None:
 class Worker:
     """Reads the story into memory in the background, once it goes quiet after a reply.
 
-    ponytail: one read at a time for the whole engine; a queue per story if a server ever
-    hosts many busy stories at once.
+    ponytail: one read at a time per library (online: per user, track B5); a queue per story if
+    one library ever holds many busy stories at once.
     """
 
     def __init__(self, conn: sqlite3.Connection, llm: LLM, get_key=roles.get_key, delay=3.0):

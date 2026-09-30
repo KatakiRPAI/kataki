@@ -53,35 +53,35 @@ Per-user isolation is structural: each library has its own `LLM`, `Worker`, `Onl
 
 ### Task 1: The contract
 
-- [ ] §8.4: the four headers and the window; `/allow` and `/usage` under one gateway URL; the outbox; `DAILY_CAP`; micro-dollars; pictures stay 404.
-- [ ] Commit: `docs: track B4-B6 plan and the hosted contract`
+- [x] §8.4: the four headers and the window; `/allow` and `/usage` under one gateway URL; the outbox; `DAILY_CAP`; micro-dollars; pictures stay 404.
+- [x] Commit: `docs: track B4-B6 plan and the hosted contract`
 
 ### Task 2: Integer micro-dollars
 
-- [ ] Tests: `micros` of a row with cached tokens is exact (0.3 $/M × 7 tokens = 2.1 → 2; 0.5 → rounds half up); a voice row by characters; unpriced → None; `cost` unchanged.
-- [ ] Commit: `feat(engine): the ledger's price of a call in whole micro-dollars (B4)`
+- [x] Tests: `micros` of a row with cached tokens is exact (0.3 $/M × 7 tokens = 2.1 → 2; 0.5 → rounds half up); a voice row by characters; unpriced → None; `cost` unchanged.
+- [x] Commit: `feat(engine): the ledger's price of a call in whole micro-dollars (B4)`
 
 ### Task 3: Per-user concurrency
 
-- [ ] Tests: with `max_calls=1`, a second call waits until the first's request is done; with none, both run at once.
-- [ ] Commit: `feat(engine): a cap on one user's model calls in flight (B5)`
+- [x] Tests: with `max_calls=1`, a second call waits until the first's request is done; with none, both run at once.
+- [x] Commit: `feat(engine): a cap on one user's model calls in flight (B5)`
 
 ### Task 4: The daily cap
 
-- [ ] Tests: `DailyCap` is a `NoCredit` with code `DAILY_CAP`; `OnlineHost` lets it through; a JSON route answers 402 with `DAILY_CAP`; a turn's SSE error carries `DAILY_CAP`.
-- [ ] Commit: `feat(engine): a daily spending cap refuses with its own code (B5)`
+- [x] Tests: `DailyCap` is a `NoCredit` with code `DAILY_CAP`; `OnlineHost` lets it through; a JSON route answers 402 with `DAILY_CAP`; a turn's SSE error carries `DAILY_CAP`.
+- [x] Commit: `feat(engine): a daily spending cap refuses with its own code (B5)`
 
 ### Task 5: Signed headers and the gateway client
 
-- [ ] Tests: a signed request verifies; unsigned, tampered, stale, and a bad user id are refused; `allow` asks once per 10 s per user; `meter` retries once then raises; `resend` sends `metered=0` rows and marks them, stopping at the first failure.
-- [ ] Commit: `feat(engine): signed gateway headers and the gateway client with an outbox (B4)`
+- [x] Tests: a signed request verifies; unsigned, tampered, stale, and a bad user id are refused; `allow` asks once per 10 s per user; `meter` retries once then raises; `resend` sends `metered=0` rows and marks them, stopping at the first failure.
+- [x] Commit: `feat(engine): signed gateway headers and the gateway client with an outbox (B4)`
 
 ### Task 6: `kataki serve --hosted`
 
-- [ ] Tests: a signed request opens that user's library under the root; unsigned → 401 and no library; each user sees only their own stories; the catalogue's providers and prices are in the library; the LRU closes the least recent idle library past the limit; the sweep closes idle ones and resends the outbox; closing cancels a running background read and the next open discards it; pictures 404; the desktop app ignores signed headers (401 without its token); the CLI binds 127.0.0.1 by default and refuses to start without a secret.
-- [ ] Commit: `feat(engine): kataki serve --hosted: a library per user, opened on demand (B4, B5)`
+- [x] Tests: a signed request opens that user's library under the root; unsigned → 401 and no library; each user sees only their own stories; the catalogue's providers and prices are in the library; the LRU closes the least recent idle library past the limit; the sweep closes idle ones and resends the outbox; closing cancels a running background read and the next open discards it; pictures 404; the desktop app ignores signed headers (401 without its token); the CLI binds 127.0.0.1 by default and refuses to start without a secret.
+- [x] Commit: `feat(engine): kataki serve --hosted: a library per user, opened on demand (B4, B5)`
 
 ### Task 7: The gateway contract test, and Progress
 
-- [ ] Test: two users, a turn each, through `Hosted` and a fake gateway; each ledger equals the micro-dollar sum of that user's `usage_log`, and holds only that user's `usage_id`s; a refused user sends nothing to the model and nothing to the ledger; a meter outage leaves rows the outbox then settles to the same totals.
-- [ ] §0 Progress and owed lines; commit `test(engine): the gateway contract, two users and their ledgers (B6)` and `docs: track B4-B6 progress`.
+- [x] Test: two users, a turn each, through `Hosted` and a fake gateway; each ledger equals the micro-dollar sum of that user's `usage_log`, and holds only that user's `usage_id`s; a refused user sends nothing to the model and nothing to the ledger; a meter outage leaves rows the outbox then settles to the same totals.
+- [x] §0 Progress and owed lines; commit `test(engine): the gateway contract, two users and their ledgers (B6)` and `docs: track B4-B6 progress`.
