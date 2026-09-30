@@ -50,29 +50,29 @@
 
 ### Task 1: The contract
 
-- [ ] §8.1: `/health.host` values; §8.4: `Host` answers, `NO_CREDIT` (SSE and 402), `/stories/{id}/spend`, `prices`, meter payload (`usage_id`, `cost`, `estimated`), local-only routes.
-- [ ] Commit: `docs: track B1-B3 plan and engine-gateway contract`
+- [x] §8.1: `/health.host` values; §8.4: `Host` answers, `NO_CREDIT` (SSE and 402), `/stories/{id}/spend`, `prices`, meter payload (`usage_id`, `cost`, `estimated`), local-only routes.
+- [x] Commit: `docs: track B1-B3 plan and engine-gateway contract`
 
 ### Task 2: B1 the Host seam
 
-- [ ] Tests: `/health` says `desktop` and the env channel; an `OnlineHost` app says `online` and its channel, and `/features` lists by it; a turn under a beta host sees beta; local-only routes 404 online and work on the desktop; `LocalHost` sets no gate; keys come from the host.
-- [ ] Commit: `feat(engine): a Host seam: the desktop host is today's engine, the online host takes its answers from the service (B1)`
+- [x] Tests: `/health` says `desktop` and the env channel; an `OnlineHost` app says `online` and its channel, and `/features` lists by it; a turn under a beta host sees beta; local-only routes 404 online and work on the desktop; `LocalHost` sets no gate; keys come from the host.
+- [x] Commit: `feat(engine): a Host seam: the desktop host is today's engine, the online host takes its answers from the service (B1)`
 
 ### Task 3: B2 cost per row, estimated metering
 
-- [ ] Tests: v18 on a v17 library; a priced call stores its cost (cached input at the cached price), a voice row by characters, an unpriced one `NULL`, a malformed table `NULL`; a stopped stream, a stream failing mid-way, a dropped take and a backend that never reports are each metered once, `estimated`; a cut-off completion is metered; a refused samplers/format retry and a busy retry meter once; a parse retry meters twice.
-- [ ] Commit: `feat(engine): every model call costs something on record, estimated when the provider never said (B2)`
+- [x] Tests: v18 on a v17 library; a priced call stores its cost (cached input at the cached price), a voice row by characters, an unpriced one `NULL`, a malformed table `NULL`; a stopped stream, a stream failing mid-way, a dropped take and a backend that never reports are each metered once, `estimated`; a cut-off completion is metered; a refused samplers/format retry and a busy retry meter once; a parse retry meters twice.
+- [x] Commit: `feat(engine): every model call costs something on record, estimated when the provider never said (B2)`
 
 ### Task 4: B2 spend and the per-turn estimate
 
-- [ ] Tests: `GET /stories/{id}/spend` totals by role and by day, unpriced rows counted, today's price for rows recorded before one was set; the per-turn estimate grows lite < standard < premium and is null without prices; 404 for no story.
-- [ ] Commit: `feat(engine): what a story cost, by role and day, and what a turn costs at each level (B2)`
+- [x] Tests: `GET /stories/{id}/spend` totals by role and by day, unpriced rows counted, today's price for rows recorded before one was set; the per-turn estimate grows lite < standard < premium and is null without prices; 404 for no story.
+- [x] Commit: `feat(engine): what a story cost, by role and day, and what a turn costs at each level (B2)`
 
 ### Task 5: B3 the credit gate
 
-- [ ] Tests: a refused call sends no request (each of chat_stream, complete_json, embed, speech); the gate sees the host's dollar estimate; a turn's reply refused → SSE `error` `NO_CREDIT` and no reply saved; a refused side call keeps the reply; manual extraction → 402 and the lines stay unread; a refused worker read leaves no failed run; a refused diary stays pending; voice → 402; draft → 402; `OnlineHost.allow` fails closed; `PUT /settings` `prices` 403 online; the desktop never refuses.
-- [ ] Commit: `feat(engine): the credit gate refuses a call before it is sent, and every caller says NO_CREDIT (B3)`
+- [x] Tests: a refused call sends no request (each of chat_stream, complete_json, embed, speech); the gate sees the host's dollar estimate; a turn's reply refused → SSE `error` `NO_CREDIT` and no reply saved; a refused side call keeps the reply; manual extraction → 402 and the lines stay unread; a refused worker read leaves no failed run; a refused diary stays pending; voice → 402; draft → 402; `OnlineHost.allow` fails closed; `PUT /settings` `prices` 403 online; the desktop never refuses.
+- [x] Commit: `feat(engine): the credit gate refuses a call before it is sent, and every caller says NO_CREDIT (B3)`
 
 ### Task 6: Progress
 
-- [ ] §0 Track B lines, owed items; commit `docs: track B1-B3 progress`.
+- [x] §0 Track B lines, owed items; commit `docs: track B1-B3 progress`.
