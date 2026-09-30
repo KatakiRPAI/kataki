@@ -114,7 +114,7 @@ def test_six_years_later_only_the_gist_comes_back(conn, world):
 
     say(conn, world, "Six years later...", skip=6 * YEAR)
     faded = recall(conn, world, "Mira", "Tell me about Tobin and the guild.")
-    assert [(r.tier, r.text) for r in faded] == [("hazy", GIST)]
+    assert [(r.tier, r.text) for r in faded] == [("hazy", f"{GIST} (the details are gone)")]
     assert faded[0].gist == GIST
 
 
@@ -125,7 +125,9 @@ def test_a_trivial_memory_is_simply_gone_after_years_while_the_important_one_lin
     }  # fmt: skip
     extracted(conn, world, {"memories": [betrayal(conn), apron]})
     say(conn, world, "Six years later...", skip=6 * YEAR)
-    assert texts(recall(conn, world, "Mira", "What do you remember about Tobin?")) == [GIST]
+    assert texts(recall(conn, world, "Mira", "What do you remember about Tobin?")) == [
+        f"{GIST} (the details are gone)"
+    ]
 
 
 def test_the_strongest_memories_come_first(conn, world):

@@ -255,6 +255,8 @@ def recall(
         elif human and effortful is False:  # on the tip of her tongue: true pieces, no more
             cue = _cues(conn, m, here, knower_id, now)
             body = recollect.tip(body, cue) if cue else body
+        elif human and not sharp and m["gist"] != m["detail"]:  # said, so she won't fill it in
+            body = recollect.lost(body)
         if source in HEARSAY:
             who = names.get(known["told_by_id"], "someone") if known["told_by_id"] else "someone"
             body = f"{HEARSAY[source].format(who=who)} {body}"

@@ -130,7 +130,7 @@ def test_pressed_on_a_hazy_memory_she_cannot_reach_she_gets_true_cues(conn, worl
     )
     assert got.breakdown["cue"]
     (unpressed,) = recall(conn, world)
-    assert unpressed.text == GIST
+    assert unpressed.text == f"{GIST} (the details are gone)"
     off(conn)
     assert recall(conn, world, pressed={memory})[0].text == GIST
 
@@ -142,7 +142,7 @@ def test_a_locked_memory_is_never_forgotten(conn, world):
     trivial = {"importance": 1, "detail": "Tobin wore a green apron.", "gist": "Tobin wore one."}
     hazy(conn, world, **trivial, core_locked=True)
     got = recall(conn, world, "Tobin", log=False)
-    assert [(r.tier, r.text) for r in got] == [("hazy", "Tobin wore one.")]
+    assert [(r.tier, r.text) for r in got] == [("hazy", "Tobin wore one. (the details are gone)")]
     mira = eid(conn, "Mira")
     assert [m["tier"] for m in retrieve.inspect(conn, world, mira)] == ["hazy"]
     off(conn)
@@ -214,7 +214,7 @@ def test_what_may_never_drift_never_does(conn, world, always, extra):
 def test_faithful_never_drifts_and_off_is_todays_recall(conn, world, always):
     hazy(conn, world, alts=[THURSDAY])
     conn.execute("INSERT INTO settings(key, value) VALUES('realism.memory', '\"faithful\"')")
-    assert recall(conn, world)[0].text == GIST
+    assert recall(conn, world)[0].text == f"{GIST} (the details are gone)"
     conn.execute("UPDATE settings SET value='\"human\"' WHERE key='realism.memory'")
     off(conn)
     assert recall(conn, world)[0].text == GIST
@@ -227,7 +227,7 @@ def test_her_version_stays_on_its_branch(conn, world, always, monkeypatch):
     monkeypatch.setattr(recollect, "drift_p", lambda importance, dial: 0.0)
     leaf = chat.active_path(conn, world)[-1]["id"]
     chat.append_sibling(conn, leaf, "Another take.")
-    assert recall(conn, world)[0].text == GIST
+    assert recall(conn, world)[0].text == f"{GIST} (the details are gone)"
 
 
 def test_a_reading_never_writes(conn, world, always):
@@ -460,3 +460,10 @@ def test_straining_never_flips_her_version_back_to_the_truth(conn, world, always
     monkeypatch.setattr(activation, "effortful_recall", lambda *a: True)
     (again,) = recall(conn, world, pressed={memory})  # pressed: she strains, and wins
     assert again.text == DRIFTED  # vivid and wrong: only the repair puts it right
+
+
+def test_a_hazy_note_says_its_details_are_gone(conn, world):
+    hazy(conn, world)
+    assert recall(conn, world)[0].text == f"{GIST} (the details are gone)"
+    off(conn)
+    assert recall(conn, world)[0].text == GIST

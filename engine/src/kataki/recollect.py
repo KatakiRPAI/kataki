@@ -59,6 +59,11 @@ def cues(linked: list[dict], here: set[int], knower: int, emotion: str | None, s
     return out[:MAX_CUES]
 
 
+def lost(gist: str) -> str:
+    """A hazy note that says so: models fill a bare gist in with invented detail (probe P6)."""
+    return f"{gist} (the details are gone)"
+
+
 def tip(gist: str, said: list[str]) -> str:
     return f"{gist} (on the tip of your tongue: {'; '.join(said)})"
 
