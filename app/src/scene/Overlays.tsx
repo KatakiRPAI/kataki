@@ -153,6 +153,10 @@ export function StorySettings({ story, advanced, onAdvanced, onClose, onChange }
                 const [pid, ...rest] = key.split(':')
                 patch({ roles: key ? { rp: { provider_id: Number(pid), model: rest.join(':'), kind: 'auto', params: {} } } : {} })
               }} />
+            <K.SettingsRow title={t('talk.label')} description={t('talk.sub')}>
+              <K.Segmented tone="scene" size="sm" label={t('talk.label')} options={[t('talk.person'), t('talk.text')]} value={t(story.talk === 'text' ? 'talk.text' : 'talk.person')}
+                onChange={(v) => patch({ talk: v === t('talk.text') ? 'text' : 'person' })} />
+            </K.SettingsRow>
             <K.SettingsRow title={t('set.hears')} description={t('set.hearsSub')}><K.Toggle label={t('set.hears')} on={advanced} onToggle={onAdvanced} /></K.SettingsRow>
             <K.SettingsRow title={t('set.minutes')} description={t('set.minutesSub')}>
               <input className="spop__num" type="number" min={1} max={1440} defaultValue={story.minutes_per_turn} aria-label={t('set.minutes')}

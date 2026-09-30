@@ -256,9 +256,18 @@ def _look(conn, story, who: int, path: list, state: dict | None, stood: list,
     answering = answering if answering not in (None, who) else story["persona_entity_id"]
     bond = next((b for b in stood if b.get("other_id") == answering), None)
     mood = inner.public(state, prof) if state else None
-    texts = heard is not None and not delivery.marked(heard)
+    texting = _texting(story)  # a Texting story: every reply is a text, no guessing
+    texts = texting or (heard is not None and not delivery.marked(heard))
     got = delivery.style(context.reply_length(conn), heard, mood, tired, bond, texts, weighty)
-    return {**got, "heard": heard, "mood": mood, "tired": tired, "texts": texts}
+    if texting:
+        got["words"] = f"{delivery.TEXTING} {got['words']}"
+    return {**got, "heard": heard, "mood": mood, "tired": tired, "texts": texts,
+            "texting": texting}  # fmt: skip
+
+
+def _texting(story) -> bool:
+    """The story's "How you talk" is Texting (overrides.talk; In person when unset)."""
+    return json.loads(story["overrides"] or "{}").get("talk") == "text"
 
 
 def _mood_of(state: dict | None) -> float | None:
@@ -609,10 +618,11 @@ async def _generate(
         grown = None
     look, dial = None, None  # slice 9: how long, in what register, and how it is delivered
     try:
-        if speaker_id is not None and features.enabled(conn, "mind.texting"):
+        texting = _texting(story)  # chosen by the user, so no feature flag stands in its way
+        if speaker_id is not None and (texting or features.enabled(conn, "mind.texting")):
             dial = knobs.dial(conn, speaker_id, "texting", "light")
             dial = dial if dial in delivery.DIALS else "light"
-            if dial != "off":
+            if dial != "off" or texting:
                 felt_now = minds.get(speaker_id)
                 look = _look(conn, story, speaker_id, path, felt_now, stood, bool(decide))
     except Exception as e:
@@ -992,6 +1002,7 @@ async def _generate(
                         typo_ok=not stirred and _typo_ok(path, speaker_id),
                         seed=f"{parent_id}:{text}",
                         chat=look["texts"],
+                        force=look["texting"],
                     )
                     if got:
                         gen["delivery"] = {**got, "length": look["length"],

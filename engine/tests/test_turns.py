@@ -613,6 +613,45 @@ async def test_texting_needs_no_other_mind_feature(conn, story, backend):
     assert done["delivery"]["mode"] == "text"
 
 
+def _texting(conn, story):
+    conn.execute("UPDATE stories SET overrides=json_set(overrides, '$.talk', 'text') WHERE id=?",
+                 (story,))  # fmt: skip
+    conn.commit()
+
+
+async def test_a_texting_story_always_texts_and_says_so(conn, story, backend):
+    from kataki import delivery
+
+    _texting(conn, story)
+    _set(conn, "features.mind.texting", False)  # chosen by the user: no feature flag needed
+    # prose markup on both sides would read as prose; a Texting story never guesses
+    backend.say("Mira: *smiles* the tide turned early\nyou should've seen it")
+    events = await play(turns.turn(conn, backend.llm, story, "*waves* Evening, Mira."))
+    assert delivery.TEXTING in _tail(backend)
+    assert events[0][1]["texting"] == "light"
+    got = events[-1][1]["delivery"]
+    assert got["mode"] == "text" and len(got["bursts"]) == 2
+
+
+async def test_an_in_person_story_never_hears_it_is_texting(conn, story, backend):
+    from kataki import delivery
+
+    backend.say("the tide turned early")
+    await play(turns.turn(conn, backend.llm, story, "Evening, Mira."))
+    assert delivery.TEXTING not in _tail(backend)
+
+
+async def test_a_texting_story_with_the_dial_off_still_gets_bubbles_but_no_pace(
+    conn, story, backend
+):
+    _texting(conn, story)
+    _set(conn, "realism.texting", "off")
+    backend.say("the tide turned early\nyou should've seen it\ncome down tomorrow")
+    got = (await play(turns.turn(conn, backend.llm, story, "Evening, Mira.")))[-1][1]["delivery"]
+    assert got["mode"] == "text" and got["typo"] is None and len(got["bursts"]) == 3
+    assert all(b["delay_ms"] == 0 and b["typing_ms"] == 0 for b in got["bursts"])
+
+
 # --- voice (minds slice 10) -------------------------------------------------------------------
 
 

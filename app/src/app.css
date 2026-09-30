@@ -204,6 +204,23 @@ button.k-addcard { background: transparent; font: inherit; font-size: 12.5px; fo
 .k-line:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--scene-primary); }
 .line-flash .k-line { background: var(--scene-glass); }
 .k-react--more { cursor: pointer; font: inherit; }
+/* A Texting story: said lines as a phone thread (theirs on the left, yours on the right) */
+.txt .k-line__text { display: none; }
+.txt .k-line__reacts { margin-block-start: 6px; }
+.txt__thread { flex-basis: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.txt__b { max-width: min(460px, 85%); padding: 8px 14px; border-radius: 18px; border-end-start-radius: 6px; background: var(--scene-glass); border: 1px solid var(--scene-border); color: var(--scene-ink); font-family: var(--font-story); font-size: 17px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; }
+.txt__b + .txt__b { border-start-start-radius: 6px; }
+.txt__b--fix { font-size: 15px; padding-block: 5px; }
+.txt--me .k-line__head { justify-content: flex-end; }
+.txt--me .txt__thread { align-items: flex-end; }
+.txt--me .txt__b { border-radius: 18px; border-end-end-radius: 6px; background: color-mix(in srgb, var(--speaker-liv) 26%, var(--scene-glass)); }
+.txt--me .txt__b + .txt__b { border-start-end-radius: 6px; }
+.txt__typing { display: inline-flex; gap: 4px; align-items: center; padding-block: 12px; }
+.txt__typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--scene-muted); animation: txt-dot 1.2s infinite ease-in-out; }
+.txt__typing i:nth-child(2) { animation-delay: .15s; }
+.txt__typing i:nth-child(3) { animation-delay: .3s; }
+@keyframes txt-dot { 0%, 60%, 100% { opacity: .35; transform: none; } 30% { opacity: 1; transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) { .txt__typing i { animation: none; opacity: .7; } }
 .wcell { position: relative; }
 .wcell.is-edit { cursor: grab; touch-action: none; }
 .wcell.is-picked { outline: 2px solid var(--scene-primary); outline-offset: 3px; border-radius: 24px; }

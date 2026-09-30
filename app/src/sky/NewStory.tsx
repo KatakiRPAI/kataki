@@ -42,6 +42,7 @@ export default function NewStory() {
   const [book, setBook] = useState<number | 'none' | 'new'>(() => Number(params.get('book')) || 'none')
   const [bookName, setBookName] = useState('')
   const [finding, setFinding] = useState(false)
+  const [talk, setTalk] = useState<'person' | 'text'>('person')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
@@ -81,7 +82,7 @@ export default function NewStory() {
         reloadLibrary()
       }
       const story = await api<Story>('/stories', 'POST', {
-        title: name.trim() || fallback, character_ids: chosen, place_id: placeId, persona_id: me?.id ?? null, scenario_id: plot, first_message: plot ? '' : opens.trim(),
+        title: name.trim() || fallback, character_ids: chosen, place_id: placeId, persona_id: me?.id ?? null, scenario_id: plot, first_message: plot ? '' : opens.trim(), talk,
         ...(place === 'new' ? { epoch_offset_min: START[fresh.time] } : {}),
       })
       const away = chosen.filter((id) => (presence[id] ?? 'here') !== 'here')
@@ -218,6 +219,9 @@ export default function NewStory() {
             <K.Select label={t('ns.book')} icon="book" hint={t('ns.bookHint')} options={bookOptions.map(([, l]) => l)}
               value={bookOptions.find(([id]) => id === book)?.[1]} onChange={(v) => setBook(bookOptions.find(([, l]) => l === v)?.[0] ?? 'none')} />
             {book === 'new' && <K.TextField label={t('ns.newBookName')} story value={bookName} onChange={setBookName} />}
+            <K.Segmented label={t('talk.label')} size="sm" options={[t('talk.person'), t('talk.text')]} value={t(talk === 'text' ? 'talk.text' : 'talk.person')}
+              onChange={(v) => setTalk(v === t('talk.text') ? 'text' : 'person')} />
+            <span className="t-meta">{t('talk.sub')}</span>
             <K.TextField label={t('ns.name')} optional story value={name} onChange={setName} hint={t('ns.nameHint')} max={60} />
             {error && <K.Alert title={t('scene.err.title')}>{error}</K.Alert>}
             <K.Button variant="primary" full size="lg" disabled={!ready} loading={busy} onClick={start}>{t('ns.start')}</K.Button>

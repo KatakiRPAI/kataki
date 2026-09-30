@@ -1,7 +1,7 @@
 // The Scene (P1–P21, Q1–Q5): docs/handoff/kataki-handoff/SCENE.md.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
-import { api, stream, type Provider, type RoleRow, type Cast, type CastEntity, type ContextLog, type KnownMemory, type Message, type Person, type Signals, type Story, type StoryUi, type TurnDone, type TurnMeta, type Version } from '../api'
+import { api, stream, type Provider, type RoleRow, type Burst, type Cast, type CastEntity, type ContextLog, type KnownMemory, type Message, type Person, type Signals, type Story, type StoryUi, type TurnDone, type TurnMeta, type Version } from '../api'
 import { K } from '../ds'
 import { face, scenery, twelve, useLibrary, useLoad, useNarrow, usePoll, useTitle } from '../hooks'
 import { openMenu, Overlay, toast, type MenuItem } from '../overlay'
@@ -13,7 +13,7 @@ import { openFeedback } from '../sky/Feedback'
 import { classify, err } from '../errors'
 import { Delete, Export } from '../sky/Stories'
 import Backstage from './Backstage'
-import Lines, { type LineActions } from './Lines'
+import Lines, { Bubbles, type LineActions, type Play } from './Lines'
 import { force, kind, read, type Mode } from './modes'
 import { CharacterCard, FindBar, PassTime, ScenePlace, StorySettings, type Pass } from './Overlays'
 import { later } from './time'
@@ -79,6 +79,8 @@ export default function Scene() {
   const chat = useRef<HTMLDivElement>(null)
   const follow = useRef(!params.get('line'))
   const [below, setBelow] = useState(false)
+  const [play, setPlay] = useState<Play>() // a Texting story's new reply, bubble by bubble
+  const playing = useRef(0) // bumped to stop a playback that a newer turn overtook
   const setAdvanced = (v: boolean) => { setAdvancedState(v); try { localStorage.setItem(ADVANCED, v ? '1' : '0') } catch { /* kept for the session */ } }
 
   useEffect(() => () => controller.current?.abort(), [])
@@ -100,7 +102,7 @@ export default function Scene() {
   useLayoutEffect(() => {
     const el = lines()
     if (el && follow.current) el.scrollTop = el.scrollHeight
-  }, [data, live?.text, said, failed])
+  }, [data, live?.text, said, failed, play])
   useEffect(() => {
     const el = lines()
     if (!el) return
@@ -123,6 +125,10 @@ export default function Scene() {
     controller.current = ctl
     follow.current = true
     const from = { date: data?.story.date ?? '', clock: data?.story.clock ?? '' }
+    const token = ++playing.current
+    setPlay(undefined)
+    const started = performance.now()
+    let planned: TurnDone | undefined
     setLive({ speaker: '', speakerId: null, text: '', ...extra })
     const typed = pacer((text) => setLive((l) => l && { ...l, text: l.text + text, thinkMs: l.thinkMs ?? (l.thoughtAt ? performance.now() - l.thoughtAt : undefined) }),
       SPEEDS[prefs?.reply_speed ?? 'normal'] ?? SPEEDS.normal)
@@ -137,6 +143,7 @@ export default function Scene() {
         else if (kind === 'token') typed.push(value)
         else if (kind === 'done') {
           const done = value as TurnDone
+          planned = done
           if (done.skip_minutes >= 1440) showSkip(done.skip_minutes, from.date, done.date, done.message_id)
         } else if (kind === 'error') setFailed(value.message)
       }, ctl.signal)
@@ -147,10 +154,29 @@ export default function Scene() {
       typed.flush()
       if (controller.current === ctl) controller.current = null
       if (ctl.signal.aborted) await new Promise((r) => setTimeout(r, 400)) // the engine saves a stopped reply a moment later
+      const bursts = data?.story.talk === 'text' && !ctl.signal.aborted && planned?.delivery?.mode === 'text' ? planned.delivery.bursts : []
+      const still = matchMedia('(prefers-reduced-motion: reduce)').matches
+      if (planned && bursts.length && !still) setPlay({ id: planned.message_id, upto: 0, typing: true })
       await reload()
       setLive(null)
       setSaid(null)
+      if (planned && bursts.length && !still) await playOut(planned.message_id, bursts, performance.now() - started, token)
     }
+  }
+  /** A Texting story's new reply plays as it was planned: for each bubble a pause, "typing…",
+   *  then the bubble. The model's own time counts toward the first. History never plays. */
+  const playOut = async (id: number, bursts: Burst[], spent: number, token: number) => {
+    const wait = (ms: number) => new Promise((r) => setTimeout(r, Math.max(0, ms)))
+    for (const [i, b] of bursts.entries()) {
+      const pause = i === 0 ? 0 : b.delay_ms // the first one's "typing…" has shown since you sent
+      if (i > 0) setPlay({ id, upto: i, typing: false })
+      await wait(pause)
+      if (playing.current !== token) return
+      setPlay({ id, upto: i, typing: true })
+      await wait(i === 0 ? b.delay_ms + b.typing_ms - spent : b.typing_ms)
+      if (playing.current !== token) return
+    }
+    setPlay(undefined)
   }
   // The time skip card (P12): the story, how much time, from → to, and what it cost a memory.
   const skipTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
@@ -352,6 +378,7 @@ export default function Scene() {
   const item = (e: { lib_item_id: number | null }) => (e.lib_item_id ? byId.get(e.lib_item_id) : undefined)
   const itemOf = (entityId: number | null) => { const e = cast.entities.find((x) => x.id === entityId); return e ? item(e) : undefined }
   const persona = story.persona?.name
+  const texting = story.talk === 'text'
   const characters = cast.entities.filter((e) => e.is_ai && e.kind === 'character')
   const away = characters.filter((e) => !e.present)
   const colour = (m: Message) => {
@@ -471,9 +498,19 @@ export default function Scene() {
                 answers={answers} answer={answer} onAnswer={(a: string) => setAnswer(a as Answer)} />
             }>
               <Lines story={story} messages={shown} cast={cast} signals={signals} advanced={advanced} busy={!!live} editing={editing} onEditing={setEditing}
-                colour={colour} itemOf={itemOf} act={act} found={found} />
-              {said && <K.ChatLine speaker="user" color="var(--speaker-liv)" name={persona ?? t('scene.narrator')} time="" text={said.text} mode={said.mode} />}
-              {live && (
+                colour={colour} itemOf={itemOf} act={act} found={found} play={play} />
+              {said && (texting && !said.mode ? (
+                <div className="txt txt--me">
+                  <K.ChatLine speaker="user" color="var(--speaker-liv)" name={persona ?? t('scene.narrator')} time="" text=""><Bubbles text={said.text} /></K.ChatLine>
+                </div>
+              ) : <K.ChatLine speaker="user" color="var(--speaker-liv)" name={persona ?? t('scene.narrator')} time="" text={said.text} mode={said.mode} />)}
+              {live && texting && (live.speakerId !== null || !live.speaker) ? (
+                <div className="txt">
+                  <K.ChatLine speaker={String(live.speakerId)} color={colour({ role: 'assistant', speaker_id: live.speakerId } as Message)} name={live.speaker || lead?.name || '…'} time="" text="">
+                    <Bubbles text="" typing />
+                  </K.ChatLine>
+                </div>
+              ) : live && (
                 <K.ChatLine speaker={String(live.speakerId)} color={colour({ role: 'assistant', speaker_id: live.speakerId } as Message)} name={live.speaker || '…'} time=""
                   text={live.text} writing thought={live.thinkMs ? t('scene.thought', { s: Math.max(1, Math.round(live.thinkMs / 1000)) }) : undefined} />
               )}

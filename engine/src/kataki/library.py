@@ -152,10 +152,13 @@ def create_story(
     epoch_offset_min: int = 480,  # the clock at story time 0: Day 1, 08:00
     opening: bool = True,  # False: a story that already has its first line, as an import does
     first_message: str = "",  # how this story opens, typed when it starts; beats the plot's
+    talk: str = "person",  # How you talk: "person", or "text" (a texting story)
 ) -> int:
     scenario = get_item(conn, scenario_id) if scenario_id is not None else None
     # The premise is copied too, so editing the plot in the library never rewrites this story.
     overrides = {"premise": scenario["description"]} if scenario else {}
+    if talk == "text":
+        overrides["talk"] = "text"
     with conn:
         story_id = conn.execute(
             "INSERT INTO stories(title, scenario_id, overrides, epoch_offset_min)"

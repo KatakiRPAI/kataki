@@ -307,6 +307,7 @@ export type Story = Standing & {
   moments: Moment[] // what its dates count from
   roles: Record<string, unknown>
   ui: StoryUi // the app's own state for this story; the engine keeps it and never reads it
+  talk: 'person' | 'text' // How you talk: in person (prose), or texting (a phone thread)
 }
 
 /** A moment a story has named ("the storm"), at a story time in minutes. */
@@ -337,7 +338,13 @@ export type Message = {
   reasoning: string | null
   finish: string | null
   model: string | null
+  delivery?: Delivery | null // how a text reply plays: its bubbles (minds slice 9)
 }
+
+/** A reply as texts: the bubbles in order, each after `delay_ms` then `typing_ms` of "typing…";
+ *  a typo's bubble is followed by its correction (`*word`). */
+export type Burst = { text: string; delay_ms: number; typing_ms: number; typo?: { wrong: string; right: string }; correction?: boolean }
+export type Delivery = { mode: 'text' | 'prose'; dial: string; bursts: Burst[] }
 
 export type CastEntity = {
   id: number
@@ -495,6 +502,7 @@ export type TurnDone = {
   clock: string
   date: string
   usage: Record<string, number> | null
+  delivery?: Delivery | null
 }
 export type TurnError = { message: string; message_id?: number }
 
