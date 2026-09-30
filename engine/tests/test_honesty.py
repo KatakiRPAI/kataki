@@ -408,3 +408,24 @@ async def test_a_leak_when_it_was_not_on_the_table_is_taken_out_of_the_saved_rep
     assert shown(events) == "No ships. My brother loved ships, you know."  # not held: streamed
     assert events[-1][1]["text"] == "No ships." == leaf(conn, liar)[0]
     assert leaf(conn, liar)[1]["trace"]["leak"]["covered"]
+
+
+@pytest.mark.anyio
+async def test_when_he_doubts_what_she_claimed_she_is_caught(conn, liar, backend):
+    mira, aren = ent(conn, liar, "Mira"), ent(conn, liar, "Aren")
+    claim = conn.execute(
+        "INSERT INTO memories(story_id, kind, story_time, detail, gist, asserted_by)"
+        " VALUES(?, 'claim', 0, 'Mira said the ring was her grandmother''s.', 'g', ?)",
+        (liar, mira),
+    ).lastrowid
+    for belief in (0.9, 0.5):  # the latest row is what he believes now (extraction lowered it)
+        conn.execute(
+            "INSERT INTO knowledge(knower_id, memory_id, source, learned_story_time, belief)"
+            " VALUES(?, ?, 'told', 0, ?)",
+            (aren, claim, belief),
+        )
+    backend.say("I told you. It was my grandmother's.")
+    await play(turns.turn(conn, backend.llm, liar, "Mira, whose ring is it really?"))
+    honest = leaf(conn, liar)[1]["honest"]
+    assert (honest["move"], honest["caught"]) == ("double_down", "doubted")
+    assert "Mira said the ring was her grandmother's." in directive_of(backend)  # recalled

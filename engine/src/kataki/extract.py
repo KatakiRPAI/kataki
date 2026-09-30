@@ -205,8 +205,32 @@ class _Applier:
                     self.know(knower, memory_id, "told", asserter, doubt, when)
                 else:
                     self.know(knower, memory_id, "witnessed", when=when)
+                if contradicts is not None:
+                    self.doubt(knower, contradicts, doubt if is_claim else 1.0)
             if asserter is not None:
                 self.know(asserter, memory_id, "witnessed", when=when)  # they know what they said
+
+    def doubt(self, knower: int, claim_id: int, believed: float) -> None:
+        """Suspicion (minds slice 4): someone who believes what contradicts another's claim
+        believes that claim less (never more), as much as they believe the contradiction. A new
+        row on this run, with how they came to know the claim kept."""
+        claim = self.conn.execute(
+            "SELECT kind, asserted_by FROM memories WHERE id=?", (claim_id,)
+        ).fetchone()
+        if claim["kind"] != "claim" or claim["asserted_by"] == knower:
+            return
+        where, args = db.live_filter(self.live)
+        held = self.conn.execute(
+            f"SELECT * FROM knowledge WHERE knower_id=? AND memory_id=? AND {where}"
+            " ORDER BY id DESC LIMIT 1",
+            [knower, claim_id, *args],
+        ).fetchone()
+        belief = max(BELIEF["challenged"], round(1 - believed, 2))
+        if held is not None and belief < held["belief"]:
+            self.know(
+                knower, claim_id, held["source"], held["told_by_id"], belief,
+                held["learned_story_time"],
+            )  # fmt: skip
 
     def know(self, knower, memory_id, source, told_by=None, belief=1.0, when=None) -> None:
         self.conn.execute(

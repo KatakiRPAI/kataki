@@ -420,3 +420,45 @@ def test_memories_follow_the_branch_they_were_extracted_on(conn, world):
 
     chat.set_leaf(conn, world, reply_a)
     assert db.live_runs(conn, world) == {run_a}
+
+
+# --- suspicion (minds slice 4): a believed contradiction makes her claim doubted -----------------
+
+
+def _belief(conn, memory_id, who):
+    live = db.live_runs(conn, conn.execute("SELECT id FROM stories").fetchone()[0])
+    where, args = db.live_filter(live)
+    row = conn.execute(
+        f"SELECT belief, source, told_by_id FROM knowledge WHERE memory_id=? AND knower_id=?"
+        f" AND {where} ORDER BY id DESC LIMIT 1",
+        [memory_id, eid(conn, who), *args],
+    ).fetchone()
+    return tuple(row)
+
+
+@pytest.mark.parametrize(
+    ("resolution", "belief"), [("accepted", 0.1), ("doubted", 0.5), ("challenged", 0.9)]
+)
+def test_believing_a_contradiction_makes_the_earlier_claim_doubted(conn, world, resolution, belief):
+    said = {
+        "kind": "claim", "detail": "Mira said the ring was her grandmother's.", "gist": "g",
+        "importance": 5, "asserted_by": h(conn, "Mira"), "heard_by": [h(conn, "Aren")],
+    }  # fmt: skip
+    run(conn, world, {"memories": [said]})
+    hers = only_memory(conn)["id"]
+    assert _belief(conn, hers, "Aren") == (0.9, "told", eid(conn, "Mira"))
+    other = said | {
+        "detail": "Tobin said the ring was her brother's.",
+        "asserted_by": h(conn, "Tobin"),
+    }
+    clash = {
+        "claim": 0,
+        "contradicts": f"M{hers}",
+        "hearer": h(conn, "Aren"),
+        "resolution": resolution,
+    }
+    second = run(conn, world, {"memories": [other], "contradictions": [clash]})
+    assert _belief(conn, hers, "Aren") == (belief, "told", eid(conn, "Mira"))  # source kept
+    assert _belief(conn, hers, "Mira")[0] == 1.0  # she knows what she said
+    db.discard_run(conn, second)
+    assert _belief(conn, hers, "Aren")[0] == 0.9  # the reading undone, the doubt goes with it
