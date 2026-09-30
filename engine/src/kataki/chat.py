@@ -339,6 +339,7 @@ def set_skip(conn: sqlite3.Connection, message_id: int, minutes: int) -> None:
                 ("memories", "story_time"),
                 ("knowledge", "learned_story_time"),
                 ("opinions", "story_time"),
+                ("goals", "story_time"),
             ):
                 conn.execute(f"UPDATE {table} SET {column}={column}+? WHERE run_id=?", (delta, run))
             conn.execute(
