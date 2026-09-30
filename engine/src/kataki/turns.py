@@ -31,6 +31,7 @@ from kataki import (
     images,
     inner,
     knobs,
+    recollect,
     retrieve,
     roles,
     thought,
@@ -104,6 +105,22 @@ def _pressed(conn: sqlite3.Connection, story_id: int, speaker_id: int) -> set[in
         return set()
     shown = json.loads(row["memories"])
     return {m["memory_id"] for m in shown if m["tier"] == "hazy" and m["rendered"] != "dropped"}
+
+
+def _recall_record(recalled: list, fix: dict | None, held: str) -> dict | None:
+    """gen.recall (spec §8.3 slice 6): what her memory did in this reply, or None."""
+    try:
+        drift = [
+            {**r.breakdown["drift"], "memory_id": r.memory_id}
+            for r in recalled
+            if r.breakdown.get("drift")
+        ]
+        cues = [r.memory_id for r in recalled if r.breakdown.get("cue")]
+    except Exception:
+        drift, cues = [], []
+    if not (drift or cues or fix or held):
+        return None
+    return {"drift": drift, "cues": cues, "correction": fix and fix["record"], "hold": bool(held)}
 
 
 def _mood_of(state: dict | None) -> float | None:
@@ -396,6 +413,19 @@ async def _generate(
         decide = " ".join(p for p in (decide, secret["directive"]) if p)
     if onmind and onmind["directive"]:
         decide = " ".join(p for p in (decide, onmind["directive"]) if p)
+    human = False  # slice 6: her memory's own effects (the repair of a slip, holding the line)
+    repaired, held = None, ""
+    try:
+        human = speaker_id is not None and features.enabled(conn, "mind.recall")
+        if human:
+            repaired = recollect.repair(
+                conn, speaker_id, path, names.get(story["persona_entity_id"])
+            )
+    except Exception as e:
+        logging.getLogger(__name__).warning("repair skipped for story %s: %s", story_id, e)
+        repaired = None
+    if repaired:
+        decide = " ".join(p for p in (decide, repaired["directive"]) if p)
     guards = secret["guards"] if secret else []  # every secret kept from someone here
     guarding = bool(secret and secret["hot"])  # on the table: hold the reply by sentences
     try:
@@ -454,6 +484,15 @@ async def _generate(
             mood=_mood_of(minds.get(speaker_id)),  # what she feels tilts what comes back
         )
         trace["ms"]["recall"] = ms(at)
+        try:  # the user "corrects" what she clearly remembers: she keeps it
+            if human and not repaired:
+                held = recollect.hold(path, recalled, names.get(story["persona_entity_id"]))
+        except Exception as e:
+            logging.getLogger(__name__).warning("hold skipped for story %s: %s", story_id, e)
+            held = ""
+        if held:
+            decide = " ".join(p for p in (decide, held) if p)
+            first = " ".join(p for p in (decide, header_ask) if p)
         if recalled:
             at = time.monotonic()
             built = context.build(
@@ -674,6 +713,11 @@ async def _generate(
                 gen["honest"] = secret["honest"]
             if onmind:
                 gen["onmind"] = onmind["record"]
+            try:
+                if human and (got := _recall_record(built_recalled, repaired, held)):
+                    gen["recall"] = got
+            except Exception as e:
+                logging.getLogger(__name__).warning("recall not kept: %s", e)
             message_id = chat.add_child(
                 conn, story_id, parent_id, "assistant", text, speaker_id, skip, gen
             )
@@ -687,6 +731,12 @@ async def _generate(
                     bonds.save(conn, story_id, pending, message_id)
             except Exception as e:
                 logging.getLogger(__name__).warning("bonds not saved: %s", e)
+            try:  # she said it right this time: her memory is back on the truth
+                if repaired:
+                    now_t = chat.get_message(conn, message_id)["story_time"]
+                    recollect.settle(conn, speaker_id, repaired["record"], message_id, now_t)
+            except Exception as e:
+                logging.getLogger(__name__).warning("correction not kept: %s", e)
         context.finish_log(conn, log_id, message_id, done)
         if prompt_tokens := (done.get("usage") or {}).get("prompt_tokens"):
             chars = sum(len(m["content"]) for m in built.messages)

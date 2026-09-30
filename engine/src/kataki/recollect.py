@@ -70,7 +70,6 @@ DIAL = {"faithful": 0.0, "human": 1.0, "dreamlike": 1.5}  # realism.memory (spec
 DREAM_CAP = 0.6
 CANON = 8  # ponytail: a memory this important is canon (note 15 §1: never err on canon)
 EARLY = 2  # ponytail: no slip in a story's first lines (note 15 §7A)
-FIXES = ("recount",)  # a version that puts her back on the truth
 
 
 def dial(conn: sqlite3.Connection, entity_id: int | None) -> str:
@@ -110,8 +109,9 @@ def version(conn, knower: int, memory: int, runs: set[int], messages: set[int], 
 
 
 def differs(row, m) -> str | None:
-    """Her version's words when they are not simply the truth, else None."""
-    if row is None or row["basis"] in FIXES or row["text"] in (m["detail"], m["gist"]):
+    """Her version's words when they are not simply the stored truth, else None. A `recount`
+    (she put herself right) is true, and more exact than the gist, so it renders too."""
+    if row is None or row["text"] in (m["detail"], m["gist"]):
         return None
     return row["text"]
 
@@ -205,3 +205,68 @@ def lapsed(seed: dict, path: list, who: int) -> bool:
     p = seed["payload"]
     after = _replies_after(seed, path, who)
     return len(after) >= LAPSE and not any(said(m["text"], p["wrong"], p["right"]) for m in after)
+
+
+# --- the repair, and holding the line (decisions, so they go in [Directive]) -------------------
+
+REPAIR_AFTER = 1  # ponytail: her replies between saying the slip and correcting it (note 15: 2-8)
+CORRECTING = re.compile(
+    r"\b(no,|nope|actually|you'?re wrong|that'?s (?:wrong|not (?:right|true|how))|you mean"
+    r"|you said|didn'?t you|wasn'?t it|misremember\w*|remember(?:ing)? (?:it )?wrong)",
+    re.IGNORECASE,
+)
+
+
+def _core(phrase: str) -> str:
+    """'on Thursday' -> 'Thursday': the words a quick self-correction would say."""
+    kept = [w for w in phrase.split() if w.lower() not in STOP]
+    return " ".join(kept) or phrase
+
+
+def repair(conn, who: int, path: list, user: str | None) -> dict | None:
+    """Her first open slip that is now due: said, and then one more reply of hers ("due"); or
+    said, and the user has just named the truth ("caught"). -> {"directive", "record"} or None."""
+    them = user or "the other person"
+    for seed in open_slips(conn, who, path):
+        p = seed["payload"]
+        after = _replies_after(seed, path, who)
+        at = next((i for i, m in enumerate(after) if said(m["text"], p["wrong"], p["right"])), None)
+        if at is None:
+            continue
+        pending = path[-1] if path and path[-1]["role"] == "user" else None
+        if pending is not None and said(pending["text"], p["right"], p["wrong"]):
+            why = "caught"
+            text = (f"{them} is right: it was {p['right']}, not {p['wrong']}. Own the slip"
+                    " lightly and carry on.")  # fmt: skip
+        elif len(after) - at - 1 >= REPAIR_AFTER:
+            why = "due"
+            text = (f"You realise you had something wrong earlier: it was {p['right']}, not"
+                    f" {p['wrong']}. Correct yourself in passing (“wait, … {_core(p['right'])}”),"
+                    " then carry on.")  # fmt: skip
+        else:
+            continue
+        record = {"seed": seed["id"], "memory_id": seed["memory_id"], "wrong": p["wrong"],
+                  "right": p["right"], "why": why}  # fmt: skip
+        return {"directive": text, "record": record}
+    return None
+
+
+def hold(path: list, recalled: list, user: str | None) -> str:
+    """The user's line reads as a correction and she holds a sharp memory right now: tell her
+    to trust it (the sycophancy guard, note 15 §7A.6). The RULES' [SHARP] line says why."""
+    pending = path[-1] if path and path[-1]["role"] == "user" else None
+    if pending is None or not CORRECTING.search(pending["text"]):
+        return ""
+    if not any(r.tier == "sharp" and "elsewhere" not in r.breakdown for r in recalled):
+        return ""
+    them = user or "the other person"
+    return (f"If {them} says something that goes against what you clearly remember, trust your"
+            f" memory and say so kindly; do not agree just to please {them}.")  # fmt: skip
+
+
+def settle(conn, who: int, record: dict, message_id: int, t: int) -> None:
+    """After the correcting reply: her memory is back on the truth, anchored on that reply."""
+    m = conn.execute("SELECT * FROM memories WHERE id=?", (record["memory_id"],)).fetchone()
+    with conn:
+        write(conn, who, m["id"], "recount", with_detail(m["gist"], record["right"]), t,
+              message=message_id)  # fmt: skip

@@ -1,6 +1,7 @@
 """Minds slice 6: what she feels tilts what comes back, half-remembered things give true cues,
 her own version of a hazy memory, the slip code plants with the truth kept, and the repair."""
 
+import json
 import re
 
 import pytest
@@ -297,3 +298,132 @@ def test_a_pending_correction_is_never_offered_as_something_on_her_mind(conn, wo
     path = chat.active_path(conn, world)
     assert [s["kind"] for s in between.open_seeds(conn, eid(conn, "Mira"), path)] == ["correction"]
     assert between.on_mind(conn, world, eid(conn, "Mira"), path, "Aren") is None
+
+
+# --- she corrects herself, owns a caught slip, and holds a true memory -----------------------
+
+CAFE = "Mira and Aren met at the Blue Gull café on Thursday."
+CAFE_GIST = "Mira and Aren met at a café."
+
+
+def cafe(conn, cards_story, **extra):
+    story, mira = cards_story
+    aren = conn.execute("SELECT persona_entity_id FROM stories WHERE id=?", (story,)).fetchone()[0]
+    memory = library.add_memory(
+        conn, story, CAFE, CAFE_GIST, importance=6, knower_ids=[mira], entity_ids=[mira, aren],
+        tags=["café", "met"],
+    )  # fmt: skip
+    with conn:  # six years back, so it is hazy
+        conn.execute(
+            "UPDATE memories SET story_time=?, alts=? WHERE id=?",
+            (
+                -6 * YEAR,
+                '[{"slot": "when", "right": "on Thursday", "wrong": "on Tuesday"}]',
+                memory,
+            ),
+        )
+        conn.execute(
+            "UPDATE knowledge SET learned_story_time=? WHERE memory_id=?", (-6 * YEAR, memory)
+        )
+    return memory
+
+
+@pytest.fixture
+def duo(local_model):
+    conn = local_model
+    mira = library.create_item(conn, "character", "Mira")
+    aren = library.create_item(conn, "character", "Aren")
+    story = library.create_story(conn, "Harbour", character_ids=[mira], persona_id=aren)
+    ids = dict(conn.execute("SELECT name, id FROM entities WHERE story_id=?", (story,)))
+    chat.append_message(conn, story, "user", "Hi, Mira.", ids["Aren"])
+    chat.append_message(conn, story, "assistant", "Hello, Aren.", ids["Mira"])
+    return story, ids["Mira"]
+
+
+async def talk(conn, backend, story, mira, line, reply):
+    from kataki import turns
+
+    backend.say(reply)
+    events = [e async for e in turns.turn(conn, backend.llm, story, line, speaker=mira)]
+    assert events[-1][0] == "done", events[-1]
+    tail = backend.requests[-1]["messages"][-1]["content"]
+    gen = json.loads(chat.get_message(conn, events[-1][1]["message_id"])["gen"])
+    return tail, gen
+
+
+@pytest.mark.anyio
+async def test_she_says_the_wrong_day_and_two_replies_later_corrects_herself(
+    conn, duo, backend, always
+):
+    story, mira = duo
+    memory = cafe(conn, duo)
+    tail, gen = await talk(conn, backend, story, mira, "When did we first meet at the café?",
+                           "It was a Tuesday, I think.")  # fmt: skip
+    assert "on Tuesday" in tail and gen["recall"]["drift"] == [{**THURSDAY, "memory_id": memory}]
+    tail, gen = await talk(conn, backend, story, mira, "Really?", "Mm, yes.")
+    assert "not on Tuesday" not in tail and "recall" not in gen
+    tail, gen = await talk(conn, backend, story, mira, "Funny how time flies.", "Wait, Thursday.")
+    said = tail.split("[Directive]")[1]
+    assert "it was on Thursday, not on Tuesday" in said and "wait" in said.lower()
+    assert not re.search(r"\d", said[said.index("You realise") : said.index("carry on.")])
+    assert gen["recall"]["correction"]["why"] == "due"
+    path = chat.active_path(conn, story)
+    assert recollect.open_slips(conn, mira, path) == []
+    [fixed] = conn.execute("SELECT * FROM recollections WHERE basis='recount'").fetchall()
+    assert (fixed["message_id"], fixed["text"]) == (
+        path[-1]["id"],
+        f"{CAFE_GIST[:-1]}, on Thursday.",
+    )
+    tail, gen = await talk(conn, backend, story, mira, "Anyway.", "Anyway.")
+    assert "not on Tuesday" not in tail.split("[Directive]")[1] and "recall" not in gen
+
+
+@pytest.mark.anyio
+async def test_a_slip_she_never_says_is_never_corrected(conn, duo, backend, always):
+    story, mira = duo
+    cafe(conn, duo)
+    for line in ("When did we meet?", "Hm?", "Right.", "Okay."):
+        tail, gen = await talk(conn, backend, story, mira, line, "I don't recall.")
+        assert "not on Tuesday" not in tail.split("[Directive]")[1]
+
+
+@pytest.mark.anyio
+async def test_when_the_user_catches_the_slip_she_owns_it(conn, duo, backend, always):
+    story, mira = duo
+    cafe(conn, duo)
+    await talk(conn, backend, story, mira, "When did we meet?", "On a Tuesday.")
+    tail, gen = await talk(conn, backend, story, mira, "Thursday, wasn't it?", "Oh, you're right.")
+    said = tail.split("[Directive]")[1]
+    assert "Aren is right: it was on Thursday, not on Tuesday" in said
+    assert gen["recall"]["correction"]["why"] == "caught"
+
+
+@pytest.mark.anyio
+async def test_she_keeps_what_she_clearly_remembers_when_told_otherwise(conn, duo, backend):
+    story, mira = duo
+    library.add_memory(conn, story, "Mira's brother is called Tobin.", importance=8,
+                       knower_ids=[mira], tags=["brother"])  # fmt: skip
+    tail, gen = await talk(conn, backend, story, mira, "How is your brother?", "He's well.")
+    assert "trust your memory" not in tail and "recall" not in gen
+    tail, gen = await talk(conn, backend, story, mira, "You said your brother is Tomas, right?",
+                           "No, Tobin.")  # fmt: skip
+    assert "[SHARP] Mira's brother is called Tobin." in tail
+    assert "trust your memory" in tail.split("[Directive]")[1]
+    assert gen["recall"]["hold"] is True
+
+
+@pytest.mark.anyio
+async def test_off_or_broken_it_never_touches_the_turn(conn, duo, backend, always, monkeypatch):
+    story, mira = duo
+    cafe(conn, duo)
+
+    def boom(*a, **k):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(recollect, "repair", boom)
+    monkeypatch.setattr(recollect, "hold", boom)
+    tail, gen = await talk(conn, backend, story, mira, "You said Tuesday, right?", "Yes.")
+    off(conn)
+    tail, gen = await talk(conn, backend, story, mira, "You said Tuesday, right?", "Yes.")
+    assert "Tuesday" not in tail.split("[Directive]")[0].split("remembers]")[-1]
+    assert "recall" not in gen
