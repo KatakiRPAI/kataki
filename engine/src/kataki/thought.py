@@ -28,6 +28,7 @@ ASK = (
     "Then write the reply, which shows the thought only through what {name} says and does."
 )
 STRONGER = "Keep {name}'s thought private: never say it, or its words, aloud."
+PLACEHOLDER = re.compile(r"^\((?:in .*own voice|from this moment)", re.I)  # the ASK's own
 
 
 def mode(conn: sqlite3.Connection, ep: Endpoint, speaker_id: int | None) -> str | None:
@@ -140,6 +141,8 @@ def parse(lines: list[str], name: str) -> dict | None:
             continue
         key = m.group(1).lower()
         value = " ".join(line[m.end() :].strip(' *_"“”').split()[: WORDS[key]])
+        if PLACEHOLDER.search(value):  # the ask's template copied, not a thought (slice 3 owed)
+            continue
         if value and key not in got:
             got[key] = value
     return {"thinks": got.get("thinks"), "wants": got.get("wants")} if got else None

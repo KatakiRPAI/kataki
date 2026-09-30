@@ -26,6 +26,7 @@ from kataki import (
     chat,
     clock,
     context,
+    delivery,
     embed,
     extract,
     features,
@@ -40,7 +41,7 @@ from kataki import (
     roles,
     thought,
 )
-from kataki.llm import LLM, LLMError
+from kataki.llm import LLM, LLMError, anti_slop
 
 Event = tuple[str, Any]
 NARRATOR = "narrator"
@@ -219,6 +220,44 @@ def _shown_needs(path: list, who: int) -> list[str]:
         except (ValueError, AttributeError):
             continue
     return out
+
+
+TYPO_EVERY = 5  # ponytail: at most one display typo in this many of her replies (note 15 §7A)
+
+
+def _typo_ok(path: list, who: int) -> bool:
+    """A typo may come now: not in her first two replies, nor within TYPO_EVERY of her last."""
+    mine = [m for m in path if m["role"] == "assistant" and m["speaker_id"] == who]
+    if len(mine) < 2:
+        return False
+    for m in mine[-(TYPO_EVERY - 1) :]:
+        try:
+            if (json.loads(m["gen"] or "{}").get("delivery") or {}).get("typo"):
+                return False
+        except (ValueError, AttributeError):
+            continue
+    return True
+
+
+def _look(conn, story, who: int, path: list, state: dict | None, stood: list,
+          weighty: bool = False) -> dict:  # fmt: skip
+    """Slice 9: the length class and register for her reply (delivery.style), from the line she
+    answers, her mood as shown, her energy and where she stands with the one she answers; plus
+    what the courier needs after the reply. `texts`: the user's own line is a text (no action
+    markup, no quoted speech), so her reply may be one; else it is prose, never split."""
+    prof = inner.profile(conn, who)
+    now = path[-1]["story_time"] if path else 0
+    minute = (now + story["epoch_offset_min"]) % clock.DAY
+    tired = inner.levels(None, prof, minute)["energy"] < inner.TIRED
+    last = path[-1] if path else None
+    heard = last["text"] if last is not None and last["role"] == "user" else None
+    answering = last["speaker_id"] if last is not None else None
+    answering = answering if answering not in (None, who) else story["persona_entity_id"]
+    bond = next((b for b in stood if b.get("other_id") == answering), None)
+    mood = inner.public(state, prof) if state else None
+    texts = heard is not None and not delivery.marked(heard)
+    got = delivery.style(context.reply_length(conn), heard, mood, tired, bond, texts, weighty)
+    return {**got, "heard": heard, "mood": mood, "tired": tired, "texts": texts}
 
 
 def _mood_of(state: dict | None) -> float | None:
@@ -564,6 +603,18 @@ async def _generate(
     except Exception as e:
         logging.getLogger(__name__).warning("growth skipped for story %s: %s", story_id, e)
         grown = None
+    look, dial = None, None  # slice 9: how long, in what register, and how it is delivered
+    try:
+        if speaker_id is not None and features.enabled(conn, "mind.texting"):
+            dial = knobs.dial(conn, speaker_id, "texting", "light")
+            dial = dial if dial in delivery.DIALS else "light"
+            if dial != "off":
+                felt_now = minds.get(speaker_id)
+                look = _look(conn, story, speaker_id, path, felt_now, stood, bool(decide))
+    except Exception as e:
+        logging.getLogger(__name__).warning("texting skipped for story %s: %s", story_id, e)
+        look = None
+    length = look["words"] if look else ""
     try:
         inside = (
             inner.block(
@@ -608,7 +659,14 @@ async def _generate(
         trace["gate"] = secret["gate"]
     at = time.monotonic()
     built = context.build(
-        conn, story_id, speaker_id, ep, leaf_id=parent_id, inside=inside, directive=first
+        conn,
+        story_id,
+        speaker_id,
+        ep,
+        leaf_id=parent_id,
+        inside=inside,
+        directive=first,
+        length=length,
     )
     trace["ms"]["prompt"] = ms(at)
     built_recalled: list = []
@@ -663,6 +721,7 @@ async def _generate(
                 leaf_id=parent_id,
                 inside=inside,
                 directive=first,
+                length=length,
             )
             trace["ms"]["prompt"] += ms(at)
             built_recalled = list(recalled)
@@ -681,6 +740,8 @@ async def _generate(
             "model": ep.model,
             "thinks": ep.thinks,
             "parent_id": parent_id,
+            # the UI may hold tokens for the bursts: only when the user's own line was a text
+            "texting": dial if look and look["texts"] else None,
             # time that just passed, for the time-skip sequence: before it, and at this reply
             "skip": jump,
             "from_clock": clock.label(then - jump, epoch),
@@ -723,8 +784,16 @@ async def _generate(
             except Exception as e:
                 logging.getLogger(__name__).warning("leak check skipped: %s", e)
                 guard = honesty.Guard([])
+            try:  # anti-slop samplers (slice 9); XTC only when no fact has to come out right
+                calm = not decide and not built_recalled
+                by_hand = ep.params.get("samplers") == "anti-slop"  # by hand: on whatever the stage
+                on = by_hand or features.enabled(conn, "mind.texting")  # "auto" ships with slice 9
+                samplers = anti_slop(ep, xtc=calm) if on else {}
+            except Exception as e:
+                logging.getLogger(__name__).warning("samplers skipped: %s", e)
+                samplers = {}
             stream = llm.chat_stream(
-                ep, built.messages, stop=stops, max_tokens=built.response_reserve
+                ep, built.messages, samplers, stop=stops, max_tokens=built.response_reserve
             )
             async with aclosing(stream) as stream:
                 async for kind, value in stream:
@@ -788,6 +857,7 @@ async def _generate(
                     leaf_id=parent_id,
                     inside=inside,
                     directive=" ".join(p for p in (decide, stronger, header_ask) if p),
+                    length=length,
                 )
                 context.finish_log(conn, log_id, None, {})  # the dropped take's row is closed
                 log_id, built = context.log(conn, story_id, None, speaker_id, retake), retake
@@ -888,6 +958,26 @@ async def _generate(
                     gen["recall"] = got
             except Exception as e:
                 logging.getLogger(__name__).warning("recall not kept: %s", e)
+            try:  # the courier: display only, the saved text stays clean
+                if look:
+                    stirred = bool(decide) or bool(pending.get(speaker_id)) or "leak" in trace
+                    got = delivery.plan(
+                        text,
+                        dial,
+                        name=name or "",
+                        heard=look["heard"],
+                        mood=look["mood"],
+                        tired=look["tired"],
+                        weighty=bool(decide),
+                        typo_ok=not stirred and _typo_ok(path, speaker_id),
+                        seed=f"{parent_id}:{text}",
+                        chat=look["texts"],
+                    )
+                    if got:
+                        gen["delivery"] = {**got, "length": look["length"],
+                                           "register": look["register"]}  # fmt: skip
+            except Exception as e:
+                logging.getLogger(__name__).warning("delivery skipped: %s", e)
             message_id = chat.add_child(
                 conn, story_id, parent_id, "assistant", text, speaker_id, skip, gen
             )
@@ -973,6 +1063,7 @@ async def _generate(
                 "expression": face,
                 "mood": gen.get("mind"),
                 "thought": gen.get("thought"),
+                "delivery": gen.get("delivery"),
             },
         )
 
@@ -1047,7 +1138,7 @@ async def _ooc(
     yield (
         "meta",
         {"speaker": None, "role": "ooc", "ooc": True, "model": ep.model if ep else None,
-         "thinks": False, "parent_id": parent_id},
+         "thinks": False, "parent_id": parent_id, "texting": None},
     )  # fmt: skip
     text, usage = honesty.AI_ANSWER, None
     if ep is not None:
@@ -1090,7 +1181,7 @@ async def _ooc(
         {"message_id": answer, "text": text, "ooc": True, "skip_minutes": 0,
          "clock": clock.label(now, story["epoch_offset_min"]),
          "date": clock.date(now, story["epoch_offset_min"], moments), "usage": usage,
-         "expression": None, "mood": None, "thought": None},
+         "expression": None, "mood": None, "thought": None, "delivery": None},
     )  # fmt: skip
 
 

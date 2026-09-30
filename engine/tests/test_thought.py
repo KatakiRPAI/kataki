@@ -483,3 +483,15 @@ async def test_the_opener_and_an_echo_on_one_sentence_make_one_retake(
     assert len(backend.requests) == 2
     trace = leaf(conn, story)[1]["trace"]
     assert "check" in trace
+
+
+def test_the_templates_own_placeholder_is_never_a_thought():
+    copied = ["Mira thinks: (in Mira's own voice, at most 25 words)",
+              "Mira wants: (from this moment, at most 10 words)"]  # fmt: skip
+    assert thought.parse(copied, "Mira") is None
+    assert thought.parse(["Mira thinks: (in her own voice)", "Mira wants: him gone"], "Mira") == {
+        "thinks": None, "wants": "him gone"}  # fmt: skip
+    assert thought.parse(["Mira thinks: (Not again.) He never listens."], "Mira")["thinks"]
+    assert thought.parse(["Mira thinks: (Not again.)"], "Mira")["thinks"] == "(Not again.)"
+    said = ["Mira thinks: He said at most 5 words to me all night."]
+    assert thought.parse(said, "Mira")["thinks"]

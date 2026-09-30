@@ -21,6 +21,7 @@ FEATURES = {
     "mind.recall": "alpha",  # slice 6: mood-tilted recall, cues, her own version, slips and repair
     "mind.goals": "alpha",  # slice 7: wants on an agenda at an opening, needs and energy
     "mind.growth": "alpha",  # slice 8: reflection on big skips, growth rings, group speaker score
+    "mind.texting": "alpha",  # slice 9: bursts, delays, corrected typos, length and register
 }
 
 

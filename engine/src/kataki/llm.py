@@ -14,6 +14,7 @@ import re
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 from typing import Any
+from urllib.parse import urlsplit
 
 import httpx2
 
@@ -31,6 +32,31 @@ THINKING_TEMPERATURE = 0.6  # Qwen's recommended thinking-mode temperature
 SPELLED_OUT = (
     "Reply with one JSON object that follows this JSON schema exactly, field names and all:\n"
 )
+
+
+# note 15 §5, note 04: min-p plus DRY on every reply; XTC only where no fact has to come out
+# right (it removes the likeliest tokens). Breakers keep chat formatting from counting as a loop.
+ANTI_SLOP = {  # ponytail: community baselines (llama.cpp, text-generation-webui), untuned here
+    "min_p": 0.05,
+    "dry_multiplier": 0.8,
+    "dry_base": 1.75,
+    "dry_allowed_length": 2,
+    "dry_sequence_breakers": ["\n", ":", '"', "*"],
+}
+XTC = {"xtc_probability": 0.5, "xtc_threshold": 0.1}
+LOCAL = ("127.0.0.1", "localhost", "::1")
+
+
+def anti_slop(ep: "Endpoint", xtc: bool = False) -> dict:
+    """The anti-slop sampler preset for this endpoint's reply requests (minds spec §8.3 slice
+    9), or {}. The role's `samplers` param: "anti-slop" on, "off" off, "auto" (default) on only
+    for a model served from this machine (llama.cpp and KoboldCpp take all of it; an online
+    provider may refuse keys it does not know)."""
+    mode = ep.params.get("samplers", "auto")
+    host = urlsplit(ep.base_url).hostname or ""
+    if mode == "off" or (mode != "anti-slop" and host not in LOCAL):
+        return {}
+    return {**ANTI_SLOP, **(XTC if xtc else {})}
 
 
 class LLMError(Exception):
@@ -163,33 +189,46 @@ class LLM:
             raise LLMError(f"{r.request.url} answered {r.status_code}: {r.text[:500]}")
 
     async def chat_stream(
-        self, ep: Endpoint, messages: list[dict], **extra
+        self, ep: Endpoint, messages: list[dict], samplers: dict | None = None, **extra
     ) -> AsyncIterator[Event]:
         """Stream one reply. Closing the generator closes the connection, which stops generation.
 
         `extra` goes into the request body (e.g. stop=[...]); the role's own body params win.
+        `samplers` (anti_slop) go in under both; a backend that refuses them (400/422) is asked
+        again at once without them, and never sent them again.
         """
         url = f"{ep.base_url.rstrip('/')}/chat/completions"
-        body = self._body(
-            ep, messages, stream=True, stream_options={"include_usage": True}, **extra
-        )
+        key = (ep.base_url, ep.model, "samplers")
+        tries = [samplers, None] if samplers and key not in self._rejected else [None]
+        refused = False
         splitter = ThinkSplitter(*ep.think_tags)
         usage = timings = None
         try:
-            async with self._stream(url, body, ep.api_key) as r:
-                if r.status_code >= 400:
-                    await r.aread()
-                    self._check(r)
-                async for chunk in self._chunks(r, url):
-                    usage = chunk.get("usage") or usage
-                    timings = chunk.get("timings") or timings  # llama.cpp: cache hits live here
-                    for choice in chunk.get("choices") or []:
-                        delta = choice.get("delta") or {}
-                        if thought := delta.get("reasoning_content") or delta.get("reasoning"):
-                            yield ("thought", thought)
-                        if content := delta.get("content"):
-                            for event in splitter.feed(content):
-                                yield event
+            for extra_samplers in tries:
+                body = self._body(
+                    ep, messages, stream=True, stream_options={"include_usage": True}, **extra
+                )
+                body = {**(extra_samplers or {}), **body}
+                async with self._stream(url, body, ep.api_key) as r:
+                    if r.status_code >= 400:
+                        await r.aread()
+                        if extra_samplers and r.status_code in (400, 422):
+                            refused = True  # the samplers, or something else? the retry tells
+                            continue
+                        self._check(r)
+                    if refused:  # only without them did it work: it refuses them, stop sending
+                        self._rejected.add(key)
+                    async for chunk in self._chunks(r, url):
+                        usage = chunk.get("usage") or usage
+                        timings = chunk.get("timings") or timings  # llama.cpp: cache hits here
+                        for choice in chunk.get("choices") or []:
+                            delta = choice.get("delta") or {}
+                            if thought := delta.get("reasoning_content") or delta.get("reasoning"):
+                                yield ("thought", thought)
+                            if content := delta.get("content"):
+                                for event in splitter.feed(content):
+                                    yield event
+                break
         except httpx2.TransportError as e:
             raise LLMError(f"cannot reach {url}: {e}") from e
         for event in splitter.flush():

@@ -91,6 +91,17 @@ she wears, kept from all), and two days pass. Checks: the bribe reaches only tho
 her, as told by Mira and believed less than certain; Juno never learns it; the ring's secret
 never travels.
 
+texting (slice 9): Mira texts Aren (natural dial for four lines, then messy), eight lines from a
+curt "k" to a long rambling one; then a prose Mira gets two lines. Typos are forced on where a
+typo may come, and the anti-slop preset is forced on for one reply. Checks: every chat reply's
+bursts join to the saved text and stay within the dial's cap and the delay bounds; every typo
+is followed by its correction and the saved text is clean; no prose reply gets a burst; the
+curt line's length class is shorter than the long line's; the preset reply arrives (sent, or
+refused and dropped). Every texting reply the courier's rule reads as chat must be delivered
+as a text (a prose reading must have a reason: markup or over sixty words, printed), at least
+four of the eight must read as chat, and one of the two prose replies as prose (model
+compliance).
+
 Replies are printed for a human to judge. Each probe gets a fresh temporary library.
 """
 
@@ -110,6 +121,7 @@ from kataki import (
     bonds,
     chat,
     db,
+    delivery,
     embed,
     extract,
     goals,
@@ -1104,6 +1116,120 @@ async def group(conn, llm) -> list[str]:
     return failures
 
 
+TEXTS = [
+    "hey, you still at the office?",
+    "lol ok. did the rope shipment ever come in?",
+    "k",
+    "what are you doing tonight",
+    "honestly I was thinking we could grab food at the Gull later if you're not too wiped from"
+    " today, or tomorrow instead, whatever works for you, no pressure at all, I just feel like we"
+    " haven't talked properly in ages and I miss it, you know? anyway let me know what you think",
+    "nice",
+    "you ok? you seem quiet",
+    "night mira",
+]
+CLASS = {c: i for i, c in enumerate(delivery.CLASSES)}
+
+
+def _check_plan(text: str, plan: dict | None, where: str) -> list[str]:
+    """What is wrong with a chat reply's delivery plan (spec §8.3 slice 9), if anything."""
+    if not plan or plan["mode"] != "text":
+        return []
+    out, bursts = [], plan["bursts"]
+    shown = [b for b in bursts if not b.get("correction")]
+    if len(shown) > delivery.CAP[plan["dial"]]:
+        out.append(f"{where}: {len(shown)} bursts over the {plan['dial']} cap")
+    typo = plan["typo"]
+    clean = [b["text"].replace(typo["wrong"], typo["right"], 1) if b.get("typo") else b["text"]
+             for b in shown]  # fmt: skip
+    if " ".join(clean).split() != text.split():
+        out.append(f"{where}: the bursts do not join to the saved text")
+    for b in bursts:
+        if not (0 <= b["delay_ms"] <= delivery.DELAY_MAX) or not (
+            delivery.TYPING_MIN <= b["typing_ms"] <= delivery.TYPING_MAX
+        ):
+            out.append(f"{where}: a burst's timing is out of bounds ({b})")
+    for i, b in enumerate(bursts):
+        if b.get("typo"):
+            nxt = bursts[i + 1] if i + 1 < len(bursts) else {}
+            if not nxt.get("correction") or nxt.get("text") != f"*{b['typo']['right']}":
+                out.append(f"{where}: a typo went uncorrected")
+    return out
+
+
+async def texting(conn, llm) -> list[str]:
+    """Slice 9: a chat-style Mira gets bursts, delays and corrected typos; prose is untouched."""
+    failures = []
+    story = _harbour(
+        conn,
+        "Mira runs the harbour office. Right now she is texting Aren on her phone: she writes"
+        " like a real text message, casual, mostly lowercase, short lines, no actions, no"
+        " narration and no quotation marks.",
+    )
+    conn.execute("INSERT OR REPLACE INTO settings(key, value) VALUES('realism.texting', ?)",
+                 (json.dumps("natural"),))  # fmt: skip
+    conn.commit()
+    was = delivery.TYPO_RATE
+    delivery.TYPO_RATE = {"natural": 1.0, "messy": 1.0}  # the setup: wherever one may come, it does
+    chat_replies, lengths, typos = 0, {}, 0
+    try:
+        for i, line in enumerate(TEXTS):
+            if i == 4:
+                conn.execute("UPDATE settings SET value=? WHERE key='realism.texting'",
+                             (json.dumps("messy"),))  # fmt: skip
+                conn.commit()
+            if i == 6:  # one reply with the preset forced on, even online
+                conn.execute("UPDATE model_roles SET params=? WHERE role='rp'",
+                             (json.dumps({"samplers": "anti-slop"}),))  # fmt: skip
+                conn.commit()
+            reply, done = await _say(conn, llm, story, line)
+            if i == 6:
+                conn.execute("UPDATE model_roles SET params='{}' WHERE role='rp'")
+                conn.commit()
+                refused = any(k[2] == "samplers" for k in llm._rejected)
+                print(f"(anti-slop preset forced: {'refused, dropped' if refused else 'sent'})")
+                if not done:
+                    failures.append("the reply with the anti-slop preset never arrived")
+            plan = done.get("delivery")
+            text = done.get("text", "")
+            print(f"\nAren: {line}\nMira (saved): {text!r}\ndelivery: {json.dumps(plan)}")
+            if not plan:
+                failures.append(f"line {i + 1}: no delivery plan")
+                continue
+            lengths[line] = plan["length"]
+            if plan["mode"] == "text":
+                chat_replies += 1
+                typos += bool(plan["typo"])
+            failures += _check_plan(text, plan, f"line {i + 1}")
+            if plan["typo"] and plan["typo"]["wrong"] in text.split():
+                failures.append(f"line {i + 1}: the typo reached the saved text")
+            if not delivery.chatty(text, "Mira") and plan["bursts"]:
+                failures.append(f"line {i + 1}: prose got bursts")
+            if delivery.chatty(text, "Mira") and plan["mode"] != "text":
+                failures.append(f"line {i + 1}: a chat reply to a text was not delivered as one")
+    finally:
+        delivery.TYPO_RATE = was
+    print(f"\nchat-style replies: {chat_replies}/{len(TEXTS)}, typos planted: {typos}")
+    if chat_replies < 4:
+        failures.append(f"only {chat_replies} of {len(TEXTS)} texting replies read as chat")
+    if CLASS[lengths.get("k", "medium")] >= CLASS[lengths.get(TEXTS[4], "medium")]:
+        failures.append(f"a curt line got no shorter answer than a long one ({lengths})")
+    prose = _harbour(conn, "Mira runs the harbour office. The story is told in third-person"
+                     " prose: her *actions* in asterisks and her words in quotation marks.")  # fmt: skip
+    seen = 0
+    for line in ("Evening, Mira. Busy day?", "Did the rope shipment come in?"):
+        reply, done = await _say(conn, llm, prose, line)
+        plan = done.get("delivery") or {}
+        print(f"\nAren: {line}\nMira: {reply}\ndelivery: {json.dumps(plan)}")
+        if plan.get("mode") == "prose":
+            seen += 1
+            if plan["bursts"]:
+                failures.append("a prose reply got bursts")
+    if not seen:
+        failures.append("no prose reply read as prose")
+    return failures
+
+
 PROBES = {
     "still-upset": still_upset,
     "grudge": grudge,
@@ -1122,6 +1248,7 @@ PROBES = {
     "wants": wants,
     "drift": drift,
     "group": group,
+    "texting": texting,
 }
 
 

@@ -300,3 +300,62 @@ def test_thinking_switched_on_counts_as_thinking_even_before_the_kind_is_known()
     ).thinks
     assert Endpoint(base_url="x", model="m", reasoning=True).thinks
     assert not Endpoint(base_url="x", model="m").thinks
+
+
+# --- anti-slop samplers (minds slice 9) ------------------------------------------------------
+
+
+def test_the_preset_is_on_for_a_model_on_this_machine_unless_the_role_says_otherwise():
+    local = Endpoint(base_url="http://127.0.0.1:8080/v1", model="m")
+    assert llm_module.anti_slop(local)["min_p"] == 0.05
+    assert "dry_multiplier" in llm_module.anti_slop(local) and "xtc_probability" not in (
+        llm_module.anti_slop(local)
+    )
+    assert llm_module.anti_slop(local, xtc=True)["xtc_threshold"] == 0.1
+    assert llm_module.anti_slop(Endpoint(base_url="http://localhost:5001/v1", model="m"))
+    assert llm_module.anti_slop(EP) == {}  # online: off by default
+    assert llm_module.anti_slop(Endpoint(base_url="http://x/v1", model="m",
+                                         params={"samplers": "anti-slop"}))  # fmt: skip
+    off = Endpoint(base_url="http://127.0.0.1:8080/v1", model="m", params={"samplers": "off"})
+    assert llm_module.anti_slop(off) == {}
+
+
+async def test_the_roles_own_body_wins_over_the_preset():
+    backend = Recorder(httpx2.Response(200, text=sse({"content": "ok"})))
+    ep = Endpoint(base_url="http://x/v1", model="m", params={"body": {"min_p": 0.1}})
+    await collect(backend.llm.chat_stream(ep, [], samplers={"min_p": 0.05, "dry_base": 1.75}))
+    assert backend.bodies[0]["min_p"] == 0.1 and backend.bodies[0]["dry_base"] == 1.75
+
+
+async def test_a_backend_that_refuses_the_preset_is_asked_again_without_it_and_remembered():
+    ok = httpx2.Response(200, text=sse({"content": "ok"}))
+    backend = Recorder(httpx2.Response(400, text="unknown field dry_base"), ok,
+                       httpx2.Response(200, text=sse({"content": "ok"})))  # fmt: skip
+    llm = backend.llm
+    events = await collect(llm.chat_stream(EP, [], samplers={"dry_base": 1.75}))
+    assert ("token", "ok") in events
+    assert "dry_base" in backend.bodies[0] and "dry_base" not in backend.bodies[1]
+    await collect(llm.chat_stream(EP, [], samplers={"dry_base": 1.75}))
+    assert "dry_base" not in backend.bodies[2]  # not sent again
+
+
+async def test_a_refusal_without_the_preset_is_still_an_error():
+    backend = Recorder(httpx2.Response(400, text="bad"))
+    with pytest.raises(LLMError):
+        await collect(backend.llm.chat_stream(EP, []))
+
+
+async def test_an_unrelated_refusal_does_not_switch_the_samplers_off():
+    backend = Recorder(httpx2.Response(400, text="context too long"),
+                       httpx2.Response(400, text="context too long"))  # fmt: skip
+    llm = backend.llm
+    with pytest.raises(LLMError):
+        await collect(llm.chat_stream(EP, [], samplers={"dry_base": 1.75}))
+    assert not llm._rejected  # nothing showed the backend refuses the samplers
+
+
+async def test_json_calls_never_carry_the_preset():
+    local = Endpoint(base_url="http://127.0.0.1:8080/v1", model="m")
+    backend = Recorder(completion('{"n": 1}'))
+    await backend.llm.complete_json(local, [], {"type": "object"}, parse_n)
+    assert "min_p" not in backend.bodies[0] and "dry_base" not in backend.bodies[0]
