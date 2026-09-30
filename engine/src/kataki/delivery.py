@@ -36,12 +36,14 @@ def _num(x) -> float:
 
 
 def style(setting: str, user_text: str | None, mood: dict | None, tired: bool,
-          bond: dict | None) -> dict:  # fmt: skip
+          bond: dict | None, texts: bool = True, weighty: bool = False) -> dict:  # fmt: skip
     """Note 22 §2 step 7g: the length class and register for this reply. `setting` is the
     "Reply length" setting (where it starts), `user_text` the line she answers, `mood` her mood
     as the app shows it (inner.public), `tired` her energy below slice 7's threshold, `bond`
     where she stands with the one she answers (bonds.public). -> {"length", "register", "words"};
-    `words` goes into [Directive] in place of the setting's line. Words only, never numbers."""
+    `words` goes into [Directive] in place of the setting's line. Words only, never numbers.
+    `brief` only in a text exchange (`texts`: a prose story's *nods* is no cue to answer in a
+    line) and never beside a decision in [Directive] (`weighty`: it needs room)."""
     mood, bond = mood if isinstance(mood, dict) else {}, bond if isinstance(bond, dict) else {}
     start = CLASSES.index(setting) if setting in CLASSES[1:] else CLASSES.index("medium")
     words = len((user_text or "").split())
@@ -54,7 +56,8 @@ def style(setting: str, user_text: str | None, mood: dict | None, tired: bool,
         shift -= 1
     if tired:
         shift -= 1
-    length = CLASSES[min(max(start + max(-2, min(1, shift)), 0), len(CLASSES) - 1)]
+    floor = 0 if texts and not weighty else 1
+    length = CLASSES[min(max(start + max(-2, min(1, shift)), floor), len(CLASSES) - 1)]
     shows = mood.get("shows")
     if shows in ("angry", "annoyed") or bond.get("grudge"):
         register = "clipped"
@@ -85,13 +88,15 @@ PROSE = re.compile(r'[*_"“”]')
 PRONOUN = frozenset({"she", "he", "they", "her", "his", "their"})
 ABBREV = re.compile(r"\b(?:mr|mrs|ms|dr|st)\.$", re.I)
 KEYS = "qwertyuiop asdfghjkl zxcvbnm".split()
+WORD = re.compile(r"(?<!\S)[a-z]{4,}(?=[.,!?;:\u2026]*(?:\s|$))")  # a plain word: no URL or path
+TEXT_WORDS = 60  # ponytail: a reply longer than this is not a text message (review I1)
 
 
 def chatty(text: str, name: str) -> bool:
     """Is this reply a text message, not prose? No action markup, no quoted speech, no opening
     pronoun and not her own name (narration names its subject; a text does not). Every doubt
     reads as prose: a false "prose" costs the effect, a false "text" would mangle a story."""
-    if not text.strip() or PROSE.search(text):
+    if not text.strip() or PROSE.search(text) or len(text.split()) > TEXT_WORDS:
         return False
     first = re.match(r"\W*(\w+)", text)
     if first and first.group(1).lower() in PRONOUN:
@@ -166,15 +171,17 @@ def _mistype(word: str, rng: random.Random) -> str:
 
 
 def plan(text: str, dial: str, *, name: str, heard: str | None, mood: dict | None,
-         tired: bool, weighty: bool, typo_ok: bool, seed: str) -> dict | None:  # fmt: skip
+         tired: bool, weighty: bool, typo_ok: bool, seed: str,
+         chat: bool = True) -> dict | None:  # fmt: skip
     """The delivery plan for a finished, clean reply (spec §8.3 slice 9), or None when the dial
     is off. `heard`: the line she answers (she reads it first); `weighty`: a decision rode in
     [Directive]; `typo_ok`: the turn allows a typo at all; `seed`: the same reply always gets the
-    same plan. Prose gets `mode: "prose"` and no bursts. Display only: `text` is never changed."""
+    same plan; `chat`: the line she answers was a text (a reply to prose is prose, however it
+    looks). Prose gets `mode: "prose"` and no bursts. Display only: `text` is never changed."""
     if dial == "off":
         return None
     dial = dial if dial in CAP else "light"
-    if not chatty(text, name):
+    if not chat or not chatty(text, name):
         return {"mode": "prose", "dial": dial, "bursts": [], "typo": None}
     rng = random.Random(zlib.crc32(seed.encode()))
     pace = _pace(mood, tired)
@@ -193,7 +200,7 @@ def plan(text: str, dial: str, *, name: str, heard: str | None, mood: dict | Non
     roll = rng.random()  # drawn every time, so allowing a typo never moves the timing
     if typo_ok and roll < TYPO_RATE.get(dial, 0.0):
         spots = [(i, m) for i, b in enumerate(bursts)
-                 for m in re.finditer(r"(?<![\w'])[a-z]{4,}(?![\w'])", b["text"])]  # fmt: skip
+                 for m in WORD.finditer(b["text"])]  # fmt: skip
         if spots:
             i, m = rng.choice(spots)
             right = m.group()

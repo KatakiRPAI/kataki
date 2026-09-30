@@ -130,7 +130,7 @@ def test_a_typo_only_when_allowed_and_always_corrected():
         wrong, right = g["typo"]["wrong"], g["typo"]["right"]
         assert wrong != right and len(right) >= 4 and right.islower() and right in CHAT
         i = next(i for i, b in enumerate(g["bursts"]) if b.get("typo"))
-        assert wrong in g["bursts"][i]["text"].split() or wrong in g["bursts"][i]["text"]
+        assert re.search(rf"(?<![\w']){wrong}(?![\w'])", g["bursts"][i]["text"])
         fix = g["bursts"][i + 1]
         assert fix == {**fix, "text": f"*{right}", "correction": True}
         assert sum(bool(b.get("typo")) for b in g["bursts"]) == 1
@@ -158,3 +158,34 @@ def test_merged_lines_keep_their_line_break_and_merged_sentences_a_space():
         "not tonight",
     ]
     assert delivery.split("ok. sure. fine", 2, lines_only=False) == ["ok. sure.", "fine"]
+
+
+PROSE_REPLIES = [  # review I1: unmarked prose once read as chat
+    "The harbour is quiet tonight. Gulls wheel over the empty moorings.",
+    "I look up from the ledger and smile at you. It has been a long day.",
+    "Aren walks in. The door slams behind him and the lamp shakes.",
+    "'You came,' she says.",
+]
+
+
+def test_a_reply_to_a_prose_line_is_prose_however_it_looks():
+    for text in PROSE_REPLIES:
+        got = _plan(text, "messy", typo_ok=True, chat=False)
+        assert got["mode"] == "prose" and got["bursts"] == [] and got["typo"] is None
+
+
+def test_a_long_reply_is_prose():
+    assert not delivery.chatty(" ".join(["ok"] * 61), "Mira")
+    assert delivery.chatty(" ".join(["ok"] * 40), "Mira")
+
+
+def test_brief_needs_a_text_and_never_squeezes_a_decision():
+    args = ("medium", "Hm.", HURT, True, None)
+    assert delivery.style(*args)["length"] == "brief"
+    assert delivery.style(*args, texts=False)["length"] == "short"  # a prose *nods*
+    assert delivery.style(*args, weighty=True)["length"] == "short"  # a decision needs room
+
+
+def test_a_url_or_path_never_gets_a_typo():
+    text = "https://harbour.example/tides/today"
+    assert all(_plan(text, "messy", typo_ok=True, seed=str(s))["typo"] is None for s in range(40))

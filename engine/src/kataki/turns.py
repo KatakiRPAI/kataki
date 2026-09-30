@@ -239,10 +239,12 @@ def _typo_ok(path: list, who: int) -> bool:
     return True
 
 
-def _look(conn, story, who: int, path: list, state: dict | None, stood: list) -> dict:
+def _look(conn, story, who: int, path: list, state: dict | None, stood: list,
+          weighty: bool = False) -> dict:  # fmt: skip
     """Slice 9: the length class and register for her reply (delivery.style), from the line she
     answers, her mood as shown, her energy and where she stands with the one she answers; plus
-    what the courier needs after the reply."""
+    what the courier needs after the reply. `texts`: the user's own line is a text (no action
+    markup, no quoted speech), so her reply may be one; else it is prose, never split."""
     prof = inner.profile(conn, who)
     now = path[-1]["story_time"] if path else 0
     minute = (now + story["epoch_offset_min"]) % clock.DAY
@@ -253,8 +255,9 @@ def _look(conn, story, who: int, path: list, state: dict | None, stood: list) ->
     answering = answering if answering not in (None, who) else story["persona_entity_id"]
     bond = next((b for b in stood if b.get("other_id") == answering), None)
     mood = inner.public(state, prof) if state else None
-    got = delivery.style(context.reply_length(conn), heard, mood, tired, bond)
-    return {**got, "heard": heard, "mood": mood, "tired": tired}
+    texts = heard is not None and not delivery.PROSE.search(heard)
+    got = delivery.style(context.reply_length(conn), heard, mood, tired, bond, texts, weighty)
+    return {**got, "heard": heard, "mood": mood, "tired": tired, "texts": texts}
 
 
 def _mood_of(state: dict | None) -> float | None:
@@ -606,7 +609,8 @@ async def _generate(
             dial = knobs.dial(conn, speaker_id, "texting", "light")
             dial = dial if dial in delivery.DIALS else "light"
             if dial != "off":
-                look = _look(conn, story, speaker_id, path, minds.get(speaker_id), stood)
+                felt_now = minds.get(speaker_id)
+                look = _look(conn, story, speaker_id, path, felt_now, stood, bool(decide))
     except Exception as e:
         logging.getLogger(__name__).warning("texting skipped for story %s: %s", story_id, e)
         look = None
@@ -736,7 +740,8 @@ async def _generate(
             "model": ep.model,
             "thinks": ep.thinks,
             "parent_id": parent_id,
-            "texting": dial if look else None,  # the UI may hold tokens for the bursts
+            # the UI may hold tokens for the bursts: only when the user's own line was a text
+            "texting": dial if look and look["texts"] else None,
             # time that just passed, for the time-skip sequence: before it, and at this reply
             "skip": jump,
             "from_clock": clock.label(then - jump, epoch),
@@ -781,7 +786,9 @@ async def _generate(
                 guard = honesty.Guard([])
             try:  # anti-slop samplers (slice 9); XTC only when no fact has to come out right
                 calm = not decide and not built_recalled
-                samplers = anti_slop(ep, xtc=calm)
+                by_hand = ep.params.get("samplers") == "anti-slop"  # by hand: on whatever the stage
+                on = by_hand or features.enabled(conn, "mind.texting")  # "auto" ships with slice 9
+                samplers = anti_slop(ep, xtc=calm) if on else {}
             except Exception as e:
                 logging.getLogger(__name__).warning("samplers skipped: %s", e)
                 samplers = {}
@@ -964,6 +971,7 @@ async def _generate(
                         weighty=bool(decide),
                         typo_ok=not stirred and _typo_ok(path, speaker_id),
                         seed=f"{parent_id}:{text}",
+                        chat=look["texts"],
                     )
                     if got:
                         gen["delivery"] = {**got, "length": look["length"],

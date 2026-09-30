@@ -200,6 +200,7 @@ class LLM:
         url = f"{ep.base_url.rstrip('/')}/chat/completions"
         key = (ep.base_url, ep.model, "samplers")
         tries = [samplers, None] if samplers and key not in self._rejected else [None]
+        refused = False
         splitter = ThinkSplitter(*ep.think_tags)
         usage = timings = None
         try:
@@ -212,9 +213,11 @@ class LLM:
                     if r.status_code >= 400:
                         await r.aread()
                         if extra_samplers and r.status_code in (400, 422):
-                            self._rejected.add(key)  # this backend refuses them: stop sending
+                            refused = True  # the samplers, or something else? the retry tells
                             continue
                         self._check(r)
+                    if refused:  # only without them did it work: it refuses them, stop sending
+                        self._rejected.add(key)
                     async for chunk in self._chunks(r, url):
                         usage = chunk.get("usage") or usage
                         timings = chunk.get("timings") or timings  # llama.cpp: cache hits here

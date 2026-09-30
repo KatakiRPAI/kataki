@@ -28,7 +28,7 @@ ASK = (
     "Then write the reply, which shows the thought only through what {name} says and does."
 )
 STRONGER = "Keep {name}'s thought private: never say it, or its words, aloud."
-PLACEHOLDER = re.compile(r"^\(.*\)$|at most \d+ words", re.I)
+PLACEHOLDER = re.compile(r"^\((?:in .*own voice|from this moment)", re.I)  # the ASK's own
 
 
 def mode(conn: sqlite3.Connection, ep: Endpoint, speaker_id: int | None) -> str | None:

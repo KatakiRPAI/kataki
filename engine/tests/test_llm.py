@@ -343,3 +343,19 @@ async def test_a_refusal_without_the_preset_is_still_an_error():
     backend = Recorder(httpx2.Response(400, text="bad"))
     with pytest.raises(LLMError):
         await collect(backend.llm.chat_stream(EP, []))
+
+
+async def test_an_unrelated_refusal_does_not_switch_the_samplers_off():
+    backend = Recorder(httpx2.Response(400, text="context too long"),
+                       httpx2.Response(400, text="context too long"))  # fmt: skip
+    llm = backend.llm
+    with pytest.raises(LLMError):
+        await collect(llm.chat_stream(EP, [], samplers={"dry_base": 1.75}))
+    assert not llm._rejected  # nothing showed the backend refuses the samplers
+
+
+async def test_json_calls_never_carry_the_preset():
+    local = Endpoint(base_url="http://127.0.0.1:8080/v1", model="m")
+    backend = Recorder(completion('{"n": 1}'))
+    await backend.llm.complete_json(local, [], {"type": "object"}, parse_n)
+    assert "min_p" not in backend.bodies[0] and "dry_base" not in backend.bodies[0]

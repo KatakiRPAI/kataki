@@ -577,12 +577,37 @@ async def test_a_local_reply_carries_the_anti_slop_preset(conn, story, backend):
     body = backend.requests[0]
     assert body["min_p"] == 0.05 and body["dry_multiplier"] == 0.8
     assert body["xtc_probability"] == 0.5  # nothing decided, nothing recalled: XTC too
-    _set(conn, "features.mind.texting", False)  # the preset does not depend on texting
+    _set(conn, "features.mind.texting", False)  # off (stable): auto means no preset
     await play(turns.turn(conn, backend.llm, story, "Mira?"))
-    assert backend.requests[1]["min_p"] == 0.05
+    assert "min_p" not in backend.requests[1]
 
 
 async def test_an_online_reply_carries_no_preset(conn, story, backend):
     backend.say("Fine.")
     await play(turns.turn(conn, backend.llm, story, "Evening, Mira."))
     assert "min_p" not in backend.requests[0] and "dry_base" not in backend.requests[0]
+
+
+async def test_a_prose_line_gets_a_prose_reply_and_no_hold(conn, story, backend):
+    backend.say("I look up from the ledger and smile at you. It has been a long day.")
+    events = await play(turns.turn(conn, backend.llm, story, "*nods* Mira?"))
+    assert events[0][1]["texting"] is None  # the UI never holds a prose story's tokens
+    assert events[-1][1]["delivery"]["mode"] == "prose"
+    assert context.LENGTHS["short"] in _tail(backend)  # curt, but never brief in prose
+
+
+async def test_asking_for_the_preset_by_hand_works_with_texting_off(conn, story, backend):
+    conn.execute("UPDATE model_roles SET params=? WHERE role='rp'",
+                 (json.dumps({"samplers": "anti-slop"}),))  # fmt: skip
+    _set(conn, "features.mind.texting", False)
+    backend.say("Fine.")
+    await play(turns.turn(conn, backend.llm, story, "Evening, Mira."))
+    assert backend.requests[0]["min_p"] == 0.05
+
+
+async def test_texting_needs_no_other_mind_feature(conn, story, backend):
+    for name in ("affect", "bonds", "goals"):
+        _set(conn, f"features.mind.{name}", False)
+    backend.say("the tide turned early")
+    done = (await play(turns.turn(conn, backend.llm, story, "Evening, Mira.")))[-1][1]
+    assert done["delivery"]["mode"] == "text"
