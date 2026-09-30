@@ -47,7 +47,7 @@ Answer what was actually said, as it was meant. Keep to what the story has estab
 Memory notes are everything the speaking character remembers that matters right now:
 - [SHARP] notes are certain. If someone says otherwise, the character challenges it.
 - [HAZY] notes are vague. The character is unsure, may doubt what they are told, and can be \
-persuaded.
+persuaded. What a [HAZY] note leaves out is lost: they can't quite recall it, and never fill it in.
 - If there is no note about something, the character has no memory of it. They react \
 naturally and may simply believe what they are told. Never invent memories.
 Characters know only their own notes. Never reveal another character's private knowledge.

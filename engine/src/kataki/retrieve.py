@@ -235,8 +235,18 @@ def recall(
         sharp = s.tier == "sharp" or bool(effortful)
         body = m["detail"] if sharp else m["gist"]
         mine, drift, cue = None, None, None
-        if human and not effortful:  # her own version; or, for a hazy one, a detail drifts
-            mine, drift = _mine(conn, m, knower_id, s.tier, live, on_path, now, scene_id, slip)
+        if human:  # her own version wins, even over a strain; or a hazy detail drifts
+            mine, drift = _mine(
+                conn,
+                m,
+                knower_id,
+                "sharp" if effortful else s.tier,
+                live,
+                on_path,
+                now,
+                scene_id,
+                slip,
+            )
             slip = slip or drift is not None  # one new slip at a time
         if mine:
             body = mine

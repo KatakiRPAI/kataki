@@ -443,3 +443,20 @@ async def test_off_or_broken_it_never_touches_the_turn(conn, duo, backend, alway
     tail, gen = await talk(conn, backend, story, mira, "You said Tuesday, right?", "Yes.")
     assert "Tuesday" not in tail.split("[Directive]")[0].split("remembers]")[-1]
     assert "recall" not in gen
+
+
+# --- found by the probes on a real model (P6, P7) --------------------------------------------
+
+
+def test_the_rules_say_a_hazy_memorys_lost_details_are_never_filled_in():
+    from kataki import context
+
+    assert "never fill it in" in context.RULES
+
+
+def test_straining_never_flips_her_version_back_to_the_truth(conn, world, always, monkeypatch):
+    memory = hazy(conn, world, alts=[THURSDAY])
+    assert recall(conn, world)[0].text == DRIFTED
+    monkeypatch.setattr(activation, "effortful_recall", lambda *a: True)
+    (again,) = recall(conn, world, pressed={memory})  # pressed: she strains, and wins
+    assert again.text == DRIFTED  # vivid and wrong: only the repair puts it right
