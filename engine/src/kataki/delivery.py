@@ -112,14 +112,17 @@ def _sentences(line: str) -> list[str]:
 
 def split(text: str, cap: int, lines_only: bool) -> list[str]:
     """The model's own lines, then (unless `lines_only`) their sentences, with the shortest
-    neighbours merged until there are at most `cap`."""
-    parts = [ln.strip() for ln in text.splitlines() if ln.strip()]
-    if not lines_only:
-        parts = [s for ln in parts for s in _sentences(ln)]
+    neighbours merged until there are at most `cap`. Lines merged into one bubble keep their line
+    break (an unpunctuated line would otherwise run into the next); sentences, a space."""
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    parts = [  # (text, its first line, its last line)
+        (s, n, n) for n, ln in enumerate(lines) for s in ([ln] if lines_only else _sentences(ln))
+    ]
     while len(parts) > max(cap, 1):
-        i = min(range(len(parts) - 1), key=lambda i: len(parts[i]) + len(parts[i + 1]))
-        parts[i : i + 2] = [f"{parts[i]} {parts[i + 1]}"]
-    return parts
+        i = min(range(len(parts) - 1), key=lambda i: len(parts[i][0]) + len(parts[i + 1][0]))
+        (a, first, end), (b, start, last) = parts[i], parts[i + 1]
+        parts[i : i + 2] = [(f"{a}{' ' if end == start else chr(10)}{b}", first, last)]
+    return [p for p, _, _ in parts]
 
 
 def _pace(mood: dict | None, tired: bool) -> float:

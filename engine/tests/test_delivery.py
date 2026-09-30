@@ -149,3 +149,12 @@ def test_the_same_reply_always_gets_the_same_plan_and_off_gets_none():
     )
     assert _plan(dial="off") is None
     assert _plan(dial="nonsense")["dial"] == "light"
+
+
+def test_merged_lines_keep_their_line_break_and_merged_sentences_a_space():
+    # the texting probe: unpunctuated lines ran together into one run-on bubble
+    assert delivery.split("hey\ni miss it too\nnot tonight", 2, lines_only=True) == [
+        "hey\ni miss it too",
+        "not tonight",
+    ]
+    assert delivery.split("ok. sure. fine", 2, lines_only=False) == ["ok. sure.", "fine"]
