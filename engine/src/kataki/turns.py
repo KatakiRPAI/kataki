@@ -424,7 +424,7 @@ async def _generate(
     except Exception as e:
         logging.getLogger(__name__).warning("repair skipped for story %s: %s", story_id, e)
         repaired = None
-    if repaired:
+    if repaired and repaired["directive"]:
         decide = " ".join(p for p in (decide, repaired["directive"]) if p)
     guards = secret["guards"] if secret else []  # every secret kept from someone here
     guarding = bool(secret and secret["hot"])  # on the table: hold the reply by sentences
@@ -485,7 +485,8 @@ async def _generate(
         )
         trace["ms"]["recall"] = ms(at)
         try:  # the user "corrects" what she clearly remembers: she keeps it
-            if human and not repaired and not (secret and secret["hot"]):  # a lie is not a slip
+            busy = repaired and repaired["directive"]
+            if human and not busy and not (secret and secret["hot"]):  # a lie is not a slip
                 held = recollect.hold(path, recalled, names.get(story["persona_entity_id"]))
         except Exception as e:
             logging.getLogger(__name__).warning("hold skipped for story %s: %s", story_id, e)

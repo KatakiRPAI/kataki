@@ -38,7 +38,8 @@ def ago(minutes: int) -> str:
 
 
 def _initial(name: str) -> str:
-    return re.sub(r"^(the|a|an)\s+", "", name.strip(), flags=re.I)[:1].upper()
+    first = re.sub(r"^(the|a|an)\s+", "", name.strip(), flags=re.I)[:1].upper()
+    return first if first.isalpha() else ""  # words, never numbers
 
 
 def cues(linked: list[dict], here: set[int], knower: int, emotion: str | None, since: int) -> list:
@@ -118,6 +119,8 @@ def differs(row, m) -> str | None:
     (she put herself right) is true, and more exact than the gist, so it renders too."""
     if row is None or row["text"] in (m["detail"], m["gist"]):
         return None
+    if (m["core_locked"] or m["pinned"]) and row["basis"] != "user":
+        return None  # locked or pinned: never distorted (a user's own Correct still stands)
     return row["text"]
 
 
@@ -135,7 +138,7 @@ def pass_on(conn, teller: int, hearer: int, memory: int, runs: set[int], message
     """Being told a memory by someone who holds a version of it: the hearer gets that version
     (the telephone effect, note 14 §7.3). -> the new row, or None."""
     m = conn.execute("SELECT * FROM memories WHERE id=?", (memory,)).fetchone()
-    if m is None or m["pinned"] or m["core_locked"]:
+    if m is None or m["pinned"] or m["core_locked"] or dial(conn, hearer) == "faithful":
         return None
     theirs = version(conn, teller, memory, runs, messages, now)
     if differs(theirs, m) is None:
@@ -238,6 +241,10 @@ def repair(conn, who: int, path: list, user: str | None) -> dict | None:
         at = next((i for i, m in enumerate(after) if said(m["text"], p["wrong"], p["right"])), None)
         if at is None:
             continue
+        record = {"seed": seed["id"], "memory_id": seed["memory_id"], "wrong": p["wrong"],
+                  "right": p["right"]}  # fmt: skip
+        if any(said(m["text"], p["right"], p["wrong"]) for m in after[at:]):
+            return {"directive": "", "record": {**record, "why": "self"}}  # already put right
         pending = path[-1] if path and path[-1]["role"] == "user" else None
         if pending is not None and said(pending["text"], p["right"], p["wrong"]):
             why = "caught"
@@ -250,9 +257,7 @@ def repair(conn, who: int, path: list, user: str | None) -> dict | None:
                     " then carry on.")  # fmt: skip
         else:
             continue
-        record = {"seed": seed["id"], "memory_id": seed["memory_id"], "wrong": p["wrong"],
-                  "right": p["right"], "why": why}  # fmt: skip
-        return {"directive": text, "record": record}
+        return {"directive": text, "record": {**record, "why": why}}
     return None
 
 
@@ -262,8 +267,14 @@ def hold(path: list, recalled: list, user: str | None) -> str:
     pending = path[-1] if path and path[-1]["role"] == "user" else None
     if pending is None or not CORRECTING.search(pending["text"]):
         return ""
-    if not any(r.tier == "sharp" and "elsewhere" not in r.breakdown for r in recalled):
-        return ""
+    words = _words(pending["text"]) - STOP
+    if not any(
+        r.tier == "sharp"
+        and "elsewhere" not in r.breakdown
+        and words & {w for w in _words(r.text) if len(w) > 3}
+        for r in recalled
+    ):
+        return ""  # nothing she clearly remembers is what the line is about
     them = user or "the other person"
     return (f"If {them} says something that goes against what you clearly remember, trust your"
             f" memory and say so kindly; do not agree just to please {them}.")  # fmt: skip

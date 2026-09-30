@@ -266,7 +266,7 @@ class MemoryPatch(BaseModel):
 
 class VersionIn(BaseModel):
     knower: int
-    text: str | None = None  # None: back on the truth
+    text: str | None = Field(None, max_length=1000)  # None: back on the truth
 
 
 def moments_of(story) -> list[dict]:
@@ -1548,7 +1548,11 @@ def create_app(
         or (`text: null`) puts her back on the truth. Append-only; the truth row is untouched.
         -> her ledger row for it."""
         m = _row(conn, "SELECT * FROM memories WHERE id=?", (memory_id,))
-        _row(conn, "SELECT id FROM entities WHERE id=? AND story_id=?", (v.knower, m["story_id"]))
+        _row(
+            conn,
+            "SELECT id FROM entities WHERE id=? AND story_id=? AND kind='character'",
+            (v.knower, m["story_id"]),
+        )
         path = chat.active_path(conn, m["story_id"])
         now = path[-1]["story_time"] if path else 0
         text = (v.text or "").strip() or m["detail"]

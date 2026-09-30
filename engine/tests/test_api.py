@@ -1492,3 +1492,17 @@ def test_the_ledger_shows_her_version_beside_the_truth_and_why_something_is_miss
         )
     [cut] = api.get(f"/stories/{story}/memories?knower={mira}").json()
     assert cut["why_not"] == "budget"
+
+
+def test_only_a_character_has_a_version_and_it_is_kept_short(api, story, conn):
+    who = cast(api, story)
+    made = api.post(
+        f"/stories/{story}/memories",
+        json={"detail": "They met on Thursday.", "knower_ids": [who["Mira"]["id"]]},
+    ).json()
+    place = conn.execute("SELECT id FROM entities WHERE kind='place'").fetchone()[0]
+    assert api.post(f"/memories/{made['id']}/version", json={"knower": place}).status_code == 404
+    long = api.post(
+        f"/memories/{made['id']}/version", json={"knower": who["Mira"]["id"], "text": "x" * 5000}
+    )
+    assert long.status_code == 422

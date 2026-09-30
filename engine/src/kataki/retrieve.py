@@ -62,7 +62,7 @@ def _ids(rows) -> set[int]:
 
 
 def _assess(
-    conn, m, knower_id, known, now, live_scenes, live, relevance, graph, wobble, d, mood=0.0
+    conn, m, knower_id, known, now, live_scenes, live, relevance, graph, wobble, d, mood=None
 ):
     """One memory, one knower: (how they know it, is it superseded, activation score). A locked
     memory (minds slice 6, `mood` given means the feature is on) is never forgotten: at worst
@@ -334,6 +334,8 @@ def _mine(conn, m, knower_id: int, tier: str, live, on_path, now, scene_id, slip
     try:
         row = recollect.version(conn, knower_id, m["id"], live, on_path, now)
         if row is not None:
+            if row["basis"] == "recount" and tier == "sharp":
+                return None, None  # put right, and sharp: the full detail, not the recount
             return recollect.differs(row, m), None
         alts = recollect.alts_of(m)
         if (slip or tier != "hazy" or not alts or m["core_locked"] or m["pinned"]
@@ -490,7 +492,7 @@ def clarity(conn, story_id: int, knower_id: int, memory_id: int, path: list, liv
         return None
     _, _, s = _assess(
         conn, m, knower_id, known, now, live_scenes(conn, story_id, path), live,
-        CLARITY_CUE["relevance"], CLARITY_CUE["graph"], 0.0, knobs.decay(conn, knower_id),
+        CLARITY_CUE["relevance"], CLARITY_CUE["graph"], 0.0, knobs.decay(conn, knower_id), 0.0,
     )  # fmt: skip
     return s.tier
 

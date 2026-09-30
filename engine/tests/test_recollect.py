@@ -467,3 +467,79 @@ def test_a_hazy_note_says_its_details_are_gone(conn, world):
     assert recall(conn, world)[0].text == f"{GIST} (the details are gone)"
     off(conn)
     assert recall(conn, world)[0].text == GIST
+
+
+# --- final review fixes ---------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("flag", ["core_locked", "pinned"])
+def test_locking_or_pinning_hides_a_version_she_already_holds(conn, world, always, flag):
+    memory = hazy(conn, world, alts=[THURSDAY])
+    assert recall(conn, world)[0].text == DRIFTED
+    conn.execute(f"UPDATE memories SET {flag}=1 WHERE id=?", (memory,))
+    mira = eid(conn, "Mira")
+    if flag == "core_locked":  # a pinned one is in the stable block, not recalled
+        assert "Tuesday" not in recall(conn, world, log=False)[0].text
+    [row] = retrieve.inspect(conn, world, mira)
+    assert row["version"] is None
+
+
+def test_a_users_own_version_of_a_locked_memory_still_stands():
+    m = {"detail": "d", "gist": "g", "core_locked": 1, "pinned": 0}
+    assert recollect.differs({"text": "mine", "basis": "user"}, m) == "mine"
+    assert recollect.differs({"text": "mine", "basis": "alt"}, m) is None
+
+
+def test_a_faithful_hearer_is_told_the_truth_not_a_version(conn, world):
+    memory = hazy(conn, world)
+    extracted(conn, world, claim(conn, TOLD, memory))
+    conn.execute("INSERT INTO settings(key, value) VALUES('realism.memory', '\"faithful\"')")
+    told = {"knower": h(conn, "Dara"), "memory": f"M{memory}", "source": "told",
+            "told_by": h(conn, "Mira")}  # fmt: skip
+    extracted(conn, world, {"knowledge": [told]})
+    assert [r["knower_id"] for r in rows(conn, "recollections")] == [eid(conn, "Mira")]
+
+
+def test_a_recount_never_hides_the_full_detail_once_sharp(conn, world, always, monkeypatch):
+    memory = hazy(conn, world, alts=[THURSDAY])
+    recall(conn, world)
+    leaf = chat.active_path(conn, world)[-1]
+    recollect.settle(conn, eid(conn, "Mira"), {"memory_id": memory, "right": "on Thursday"},
+                     leaf["id"], leaf["story_time"])  # fmt: skip
+    monkeypatch.setattr(activation, "effortful_recall", lambda *a: True)
+    (got,) = recall(conn, world, pressed={memory})
+    assert DETAIL in got.text
+
+
+def test_a_cue_never_starts_with_a_digit():
+    got = recollect.cues([{"id": 9, "kind": "place", "name": "7 Wharf Lane"}], here=set(),
+                         knower=1, emotion=None, since=YEAR)  # fmt: skip
+    assert got == ["about a year ago"]
+
+
+@pytest.mark.anyio
+async def test_she_put_it_right_herself_so_no_second_correction(conn, duo, backend, always):
+    story, mira = duo
+    cafe(conn, duo)
+    await talk(conn, backend, story, mira, "When did we meet?", "A Tuesday. No, Thursday!")
+    tail, gen = await talk(conn, backend, story, mira, "Ha.", "Mm.")
+    assert "not on Tuesday" not in tail.split("[Directive]")[1]
+    assert gen["recall"]["correction"]["why"] == "self"
+    assert recollect.open_slips(conn, mira, chat.active_path(conn, story)) == []
+    assert conn.execute("SELECT COUNT(*) FROM recollections WHERE basis='recount'").fetchone()[0]
+
+
+@pytest.mark.anyio
+async def test_the_hold_needs_the_line_to_touch_what_she_clearly_remembers(conn, duo, backend):
+    story, mira = duo
+    library.add_memory(conn, story, "Mira's brother is called Tobin.", importance=8,
+                       knower_ids=[mira], tags=["brother"])  # fmt: skip
+    await talk(conn, backend, story, mira, "How is your brother?", "My brother is well.")
+    tail, gen = await talk(conn, backend, story, mira, "Actually, the tide turns at noon.", "Oh?")
+    assert "trust your memory" not in tail
+
+
+def test_the_lock_floor_is_asked_for_not_assumed(conn, world):
+    import inspect as pyinspect
+
+    assert pyinspect.signature(retrieve._assess).parameters["mood"].default is None
