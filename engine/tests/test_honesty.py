@@ -165,3 +165,63 @@ def test_her_earlier_claims_on_the_topic_are_recalled(conn, cards):
         "Mira said the ring was her grandmother's.",
         "Mira said the ring came from Porthleven.",
     ]
+
+
+# --- the leak check ----------------------------------------------------------------------------
+
+GUARDS = [(["brother"], "It was my grandmother's.")]
+
+
+def test_a_key_said_aloud_is_a_leak_in_any_case_or_number():
+    assert honesty.leak("It was my Brother's.", ["brother"]) == "brother"
+    assert honesty.leak("My brothers never knew.", ["brother"]) == "brother"
+    assert honesty.leak("Brotherhood of the tide.", ["brother"]) is None
+    assert honesty.leak("anything", []) is None
+
+
+def test_scrub_puts_the_cover_where_the_leak_began_and_ends_there():
+    text = '*She looks away.* "Fine. It was my brother\'s. He died in spring."'
+    assert honesty.scrub(text, GUARDS) == (
+        '*She looks away.* "Fine. It was my grandmother\'s."',
+        "brother",
+    )
+    assert honesty.scrub("Nothing here.", GUARDS) == ("Nothing here.", None)
+    assert honesty.scrub("It was my brother's.", [(["brother"], None)]) == ("…", "brother")
+
+
+def feed(guard, *chunks):
+    return "".join(guard.feed(c) for c in chunks) + guard.flush()
+
+
+def test_the_guard_lets_clean_sentences_through_as_they_end():
+    g = honesty.Guard(GUARDS)
+    assert g.feed("It's an old") == ""
+    assert g.feed(" ring. Why") == "It's an old ring. "
+    assert g.feed(" ask?") == ""
+    assert g.flush() == "Why ask?" and g.hit is None
+
+
+def test_a_leak_in_the_first_sentence_shows_nothing():
+    g = honesty.Guard(GUARDS)
+    assert feed(g, "It was my bro", "ther's, if you must know. More.") == ""
+    assert (g.hit, g.shown, g.cover) == ("brother", False, GUARDS[0][1])
+
+
+def test_a_later_leak_keeps_what_came_before_it():
+    g = honesty.Guard(GUARDS)
+    assert feed(g, "Fine.\n", "It was my brother's. He died.") == "Fine.\n"
+    assert g.hit == "brother" and g.shown
+
+
+def test_no_guards_hold_nothing():
+    g = honesty.Guard([([], "x")])
+    assert g.feed("It was my brother") == "It was my brother" and g.hit is None
+
+
+def test_the_cover_is_quoted_like_the_reply():
+    assert honesty.scrub("*Shrugs.* It was my brother's.", GUARDS)[0] == (
+        "*Shrugs.* It was my grandmother's."
+    )
+    assert honesty.scrub("*Shrugs.* “Mine.” “It was my brother's.”", GUARDS)[0] == (
+        "*Shrugs.* “Mine.” “It was my grandmother's.”"
+    )

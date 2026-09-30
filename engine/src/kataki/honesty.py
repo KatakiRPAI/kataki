@@ -286,3 +286,100 @@ def claims(conn: sqlite3.Connection, story_id: int, owner_id: int, sec: dict, pa
         [story_id, owner_id, *args],
     )
     return [r["detail"] for r in rows if topical(sec, r["detail"])][-n:]
+
+
+# --- the leak check (note 22 §2 step 11; note 13 §3.2 E) ---------------------------------------
+
+END = re.compile(r"[.!?…]+[\"”’'*_)\]]*(?:\s+|$)|\n+")  # a sentence's end, closers and all
+SURE_END = re.compile(r"[.!?…]+[\"”’'*_)\]]*\s+|\n+")  # ...that no later character can extend
+SILENT = "…"  # what is left of a leak with no cover to put in its place
+
+
+def _key(key: str) -> re.Pattern:
+    body = r"\s+".join(re.escape(w) for w in key.split())
+    return re.compile(rf"(?<!\w){body}(?:s|es)?(?!\w)", re.IGNORECASE)
+
+
+def leak(text: str, keys: list[str]) -> str | None:
+    """The first key the text says (whole words, any case, a plural too), or None."""
+    return next((k for k in keys if _key(k).search(text)), None)
+
+
+def _sentences(text: str) -> list[tuple[int, int]]:
+    out, at = [], 0
+    for m in END.finditer(text):
+        if m.end() > at:
+            out.append((at, m.end()))
+            at = m.end()
+    return out + ([(at, len(text))] if at < len(text) else [])
+
+
+def _first(text: str, guards: list[tuple[list[str], str | None]]):
+    """Where the first leaking sentence starts, its key and the cover to put there, or None."""
+    for start, end in _sentences(text):
+        for keys, cover in guards:
+            if key := leak(text[start:end], keys):
+                return start, key, cover
+    return None
+
+
+def _in_quotes(before: str, text: str, cover: str) -> str:
+    """The cover in the reply's own quotes: closing an open one, or a pair if it uses them."""
+    cover = cover.strip().strip('"“”')
+    if before.count('"') % 2:
+        return f'{cover}"'
+    if before.count("“") > before.count("”"):
+        return f"{cover}”"
+    if "“" in text:
+        return f"“{cover}”"
+    return f'"{cover}"' if '"' in text else cover
+
+
+def cover_up(before: str, text: str, cover: str | None) -> str:
+    """What replaces a leak: the cover story, where the leaking sentence began."""
+    return _in_quotes(before, text, cover) if cover else ("" if before.strip() else SILENT)
+
+
+def scrub(text: str, guards: list[tuple[list[str], str | None]]) -> tuple[str, str | None]:
+    """The text with its first leaking sentence replaced by the cover and the rest dropped (a
+    reply that has started giving it away does not get to finish), and the key it said."""
+    if (found := _first(text, guards)) is None:
+        return text, None
+    start, key, cover = found
+    before = text[:start]
+    return (before + cover_up(before, text, cover)).strip(), key
+
+
+class Guard:
+    """Holds a reply back a sentence at a time while a secret is on the table, so a sentence
+    that says a key in front of the wrong person is caught before anyone sees it. `hit` is the
+    key, `cover` what goes in its place, `shown` whether clean sentences went out before it.
+    ponytail: whole sentences only; a key split across a sentence end is not seen."""
+
+    def __init__(self, guards: list[tuple[list[str], str | None]]):
+        self.guards = [(keys, cover) for keys, cover in guards if keys]
+        self.held, self.hit, self.cover, self.shown, self.before = "", None, None, False, ""
+
+    def _release(self, done: str) -> str:
+        if found := _first(done, self.guards):
+            start, self.hit, self.cover = found
+            done = done[:start]
+        self.shown = self.shown or bool(done.strip())
+        self.before += done
+        return done
+
+    def feed(self, text: str) -> str:
+        if self.hit:
+            return ""
+        if not self.guards:
+            return text
+        self.held += text
+        cut = max((m.end() for m in SURE_END.finditer(self.held)), default=0)
+        done, self.held = self.held[:cut], self.held[cut:]
+        return self._release(done) if done else ""
+
+    def flush(self) -> str:
+        if self.hit or not self.guards:
+            return ""
+        done, self.held = self.held, ""
+        return self._release(done)
