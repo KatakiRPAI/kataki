@@ -462,3 +462,97 @@ async def test_the_worker_writes_the_diaries_after_the_pass_time_control(
     first = [m["content"] for m in backend.requests[0]["messages"]]
     assert "diary" in first[0]  # the diaries come before the memory reader
     assert between.todo(conn, story) == []
+
+
+# --- one thing reaches the reply ---------------------------------------------------------------
+
+
+async def play(stream):
+    return [e async for e in stream]
+
+
+def directive_of(backend, i=-1) -> str:
+    return backend.requests[i]["messages"][-1]["content"].split("[Directive]")[1]
+
+
+def tail_of(backend, i=-1) -> str:
+    return backend.requests[i]["messages"][-1]["content"]
+
+
+def gen_of(conn, story) -> dict:
+    return json.loads(chat.active_path(conn, story)[-1]["gen"])
+
+
+def plan(conn, story: int, who: int, text: str = "fix the old lantern") -> int:
+    with conn:
+        return conn.execute(
+            "INSERT INTO seeds(story_id, entity_id, kind, text, weight, story_time)"
+            " VALUES(?, ?, 'plan', ?, 0.9, ?)",
+            (story, who, text, chat.active_path(conn, story)[-1]["story_time"]),
+        ).lastrowid
+
+
+@pytest.mark.anyio
+async def test_back_after_two_days_she_shows_relief_tells_her_news_and_asks_about_yours(
+    local_model, cards, backend, monkeypatch
+):
+    conn = local_model
+    monkeypatch.setattr(between, "P_EVENT", 1.0)
+    story, _ = scene(conn, cards, mira=ANXIOUS | {"events": [AUDITION]})
+    mira = ent(conn, story, "Mira")
+    backend.say("{}", "Oh! You're here.", "It went badly, honestly.")  # {}: the memory reader
+    await play(turns.turn(conn, backend.llm, story, "Mira, I'm back.", speaker=mira))
+    said = directive_of(backend)
+    assert "let the relief show and look for a little reassurance" in said
+    assert "no guilt" in said and "two days" in said
+    assert "froze on the second monologue" in said and "Ask what Aren has been up to" in said
+    assert not re.search(r"\d", said.split("Reply")[0])
+    got = gen_of(conn, story)["onmind"]
+    assert got["reentry"] and got["kind"] == "worry" and got["news"]
+    await play(turns.turn(conn, backend.llm, story, "What's new?", speaker=mira))
+    later = directive_of(backend)
+    assert "relief" not in later and "froze on the second monologue" not in later  # once
+    assert "onmind" not in gen_of(conn, story)  # nothing else on her mind
+
+
+@pytest.mark.anyio
+async def test_a_seed_rides_in_the_mind_block_on_two_replies(local_model, cards, backend):
+    conn = local_model
+    story, _ = scene(conn, cards)  # a secure Mira: no worry, and nothing to tell
+    mira = ent(conn, story, "Mira")
+    seed = plan(conn, story, mira)
+    backend.say("{}", "Hello again.", "Mm.", "Sure.", "Right.")
+    await play(turns.turn(conn, backend.llm, story, "Mira, I'm back.", speaker=mira))
+    assert "Ask what Aren has been up to" in directive_of(backend)  # glad to see him
+    for _ in range(3):
+        await play(turns.turn(conn, backend.llm, story, "Nice weather.", speaker=mira))
+    tails = [tail_of(backend, i) for i in range(1, 5)]
+    block = "On your mind: fix the old lantern. Bring it up only if there is a natural opening"
+    assert [block in t for t in tails] == [False, True, True, False]  # one thing at a time
+    path = chat.active_path(conn, story)
+    first, second = (json.loads(path[i]["gen"])["onmind"] for i in (-7, -5))
+    assert first == {"seed": None, "kind": None, "text": None, "news": None, "reentry": True}
+    assert second == {"seed": seed, "kind": "plan", "text": "fix the old lantern", "news": None,
+                      "reentry": False}  # fmt: skip
+
+
+@pytest.mark.anyio
+async def test_off_reaches_nothing_and_a_failure_never_breaks_the_turn(
+    local_model, cards, backend, monkeypatch
+):
+    conn = local_model
+    story, _ = scene(conn, cards, mira=ANXIOUS)
+    mira = ent(conn, story, "Mira")
+    plan(conn, story, mira)
+    setting(conn, "features.mind.offscreen", False)
+    backend.say("{}", "Hi.", "Hello.")
+    await play(turns.turn(conn, backend.llm, story, "Mira?", speaker=mira))
+    assert "lantern" not in tail_of(backend) and "onmind" not in gen_of(conn, story)
+    setting(conn, "features.mind.offscreen", True)
+
+    def broken(*a, **k):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(between, "on_mind", broken)
+    events = await play(turns.turn(conn, backend.llm, story, "Mira?", speaker=mira))
+    assert events[-1][0] == "done"

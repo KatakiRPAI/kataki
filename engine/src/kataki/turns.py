@@ -344,9 +344,20 @@ async def _generate(
                 )
             except Exception as e:
                 logging.getLogger(__name__).warning("bonds not shown for story %s: %s", story_id, e)
+    onmind = None  # the one thing from her time away that reaches this reply (slice 5)
+    try:
+        if speaker_id is not None and features.enabled(conn, "mind.offscreen"):
+            user = names.get(story["persona_entity_id"])
+            onmind = between.on_mind(conn, story_id, speaker_id, path, user)
+    except Exception as e:
+        logging.getLogger(__name__).warning("on-mind skipped for story %s: %s", story_id, e)
+        onmind = None
+    mind_rows = [onmind["row"]] if onmind and onmind["row"] else []
     try:
         inside = (
-            inner.block(names.get(speaker_id, ""), ties + felt) if speaker_id is not None else ""
+            inner.block(names.get(speaker_id, ""), ties + felt + mind_rows)
+            if speaker_id is not None
+            else ""
         )
     except Exception as e:
         logging.getLogger(__name__).warning("mind block skipped: %s", e)
@@ -375,6 +386,8 @@ async def _generate(
         secret = None
     if secret and secret["directive"]:
         decide = " ".join(p for p in (decide, secret["directive"]) if p)
+    if onmind and onmind["directive"]:
+        decide = " ".join(p for p in (decide, onmind["directive"]) if p)
     guards = secret["guards"] if secret else []  # every secret kept from someone here
     guarding = bool(secret and secret["hot"])  # on the table: hold the reply by sentences
     try:
@@ -650,6 +663,8 @@ async def _generate(
                 gen["bonds"] = stood
             if secret and secret["honest"]:
                 gen["honest"] = secret["honest"]
+            if onmind:
+                gen["onmind"] = onmind["record"]
             message_id = chat.add_child(
                 conn, story_id, parent_id, "assistant", text, speaker_id, skip, gen
             )

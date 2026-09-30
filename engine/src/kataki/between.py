@@ -721,3 +721,136 @@ async def think(
         return False
     _mark(conn, run_id, who, "ok")
     return True
+
+
+# --- one thing reaches the reply (note 22 §4 row 5) ---------------------------------------------
+
+SURFACE = 2  # ponytail: replies one seed rides in before it is let go
+FLOOR = 0.15  # ponytail: a seed lighter than this is no longer on her mind
+MAX_WORRIES = 2  # note 11 §3: at most two worries count at once
+WORRIES = ("worry", "rumination")
+
+
+def open_seeds(conn: sqlite3.Connection, who: int, path: list) -> list[dict]:
+    """What is on `who`'s mind at the end of `path`, strongest first: live seeds, weighed now,
+    without the closed ones, the faded ones, a relational worry contact has eased, and any
+    worry past the second."""
+    if not path:
+        return []
+    now = path[-1]["story_time"]
+    where, args = db.anchor_filter(set(), {m["id"] for m in path})
+    rows = [
+        {**dict(r), "payload": json.loads(r["payload"] or "{}")}
+        for r in conn.execute(
+            f"SELECT * FROM seeds WHERE entity_id=? AND story_time<=? AND {where} ORDER BY id",
+            [who, now, *args],
+        )
+    ]
+    closed = {r["closes_id"] for r in rows if r["closes_id"] is not None}
+    out = []
+    for r in rows:
+        if r["closes_id"] is not None or r["id"] in closed:
+            continue
+        if r["payload"].get("absence") and eased(r, path):
+            continue
+        if (w := weight(r, now)) >= FLOOR:
+            out.append({**r, "now": round(w, 3)})
+    out.sort(key=lambda r: -r["now"])
+    worries = [r["id"] for r in out if r["kind"] in WORRIES][:MAX_WORRIES]
+    return [r for r in out if r["kind"] not in WORRIES or r["id"] in worries]
+
+
+def _offered(path: list, who: int) -> dict[int, int]:
+    """How many of `who`'s replies each seed has already ridden in."""
+    seen: dict[int, int] = {}
+    for m in path:
+        if m["role"] == "assistant" and m["speaker_id"] == who and m["gen"]:
+            got = json.loads(m["gen"]).get("onmind") or {}
+            for key in ("seed", "news"):
+                if got.get(key) is not None:
+                    seen[got[key]] = seen.get(got[key], 0) + (SURFACE if key == "news" else 1)
+    return seen
+
+
+def _reentry(skip: dict, missed: str | None, worry: str | None, news: str | None, user: str) -> str:
+    """The first reply after time away: how the time landed, one thing to tell, a question back.
+    Decisions, so they go in [Directive]; words only; no guilt (note 17 §4)."""
+    gap = span(skip["skip_minutes"]).lower()
+    out = []
+    if missed == "worried":
+        out.append(
+            f"You spent {gap} without a word from {user}"
+            + (f", wondering {worry}" if worry else "")
+            + f". Now that {user} is here, let the relief show and look for a little reassurance;"
+            " no guilt, no accusations."
+        )
+    elif missed == "cooler":
+        out.append(
+            f"It has been {gap} since you saw {user} and you have cooled a little: keep some"
+            f" distance at first, and warm up only if {user} keeps it easy."
+        )
+    elif missed == "glad":
+        out.append(f"It has been {gap} since you saw {user}, and you are glad to see them.")
+    if news:
+        out.append(f"Since you last saw {user}: {news}. Mention it if it fits.")
+    if news or missed == "glad":
+        out.append(f"Ask what {user} has been up to.")
+    return " ".join(out)
+
+
+def on_mind(
+    conn: sqlite3.Connection, story_id: int, who: int, path: list, user: str | None
+) -> dict | None:
+    """The one thing about her time away that reaches this reply. On her first reply after a
+    skip: the re-entry decision for [Directive]. Otherwise: her strongest seed as "On your mind"
+    for the mind block, on at most two replies. -> {"row", "directive", "record"} or None."""
+    seeds = open_seeds(conn, who, path)
+    offered = _offered(path, who)
+    run = job(conn, story_id, path)
+    if run is not None and user:
+        raw, ids = _raw(run), [m["id"] for m in path]
+        after = path[ids.index(run["to_message_id"]) + 1 :]
+        mine = raw["people"].get(str(who))
+        if mine is not None and not any(
+            m["role"] == "assistant" and m["speaker_id"] == who for m in after
+        ):
+            news = next(
+                (s for s in seeds if s["kind"] == "news" and s["run_id"] == run["id"]
+                 and s["id"] not in offered),
+                None,
+            )  # fmt: skip
+            worry = next(
+                (s for s in seeds if s["payload"].get("absence") and s["run_id"] == run["id"]),
+                None,
+            )
+            skip = chat.get_message(conn, run["to_message_id"])
+            said = _reentry(dict(skip), mine.get("missed"), mine.get("worry"),
+                            news and news["text"], user)  # fmt: skip
+            if said:
+                top = worry if mine.get("missed") == "worried" else news
+                return {
+                    "row": "",
+                    "directive": said,
+                    "record": {"seed": worry and worry["id"], "kind": top and top["kind"],
+                               "text": top and top["text"], "news": news and news["id"],
+                               "reentry": True},
+                }  # fmt: skip
+    pick = next(
+        (s for s in seeds if offered.get(s["id"], 0) < SURFACE and not s["payload"].get("absence")),
+        None,
+    )
+    if pick is None:
+        return None
+    them = user or "them"
+    what = {"news": f"{pick['text']} (something to tell {them})",
+            "worry": f"{pick['text']}, and it worries you"}.get(pick["kind"], pick["text"])  # fmt: skip
+    row = (
+        f"On your mind: {what}. Bring it up only if there is a natural opening; drop it if"
+        f" {them} dodges."
+    )
+    return {
+        "row": row,
+        "directive": "",
+        "record": {"seed": pick["id"], "kind": pick["kind"], "text": pick["text"], "news": None,
+                   "reentry": False},
+    }  # fmt: skip
