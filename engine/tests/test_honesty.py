@@ -1,9 +1,11 @@
 """Slice 4: she keeps a secret, lies to protect it by code's decision, never says it aloud in
 front of the wrong person, and steps out of the story for a sincere question."""
 
+import re
+
 import pytest
 
-from kataki import chat, honesty, library
+from kataki import chat, honesty, inner, library
 
 SECRET = {
     "text": "The ring in the drawer was her late brother's.",
@@ -74,3 +76,92 @@ def test_questions_and_accusations():
     assert honesty.ACCUSE.search("You're lying. Admit it.")
     assert honesty.ACCUSE.search("Tobin told me it was your brother's.")
     assert not honesty.ACCUSE.search("Nice ring.")
+
+
+# --- the move and the directive ----------------------------------------------------------------
+
+
+def prof(honesty=60, candor=50, warmth=50) -> dict:
+    return {"axes": {"honesty": [honesty, 5], "candor": [candor, 5], "warmth": [warmth, 5]}}
+
+
+SEC = {"text": SECRET["text"], "keys": ["brother"], "topic": ["ring"], "cover": SECRET["cover"],
+       "stakes": 0.8, "motive": "protect_self", "sincere": False}  # fmt: skip
+
+
+@pytest.mark.parametrize(
+    "sec, who, close, probed, caught, move",
+    [
+        (SEC, prof(25), 0.2, True, None, "self_lie"),  # a liar, asked: the cover
+        (SEC | {"motive": "kindness"}, prof(25), 0.2, True, None, "white_lie"),
+        (SEC | {"cover": None}, prof(25), 0.2, True, None, "deflect"),  # nothing to lie with
+        (SEC | {"stakes": 0.4}, prof(90), 0.2, True, None, "deflect"),  # honest: no lie
+        (SEC | {"stakes": 0.4}, prof(90, candor=80), 0.2, True, None, "evade"),  # and blunt
+        (SEC | {"stakes": 0.2}, prof(80), 0.2, True, None, "truth"),  # little to lose
+        (SEC, prof(25), 0.2, False, None, "omit"),  # on the table, not asked
+        (SEC | {"stakes": 0.3}, prof(60, candor=80), 0.2, False, None, "hint"),
+        (SEC, prof(25), 0.2, True, "accused", "double_down"),
+        (SEC | {"stakes": 0.5}, prof(90), 0.4, True, "accused", "confess"),
+        (SEC | {"sincere": True}, prof(25), 0.2, True, "accused", "truth"),  # as she believes it
+    ],
+)
+def test_code_decides_the_move(sec, who, close, probed, caught, move):
+    assert honesty.decide(sec, inner.shape(who), close, probed, caught) == move
+
+
+@pytest.mark.parametrize(
+    "who, close, move",
+    [
+        (prof(candor=85), 0.2, "truth"),
+        (prof(honesty=30, warmth=80), 0.2, "white_lie"),
+        (prof(warmth=80), 0.2, "soften"),
+        (prof(), 0.7, "soften"),
+        (prof(), 0.2, "hedge"),
+    ],
+)
+def test_an_opinion_on_their_work_is_answered_by_temperament(who, close, move):
+    assert honesty.face_move(inner.shape(who), close) == move
+
+
+def test_a_face_threat_is_an_opinion_asked_on_the_users_own_work():
+    assert honesty.FACE.search("I wrote a poem. Be honest, what do you think?")
+    assert honesty.FACE.search("Do you like my new coat?")
+    assert not honesty.FACE.search("What do you think the weather will do?")
+
+
+def test_the_lie_gives_the_cover_and_what_she_said_before_in_words():
+    said = ["Mira said the ring was her grandmother's, from Porthleven."]
+    line = honesty.directive(SEC, "self_lie", "Aren", said, None)
+    assert SEC["text"] in line and 'you say: "It was my grandmother\'s."' in line
+    assert said[0] in line and "to protect yourself" in line
+    assert not re.search(r"\d", line)
+
+
+@pytest.mark.parametrize("move", [m for m in honesty.MOVES if m != "exaggerate"])
+def test_every_move_has_words_and_no_numbers(move):
+    line = honesty.directive(SEC, move, "Aren", [], "accused")
+    assert line and not re.search(r"\d", line)
+    if move == "omit":  # not asked: the truth stays out of the prompt
+        assert SEC["text"] not in line
+
+
+def test_a_sincere_secret_never_puts_the_truth_in_the_prompt():
+    line = honesty.directive(SEC | {"sincere": True}, "truth", "Aren", [], None)
+    assert SEC["text"] not in line and SEC["cover"] in line
+
+
+def test_her_earlier_claims_on_the_topic_are_recalled(conn, cards):
+    story = make(conn, cards, [SECRET])
+    mira = ent(conn, story, "Mira")
+    for t, detail in [(5, "Mira said the ring was her grandmother's."), (6, "Mira said it rained."),
+                      (7, "Mira said the ring came from Porthleven.")]:  # fmt: skip
+        conn.execute(
+            "INSERT INTO memories(story_id, kind, story_time, detail, gist, asserted_by)"
+            " VALUES(?, 'claim', ?, ?, 'g', ?)",
+            (story, t, detail, mira),
+        )
+    [sec] = honesty.held(conn, mira, chat.active_path(conn, story))
+    assert honesty.claims(conn, story, mira, sec, chat.active_path(conn, story)) == [
+        "Mira said the ring was her grandmother's.",
+        "Mira said the ring came from Porthleven.",
+    ]
