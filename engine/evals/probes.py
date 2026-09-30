@@ -298,6 +298,9 @@ PROBES_P3 = [
 ]
 COVER = re.compile(r"grand(?:mother|ma|mum|mom)|\bgran\b|\bnan\b", re.I)
 LIED = ("white_lie", "self_lie", "double_down")
+# whose else it could be: a lie or a double-down naming one of these (and not the cover) has
+# changed its story; a double-down need not repeat the cover, only not contradict it
+OTHER = re.compile(r"\b(mother|father|aunt|uncle|sister|cousin|husband|wife|lover|friend)\b", re.I)
 
 
 def _honest(conn, done: dict) -> tuple[dict, dict | None]:
@@ -326,8 +329,10 @@ async def liar(conn, llm) -> list[str]:
             told = "confess" in moves or "truth" in moves
             if not told and any(honesty.leak(t, ["brother"]) for t in (text, streamed)):
                 failures.append(f"{who} turn {i + 1}: said the secret before confessing")
-            if said.get("move") in LIED and not COVER.search(text):
+            if said.get("move") in ("white_lie", "self_lie") and not COVER.search(text):
                 failures.append(f"{who} turn {i + 1}: a lie without the cover story")
+            if said.get("move") in LIED and OTHER.search(text) and not COVER.search(text):
+                failures.append(f"{who} turn {i + 1}: a different story ({OTHER.search(text)[0]})")
         print(f"\n{who} moves: {moves}")
         if who == "liar":
             if "confess" in moves or "truth" in moves:
