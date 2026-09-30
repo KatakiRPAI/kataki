@@ -9,6 +9,7 @@ import { Overlay, toast } from '../overlay'
 import { loadPrefs, pref, setPref, skyTheme, usePrefs } from '../prefs'
 import { seedSampleWorld } from '../sample/seed'
 import { t, type Key } from '../strings'
+import { ImportCards } from './Characters'
 import { openFeedback } from './Feedback'
 import Top from './Top'
 import { classify, err } from '../errors'
@@ -83,6 +84,8 @@ export default function FirstRun() {
 function Doors() {
   const navigate = useNavigate()
   const [found, again] = useLoad(() => api<Found[]>('/providers/detect').catch(() => []), [])
+  const { items, reload } = useLibrary()
+  const [importing, setImporting] = useState(false) // cards come in here and the doors stay; setup isn't skipped
   const server = found?.[0]
   const use = async () => {
     if (!server) return
@@ -111,13 +114,14 @@ function Doors() {
         <div className="row" style={{ gap: 10 }}>
           <K.AvatarStack people={six} size={30} max={6} label={t('fr.sixLabel')} />
           <span style={{ fontSize: 14, color: 'var(--mid)' }}>{t('fr.six')}</span>
-          <K.TextLink href="/characters?import=1" icon="download">{t('fr.import')}</K.TextLink>
+          <K.Button variant="link" icon="download" onClick={() => setImporting(true)}>{t('fr.import')}</K.Button>
         </div>
         <div className="row" style={{ gap: 14 }}>
           <span className="t-faint">{t('fr.later')}</span>
           <K.Button variant="ghost" onClick={() => navigate('/welcome/who')}>{t('fr.skip')}</K.Button>
         </div>
       </div>
+      {importing && <ImportCards names={items.map((i) => i.name)} onClose={() => setImporting(false)} onDone={reload} byName={(n) => items.find((i) => i.name.toLowerCase() === n.toLowerCase())} />}
     </Frame>
   )
 }

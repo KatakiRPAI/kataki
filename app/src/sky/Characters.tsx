@@ -222,7 +222,7 @@ function GroupDialog({ group, people, places, onClose, onSave }: {
 type Row = { file: File; look?: Look; bad?: boolean; dupe?: Item; choice: 'both' | 'replace' | 'skip'; done?: boolean }
 
 /** D4: character cards in, read first, added only on Import. */
-function ImportCards({ onClose, onDone, byName }: { names: string[]; onClose: () => void; onDone: () => void; byName: (n: string) => Item | undefined }) {
+export function ImportCards({ onClose, onDone, byName }: { names: string[]; onClose: () => void; onDone: () => void; byName: (n: string) => Item | undefined }) {
   const [rows, setRows] = useState<Row[]>([])
   const [examples, setExamples] = useState(true)
   const [busy, setBusy] = useState(false)
