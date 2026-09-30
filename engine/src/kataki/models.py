@@ -8,7 +8,7 @@ warning instead of failing the whole run.
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 EntityKind = Literal["character", "place", "item", "faction", "other"]
 
@@ -26,6 +26,12 @@ class Participant(BaseModel):
     role: Literal["actor", "target", "witness", "item", "subject"]
 
 
+class Alt(BaseModel):  # minds slice 6: a minor detail she could later mix up, with the truth
+    slot: Literal["when", "where", "who", "what"]
+    right: str = Field(min_length=1)  # the phrase as it stands in `detail`: "on Thursday"
+    wrong: str = Field(min_length=1)  # a believable mix-up: "on Tuesday"
+
+
 class MemoryItem(BaseModel):
     kind: Literal["event", "fact", "claim"]
     detail: str = Field(min_length=1)  # rendered while the memory is sharp
@@ -40,6 +46,36 @@ class MemoryItem(BaseModel):
     supersedes: str | None = None
     tags: list[str] = []
     line: int | None = None  # the transcript line it happened on: decides who witnessed it
+    # minds slice 6 (asked only with mind.recall on). Lenient: a bad value is dropped, never
+    # the memory, so the reader's JSON validity cannot fall on them.
+    valence: float | None = None  # how it felt, -1 awful .. 1 wonderful
+    alts: list[Alt] = Field([], max_length=2)
+    core_locked: bool = False  # never distorted, never forgotten
+
+    @field_validator("valence", mode="before")
+    @classmethod
+    def _valence(cls, v):
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            return None
+        return max(-1.0, min(1.0, float(v)))
+
+    @field_validator("alts", mode="before")
+    @classmethod
+    def _alts(cls, v):
+        if not isinstance(v, list):
+            return []
+        kept = []
+        for a in v:
+            try:
+                kept.append(Alt.model_validate(a))
+            except ValidationError:
+                continue
+        return kept[:2]
+
+    @field_validator("core_locked", mode="before")
+    @classmethod
+    def _locked(cls, v):
+        return v if isinstance(v, bool) else False
 
 
 class KnowledgeItem(BaseModel):  # someone learns of an EXISTING memory
@@ -113,11 +149,25 @@ def _strings(prop: dict) -> dict:
     return next((b for b in prop.get("anyOf", []) if b.get("type") == "string"), prop)
 
 
-def extraction_schema(entities: list[str], memories: list[str], lines: int) -> dict:
+RECALL_FIELDS = ("valence", "alts", "core_locked")
+
+
+def extraction_schema(
+    entities: list[str], memories: list[str], lines: int, recall: bool = True
+) -> dict:
     """The Extraction schema with every reference closed to the handles in the roster, so a
-    grammar-constrained model cannot invent an id, misspell a name, or cite a missing line."""
+    grammar-constrained model cannot invent an id, misspell a name, or cite a missing line.
+    `recall`: ask for slice 6's memory fields (mind.recall); off, the schema is as before."""
     schema = Extraction.model_json_schema()
     defs = schema["$defs"]
+    if not recall:
+        for name in RECALL_FIELDS:
+            defs["MemoryItem"]["properties"].pop(name)
+        defs.pop("Alt")
+    else:  # short and strict enough for a small model; the parser is lenient anyway
+        defs["MemoryItem"]["properties"]["valence"] = {
+            "anyOf": [{"type": "number", "minimum": -1, "maximum": 1}, {"type": "null"}]
+        }
     for model, fields in ENTITY_REFS.items():
         for name in fields:
             _strings(defs[model]["properties"][name])["enum"] = entities

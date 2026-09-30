@@ -15,7 +15,7 @@ import json
 import re
 import sqlite3
 
-from kataki import between, chat, db, embed, knobs, library, retrieve, roles
+from kataki import between, chat, db, embed, features, knobs, library, retrieve, roles
 from kataki.activation import FIDELITY
 from kataki.llm import LLM, Endpoint, LLMError
 from kataki.models import extraction_schema, parse_extraction
@@ -155,11 +155,12 @@ class _Applier:
             contradicted = (self.memory(c.contradicts) for c in clashes)
             contradicts = next((m for m in contradicted if self.is_live(m)), None)
             where = self.at(item.line)
+            alts = self.mix_ups(index, item)
             memory_id = self.conn.execute(
                 "INSERT INTO memories(story_id, kind, story_time, detail, gist, importance,"
                 " emotion, is_true, asserted_by, supersedes_id, covert, tags_text, from_message_id,"
-                " to_message_id, run_id, message_id, contradicts_id)"
-                " VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " to_message_id, run_id, message_id, contradicts_id, valence, alts, core_locked)"
+                " VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     self.story_id,
                     "claim" if is_claim else item.kind,
@@ -178,6 +179,9 @@ class _Applier:
                     self.run_id,
                     where["id"],  # the exact line; from/to above keep the run's range
                     contradicts,
+                    item.valence,
+                    json.dumps(alts) if alts else None,
+                    item.core_locked,
                 ),
             ).lastrowid
             for entity_id, role in dict.fromkeys(links):
@@ -209,6 +213,17 @@ class _Applier:
                     self.doubt(knower, contradicts, doubt if is_claim else 1.0)
             if asserter is not None:
                 self.know(asserter, memory_id, "witnessed", when=when)  # they know what they said
+
+    def mix_ups(self, index: int, item) -> list[dict]:
+        """The alts code can plant later with the truth in hand (slice 6): `right` must stand in
+        the detail, and `wrong` must differ from it; the rest are dropped with a warning."""
+        kept = []
+        for a in item.alts:
+            if a.right.lower() not in item.detail.lower() or a.wrong.lower() == a.right.lower():
+                self.warnings.append(f"memories[{index}].alts: '{a.right}' dropped (no truth)")
+                continue
+            kept.append(a.model_dump())
+        return kept
 
     def doubt(self, knower: int, claim_id: int, believed: float) -> None:
         """Suspicion (minds slice 4): someone who believes what contradicts another's claim
@@ -377,6 +392,15 @@ it. private: only that character knows.
 - skip_hint: if time passed without the text saying how much.
 Record only what the transcript shows. Empty lists are fine."""
 
+# minds slice 6 (mind.recall): three more per memory, so code can misremember with the truth kept
+INSTRUCTIONS_RECALL = """
+  - valence: how it felt to those involved, -1 awful to 1 wonderful, 0 neutral.
+  - alts: up to two minor details someone could later mix up. slot: when, where, who or what; \
+right: the phrase exactly as it stands in detail ("on Thursday"); wrong: a believable mix-up \
+("on Tuesday"). Never the main point of the memory.
+  - core_locked: true only for what must never be misremembered (a vow, a death, a true \
+name, something stressed as unforgettable)."""
+
 
 def pending(conn: sqlite3.Connection, story_id: int) -> list[sqlite3.Row]:
     """Lines on the active branch no live run has read yet. The newest reply waits until the
@@ -464,6 +488,7 @@ def roster(conn: sqlite3.Connection, story_id: int, chunk: list) -> tuple[list[s
 def prompt(conn: sqlite3.Connection, story_id: int, chunk: list) -> tuple[list[dict], dict]:
     """The messages and the handle-closed JSON schema for reading this chunk."""
     entity_lines, memory_lines = roster(conn, story_id, chunk)
+    recall = features.enabled(conn, "mind.recall")
     names = dict(
         conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)).fetchall()
     )
@@ -486,10 +511,14 @@ def prompt(conn: sqlite3.Connection, story_id: int, chunk: list) -> tuple[list[d
     if memory_lines:
         body += "\n\nEarlier memories:\n" + "\n".join(memory_lines)
     body += "\n\nTranscript:\n" + transcript
-    messages = [{"role": "system", "content": INSTRUCTIONS}, {"role": "user", "content": body}]
+    rules = INSTRUCTIONS
+    if recall:  # with the memory fields, right under the other per-memory ones
+        at = rules.index("- knowledge:")
+        rules = rules[:at].rstrip("\n") + INSTRUCTIONS_RECALL + "\n" + rules[at:]
+    messages = [{"role": "system", "content": rules}, {"role": "user", "content": body}]
     handles = [line.split()[0] for line in entity_lines] + new
     memories = [line.split()[0] for line in memory_lines]
-    return messages, extraction_schema(handles, memories, len(chunk))
+    return messages, extraction_schema(handles, memories, len(chunk), recall)
 
 
 def _check_document(data):

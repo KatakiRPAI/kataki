@@ -462,3 +462,52 @@ def test_believing_a_contradiction_makes_the_earlier_claim_doubted(conn, world, 
     assert _belief(conn, hers, "Mira")[0] == 1.0  # she knows what she said
     db.discard_run(conn, second)
     assert _belief(conn, hers, "Aren")[0] == 0.9  # the reading undone, the doubt goes with it
+
+
+# --- minds slice 6: how it felt, what could be mixed up, what must never change -----------
+
+
+def test_a_memory_keeps_how_it_felt_its_mix_ups_and_its_lock(conn, world):
+    alts = [{"slot": "where", "right": "at the docks", "wrong": "at the mill"}]
+    run(conn, world, {"memories": [betrayal(conn, valence=-0.7, alts=alts, core_locked=True)]})
+    m = only_memory(conn)
+    assert (m["valence"], json.loads(m["alts"]), m["core_locked"]) == (-0.7, alts, 1)
+
+
+def test_a_mix_up_whose_truth_is_not_in_the_detail_is_dropped_with_a_warning(conn, world):
+    alts = [
+        {"slot": "when", "right": "on Thursday", "wrong": "on Tuesday"},  # not in the detail
+        {"slot": "where", "right": "the docks", "wrong": "the mill"},
+    ]
+    same = [{"slot": "where", "right": "At The Docks", "wrong": "at the docks"}]  # no change
+    first, last = talk(conn, world)
+    run_id = extract.open_run(conn, world, first, last, "cadence")
+    data = {"memories": [betrayal(conn, alts=alts), betrayal(conn, alts=same)]}
+    warnings = extract.apply(conn, run_id, data)
+    rows = conn.execute("SELECT alts FROM memories ORDER BY id").fetchall()
+    assert [json.loads(r[0]) if r[0] else None for r in rows] == [[alts[1]], None]
+    assert sum("alts" in w for w in warnings) == 2
+
+
+def test_a_bad_valence_or_mix_up_never_costs_the_memory(conn, world):
+    bad = betrayal(
+        conn, valence="very sad", alts=[{"slot": "why", "right": 3}, "x"], core_locked=None
+    )
+    run(conn, world, {"memories": [bad, betrayal(conn, valence=7)]})
+    rows = conn.execute("SELECT valence, alts, core_locked FROM memories ORDER BY id").fetchall()
+    assert [tuple(r) for r in rows] == [(None, None, 0), (1.0, None, 0)]  # clamped, not dropped
+
+
+def test_the_reader_is_asked_for_them_only_with_the_feature_on(conn, world):
+    talk(conn, world)
+    chunk = extract.pending(conn, world)
+    messages, schema = extract.prompt(conn, world, chunk)
+    fields = schema["$defs"]["MemoryItem"]["properties"]
+    assert {"valence", "alts", "core_locked"} <= set(fields)
+    assert "alts:" in messages[0]["content"]
+    conn.execute("INSERT INTO settings(key, value) VALUES('features.mind.recall', 'false')")
+    messages, off = extract.prompt(conn, world, chunk)
+    assert not {"valence", "alts", "core_locked"} & set(off["$defs"]["MemoryItem"]["properties"])
+    assert "Alt" not in off["$defs"] and messages[0]["content"] == extract.INSTRUCTIONS
+    grown = len(json.dumps(schema)) / len(json.dumps(off))
+    assert grown < 1.25, grown  # note 22 C18: a slice grows the reader's schema by 25% at most
