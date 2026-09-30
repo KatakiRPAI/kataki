@@ -160,3 +160,12 @@ def test_an_import_on_the_desktop_still_brings_everything_back(conn, tmp_path):
     assert rows(conn, "SELECT base_url FROM providers") == [("http://evil/v1",)]
     assert conn.execute("SELECT count(*) FROM settings WHERE key='prices'").fetchone()[0] == 1
     assert conn.execute("SELECT count(*) FROM usage_log").fetchone()[0] == 1
+
+
+def test_one_llm_cannot_bill_two_online_apps(conn, backend):
+    """A shared LLM would meter one user's calls to another's ledger and gate them by another's
+    balance: online, an LLM that already has a meter or a gate is refused."""
+    llm = backend.llm
+    create_app(conn, TOKEN, llm, host=online())
+    with pytest.raises(ValueError):
+        create_app(conn, TOKEN, llm, host=online())

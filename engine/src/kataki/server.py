@@ -324,6 +324,10 @@ def create_app(
     host = host or LocalHost(get_key=get_key)
     get_key = host.get_key
     llm = llm or LLM()
+    billed = host.meter is not None or host.allow is not None
+    if billed and (llm.on_usage is not None or llm.allow is not None):
+        # one LLM per app: a shared one would bill and gate one user's calls as another's
+        raise ValueError("this LLM already meters or gates another app; give each app its own")
     if llm.on_usage is None:  # a test may bring its own meter
         llm.on_usage = functools.partial(host.on_usage, conn)
     if host.allow is not None:  # the credit gate (track B3), priced in dollars for the host
