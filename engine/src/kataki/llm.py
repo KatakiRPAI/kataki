@@ -32,6 +32,7 @@ RETRY_AFTER = 2.0  # seconds before asking a busy provider again; doubled each t
 BUSY = (429, 502, 503)  # busy or briefly down: nothing was generated, so nothing is billed
 TRIES = 3
 THINKING_TEMPERATURE = 0.6  # Qwen's recommended thinking-mode temperature
+ASK_OUT = 1000  # ponytail: output tokens the credit gate assumes when a request names no limit
 SPELLED_OUT = (
     "Reply with one JSON object that follows this JSON schema exactly, field names and all:\n"
 )
@@ -64,6 +65,13 @@ def anti_slop(ep: "Endpoint", xtc: bool = False) -> dict:
 
 class LLMError(Exception):
     pass
+
+
+class NoCredit(LLMError):
+    """The host refused the call before it was sent (Kataki online: the balance cannot cover
+    it; spec §8.4). Nothing reached a provider, so nothing is billed."""
+
+    code = "NO_CREDIT"
 
 
 @dataclass(frozen=True)
@@ -152,6 +160,9 @@ class LLM:
         # called with (endpoint, usage) after every call that reports usage: the desktop
         # records it in usage_log, Kataki online bills it (spec §4)
         self.on_usage: Callable[[Endpoint, dict], None] | None = None
+        # asked before every request with (endpoint, estimated usage): False refuses it
+        # (NoCredit). None, the desktop: nothing is ever refused (track B3)
+        self.allow: Callable[[Endpoint, dict], bool] | None = None
 
     async def aclose(self) -> None:
         await self._client.aclose()
@@ -188,6 +199,15 @@ class LLM:
             "completion_tokens": math.ceil(streamed / 4),
             "estimated": True,
         }
+
+    def _gate(self, ep: Endpoint, ask: dict) -> None:
+        """The credit gate: one question per request, before it is sent."""
+        if self.allow is not None and not self.allow(ep, ask):
+            raise NoCredit("There is not enough credit left for this. Top up to go on.")
+
+    def _asking(self, messages: list[dict], out: int | None) -> dict:
+        """A request's usage as the gate prices it: what it sends, and all it may write."""
+        return {**self._guess(messages, 0), "completion_tokens": out or ASK_OUT}
 
     def _used(self, ep: Endpoint, usage: dict | None) -> None:
         if usage and self.on_usage:
@@ -226,6 +246,7 @@ class LLM:
                         ep, messages, stream=True, stream_options={"include_usage": True}, **extra
                     )
                     body = {**(extra_samplers or {}), **body}
+                    self._gate(ep, self._asking(messages, body.get("max_tokens")))
                     async with self._stream(url, body, ep.api_key) as r:
                         if r.status_code >= 400:
                             await r.aread()
@@ -315,6 +336,7 @@ class LLM:
             if fmt:
                 body["response_format"] = fmt
             text, finish, usage, live = [], None, None, False
+            self._gate(ep, self._asking(body["messages"], body.get("max_tokens")))
             try:
                 async with self._stream(url, body, ep.api_key) as r:
                     if fmt and r.status_code in (400, 422):
@@ -390,6 +412,7 @@ class LLM:
         if instructions:
             body["instructions"] = instructions
         body.update(ep.params.get("body", {}))  # the user's raw JSON wins, verbatim
+        self._gate(ep, {"prompt_tokens": len(text)})  # speech is priced by the character
         r = await self._send("POST", f"{ep.base_url.rstrip('/')}/audio/speech", ep.api_key, body)
         self._check(r)
         if media.sniff_audio(r.content) is None:
@@ -407,6 +430,7 @@ class LLM:
 
     async def embed(self, ep: Endpoint, texts: list[str]) -> list[list[float]]:
         body = {"model": ep.model, "input": texts}
+        self._gate(ep, self._guess([{"content": t} for t in texts], 0))
         r = await self._send("POST", f"{ep.base_url.rstrip('/')}/embeddings", ep.api_key, body)
         self._check(r)
         said = r.json().get("usage")

@@ -28,7 +28,7 @@ from kataki import (
     roles,
 )
 from kataki.activation import FIDELITY
-from kataki.llm import LLM, Endpoint, LLMError
+from kataki.llm import LLM, Endpoint, LLMError, NoCredit
 from kataki.models import extraction_schema, parse_extraction
 
 BELIEF = {"challenged": 0.1, "doubted": 0.5, "accepted": 0.9}
@@ -592,6 +592,9 @@ async def read(
     messages, schema = prompt(conn, story_id, chunk)
     try:
         data = await llm.complete_json(ep, messages, schema, _check_document, "story_memory")
+    except NoCredit:  # refused before it was sent: no trace, no attempt, read once there is credit
+        db.discard_run(conn, run_id)
+        raise
     except LLMError as e:
         with conn:
             conn.execute(
@@ -738,6 +741,12 @@ class Worker:
 
     async def _work(self, story_id: int) -> None:
         await asyncio.sleep(self.delay)
+        try:
+            await self._owed(story_id)
+        except NoCredit:  # no credit: nothing more is tried until the next poke
+            return
+
+    async def _owed(self, story_id: int) -> None:
         await self._between(story_id)  # first: the time-skip card is waiting for them
         while job := due(self.conn, story_id, self.get_key):
             chunk, trigger, role, ep, attempts = job

@@ -58,7 +58,7 @@ from kataki import (
     usage,
 )
 from kataki.host import Host, LocalHost
-from kataki.llm import LLM, LLMError
+from kataki.llm import LLM, LLMError, NoCredit
 
 LOCAL_SERVERS = {  # where the first-run wizard looks for a model already running here
     "llama.cpp": "http://127.0.0.1:8080/v1",
@@ -326,6 +326,10 @@ def create_app(
     llm = llm or LLM()
     if llm.on_usage is None:  # a test may bring its own meter
         llm.on_usage = functools.partial(host.on_usage, conn)
+    if host.allow is not None:  # the credit gate (track B3), priced in dollars for the host
+        llm.allow = lambda ep, ask: host.allow(
+            ep, usage.cost(host.price_table(conn), ep.model, ep.role, ask)
+        )
     worker = extract.Worker(conn, llm, get_key, delay=worker_delay)
     extract.recover(conn)
 
@@ -372,6 +376,16 @@ def create_app(
         if code is None:
             raise e
         return JSONResponse({"detail": {"code": code, "message": str(e)}}, status_code=507)
+
+    @app.exception_handler(NoCredit)
+    async def no_credit(request: Request, e: NoCredit):
+        """Refused before it was sent (spec §8.4): 402, said as a code the app can act on."""
+        detail = {"code": e.code, "message": str(e)}
+        return JSONResponse({"code": e.code, "detail": detail}, status_code=402)
+
+    def failed(e: LLMError, said: str = "") -> Exception:
+        """A model call that failed is the provider's 502, but a refusal stays a refusal."""
+        return e if isinstance(e, NoCredit) else HTTPException(502, f"{said}{e}")
 
     # Any origin is fine: auth is a bearer token, not a cookie, so a foreign page has
     # nothing to ride on.
@@ -444,7 +458,8 @@ def create_app(
                 async for event in events:
                     await queue.put(event)
             except Exception as e:  # a bug must still end the stream for the client
-                await queue.put(("error", {"message": f"{type(e).__name__}: {e}"}))
+                code = {"code": e.code} if isinstance(e, NoCredit) else {}
+                await queue.put(("error", {"message": f"{type(e).__name__}: {e}", **code}))
             finally:
                 queue.put_nowait(None)
                 worker.poke(story_id)  # the story may now have lines worth remembering
@@ -533,6 +548,8 @@ def create_app(
 
     @app.put("/settings")
     async def put_settings(values: dict):
+        if "prices" in values and host.prices is not None:  # online: the service's table
+            raise HTTPException(403, "Prices are set by the service.")
         with conn:
             for key, value in values.items():
                 conn.execute(
@@ -614,7 +631,7 @@ def create_app(
         try:
             return {"models": await llm.list_models(p["base_url"], get_key(p["name"]))}
         except LLMError as e:
-            raise HTTPException(502, str(e)) from e
+            raise failed(e) from e
 
     @app.get("/roles")
     async def list_roles(story_id: int | None = None):
@@ -641,7 +658,7 @@ def create_app(
         try:
             kind = await roles.probe_kind(llm, ep)
         except LLMError as e:
-            raise HTTPException(502, str(e)) from e
+            raise failed(e) from e
         source = next(r for r in roles.routing(conn) if r["role"] == role)
         with conn:
             conn.execute(
@@ -721,7 +738,7 @@ def create_app(
         try:
             return await draft.character(llm, ep, d.words)
         except LLMError as e:
-            raise HTTPException(502, f"The model could not write a profile: {e}") from e
+            raise failed(e, "The model could not write a profile: ") from e
 
     @app.post("/library/{item_id}/draw")
     async def draw_item(item_id: int, d: DrawIn):
@@ -1251,7 +1268,7 @@ def create_app(
         except speech.Refused as e:
             raise HTTPException(e.status, str(e)) from None
         except LLMError as e:
-            raise HTTPException(502, str(e)) from e
+            raise failed(e) from e
 
     @app.get("/stories/{story_id}/feelings")
     async def get_feelings(story_id: int, who: int, about: int | None = None):
@@ -1513,7 +1530,7 @@ def create_app(
         try:
             new_id = await extract.reread(conn, llm, run_id, r.role, get_key)
         except LLMError as e:  # the old reading is still there
-            raise HTTPException(502, str(e)) from e
+            raise failed(e) from e
         if new_id is None:
             raise HTTPException(409, f"no model is set for {r.role!r}")
         return run_out(_row(conn, "SELECT * FROM extraction_runs WHERE id=?", (new_id,)))
