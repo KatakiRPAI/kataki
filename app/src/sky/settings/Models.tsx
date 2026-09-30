@@ -99,6 +99,7 @@ export default function Models() {
         <div className="row" style={{ gap: 8 }}>
           <K.Button size="sm" icon="search" onClick={() => setAdding('find')}>{t('mo.find')}</K.Button>
           <K.Button size="sm" icon="plus" onClick={() => setAdding('api')}>{t('mo.addOnline')}</K.Button>
+          <K.Button size="sm" variant="ghost" icon="refresh" href="/welcome">{t('mo.setup')}</K.Button>
         </div>
       </K.SettingsSection>
 
