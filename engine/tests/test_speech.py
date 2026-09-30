@@ -262,3 +262,48 @@ async def test_render_refuses_what_it_cannot_say(voiced, backend):
         await speech.render(conn, backend.llm, voiced["reply"])
     assert e.value.status == 409
     assert backend.requests == []
+
+
+# --- the route -------------------------------------------------------------------------------
+
+
+@pytest.fixture
+def api(voiced, backend):
+    from fastapi.testclient import TestClient
+
+    from kataki.server import create_app
+
+    client = TestClient(create_app(voiced["conn"], "t", llm=backend.llm, worker_delay=60))
+    client.headers["Authorization"] = "Bearer t"
+    with client:
+        yield client
+
+
+def test_the_app_asks_for_a_replys_audio_and_a_replay_is_free(api, voiced, backend):
+    backend.say(_audio())
+    first = api.post(f"/messages/{voiced['reply']}/voice")
+    assert first.status_code == 200
+    body = first.json()
+    assert body["cached"] is False and body["cue"]["tone"] == "sad"
+    again = api.post(f"/messages/{voiced['reply']}/voice").json()
+    assert again["cached"] is True and again["media"] == body["media"]
+    assert len(backend.requests) == 1
+    heard = api.get(f"{body['url']}?token=t", headers={"Authorization": ""})
+    assert heard.status_code == 200 and heard.content == MP3
+    assert heard.headers["content-type"] == "audio/mpeg"
+    assert api.post("/media", content=MP3).status_code == 415  # never an upload
+
+
+def test_the_route_says_why_there_is_no_audio(api, voiced, backend):
+    assert api.post("/messages/999/voice").status_code == 404
+    backend.say(_audio(b"oops", 500))
+    failed = api.post(f"/messages/{voiced['reply']}/voice")
+    assert failed.status_code == 502
+    gen = json.loads(
+        voiced["conn"]
+        .execute("SELECT gen FROM messages WHERE id=?", (voiced["reply"],))
+        .fetchone()["gen"]
+    )
+    assert "voice" not in gen  # nothing saved; ask again
+    _set(voiced["conn"], "features.mind.voice", False)
+    assert api.post(f"/messages/{voiced['reply']}/voice").status_code == 409

@@ -53,6 +53,7 @@ from kataki import (
     retrieve,
     roles,
     signals,
+    speech,
     turns,
     usage,
 )
@@ -1224,6 +1225,17 @@ def create_app(
         if got is None:
             raise HTTPException(404, "Only a reply has a mind to show.")
         return got
+
+    @app.post("/messages/{message_id}/voice")
+    async def voice_message(message_id: int):
+        """A reply's audio (minds spec §8.3 slice 10): replayed from the cache for free, or one
+        call to the voice model. Never part of a turn: no audio only means no audio."""
+        try:
+            return await speech.render(conn, llm, message_id, get_key)
+        except speech.Refused as e:
+            raise HTTPException(e.status, str(e)) from None
+        except LLMError as e:
+            raise HTTPException(502, str(e)) from e
 
     @app.get("/stories/{story_id}/feelings")
     async def get_feelings(story_id: int, who: int, about: int | None = None):
