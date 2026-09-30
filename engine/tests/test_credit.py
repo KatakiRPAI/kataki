@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from kataki import after, between, chat, extract, library, turns
 from kataki.host import OnlineHost
-from kataki.llm import Endpoint, NoCredit
+from kataki.llm import DailyCap, Endpoint, NoCredit
 from kataki.server import create_app
 
 PRICES = {"rp-model": {"input": 1.0, "output": 2.0}, "kokoro": {"char": 4.0}}
@@ -277,3 +277,38 @@ def test_prices_are_the_users_on_the_desktop(conn):
     client = TestClient(create_app(conn, "t"))
     r = client.put("/settings", json={"prices": PRICES}, headers={"Authorization": "Bearer t"})
     assert r.status_code == 200 and r.json()["prices"] == PRICES
+
+
+# --- the daily cap (B5): refused like NO_CREDIT, said with its own code ------------------------
+
+
+def over_the_cap(ep, estimate):
+    raise DailyCap("You have reached today's spending limit.")
+
+
+@pytest.fixture
+def capped(local_model, backend):
+    app = create_app(local_model, "t", backend.llm, worker_delay=60, host=online(over_the_cap))
+    client = TestClient(app)
+    client.headers["Authorization"] = "Bearer t"
+    with client:
+        yield client
+
+
+def test_the_daily_cap_is_a_refusal_with_its_own_code():
+    assert issubclass(DailyCap, NoCredit) and DailyCap.code == "DAILY_CAP"
+    with pytest.raises(DailyCap):  # not turned into a plain "no" by the fail-closed wrapper
+        online(allow=over_the_cap).allow(ep(), 0.01)
+
+
+def test_the_daily_cap_says_so_on_every_surface(local_model, capped, backend):
+    story = a_story(local_model)
+    kind, data = events(capped.post(f"/stories/{story}/turn", json={"text": "Hi."}).text)[-1]
+    assert (kind, data["code"]) == ("error", "DAILY_CAP")
+    r = capped.post("/library/draft", json={"words": "a tired lighthouse keeper"})
+    assert r.status_code == 402 and r.json()["code"] == "DAILY_CAP"
+    for i in range(8):
+        chat.append_message(local_model, story, "user" if i % 2 else "assistant", f"L{i}.", None)
+    r = capped.post(f"/stories/{story}/extract")
+    assert r.status_code == 402 and r.json()["detail"]["code"] == "DAILY_CAP"
+    assert backend.requests == []

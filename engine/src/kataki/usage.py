@@ -5,6 +5,7 @@ products. On the desktop it answers "what did this story cost me?"; online the s
 import json
 import sqlite3
 import uuid
+from decimal import ROUND_HALF_UP, Decimal
 
 from kataki import knobs, roles
 from kataki.llm import Endpoint
@@ -18,28 +19,50 @@ def table(conn: sqlite3.Connection) -> dict:
     return json.loads(row[0]) if row else {}
 
 
+def _micro(prices: dict, model: str, role: str, prompt, cached, completion) -> Decimal | None:
+    """Exact micro-dollars for one call ($ per million tokens is micro-dollars per token), or None
+    when its model has no usable price. A malformed entry prices nothing: it never breaks a call."""
+    try:
+        p = prices.get(model)
+        prompt = prompt or 0
+        if role == "voice":
+            rates = [Decimal(str(p["char"]))]
+            spent = prompt * rates[0]
+        else:
+            out = p.get("output", 0) if role == "embed" else p["output"]  # embeddings write none
+            rates = [Decimal(str(r)) for r in (p["input"], p.get("cached", p["input"]), out)]
+            cached = min(cached or 0, prompt)
+            spent = (prompt - cached) * rates[0] + cached * rates[1]
+            spent += (completion or 0) * rates[2]
+        return spent if min(rates) >= 0 and spent.is_finite() else None  # a NaN rate raises here
+    except (AttributeError, KeyError, TypeError, ValueError, ArithmeticError):
+        return None
+
+
 def cost(prices: dict, model: str, role: str, used: dict) -> float | None:
     """Dollars for one call, or None when its model has no usable price. `prices` is
     {model: {"input", "cached", "output"}} in $ per million tokens (cached defaults to input), or
     {model: {"char"}} in $ per million characters for speech (role `voice` counts characters
-    in prompt_tokens). A malformed entry prices nothing: it never breaks a call."""
-    try:
-        p = prices.get(model)
-        prompt = used.get("prompt_tokens") or 0
-        if role == "voice":
-            rates = [float(p["char"])]
-            spent = prompt * rates[0]
-        else:
-            out = p.get("output", 0) if role == "embed" else p["output"]  # embeddings write none
-            rates = [float(p["input"]), float(p.get("cached", p["input"])), float(out)]
-            cached = min(
-                (used.get("prompt_tokens_details") or {}).get("cached_tokens") or 0, prompt
-            )
-            spent = (prompt - cached) * rates[0] + cached * rates[1]
-            spent += (used.get("completion_tokens") or 0) * rates[2]
-    except (AttributeError, KeyError, TypeError, ValueError):
-        return None
-    return spent / MILLION if min(rates) >= 0 else None
+    in prompt_tokens). A float, for display: the ledger bills `micros`."""
+    cached = (used.get("prompt_tokens_details") or {}).get("cached_tokens")
+    spent = _micro(
+        prices, model, role, used.get("prompt_tokens"), cached, used.get("completion_tokens")
+    )
+    return None if spent is None else float(spent / MILLION)
+
+
+def micros(prices: dict, row: dict) -> int | None:
+    """What the ledger bills for one meter (or usage_log) row: whole micro-dollars, from its
+    tokens, exact, rounded half-up once (spec §8.4). None: the model has no price."""
+    spent = _micro(
+        prices,
+        row["model"],
+        row["role"],
+        row["prompt_tokens"],
+        row["cached_tokens"],
+        row["completion_tokens"],
+    )
+    return None if spent is None else int(spent.to_integral_value(ROUND_HALF_UP))
 
 
 def record(conn: sqlite3.Connection, ep: Endpoint, usage: dict, prices: dict | None = None) -> dict:
