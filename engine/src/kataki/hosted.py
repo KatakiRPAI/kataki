@@ -138,6 +138,7 @@ class Gateway:
                     "cached_tokens",
                     "completion_tokens",
                     "cost",
+                    "at",  # a row resent after midnight is still billed to the day it was used
                 )
             }
             try:

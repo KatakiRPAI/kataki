@@ -110,6 +110,7 @@ class FakeGateway:
         self.lose, self.lost = lose, []  # rows it records, then answers 504: the reply was lost
         self.asked: list[str] = []
         self.posts: Counter[str] = Counter()  # usage_id → POSTs that reached the gateway
+        self.rows: dict[str, dict] = {}  # usage_id → the last row POSTed for it
         self.taken: Counter[str] = Counter()  # usage_id → POSTs it answered 2xx: once, ever
         self.ledger: dict[str, dict[str, int]] = {}  # user → usage_id → micro-dollars
         self.auth: set[str] = set()
@@ -122,6 +123,7 @@ class FakeGateway:
             return httpx2.Response(200, json={"ok": user not in self.broke})
         row = json.loads(request.content)
         self.posts[row["usage_id"]] += 1
+        self.rows[row["usage_id"]] = row
         if self.down:
             self.down -= 1
             return httpx2.Response(503)
@@ -209,6 +211,8 @@ def test_the_outbox_sends_what_the_meter_could_not(conn):
     fake = FakeGateway()
     assert fake.client().resend("alice", conn) == 2
     assert list(fake.ledger["alice"]) == ["u2", "u3"]
+    at = conn.execute("SELECT at FROM usage_log WHERE usage_id='u2'").fetchone()[0]
+    assert fake.rows["u2"]["at"] == at  # dated when it was used, not when it was billed
     assert conn.execute("SELECT count(*) FROM usage_log WHERE metered=0").fetchone()[0] == 0
 
 
