@@ -26,6 +26,7 @@ from kataki import (
     embed,
     extract,
     features,
+    honesty,
     images,
     inner,
     knobs,
@@ -360,6 +361,21 @@ async def _generate(
     except Exception as e:
         logging.getLogger(__name__).warning("stance skipped for story %s: %s", story_id, e)
         decide, check, hold = "", False, False
+    secret = None  # what she does about the truth this reply (slice 4), decided by code
+    try:
+        if speaker_id is not None and features.enabled(conn, "mind.secrets"):
+            secret = honesty.read(conn, story_id, speaker_id, path, inner.profile(conn, speaker_id))
+    except Exception as e:
+        logging.getLogger(__name__).warning("secrets skipped for story %s: %s", story_id, e)
+        secret = None
+    if secret and secret["directive"]:
+        decide = " ".join(p for p in (decide, secret["directive"]) if p)
+    guards = secret["guards"] if secret else []  # every secret kept from someone here
+    guarding = bool(secret and secret["hot"])  # on the table: hold the reply by sentences
+    try:
+        lite = knobs.setting(conn, "mind.level", "standard") == "lite"
+    except Exception:
+        lite = True  # unreadable: no retake, code only
     think_why = None  # why the header was asked, for gen.trace.think
     try:
         voice = thought.mode(conn, ep, speaker_id)
@@ -372,6 +388,7 @@ async def _generate(
                 chat.scene_of(conn, story_id, path),
                 check,
                 bool(pending.get(speaker_id)),
+                hot=bool(secret and secret["hot"]),
             )
         ):
             header_ask, think_why = thought.ask(name, ep.think_tags), reason
@@ -381,6 +398,8 @@ async def _generate(
     first = " ".join(p for p in (decide, header_ask) if p)
 
     trace: dict = {"why": why, "ms": {}, "think": think_why}
+    if secret and secret["gate"]:
+        trace["gate"] = secret["gate"]
     at = time.monotonic()
     built = context.build(
         conn, story_id, speaker_id, ep, leaf_id=parent_id, inside=inside, directive=first
@@ -463,6 +482,7 @@ async def _generate(
     parts, thoughts, done = [], [], {}
     prefix, opener, dropped = _Prefix(name or "Narrator"), _Opener(False), ""
     header, before = thought.Header(False, "", ep.think_tags), None
+    guard = honesty.Guard([])
     finish, error, message_id, text, skip = "stopped", None, None, "", 0
     first_thought = first_token = first_word = None  # think_ms: first thought to first word
     asked = time.monotonic()
@@ -472,6 +492,12 @@ async def _generate(
             first_thought = first_token = first_word = None  # a retake times its own take
             prefix, opener = _Prefix(name or "Narrator"), _Opener(hold and not attempt)
             header = thought.Header(voice == "inline", name or "", ep.think_tags)
+            try:  # on the table: by sentences, the cover in place; else by words, no cover
+                unheld = [(keys, None) for keys, _ in guards]
+                guard = honesty.Guard(guards if guarding else unheld, words=not guarding)
+            except Exception as e:
+                logging.getLogger(__name__).warning("leak check skipped: %s", e)
+                guard = honesty.Guard([])
             stream = llm.chat_stream(
                 ep, built.messages, stop=stops, max_tokens=built.response_reserve
             )
@@ -488,24 +514,40 @@ async def _generate(
                         first_word = first_word or (value and time.monotonic()) or None
                         if value and voice == "inline" and not attempt and not opener.watched:
                             _watch(opener, thoughts, header, name, ep.think_tags)
-                        if value := opener.feed(value):
+                        if value := guard.feed(opener.feed(value)):
                             parts.append(value)
                             yield ("token", value)
-                        if opener.hit:
+                        if opener.hit or guard.hit:
                             break  # closing the stream stops the model
                     else:
                         done = value
-            rest = "" if opener.hit else prefix.feed(header.flush()) + prefix.flush()
+            cut = opener.hit or guard.hit
+            rest = "" if cut else prefix.feed(header.flush()) + prefix.flush()
             if rest and voice == "inline" and not attempt and not opener.watched:
                 _watch(opener, thoughts, header, name, ep.think_tags)
-            if not opener.hit and (rest := opener.feed(rest) + opener.flush()):
+            if not cut and (rest := guard.feed(opener.feed(rest) + opener.flush()) + guard.flush()):
                 parts.append(rest)
                 yield ("token", rest)
-            if not opener.hit:
+            # the one retake, only when the secret was on the table and nothing was seen yet
+            redo = guarding and guard.hit and not guard.shown and not attempt and not lite
+            if guard.hit and not redo:  # said: the cover takes its place, and the reply ends
+                again = (trace.get("leak") or {}).get("resampled", False)
+                trace["leak"] = {"hit": guard.hit, "resampled": again, "covered": True}
+                fix = honesty.cover_up(
+                    guard.kept, guard.kept + guard.leaked, guard.cover, name or "They"
+                )
+                parts = [guard.kept, fix]  # by words, the leaking sentence's start goes too
+                if fix:
+                    yield ("token", fix)
+            if not opener.hit and not redo:
                 break
             # ponytail: the dropped take's thoughts were already streamed (no words were)
             dropped = opener.dropped
-            if opener.echo:  # it said its thought aloud: the same one retake, told to keep it in
+            if redo:  # it gave the secret away before a word was seen: the one retake
+                trace["leak"] = {"hit": guard.hit, "resampled": True, "covered": False}
+                dropped = honesty.cover_up("", guard.leaked, guard.cover, name or "They")
+                stronger = honesty.STRONGER.format(name=name)
+            elif opener.echo:  # it said its thought aloud: the same one retake, told to keep it in
                 trace["echo"] = {"hit": opener.echo, "resampled": True}
                 stronger = thought.STRONGER.format(name=name)
             else:
@@ -532,7 +574,7 @@ async def _generate(
     finally:  # runs on finish, on error, and when the client stops the stream
         # stopped while held: keep it, in the order it was written (header, prefix, opener)
         tail = prefix.feed(header.flush()) + prefix.flush()
-        text = ("".join(parts) + opener.held + tail).strip()
+        text = ("".join(parts) + guard.held + opener.held + tail).strip()
         if not text and dropped:  # the second take failed or came back empty: keep the first
             text = dropped.strip()
         reasoning, heard = "".join(thoughts), []
@@ -549,6 +591,17 @@ async def _generate(
                 logging.getLogger(__name__).warning("thought not read: %s", e)
                 heard = []
         text = _unsign(text, name or "Narrator")
+        if text and guards:  # whatever went unheld or unchecked: the saved reply keeps no secret
+            try:
+                kept, key = honesty.scrub(
+                    text, guards if guarding else [(k, None) for k, _ in guards], name or "They"
+                )
+                if key:
+                    text = kept
+                    again = (trace.get("leak") or {}).get("resampled", False)
+                    trace["leak"] = {"hit": key, "resampled": again, "covered": True}
+            except Exception as e:
+                logging.getLogger(__name__).warning("leak check skipped: %s", e)
         if text:
             if check and not hold and (hit := bonds.opener(text)):
                 trace["check"] = {"hit": hit, "resampled": False}  # lite: noted, not retaken
@@ -590,6 +643,8 @@ async def _generate(
                 logging.getLogger(__name__).warning("mood not kept: %s", e)
             if stood:
                 gen["bonds"] = stood
+            if secret and secret["honest"]:
+                gen["honest"] = secret["honest"]
             message_id = chat.add_child(
                 conn, story_id, parent_id, "assistant", text, speaker_id, skip, gen
             )
@@ -713,6 +768,91 @@ def say(
     )
 
 
+async def _ooc(
+    conn: sqlite3.Connection,
+    llm: LLM,
+    story_id: int,
+    question: str,
+    kind: str,
+    get_key: Callable[[str], str | None],
+    parent_id: int | None = None,  # the question already asked (a retake of the answer)
+) -> AsyncIterator[Event]:
+    """A sincere out-of-character question, answered out of the fiction (spec §6 rule 3): "are
+    you an AI" by the app, truthfully, with no call; anything else by the reply model as itself.
+    Both lines are hidden, so no prompt, memory or character ever sees them.
+    ponytail: each line still moves the story clock one tick, as any line does."""
+    story = _story(conn, story_id)
+    if parent_id is None:
+        leaf = story["active_leaf_id"]
+        persona = story["persona_entity_id"]
+        parent_id = chat.add_child(
+            conn, story_id, leaf, "user", question, persona, 0, {"ooc": True}
+        )
+        with conn:
+            conn.execute("UPDATE messages SET hidden=1 WHERE id=?", (parent_id,))
+    ep = roles.resolve(conn, "rp", story_id, get_key) if kind == "ooc" else None
+    if kind == "ooc" and ep is None:
+        yield ("error", {"message": "No model is set for the 'rp' role yet."})
+        return
+    yield (
+        "meta",
+        {"speaker": None, "role": "ooc", "ooc": True, "model": ep.model if ep else None,
+         "thinks": False, "parent_id": parent_id},
+    )  # fmt: skip
+    text, usage = honesty.AI_ANSWER, None
+    if ep is not None:
+        path = [m for m in chat.path_to(conn, parent_id) if not m["hidden"]]
+        names = dict(conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)))
+        lines = "\n".join(
+            f"{names.get(m['speaker_id'], 'Narration')}: {m['text'][-400:]}" for m in path[-6:]
+        )
+        ask = [
+            {"role": "system", "content": honesty.OOC_PROMPT},
+            {
+                "role": "user",
+                "content": (f"[The story so far, for context]\n{lines}\n\n" if lines else "")
+                + f"[The user's out-of-character question]\n{question}",
+            },
+        ]
+        parts, done = [], {}
+        try:
+            async for what, value in llm.chat_stream(ep, ask, max_tokens=400):
+                if what == "token":
+                    parts.append(value)
+                    yield ("token", value)
+                elif what == "done":
+                    done = value
+        except LLMError as e:
+            yield ("error", {"message": str(e)})
+            return
+        said, usage = "".join(parts).strip(), done.get("usage")
+        text = said if said and not honesty.HUMAN.search(said) else honesty.AI_ANSWER
+    else:
+        yield ("token", text)
+    gen = {"ooc": True, "role": "ooc", "model": ep.model if ep else None, "usage": usage}
+    answer = chat.add_child(conn, story_id, parent_id, "assistant", text, None, 0, gen)
+    with conn:
+        conn.execute("UPDATE messages SET hidden=1 WHERE id=?", (answer,))
+    now = chat.get_message(conn, answer)["story_time"]
+    moments = json.loads(story["overrides"]).get("moments", [])
+    yield (
+        "done",
+        {"message_id": answer, "text": text, "ooc": True, "skip_minutes": 0,
+         "clock": clock.label(now, story["epoch_offset_min"]),
+         "date": clock.date(now, story["epoch_offset_min"], moments), "usage": usage,
+         "expression": None, "mood": None, "thought": None},
+    )  # fmt: skip
+
+
+def _is_ooc(conn: sqlite3.Connection, text: str | None) -> str | None:
+    """honesty.ooc, when `mind.secrets` is on; a failure means the line goes to the story."""
+    try:
+        return honesty.ooc(text) if text and features.enabled(conn, "mind.secrets") else None
+    except Exception as e:
+        logging.getLogger(__name__).warning("ooc check skipped: %s", e)
+        return None
+
+
 async def turn(
     conn: sqlite3.Connection,
     llm: LLM,
@@ -732,6 +872,11 @@ async def turn(
             name = row["name"] if row else "They"
             yield ("error", {"message": f"{name} isn't in the scene. Bring them in first."})
             return
+    if not skip and (kind := _is_ooc(conn, text)):  # step 0: out of the fiction
+        async with aclosing(_ooc(conn, llm, story_id, text.strip(), kind, get_key)) as events:
+            async for event in events:
+                yield event
+        return
     try:
         say(conn, story_id, text, audience, skip, narrate)
     except ValueError as e:
@@ -758,6 +903,15 @@ async def regenerate(
         return
     if leaf["parent_id"] is None:
         yield ("error", {"message": "The opening line can't be regenerated. Edit it instead."})
+        return
+    if json.loads(leaf["gen"] or "{}").get("ooc"):  # an out-of-character answer: answer again
+        asked = chat.get_message(conn, leaf["parent_id"])["text"]
+        kind = honesty.ooc(asked) or "ooc"
+        async with aclosing(
+            _ooc(conn, llm, story_id, asked, kind, get_key, leaf["parent_id"])
+        ) as events:
+            async for event in events:
+                yield event
         return
     async with aclosing(
         _generate(conn, llm, story_id, leaf["parent_id"], leaf["speaker_id"], get_key, "retake")

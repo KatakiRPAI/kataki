@@ -9,7 +9,7 @@ import json
 import logging
 import sqlite3
 
-from kataki import bonds, chat, clock, db, features, inner, retrieve
+from kataki import bonds, chat, clock, db, features, honesty, inner, retrieve
 
 TIERS = ("sharp", "hazy", "forgotten")
 
@@ -153,6 +153,15 @@ def _thought(path: list, entity_id: int) -> dict | None:
         return None
 
 
+def _secrets(conn, story_id: int, entity_id: int, path: list) -> list[dict]:
+    """What they keep from whom, and what they said instead (Peek; spec §8.3 slice 4)."""
+    try:
+        return honesty.public(conn, story_id, entity_id, path)
+    except Exception as e:  # a bad row costs the secrets, not the whole Peek
+        logging.getLogger(__name__).warning("secrets unavailable for %s: %s", entity_id, e)
+        return []
+
+
 def people(conn: sqlite3.Connection, story: sqlite3.Row) -> list[dict]:
     """One entry per AI character: where they are, what they hold, what is on their mind, what
     they know about you, and how they stand towards everyone."""
@@ -178,6 +187,7 @@ def people(conn: sqlite3.Connection, story: sqlite3.Row) -> list[dict]:
     feeling = features.enabled(conn, "mind.affect")
     tied = features.enabled(conn, "mind.bonds")
     thinking = features.enabled(conn, "mind.thought")
+    secretive = features.enabled(conn, "mind.secrets")
 
     out = []
     for e in conn.execute(
@@ -211,6 +221,7 @@ def people(conn: sqlite3.Connection, story: sqlite3.Row) -> list[dict]:
                 "mood": _mood(conn, e["id"], path, now) if feeling else None,
                 "bonds": _bonds(conn, e["id"], path, names, persona_id, epoch) if tied else [],
                 "thought": _thought(path, e["id"]) if thinking else None,
+                "secrets": _secrets(conn, story_id, e["id"], path) if secretive else [],
             }
         )
     return out

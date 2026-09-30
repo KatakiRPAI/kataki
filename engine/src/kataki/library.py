@@ -7,9 +7,10 @@ An item's `data` is a JSON object. The engine reads `aliases`, `first_message` a
 """
 
 import json
+import logging
 import sqlite3
 
-from kataki import cards, chat
+from kataki import cards, chat, honesty
 
 ITEM_FIELDS = ("name", "description", "private", "data")
 
@@ -180,6 +181,13 @@ def create_story(
                         "INSERT INTO edges(story_id, src_id, dst_id, rel, story_time) VALUES(?, ?, ?, ?, 0)",
                         (story_id, src, dst, rel),
                     )
+        # ...and so do the secrets they keep (minds slice 4)
+        try:  # a card's secrets never cost the story
+            honesty.seed(
+                conn, story_id, [(item, e) for (item, _), e in zip(cast, entity_ids, strict=True)]
+            )
+        except Exception as e:
+            logging.getLogger(__name__).warning("secrets not seeded for story %s: %s", story_id, e)
 
         place_entity = None
         if place_id is not None:
@@ -293,6 +301,7 @@ def merge_entities(conn: sqlite3.Connection, keep: int, drop: int) -> None:
         ("opinions", "src_id"),
         ("opinions", "dst_id"),
         ("mind_states", "entity_id"),
+        ("secrets", "owner_id"),  # ponytail: conceal_from ids are JSON, not remapped (owed)
     ]
     with conn:
         for table, column in moves:

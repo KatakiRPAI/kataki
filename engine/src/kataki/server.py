@@ -398,6 +398,7 @@ def create_app(
                     "audience": chat.audience_of(m),
                     "think_ms": gen.get("think_ms"),
                     "expression": m["expression"],
+                    "ooc": bool(gen.get("ooc")),  # an out-of-character aside (minds slice 4)
                 }
             )
         return out

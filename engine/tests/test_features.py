@@ -52,4 +52,5 @@ def test_the_api_lists_features(conn):
     assert body["features"]["mind.affect"]["stage"] == "alpha"
     assert body["features"]["mind.bonds"]["stage"] == "alpha"
     assert body["features"]["mind.thought"]["stage"] == "alpha"
+    assert body["features"]["mind.secrets"]["stage"] == "alpha"
     assert client.get("/health").json()["host"] == "desktop"

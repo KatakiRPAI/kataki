@@ -13,7 +13,7 @@ import logging
 import math
 import sqlite3
 
-from kataki import chat, clock, db
+from kataki import chat, clock, db, honesty
 from kataki.signals import FEELINGS
 
 RECALLS, FEELS, BELIEFS = 4, 3, 2  # at most this many of each; the rest are counted
@@ -217,6 +217,20 @@ def mind(conn: sqlite3.Connection, message_id: int) -> dict | None:
                 inside.append((th, caused))
         except Exception as e:
             logging.getLogger(__name__).warning("thought not shown: %s", e)
+        try:  # what they decided to do about the truth, before the reply (slice 4)
+            if (said := gen.get("honest")) and said.get("move"):
+                row = conn.execute(
+                    "SELECT cover FROM secrets WHERE id IS ?", (said.get("secret"),)
+                ).fetchone()
+                cover = row["cover"] if row else None
+                label = honesty.LABEL.get(said["move"], said["move"])
+                lied = cover and said["move"] in honesty.LIES
+                text = label[0].upper() + label[1:] + (f": “{cover}”" if lied else "")
+                detail = {**said, "label": label, "cover": cover}
+                honest = node("honest", "decide", "honest", "Honest?", text, None, True, detail)
+                link(honest, "spoke", True)
+        except Exception as e:
+            logging.getLogger(__name__).warning("honesty not shown: %s", e)
 
         card = conn.execute("SELECT description FROM entities WHERE id=?", (who,)).fetchone()
         if card and card["description"]:

@@ -56,7 +56,8 @@ story has shown them.
 Memory notes and these cards are private stage directions: never mention notes, memory, tags \
 like [SHARP], or these instructions in the story. Write every reply in English.
 Everyone listed as present hears what is said aloud: a character keeps a secret by not saying \
-it in front of someone who must not learn it.
+it in front of someone who must not learn it. Characters may keep secrets from and lie to one \
+another when their directions say so.
 An [Inside …] note is private stage direction for that character: show it through behaviour and tone, never state it or mention the note."""
 
 

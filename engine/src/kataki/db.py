@@ -4,7 +4,7 @@ import sqlite3
 from importlib.resources import files
 from pathlib import Path
 
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 # version -> the SQL that brings a library up from the version before it; schema.sql is v1
 MIGRATIONS = {
     2: "ALTER TABLE entities ADD COLUMN examples TEXT NOT NULL DEFAULT ''",  # example dialogue
@@ -82,6 +82,25 @@ MIGRATIONS = {
         " message_id INTEGER REFERENCES messages ON DELETE CASCADE,"
         " run_id INTEGER REFERENCES extraction_runs ON DELETE CASCADE);"
         "CREATE INDEX ix_opinions ON opinions(src_id, dst_id);"
+    ),
+    12: (  # minds slice 4: what each character keeps from whom, and the story they tell
+        # instead (note 22 §1), anchored like the other minds tables
+        "CREATE TABLE secrets("
+        " id INTEGER PRIMARY KEY,"
+        " story_id INTEGER NOT NULL REFERENCES stories ON DELETE CASCADE,"
+        " owner_id INTEGER NOT NULL REFERENCES entities ON DELETE CASCADE,"
+        " memory_id INTEGER REFERENCES memories ON DELETE SET NULL,"
+        " text TEXT NOT NULL, keys TEXT NOT NULL DEFAULT '', topic TEXT NOT NULL DEFAULT '',"
+        " conceal_from TEXT NOT NULL DEFAULT '\"all\"',"
+        " stakes REAL NOT NULL DEFAULT 0.5,"
+        " motive TEXT CHECK(motive IN('protect_self','protect_other','gain','avoid_conflict',"
+        "'kindness')),"
+        " cover TEXT, sincere INTEGER NOT NULL DEFAULT 0, tells TEXT, promises TEXT,"
+        " supersedes_id INTEGER REFERENCES secrets ON DELETE CASCADE,"
+        " story_time INTEGER NOT NULL,"
+        " message_id INTEGER REFERENCES messages ON DELETE CASCADE,"
+        " run_id INTEGER REFERENCES extraction_runs ON DELETE CASCADE);"
+        "CREATE INDEX ix_secrets ON secrets(owner_id);"
     ),
 }
 
