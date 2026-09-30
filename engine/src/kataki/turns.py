@@ -485,7 +485,7 @@ async def _generate(
         )
         trace["ms"]["recall"] = ms(at)
         try:  # the user "corrects" what she clearly remembers: she keeps it
-            if human and not repaired:
+            if human and not repaired and not (secret and secret["hot"]):  # a lie is not a slip
                 held = recollect.hold(path, recalled, names.get(story["persona_entity_id"]))
         except Exception as e:
             logging.getLogger(__name__).warning("hold skipped for story %s: %s", story_id, e)

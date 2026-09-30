@@ -413,6 +413,22 @@ async def test_she_keeps_what_she_clearly_remembers_when_told_otherwise(conn, du
 
 
 @pytest.mark.anyio
+async def test_a_secret_on_the_table_is_never_told_to_hold_the_truth(
+    conn, duo, backend, monkeypatch
+):
+    from kataki import honesty
+
+    story, mira = duo
+    library.add_memory(conn, story, "Mira's brother is called Tobin.", importance=8,
+                       knower_ids=[mira], tags=["brother"])  # fmt: skip
+    hot = {"hot": True, "directive": "Tell the cover story.", "guards": [], "gate": None,
+           "honest": None}  # fmt: skip
+    monkeypatch.setattr(honesty, "read", lambda *a, **k: hot)
+    tail, gen = await talk(conn, backend, story, mira, "You said your brother is Tomas?", "Mm.")
+    assert "trust your memory" not in tail and "recall" not in gen
+
+
+@pytest.mark.anyio
 async def test_off_or_broken_it_never_touches_the_turn(conn, duo, backend, always, monkeypatch):
     story, mira = duo
     cafe(conn, duo)
