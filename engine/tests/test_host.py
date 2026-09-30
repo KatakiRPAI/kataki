@@ -65,6 +65,8 @@ def test_the_channel_is_the_hosts_only_inside_its_requests(conn):
         ("get", "/backups"),
         ("post", "/backups"),
         ("post", "/backups/x/restore"),
+        ("post", "/library/1/draw"),  # pictures: not priced, gated or metered yet (B4)
+        ("post", "/library/1/look"),
     ],
 )
 def test_local_only_routes_are_not_there_online(conn, tmp_path, method, path):

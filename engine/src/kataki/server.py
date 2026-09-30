@@ -356,7 +356,8 @@ def create_app(
         features.CURRENT.set(host.channel())
 
     def local_only():
-        """Routes about this machine (providers and keys, backups on disk) exist only here."""
+        """Routes about this machine (providers and keys, backups on disk) exist only here, and
+        so do pictures until they are priced, gated and metered (track B4)."""
         if not host.local_routes:
             raise HTTPException(404, "Not Found")
 
@@ -745,7 +746,7 @@ def create_app(
         except LLMError as e:
             raise failed(e, "The model could not write a profile: ") from e
 
-    @app.post("/library/{item_id}/draw")
+    @app.post("/library/{item_id}/draw", dependencies=[Depends(local_only)])
     async def draw_item(item_id: int, d: DrawIn):
         """A place's background, or a character's first picture, from their own words: one
         paid call through the image job. It replaces the picture they had."""
@@ -785,7 +786,7 @@ def create_app(
         library.update_item(conn, item_id, data=data)
         return library.get_item(conn, item_id)
 
-    @app.post("/library/{item_id}/look")
+    @app.post("/library/{item_id}/look", dependencies=[Depends(local_only)])
     async def make_look(item_id: int, d: LookIn):
         """A character's sprites: each asked-for expression edited from their portrait (the
         sheet) and cut out, all at once. Two paid calls each. What worked is kept even when
