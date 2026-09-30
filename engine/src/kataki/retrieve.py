@@ -11,11 +11,12 @@ render     sharp -> detail, hazy -> gist; pressing a hazy memory makes them stra
 rehearse   being recalled is an access, at most one per scene
 """
 
+import json
 import logging
 import re
 import sqlite3
 
-from kataki import activation, chat, db, features, knobs, recollect
+from kataki import activation, chat, clock, db, features, knobs, recollect
 from kataki.activation import Access
 from kataki.context import Recalled
 
@@ -386,7 +387,11 @@ def inspect(
     names = dict(
         conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)).fetchall()
     )
-    floor = 0.0 if _human(conn) else None  # a locked memory is never forgotten (slice 6)
+    human = _human(conn)
+    floor = 0.0 if human else None  # a locked memory is never forgotten (slice 6)
+    on_path = {p["id"] for p in path}
+    cut = _cut(conn, story_id, knower_id) if human else set()
+    epoch = conn.execute("SELECT epoch_offset_min FROM stories WHERE id=?", (story_id,)).fetchone()
     out = []
     for m in conn.execute(
         f"SELECT * FROM memories WHERE story_id=? AND story_time<=? AND {live_sql} ORDER BY id",
@@ -422,9 +427,40 @@ def inspect(
                 "B": round(s.base_all, 3),
                 "superseded": superseded,
                 "story_time": m["story_time"],
+                "valence": m["valence"],
+                "alts": recollect.alts_of(m) or None,
+                "core_locked": bool(m["core_locked"]),
+                "version": (
+                    _version_of(conn, m, knower_id, live, on_path, now, epoch[0]) if human else None
+                ),
+                "why_not": (
+                    ("faded" if s.tier is None else "budget" if m["id"] in cut else None)
+                    if human
+                    else None
+                ),
             }
         )
     return sorted(out, key=lambda r: r["A"], reverse=True)
+
+
+def _version_of(conn, m, knower_id, live, on_path, now, epoch: int) -> dict | None:
+    """The ledger's `version` (spec §8.3 slice 6): her own version when it is not the truth."""
+    row = recollect.version(conn, knower_id, m["id"], live, on_path, now)
+    if recollect.differs(row, m) is None:
+        return None
+    return {"text": row["text"], "basis": row["basis"], "since": clock.label(row["story_time"], epoch),
+            "message_id": row["message_id"]}  # fmt: skip
+
+
+def _cut(conn, story_id: int, knower_id: int) -> set[int]:
+    """Memories recalled for her last prompt but cut for room: the app lost them, not she."""
+    row = conn.execute(
+        "SELECT memories FROM context_log WHERE story_id=? AND speaker_id=? ORDER BY id DESC",
+        (story_id, knower_id),
+    ).fetchone()
+    if row is None or not row["memories"]:
+        return set()
+    return {m["memory_id"] for m in json.loads(row["memories"]) if m.get("rendered") == "dropped"}
 
 
 def clarity(conn, story_id: int, knower_id: int, memory_id: int, path: list, live) -> str | None:

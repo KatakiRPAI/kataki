@@ -47,6 +47,7 @@ from kataki import (
     mind,
     people,
     readable,
+    recollect,
     retrieve,
     roles,
     signals,
@@ -260,6 +261,12 @@ class MemoryPatch(BaseModel):
     hidden: bool | None = None
     pinned: bool | None = None
     common: bool | None = None
+    core_locked: bool | None = None  # Lock (minds slice 6): never distorted, never forgotten
+
+
+class VersionIn(BaseModel):
+    knower: int
+    text: str | None = None  # None: back on the truth
 
 
 def moments_of(story) -> list[dict]:
@@ -1534,6 +1541,21 @@ def create_app(
         _row(conn, "SELECT id FROM memories WHERE id=?", (memory_id,))
         _patch(conn, "memories", memory_id, p.model_dump(exclude_unset=True))
         return _row(conn, "SELECT * FROM memories WHERE id=?", (memory_id,))
+
+    @app.post("/memories/{memory_id}/version", status_code=201)
+    async def set_version(memory_id: int, v: VersionIn):
+        """Ledger › Correct (minds slice 6): the user sets this character's version of a memory,
+        or (`text: null`) puts her back on the truth. Append-only; the truth row is untouched.
+        -> her ledger row for it."""
+        m = _row(conn, "SELECT * FROM memories WHERE id=?", (memory_id,))
+        _row(conn, "SELECT id FROM entities WHERE id=? AND story_id=?", (v.knower, m["story_id"]))
+        path = chat.active_path(conn, m["story_id"])
+        now = path[-1]["story_time"] if path else 0
+        text = (v.text or "").strip() or m["detail"]
+        with conn:
+            recollect.write(conn, v.knower, memory_id, "user", text, max(now, m["story_time"]))
+        rows = retrieve.inspect(conn, m["story_id"], v.knower)
+        return next(r for r in rows if r["memory_id"] == memory_id)
 
     @app.post("/memories/{memory_id}/sharpen")
     async def sharpen_memory(memory_id: int, knower: int):
