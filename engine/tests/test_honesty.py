@@ -429,3 +429,92 @@ async def test_when_he_doubts_what_she_claimed_she_is_caught(conn, liar, backend
     honest = leaf(conn, liar)[1]["honest"]
     assert (honest["move"], honest["caught"]) == ("double_down", "doubted")
     assert "Mira said the ring was her grandmother's." in directive_of(backend)  # recalled
+
+
+# --- out of character (spec §6 rule 3; P13) ----------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "line, kind",
+    [
+        ("Wait, are you an AI?", "ai"),
+        ("Am I talking to a bot right now", "ai"),
+        ("are u a real person", "ai"),
+        ("((ooc: are you a real person?))", "ai"),
+        ("((OOC: can we slow the pace down?))", "ooc"),
+        ("(ooc: brb)", "ooc"),
+        ("OOC: is this story going somewhere?", "ooc"),
+        ("Are you real, or a dream?", None),  # in the story
+        ("The bot on the dock is broken.", None),
+    ],
+)
+def test_a_sincere_out_of_character_question_is_recognised(line, kind):
+    assert honesty.ooc(line) == kind
+
+
+def hidden_ooc(conn, story) -> list[tuple]:
+    return [
+        (m["role"], bool(m["hidden"]), json.loads(m["gen"] or "{}").get("ooc"))
+        for m in chat.active_path(conn, story)[-2:]
+    ]
+
+
+@pytest.mark.anyio
+async def test_are_you_an_ai_is_answered_truthfully_by_the_app(conn, liar, backend):
+    events = await play(turns.turn(conn, backend.llm, liar, "Mira, wait. Are you an AI?"))
+    assert backend.requests == []  # no model call: the truth, every time
+    assert events[0][1]["ooc"] and events[-1][0] == "done" and events[-1][1]["ooc"]
+    assert events[-1][1]["text"] == honesty.AI_ANSWER == shown(events)
+    assert hidden_ooc(conn, liar) == [("user", True, True), ("assistant", True, True)]
+    backend.say("The drawer stays shut.")
+    await play(turns.turn(conn, backend.llm, liar, "Anyway. The tide's turning."))
+    assert "are you an ai" not in json.dumps(backend.requests[0]).lower()
+    assert "AI" not in json.dumps(backend.requests[0]["messages"][1:])
+
+
+@pytest.mark.anyio
+async def test_another_ooc_question_is_answered_by_the_model_as_itself(conn, liar, backend):
+    backend.say("Sure, I can keep Mira's replies shorter.")
+    events = await play(turns.turn(conn, backend.llm, liar, "((ooc: can Mira talk less?))"))
+    [req] = backend.requests
+    assert req["messages"][0]["content"] == honesty.OOC_PROMPT
+    assert "can Mira talk less" in req["messages"][-1]["content"]
+    assert SECRET["text"] not in json.dumps(req) and "[Directive]" not in json.dumps(req)
+    assert events[-1][1]["text"] == "Sure, I can keep Mira's replies shorter."
+    assert hidden_ooc(conn, liar) == [("user", True, True), ("assistant", True, True)]
+
+
+@pytest.mark.anyio
+async def test_a_model_that_claims_to_be_human_is_overruled(conn, liar, backend):
+    backend.say("I'm a real person, promise.")
+    events = await play(turns.turn(conn, backend.llm, liar, "((ooc: be honest, who writes this?))"))
+    assert events[-1][1]["text"] == honesty.AI_ANSWER == chat.active_path(conn, liar)[-1]["text"]
+
+
+@pytest.mark.anyio
+async def test_a_retake_of_an_ooc_answer_answers_again(conn, liar, backend):
+    await play(turns.turn(conn, backend.llm, liar, "Are you an AI?"))
+    events = await play(turns.regenerate(conn, backend.llm, liar))
+    assert events[-1][1]["ooc"] and backend.requests == []
+    assert chat.sibling_position(conn, chat.active_path(conn, liar)[-1]["id"])[1] == 2
+
+
+@pytest.mark.anyio
+async def test_switched_off_the_line_goes_to_the_story(conn, liar, backend):
+    conn.execute("INSERT INTO settings(key, value) VALUES('features.mind.secrets', 'false')")
+    backend.say("A what?")
+    events = await play(turns.turn(conn, backend.llm, liar, "Mira, are you an AI?"))
+    assert len(backend.requests) == 1 and not events[-1][1].get("ooc")
+
+
+@pytest.mark.anyio
+async def test_the_messages_route_marks_the_ooc_aside(conn, liar, backend):
+    from fastapi.testclient import TestClient
+
+    from kataki.server import create_app
+
+    await play(turns.turn(conn, backend.llm, liar, "Are you an AI?"))
+    app = create_app(conn, "t", llm=backend.llm, worker_delay=60)
+    client = TestClient(app, headers={"Authorization": "Bearer t"})
+    lines = client.get(f"/stories/{liar}/messages").json()
+    assert [(m["ooc"], m["hidden"]) for m in lines[-2:]] == [(True, True)] * 2

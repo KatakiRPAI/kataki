@@ -759,6 +759,91 @@ def say(
     )
 
 
+async def _ooc(
+    conn: sqlite3.Connection,
+    llm: LLM,
+    story_id: int,
+    question: str,
+    kind: str,
+    get_key: Callable[[str], str | None],
+    parent_id: int | None = None,  # the question already asked (a retake of the answer)
+) -> AsyncIterator[Event]:
+    """A sincere out-of-character question, answered out of the fiction (spec §6 rule 3): "are
+    you an AI" by the app, truthfully, with no call; anything else by the reply model as itself.
+    Both lines are hidden, so no prompt, memory or character ever sees them.
+    ponytail: each line still moves the story clock one tick, as any line does."""
+    story = _story(conn, story_id)
+    if parent_id is None:
+        leaf = story["active_leaf_id"]
+        persona = story["persona_entity_id"]
+        parent_id = chat.add_child(
+            conn, story_id, leaf, "user", question, persona, 0, {"ooc": True}
+        )
+        with conn:
+            conn.execute("UPDATE messages SET hidden=1 WHERE id=?", (parent_id,))
+    ep = roles.resolve(conn, "rp", story_id, get_key) if kind == "ooc" else None
+    if kind == "ooc" and ep is None:
+        yield ("error", {"message": "No model is set for the 'rp' role yet."})
+        return
+    yield (
+        "meta",
+        {"speaker": None, "role": "ooc", "ooc": True, "model": ep.model if ep else None,
+         "thinks": False, "parent_id": parent_id},
+    )  # fmt: skip
+    text, usage = honesty.AI_ANSWER, None
+    if ep is not None:
+        path = [m for m in chat.path_to(conn, parent_id) if not m["hidden"]]
+        names = dict(conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)))
+        lines = "\n".join(
+            f"{names.get(m['speaker_id'], 'Narration')}: {m['text'][-400:]}" for m in path[-6:]
+        )
+        ask = [
+            {"role": "system", "content": honesty.OOC_PROMPT},
+            {
+                "role": "user",
+                "content": (f"[The story so far, for context]\n{lines}\n\n" if lines else "")
+                + f"[The user's out-of-character question]\n{question}",
+            },
+        ]
+        parts, done = [], {}
+        try:
+            async for what, value in llm.chat_stream(ep, ask, max_tokens=400):
+                if what == "token":
+                    parts.append(value)
+                    yield ("token", value)
+                elif what == "done":
+                    done = value
+        except LLMError as e:
+            yield ("error", {"message": str(e)})
+            return
+        said, usage = "".join(parts).strip(), done.get("usage")
+        text = said if said and not honesty.HUMAN.search(said) else honesty.AI_ANSWER
+    else:
+        yield ("token", text)
+    gen = {"ooc": True, "role": "ooc", "model": ep.model if ep else None, "usage": usage}
+    answer = chat.add_child(conn, story_id, parent_id, "assistant", text, None, 0, gen)
+    with conn:
+        conn.execute("UPDATE messages SET hidden=1 WHERE id=?", (answer,))
+    now = chat.get_message(conn, answer)["story_time"]
+    moments = json.loads(story["overrides"]).get("moments", [])
+    yield (
+        "done",
+        {"message_id": answer, "text": text, "ooc": True, "skip_minutes": 0,
+         "clock": clock.label(now, story["epoch_offset_min"]),
+         "date": clock.date(now, story["epoch_offset_min"], moments), "usage": usage,
+         "expression": None, "mood": None, "thought": None},
+    )  # fmt: skip
+
+
+def _is_ooc(conn: sqlite3.Connection, text: str | None) -> str | None:
+    """honesty.ooc, when `mind.secrets` is on; a failure means the line goes to the story."""
+    try:
+        return honesty.ooc(text) if text and features.enabled(conn, "mind.secrets") else None
+    except Exception as e:
+        logging.getLogger(__name__).warning("ooc check skipped: %s", e)
+        return None
+
+
 async def turn(
     conn: sqlite3.Connection,
     llm: LLM,
@@ -778,6 +863,11 @@ async def turn(
             name = row["name"] if row else "They"
             yield ("error", {"message": f"{name} isn't in the scene. Bring them in first."})
             return
+    if not skip and (kind := _is_ooc(conn, text)):  # step 0: out of the fiction
+        async with aclosing(_ooc(conn, llm, story_id, text.strip(), kind, get_key)) as events:
+            async for event in events:
+                yield event
+        return
     try:
         say(conn, story_id, text, audience, skip, narrate)
     except ValueError as e:
@@ -804,6 +894,15 @@ async def regenerate(
         return
     if leaf["parent_id"] is None:
         yield ("error", {"message": "The opening line can't be regenerated. Edit it instead."})
+        return
+    if json.loads(leaf["gen"] or "{}").get("ooc"):  # an out-of-character answer: answer again
+        asked = chat.get_message(conn, leaf["parent_id"])["text"]
+        kind = honesty.ooc(asked) or "ooc"
+        async with aclosing(
+            _ooc(conn, llm, story_id, asked, kind, get_key, leaf["parent_id"])
+        ) as events:
+            async for event in events:
+                yield event
         return
     async with aclosing(
         _generate(conn, llm, story_id, leaf["parent_id"], leaf["speaker_id"], get_key, "retake")

@@ -443,7 +443,8 @@ def read(conn: sqlite3.Connection, story_id: int, speaker_id: int, path: list, p
         "SELECT persona_entity_id FROM stories WHERE id=?", (story_id,)
     ).fetchone()[0]
     names = dict(conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)))
-    heard = [m for m in path if m["id"] in chat.heard_by(conn, path, speaker_id)]
+    ears = chat.heard_by(conn, path, speaker_id)
+    heard = [m for m in path if m["id"] in ears and not m["hidden"]]  # an OOC aside is no line
     last = heard[-1] if heard else None
     pending = last if last is not None and last["role"] == "user" else None
     asker = (pending["speaker_id"] if pending else None) or persona
@@ -503,3 +504,37 @@ def read(conn: sqlite3.Connection, story_id: int, speaker_id: int, path: list, p
         return None
     return {"gate": gate, "hot": bool(hot), "guards": [g[1:] for g in guards],
             "directive": words_, "honest": honest}  # fmt: skip
+
+
+# --- out of character (spec §6 rule 3; note 13 §5; note 22 §2 step 0) --------------------------
+
+OOC = re.compile(r"^\W*(?:\(\(\s*ooc\b|\(\s*ooc\b|\[\s*ooc\b|ooc\s*:)", re.IGNORECASE)
+ARE_YOU_AI = re.compile(  # ponytail: English phrases; a false alarm costs one aside
+    r"\b(?:are|r)\s+(?:you|u)\s+(?:even\s+|really\s+|actually\s+|just\s+)?(?:an?\s+)?"
+    r"(?:ai|a\.i\.|bot|chat\s?bot|robot|language model|llm|real person|actual person"
+    r"|human being)\b"
+    r"|\bam i (?:talking|chatting|speaking|writing) (?:to|with) (?:an? )?"
+    r"(?:ai|bot|chat\s?bot|robot|real person|human|machine|person)\b"
+    r"|\bis this (?:an? )?(?:ai|bot|chat\s?bot|real person)\b",
+    re.IGNORECASE,
+)
+AI_ANSWER = (
+    "(Out of character) Yes: you are talking to an AI. The characters and the narrator in this"
+    " story are written by an AI model through Kataki; none of them is a real person. Say"
+    " something in the story to carry on."
+)
+OOC_PROMPT = (
+    "You are the AI model that writes the characters and the narrator of an interactive story in"
+    " the Kataki app. The user has stepped out of the story to ask you something directly. Answer"
+    " as yourself, out of character: briefly, plainly and truthfully. You are an AI, not a"
+    " person, and you never say otherwise. Do not continue the story."
+)
+HUMAN = re.compile(r"\bi(?:'m| am) (?:a |an )?(?:real |actual )?(?:human|person)\b", re.IGNORECASE)
+
+
+def ooc(text: str) -> str | None:
+    """ "ai" for a sincere are-you-an-AI question, "ooc" for any other line marked out of
+    character, else None (the line is part of the story)."""
+    if ARE_YOU_AI.search(text or ""):
+        return "ai"
+    return "ooc" if OOC.search(text or "") else None
