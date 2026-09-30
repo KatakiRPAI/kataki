@@ -911,7 +911,17 @@ def _work(conn, story_id: int, who: int, run: sqlite3.Row, skip: sqlite3.Row) ->
             for m in retrieve.inspect(conn, story_id, who, now=skip["story_time"])
             if m["memory_id"] not in ours
         ]
-        return growth.working(conn, story_id, who, skip["story_time"], known)
+        work = growth.working(conn, story_id, who, skip["story_time"], known)
+        if not work["memories"]:  # nothing read into memory yet: nothing to look back on
+            with conn:
+                _warn(
+                    conn,
+                    run["id"],
+                    who,
+                    ["No reflection: she has no memories to look back on yet."],
+                )
+            return None
+        return work
     except Exception as e:
         logging.getLogger(__name__).warning("deep pass skipped for %s: %s", who, e)
         return None

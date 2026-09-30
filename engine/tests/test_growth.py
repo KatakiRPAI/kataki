@@ -556,3 +556,17 @@ async def test_a_rejected_grudge_is_struck_on_every_branch(local_model, cards, b
     assert "not forgiven" not in tail
     rows = bonds.ledger(conn, ent(conn, story, "Mira"), chat.active_path(conn, story))
     assert bonds.standing(rows, ent(conn, story, "Aren"), 10**6)["grudge"] is None
+
+
+@pytest.mark.anyio
+async def test_with_no_memories_yet_there_is_nothing_to_reflect_on(local_model, cards, backend):
+    conn = local_model
+    story = make(conn, cards)
+    mira = ent(conn, story, "Mira")
+    chat.append_message(conn, story, "user", "See you, Mira.", ent(conn, story, "Aren"))
+    turns.say(conn, story, skip="eight days later")
+    run = between.at_skip(conn, story, chat.active_path(conn, story))
+    backend.say(json.dumps(DIARY))
+    assert await between.think(conn, backend.llm, story, run, mira)
+    assert "deep" not in json.dumps(backend.requests[0].get("response_format", {}))
+    assert "no memories" in raw(conn, run)["deep_warnings"][str(mira)][0]

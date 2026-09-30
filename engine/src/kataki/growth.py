@@ -273,13 +273,15 @@ def trigger(
     return None
 
 
-def _scene(conn, memory_id: int, t: int):
+def _scene(conn, memory_id: int, t: int) -> str:
+    """Which scene a memory is from, for "two scenes" (note 17 §6: scenes or story-days): its
+    line's scene and its story-day together."""
     row = conn.execute(
         "SELECT ms.scene_id FROM memories m LEFT JOIN messages ms ON ms.id=m.message_id"
         " WHERE m.id=?",
         (memory_id,),
     ).fetchone()
-    return (row and row[0]) or f"day{t // clock.DAY}"
+    return f"{row and row[0]}:{t // clock.DAY}"
 
 
 def working(conn: sqlite3.Connection, story_id: int, who: int, now: int, known: list[dict]) -> dict:
