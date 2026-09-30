@@ -12,6 +12,7 @@ ponytail: every constant here is an estimate from the research (notes 11 §3, 16
 tune them on the probes (evals/probes.py), not by feel.
 """
 
+import contextlib
 import json
 import logging
 import random
@@ -26,6 +27,7 @@ from kataki import (
     db,
     features,
     goals,
+    growth,
     honesty,
     inner,
     knobs,
@@ -173,8 +175,9 @@ WORDS = {"diary": 80, "telling": 20, "seed": 20, "preoccupation": 15, "tactic": 
 ADDRESSED = re.compile(r"\b(you|your|you're|yours)\b", re.IGNORECASE)
 
 
-def schema(goals_: list[str] = ()) -> dict:
-    """The diary call's JSON; with her goals' handles (slice 7), one optional goal change."""
+def schema(goals_: list[str] = (), work: dict | None = None) -> dict:
+    """The diary call's JSON; with her goals' handles (slice 7), one optional goal change; with a
+    deep pass's working set (slice 8), the deep section."""
     text = {"type": "string"}
     out = {
         "type": "object",
@@ -212,7 +215,32 @@ def schema(goals_: list[str] = ()) -> dict:
         }
         out["properties"]["goal"] = {"anyOf": [{"type": "null"}, change]}
         out["required"].append("goal")
+    if work:
+        out["properties"]["deep"] = _deep_schema(work)
+        out["required"].append("deep")
     return out
+
+
+def _deep_schema(work: dict) -> dict:
+    """B2's section (note 22 §3), every reference closed to the handles it was shown."""
+    text = {"type": "string"}
+    cite = {"type": "array", "items": {"type": "string", "enum": list(work["memories"])}}
+
+    def obj(**props) -> dict:
+        return {"type": "object", "properties": props, "required": list(props),
+                "additionalProperties": False}  # fmt: skip
+
+    deep = {
+        "self": {"anyOf": [{"type": "null"}, obj(line=text, sources=cite)]},
+        "rings": {"type": "array", "items": obj(
+            kind={"type": "string", "enum": list(growth.RINGS)}, claim=text, sources=cite,
+            trait={"type": "string", "enum": [*growth.TRAITS, "none"]})},
+    }  # fmt: skip
+    if work["people"]:
+        about = {"type": "string", "enum": list(work["people"])}
+        deep = {"relationship": {"type": "array", "items": obj(about=about, line=text,
+                                                               sources=cite)}} | deep  # fmt: skip
+    return obj(**deep)
 
 
 def _goal(data: dict, goals_: list[str]) -> dict:
@@ -233,36 +261,40 @@ def _clip(text: str, n: int) -> str:
     return " ".join(text.split()[:n])
 
 
-def read(data: dict, goals_: list[str] = ()) -> dict:
+def read(data: dict, goals_: list[str] = (), deep: bool = False) -> dict:
     """Validate the diary call. No diary raises ValueError (it is asked once more); a bad seed,
-    news line or goal change is only dropped."""
+    news line or goal change is only dropped; the deep section is passed on for its gate."""
     said = data.get("diary")
     if not isinstance(said, str) or not said.strip():
         raise ValueError("diary must be two or three sentences in the character's voice")
     tell = data.get("worth_telling") if isinstance(data.get("worth_telling"), list) else []
     seeds = data.get("seeds") if isinstance(data.get("seeds"), list) else []
     pre = data.get("preoccupation")
-    return {
-        "diary": _clip(said, WORDS["diary"]),
-        "worth_telling": [
-            _clip(t, WORDS["telling"])
-            for t in tell
-            if isinstance(t, str) and t.strip() and not ADDRESSED.search(t)
-        ][:2],
-        "seeds": [
-            {"kind": s["kind"], "text": _clip(s["text"], WORDS["seed"]), "weight": s["weight"]}
-            for s in seeds
-            if isinstance(s, dict)
-            and s.get("kind") in KINDS
-            and isinstance(s.get("text"), str)
-            and s["text"].strip()
-            and type(s.get("weight")) is int
-            and 1 <= s["weight"] <= 3
-        ][:3],
-        "preoccupation": _clip(pre, WORDS["preoccupation"])
-        if isinstance(pre, str) and pre.strip()
-        else None,
-    } | _goal(data, goals_)
+    return (
+        {
+            "diary": _clip(said, WORDS["diary"]),
+            "worth_telling": [
+                _clip(t, WORDS["telling"])
+                for t in tell
+                if isinstance(t, str) and t.strip() and not ADDRESSED.search(t)
+            ][:2],
+            "seeds": [
+                {"kind": s["kind"], "text": _clip(s["text"], WORDS["seed"]), "weight": s["weight"]}
+                for s in seeds
+                if isinstance(s, dict)
+                and s.get("kind") in KINDS
+                and isinstance(s.get("text"), str)
+                and s["text"].strip()
+                and type(s.get("weight")) is int
+                and 1 <= s["weight"] <= 3
+            ][:3],
+            "preoccupation": _clip(pre, WORDS["preoccupation"])
+            if isinstance(pre, str) and pre.strip()
+            else None,
+        }
+        | _goal(data, goals_)
+        | ({"deep": data.get("deep")} if deep else {})
+    )
 
 
 # --- the tick at the skip (B0): zero calls, all levels ------------------------------------------
@@ -561,6 +593,17 @@ class _Tick:
                         self.version(a, b, f["id"], live)
                         passed += 1
 
+    def reinforce(self, cast: list[int]) -> None:
+        """Growth seeds later scenes bore out become rings; old unconfirmed ones pass (slice 8).
+        A failure costs only that."""
+        try:
+            if not features.enabled(self.conn, "mind.growth"):
+                return
+            for who in cast:
+                growth.reinforce(self.conn, who, self.path, self.now, self.skip["id"], self.run)
+        except Exception as e:
+            logging.getLogger(__name__).warning("rings not reinforced: %s", e)
+
     def version(self, teller: int, hearer: int, memory: int, live: set[int]) -> None:
         """What is passed on is the teller's own version of it (slice 6), if they hold one."""
         try:
@@ -589,6 +632,20 @@ def eased(seed: dict, path: list) -> bool:
         return False
     after = path[ids.index(seed["message_id"]) + 1 :]
     return any(m["role"] == "assistant" and m["speaker_id"] == seed["entity_id"] for m in after)
+
+
+def _deep(conn, story_id: int, upto: list, calls: list[int]) -> dict[str, str]:
+    """Who of those getting the diary call also reflects on this skip, and why (slice 8). Code,
+    zero calls; a failure costs only the deep pass."""
+    try:
+        if not calls or not features.enabled(conn, "mind.growth"):
+            return {}
+        level = knobs.setting(conn, "mind.level", "standard")
+        why = {str(c): growth.trigger(conn, story_id, c, upto, level) for c in calls}
+        return {c: r for c, r in why.items() if r}
+    except Exception as e:
+        logging.getLogger(__name__).warning("deep pass not decided: %s", e)
+        return {}
 
 
 def at_skip(conn: sqlite3.Connection, story_id: int, path: list) -> int | None:
@@ -622,6 +679,9 @@ def at_skip(conn: sqlite3.Connection, story_id: int, path: list) -> int | None:
             "b1": {str(c): "pending" if c in calls else "lite" if lite else "code" for c in cast},
             "people": people,
         }
+        if deep := _deep(conn, story_id, upto, calls):
+            raw["deep"] = deep
+        tick.reinforce(cast)
         conn.execute("UPDATE extraction_runs SET raw=? WHERE id=?", (json.dumps(raw), run))
     return run
 
@@ -678,7 +738,7 @@ def _same(a: str, b: str) -> bool:
 
 
 def _ask(conn, story_id: int, who: int, run: sqlite3.Row, skip: sqlite3.Row, path: list,
-         wants: dict[str, dict] | None = None) -> list:  # fmt: skip
+         wants: dict[str, dict] | None = None, work: dict | None = None) -> list:  # fmt: skip
     """The call's input: only this character's own card, state and memories (never a scene
     summary, which an all-seeing reader wrote)."""
     names = dict(conn.execute("SELECT id, name FROM entities WHERE story_id=?", (story_id,)))
@@ -727,6 +787,17 @@ def _ask(conn, story_id: int, who: int, run: sqlite3.Row, skip: sqlite3.Row, pat
     if wants:  # slice 7: what she is after, and the one change the time may have made
         body.append(_wants(conn, who, path, wants))
         system += GOAL.format(name=name)
+    if work:  # slice 8: looking back, on her own memories only, each with a handle
+        body.append(
+            "Your memories, for looking back (handle: memory):\n"
+            + "\n".join(f"- {h}: {m['text']}" for h, m in work["memories"].items())
+        )
+        if work["who"]:
+            body.append(
+                "People (handle: name):\n"
+                + "\n".join(f"- {h}: {n}" for h, n in work["who"].items())
+            )
+        system += DEEP.format(name=name, traits=", ".join(growth.TRAITS))
     return [
         {"role": "system", "content": system},
         {"role": "user", "content": "\n\n".join(body)},
@@ -739,6 +810,22 @@ one, else null. goal: its handle; change: progressed ({name} got closer), stalle
 but a new plan), done ({name} got it), dropped ({name} gave up on it), revived ({name} means to \
 try again); tactic: how {name} means to go about it now, at most 12 words. Only what fits what \
 happened."""
+
+
+DEEP = """
+- deep: {name} looks back over a long stretch of the story. Use ONLY the memories listed with \
+handles (M...) and the people listed with handles (P...); cite in `sources` the handles each item \
+rests on. Never add a name, place or number that is not in those memories.
+  - relationship: the one or two people {name} feels most about (empty only if her memories \
+hold no one): about (their handle), line (how {name} has come to see them, first person, at most \
+25 words).
+  - self: how {name} sees herself now, first person, at most six sentences (null only if her \
+memories say nothing about her).
+  - rings: zero to two ways {name} has really changed, each resting on at least three memories \
+from at least two different times: kind (stance: a position she now holds; habit: something she \
+now does; skill: something she learned to do; scar: something that hurt and still does; belief: \
+something she now believes), claim (at most 15 words, like "learned to ask for help"), trait (the \
+one way it moves her, if any: {traits}; or none). Empty when nothing really changed."""
 
 
 def _wants(conn, who: int, path: list, wants: dict[str, dict]) -> str:
@@ -765,7 +852,7 @@ def _mark(conn: sqlite3.Connection, run_id: int, who: int, status: str) -> None:
 
 
 def _write(conn, story_id: int, run: sqlite3.Row, skip: sqlite3.Row, who: int, got: dict,
-           wants: dict[str, dict] | None = None) -> None:  # fmt: skip
+           wants: dict[str, dict] | None = None, work: dict | None = None) -> None:  # fmt: skip
     """The call's words, on the run: the diary in place of the template, then the news she did
     not have yet, her seeds, her preoccupation, and the one goal the time moved."""
     tick = _Tick(conn, story_id, chat.path_to(conn, skip["id"]), dict(skip), run["id"])
@@ -796,6 +883,63 @@ def _write(conn, story_id: int, run: sqlite3.Row, skip: sqlite3.Row, who: int, g
     if (moved := got.get("goal")) and (g := (wants or {}).get(moved["goal"])):  # one, at most
         goals.change(conn, g, moved["change"], moved["tactic"] or None, skip["id"], run["id"],
                      tick.now)  # fmt: skip
+    if work:  # slice 8: what passes the gate becomes her reflections, the rest a warning
+        conn.execute("SAVEPOINT deep")
+        try:
+            warn = growth.take(conn, story_id, who, got.get("deep"), work, tick.path, skip["id"],
+                               run["id"], tick.now)  # fmt: skip
+            conn.execute("RELEASE deep")
+        except Exception as e:  # costs the reflection only; the diary stays
+            logging.getLogger(__name__).warning("reflection not written for %s: %s", who, e)
+            conn.execute("ROLLBACK TO deep")
+            conn.execute("RELEASE deep")
+            warn = ["The reflection was skipped: something went wrong."]
+        _warn(conn, run["id"], who, warn, got.get("deep"))
+
+
+def _warn(conn, run_id: int, who: int, warnings: list[str], said=None) -> None:
+    """Why her deep pass dropped something, and what it said (Backstage can show both), on the
+    run (inside a transaction)."""
+    row = conn.execute("SELECT raw FROM extraction_runs WHERE id=?", (run_id,)).fetchone()
+    if row is None:
+        return
+    raw = json.loads(row[0] or "{}")
+    raw.setdefault("deep_warnings", {})[str(who)] = warnings
+    if said is not None:
+        raw.setdefault("deep_said", {})[str(who)] = said
+    conn.execute("UPDATE extraction_runs SET raw=? WHERE id=?", (json.dumps(raw), run_id))
+
+
+def _work(conn, story_id: int, who: int, run: sqlite3.Row, skip: sqlite3.Row) -> dict | None:
+    """Her deep pass's working set when this skip calls for one, else None; a failure costs
+    only the deep pass."""
+    if not _raw(run).get("deep", {}).get(str(who)):
+        return None
+    try:
+        if not features.enabled(conn, "mind.growth"):
+            return None
+        ours = {r[0] for r in conn.execute("SELECT id FROM memories WHERE run_id=?", (run["id"],))}
+        known = [
+            m
+            for m in retrieve.inspect(conn, story_id, who, now=skip["story_time"])
+            if m["memory_id"] not in ours
+        ]
+        work = growth.working(conn, story_id, who, skip["story_time"], known)
+        if not work["memories"]:  # nothing read into memory yet: nothing to look back on
+            with conn:
+                _warn(
+                    conn,
+                    run["id"],
+                    who,
+                    ["No reflection: she has no memories to look back on yet."],
+                )
+            return None
+        return work
+    except Exception as e:
+        logging.getLogger(__name__).warning("deep pass skipped for %s: %s", who, e)
+        with contextlib.suppress(Exception), conn:
+            _warn(conn, run["id"], who, ["The reflection was skipped: something went wrong."])
+        return None
 
 
 def _goals_of(conn, who: int, path: list) -> dict[str, dict]:
@@ -832,17 +976,25 @@ async def think(
         skip = chat.get_message(conn, run["to_message_id"])
         path = chat.path_to(conn, skip["id"])
         wants = _goals_of(conn, who, path)
-        ask = _ask(conn, story_id, who, run, skip, path, wants)
+        work = _work(conn, story_id, who, run, skip)
+        ask = _ask(conn, story_id, who, run, skip, path, wants, work)
         got = await llm.complete_json(
-            ep, ask, schema(list(wants)), lambda d: read(d, list(wants)), name="between"
+            ep,
+            ask,
+            schema(list(wants), work),
+            lambda d: read(d, list(wants), work is not None),
+            name="between",
         )
         if conn.execute("SELECT 1 FROM extraction_runs WHERE id=?", (run_id,)).fetchone() is None:
             return False  # the skip was undone while the model was busy
         with conn:
-            _write(conn, story_id, run, skip, who, got, wants)
+            _write(conn, story_id, run, skip, who, got, wants, work)
     except Exception as e:  # never the turn's undoing, never retried unasked
         logging.getLogger(__name__).warning("diary call failed for %s: %s", who, e)
         _mark(conn, run_id, who, "failed")
+        if _raw(run).get("deep", {}).get(str(who)):
+            with contextlib.suppress(Exception), conn:
+                _warn(conn, run_id, who, ["The reflection did not run: the call failed."])
         return False
     _mark(conn, run_id, who, "ok")
     return True

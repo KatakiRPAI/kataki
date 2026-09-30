@@ -10,6 +10,8 @@ Events: ("meta", {...}) first, then ("thought" | "token", text)..., then ("done"
 import asyncio
 import json
 import logging
+import math
+import random
 import re
 import sqlite3
 import time
@@ -28,6 +30,7 @@ from kataki import (
     extract,
     features,
     goals,
+    growth,
     honesty,
     images,
     inner,
@@ -75,7 +78,8 @@ def speaker_why(conn: sqlite3.Connection, story_id: int, requested=None) -> tupl
     else, among those who heard the user's line, whoever it addresses ("named"), else whoever
     spoke last ("last"). With no user line pending, or one nobody heard (a thought), the
     quietest character speaks ("quietest"), so continuing lets a group take turns; with no one
-    here, the narrator ("alone"). No model call."""
+    here, the narrator ("alone"). With `mind.growth` on and two or more who could answer, a
+    seeded score replaces the last two ("urgent", "wants_in", "balance"). No model call."""
     if requested == NARRATOR:
         return None, "narrator"
     if isinstance(requested, int):
@@ -91,9 +95,80 @@ def speaker_why(conn: sqlite3.Connection, story_id: int, requested=None) -> tupl
             if named := _addressed(conn, path[-1]["text"], hearers):
                 return named, "named"
             last = (m["speaker_id"] for m in reversed(path) if m["role"] == "assistant")
-            return next((s for s in last if s in hearers), hearers[0]), "last"
+            answered = next((s for s in last if s in hearers), None)
+            said = path[-1]["text"]
+            if len(hearers) > 1 and (got := _scored(conn, story_id, path, hearers, answered, said)):
+                return got
+            return answered or hearers[0], "last"
+    if len(ids) > 1 and (got := _scored(conn, story_id, path, ids, None, None)):
+        return got
     spoke_at = {m["speaker_id"]: i for i, m in enumerate(path) if m["role"] == "assistant"}
     return min(ids, key=lambda e: spoke_at.get(e, -1)), "quietest"
+
+
+SHARE_OF = 12  # ponytail: replies back that count toward who has had their say
+W_REPLY, W_SHARE, W_URGENT, W_GOAL = 1.0, 3.0, 1.5, 1.5  # ponytail: simulated: of four over twelve
+# lines someone never speaks 1.4%, someone hogs 2%; of two, the one answered carries on ~60%
+HEAT = 0.4  # ponytail: softmax temperature (lower: the top score wins more often)
+URGENT = 0.3  # a bad feeling this strong ("quite" or more) makes her want to speak
+
+
+def _urge(conn, who: int, path: list, now: int) -> bool:
+    """Whether her strongest feeling right now is a bad one at "quite" or more (slice 1)."""
+    if not features.enabled(conn, "mind.affect"):
+        return False
+    prof = inner.profile(conn, who)
+    state = inner.current(conn, who, path, prof)
+    top = (inner.tick(state, now, prof)["emotions"] or [None])[0] if state else None
+    return bool(top) and top["label"] in inner.NEGATIVE and top["i"] >= URGENT
+
+
+def _wants(conn, who: int, path: list, text: str | None) -> float:
+    """Talkative by nature (-0.5..0.5), plus W_GOAL when the line names a goal she pursues."""
+    talk = inner.profile(conn, who)["social"].get("talkativeness", 0.5)
+    talk = min(1.0, max(0.0, talk)) if isinstance(talk, (int, float)) else 0.5
+    out = talk - 0.5
+    if text and features.enabled(conn, "mind.goals"):
+        live = goals.live(conn, who, path)
+        if any(g["key"] not in goals.UNPURSUED and g["status"] == "active"
+               and goals.tried(text, g["cue"]) for g in live):  # fmt: skip
+            out += W_GOAL
+    return out
+
+
+def _scored(conn, story_id: int, path: list, cands: list[int], answered: int | None,
+            text: str | None):  # fmt: skip
+    """Note 16 §6's speaker score in place of the "last"/"quietest" fallbacks (minds slice 8):
+    being answered (fading as she keeps the floor), her share of the last replies (fewer is
+    better), being stirred up, having something to say; drawn from a softmax with an RNG seeded
+    by the story and the line being answered, so the same path always gives the same speaker.
+    `text`: the line they heard, or None (nothing heard decides nothing). Being stirred counts
+    only while she has had no more than her fair share, so an upset one can't keep the floor.
+    -> (speaker, "urgent" | "wants_in" | "balance"), or None when off or it fails."""
+    try:
+        if not features.enabled(conn, "mind.growth"):
+            return None
+        spoke = [m["speaker_id"] for m in path if m["role"] == "assistant"]
+        recent = [s for s in spoke[-SHARE_OF:] if s in cands]
+        streak = next((i for i, s in enumerate(reversed(spoke)) if s != answered), len(spoke))
+        now = path[-1]["story_time"] if path else 0
+        scores, why = [], {}
+        for c in cands:
+            share = (recent.count(c) + 1) / (len(recent) + len(cands))  # smoothed
+            balance = W_SHARE * (1 / len(cands) - share)
+            if c == answered:
+                balance += W_REPLY * 0.5 ** max(0, streak - 1)  # reply-chain decay
+            fair = share <= 1 / len(cands)
+            urgent = W_URGENT if fair and _urge(conn, c, path, now) else 0.0
+            wants = _wants(conn, c, path, text)
+            scores.append(math.exp((balance + urgent + wants) / HEAT))
+            why[c] = "urgent" if urgent else "wants_in" if wants >= 0.5 else "balance"
+        seed = f"{story_id}:{path[-1]['id'] if path else 0}"
+        pick = random.Random(seed).choices(cands, weights=scores)[0]
+        return pick, why[pick]
+    except Exception as e:  # the old rules still pick someone
+        logging.getLogger(__name__).warning("speaker score skipped: %s", e)
+        return None
 
 
 def _pressed(conn: sqlite3.Connection, story_id: int, speaker_id: int) -> set[int]:
@@ -480,9 +555,21 @@ async def _generate(
         need = None
     if need:
         mind_rows.append(need["text"])
+    grown = None  # slice 8: at most one reflection, about the one she answers or herself
+    try:
+        if speaker_id is not None and features.enabled(conn, "mind.growth"):
+            last = path[-1]["speaker_id"] if path else None
+            answering = last if last not in (None, speaker_id) else story["persona_entity_id"]
+            grown = growth.line(conn, speaker_id, path, answering, names.get(answering))
+    except Exception as e:
+        logging.getLogger(__name__).warning("growth skipped for story %s: %s", story_id, e)
+        grown = None
     try:
         inside = (
-            inner.block(names.get(speaker_id, ""), ties + felt + mind_rows)
+            inner.block(
+                names.get(speaker_id, ""),
+                ties + ([grown["text"]] if grown else []) + felt + mind_rows,
+            )
             if speaker_id is not None
             else ""
         )
@@ -792,6 +879,8 @@ async def _generate(
                     gen["goal"] = judged
                 if need:
                     gen["need"] = need
+                if grown:
+                    gen["growth"] = grown
             except Exception as e:
                 logging.getLogger(__name__).warning("goal not kept: %s", e)
             try:

@@ -312,6 +312,8 @@ def merge_entities(conn: sqlite3.Connection, keep: int, drop: int) -> None:
         ("seeds", "about_id"),  # ponytail: conceal_from ids are JSON, not remapped (owed)
         ("recollections", "knower_id"),
         ("goals", "entity_id"),
+        ("reflections", "knower_id"),
+        ("reflections", "subject_id"),
     ]
     with conn:
         for table, column in moves:

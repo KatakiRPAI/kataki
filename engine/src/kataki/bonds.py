@@ -69,8 +69,9 @@ def strength(row: dict, fix: dict | None, now: int) -> float:
 
 
 def _fixes(rows: list[dict]) -> dict[int, dict]:
-    """Which rows have been forgiven, by which row."""
-    return {r["resolves_id"]: r for r in rows if r["resolves_id"] is not None}
+    """Which rows have been forgiven (or struck by the user), by which row; a strike wins."""
+    ordered = sorted(rows, key=lambda r: r["event"] == REJECTED)
+    return {r["resolves_id"]: r for r in ordered if r["resolves_id"] is not None}
 
 
 def standing(rows: list[dict], dst: int, now: int) -> dict:
@@ -85,12 +86,15 @@ def standing(rows: list[dict], dst: int, now: int) -> dict:
         if r["dst_id"] != dst or r["resolves_id"] is not None:
             continue
         fix = fixes.get(r["id"]) if r["id"] is not None else None
+        if fix is not None and fix["event"] == REJECTED:
+            continue  # the user struck it (§6 rule 6): it no longer counts at all
         left = strength(r, fix, now)
         moved[r["dim"]] += r["value"] * left
         key = (r["event"], r["cause"], r["story_time"])
         c = causes.setdefault(key, {"event": r["event"], "cause": r["cause"],
                                     "t": r["story_time"], "kind": r["kind"],
-                                    "forgiven": fix is not None, "weight": 0.0})  # fmt: skip
+                                    "forgiven": fix is not None, "weight": 0.0,
+                                    "id": r["id"]})  # fmt: skip
         c["weight"] += abs(r["value"] * left)
         if r["kind"] == "sticky":
             if fix is None:
@@ -104,6 +108,34 @@ def standing(rows: list[dict], dst: int, now: int) -> dict:
         "grudge": grudge,
         "forgiven": forgiven,
     }
+
+
+REJECTED = "rejected"  # a grudge the user struck from her ledger
+
+
+def reject(conn: sqlite3.Connection, opinion_id: int) -> list[int]:
+    """The user strikes a grudge (§6 rule 6): every row of it (one per dimension) gets an
+    unanchored row resolving it as `rejected`, so it no longer counts on any branch. The rows
+    themselves stay. KeyError: no such row; ValueError: not a grudge. -> the rows struck."""
+    r = conn.execute("SELECT * FROM opinions WHERE id=?", (opinion_id,)).fetchone()
+    if r is None:
+        raise KeyError(opinion_id)
+    if r["kind"] != "sticky" or r["resolves_id"] is not None:
+        raise ValueError("only a grudge can be rejected")
+    rows = conn.execute(
+        "SELECT * FROM opinions WHERE src_id=? AND dst_id=? AND kind='sticky' AND resolves_id IS"
+        " NULL AND event IS ? AND cause IS ? AND story_time=? AND message_id IS ? AND run_id IS ?",
+        (r["src_id"], r["dst_id"], r["event"], r["cause"], r["story_time"], r["message_id"],
+         r["run_id"]),
+    ).fetchall()  # fmt: skip
+    with conn:
+        conn.executemany(
+            "INSERT INTO opinions(story_id, src_id, dst_id, dim, value, kind, half_life_min, event,"
+            " cause, resolves_id, story_time) VALUES(?, ?, ?, ?, 0, 'decay', 1, ?, ?, ?, ?)",
+            [(g["story_id"], g["src_id"], g["dst_id"], g["dim"], REJECTED, "struck by the user",
+              g["id"], g["story_time"]) for g in rows],
+        )  # fmt: skip
+    return [g["id"] for g in rows]
 
 
 def _row(dst, dim, value, kind, half_life, event, cause, resolves, now, scene_id) -> dict:
@@ -335,7 +367,7 @@ def public(st: dict, other_id: int, other: str, you: bool, epoch: int) -> dict:
 
     def cause(c: dict) -> dict:
         return {"event": c["event"], "cause": c["cause"], "since": clock.label(c["t"], epoch),
-                "kind": c["kind"], "forgiven": c["forgiven"]}  # fmt: skip
+                "kind": c["kind"], "forgiven": c["forgiven"], "id": c.get("id")}  # fmt: skip
 
     return {
         "other_id": other_id,

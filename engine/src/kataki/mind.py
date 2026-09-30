@@ -22,6 +22,9 @@ WHY = {  # why this speaker answered (turns.speaker_why), in words
     "named": "{by} named {who}",
     "last": "{who} spoke last of those who heard",
     "quietest": "Nothing waiting: {who}, the quietest here",
+    "urgent": "{who} was stirred up",
+    "wants_in": "{who} had something to say",
+    "balance": "{who}'s turn: the others had spoken more",
     "retake": "Another take on {who}'s reply",
     "narrator": "You asked the narrator",
     "alone": "No one here but the narrator",
@@ -241,6 +244,14 @@ def mind(conn: sqlite3.Connection, message_id: int) -> dict | None:
                 inside.append((body, True))
         except Exception as e:
             logging.getLogger(__name__).warning("goal not shown: %s", e)
+        try:  # what she has made of her story, when a reflection rode in (slice 8)
+            if (grown := gen.get("growth")) and grown.get("text"):
+                ring = node(
+                    "growth", "inside", "growth", "Growth", grown["text"], None, True, grown
+                )
+                inside.append((ring, True))
+        except Exception as e:
+            logging.getLogger(__name__).warning("growth not shown: %s", e)
 
         card = conn.execute("SELECT description FROM entities WHERE id=?", (who,)).fetchone()
         if card and card["description"]:

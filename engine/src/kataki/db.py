@@ -4,7 +4,7 @@ import sqlite3
 from importlib.resources import files
 from pathlib import Path
 
-SCHEMA_VERSION = 15
+SCHEMA_VERSION = 16
 # version -> the SQL that brings a library up from the version before it; schema.sql is v1
 MIGRATIONS = {
     2: "ALTER TABLE entities ADD COLUMN examples TEXT NOT NULL DEFAULT ''",  # example dialogue
@@ -155,6 +155,26 @@ MIGRATIONS = {
         " message_id INTEGER REFERENCES messages ON DELETE CASCADE,"
         " run_id INTEGER REFERENCES extraction_runs ON DELETE CASCADE);"
         "CREATE INDEX ix_goals ON goals(entity_id, key);"
+    ),
+    16: (  # minds slice 8: what each character has made of her story (lines about herself and
+        # others, growth rings with the memories they rest on, the trait nudge code gave them),
+        # versions linked by supersedes_id, anchored like the other minds tables (note 22 §1)
+        "CREATE TABLE reflections("
+        " id INTEGER PRIMARY KEY,"
+        " story_id INTEGER NOT NULL REFERENCES stories ON DELETE CASCADE,"
+        " knower_id INTEGER NOT NULL REFERENCES entities ON DELETE CASCADE,"
+        " kind TEXT NOT NULL CHECK(kind IN('self','relationship','habit','stance','skill','scar',"
+        "'belief')),"
+        " subject_id INTEGER REFERENCES entities ON DELETE SET NULL,"
+        " text TEXT NOT NULL, sources TEXT NOT NULL, cue TEXT,"
+        " strength REAL NOT NULL DEFAULT 0.5,"
+        " status TEXT NOT NULL CHECK(status IN('seed','ring','fading','past','rejected','locked')),"
+        " trait_delta TEXT,"
+        " supersedes_id INTEGER REFERENCES reflections ON DELETE CASCADE,"
+        " story_time INTEGER NOT NULL,"
+        " message_id INTEGER REFERENCES messages ON DELETE CASCADE,"
+        " run_id INTEGER REFERENCES extraction_runs ON DELETE CASCADE);"
+        "CREATE INDEX ix_reflections ON reflections(knower_id);"
     ),
 }
 
