@@ -54,59 +54,59 @@
 
 ### Task 1: The slice-8 contract for the UI
 
-- [ ] §8.3 **Slice 8** block: `mind.growth`; `people[].growth` (reflections with evidence, trait and status; drift; warnings); `POST /reflections/{id}` accept/reject/lock; `gen.growth` and the Growth node; the speaker reasons `urgent | wants_in | balance`; `POST /opinions/{id}/reject` and `grudge.id`.
-- [ ] Commit: `docs: minds slice 8 plan and API contract for the UI`
+- [x] §8.3 **Slice 8** block: `mind.growth`; `people[].growth` (reflections with evidence, trait and status; drift; warnings); `POST /reflections/{id}` accept/reject/lock; `gen.growth` and the Growth node; the speaker reasons `urgent | wants_in | balance`; `POST /opinions/{id}/reject` and `grudge.id`.
+- [x] Commit: `docs: minds slice 8 plan and API contract for the UI`
 
 ### Task 2: v16 `reflections` and `mind.growth`
 
 **Files:** `db.py` (`SCHEMA_VERSION = 16`), `features.py`, `chat.py` (a clock edit shifts a between run's reflections), `library.py` (merge remaps `knower_id`, `subject_id`); tests `test_db.py` (`test_v16_adds_reflections`: a v15 library opens at v16, a row inserts, a bad kind/status fails the CHECK, deleting the anchoring run cascades), `test_features.py`.
 
-- [ ] Commit: `feat(engine): v16 reflections, and the mind.growth feature`
+- [x] Commit: `feat(engine): v16 reflections, and the mind.growth feature`
 
 ### Task 3: Growth rules: the gate, trait drift, versions, the user's say
 
 **Files:** `growth.py` (`gate`, `step`, `drift`, `live`, `current`, `write`, `act`), `inner.py` (`profile` adds the drift); tests `test_growth.py` (new).
 
-- [ ] Tests: the gate passes a cited, short, plain line and fails each of: no source, an unknown handle, an unknown `about`, too long, a new number, a new proper noun; a ring needs three sources from two scenes; a direction maps to one axis and a 2-point step, `none` to nothing; drift counts only `ring`/`locked`, is capped at ±10 per axis, and is gone when rejected; accept/reject/lock write a new unanchored version and never touch the old row; current skips superseded rows and rows of another branch; `inner.profile` carries the drift only with the feature on.
-- [ ] Commit: `feat(engine): growth rings are gated, capped and reversible`
+- [x] Tests: the gate passes a cited, short, plain line and fails each of: no source, an unknown handle, an unknown `about`, too long, a new number, a new proper noun; a ring needs three sources from two scenes; a direction maps to one axis and a 2-point step, `none` to nothing; drift counts only `ring`/`locked`, is capped at ±10 per axis, and is gone when rejected; accept/reject/lock write a new unanchored version and never touch the old row; current skips superseded rows and rows of another branch; `inner.profile` carries the drift only with the feature on.
+- [x] Commit: `feat(engine): growth rings are gated, capped and reversible`
 
 ### Task 4: The deep pass
 
 **Files:** `between.py` (`at_skip` records the trigger; `schema`, `read`, `_ask`, `_write` gain the deep section), `growth.py` (`trigger`, `working`, `take`); tests `test_between.py`, `test_growth.py`.
 
-- [ ] Tests: an eight-day skip triggers it, a two-day one does not, forty new memories or a closed chapter do; lite has no deep pass and makes no call; with a trigger the one B1 call's schema has `deep`, its prompt lists her own memories as handles and no one else's, and no earlier reflection; good items become rows on the run (lines in force, rings as seeds with the code's delta), bad ones are dropped with warnings; a failed call leaves a warning and the tick's rows; undoing the skip drops them; a failure never breaks the diary.
-- [ ] Commit: `feat(engine): after a long time away she reflects, on evidence (minds slice 8)`
+- [x] Tests: an eight-day skip triggers it, a two-day one does not, forty new memories or a closed chapter do; lite has no deep pass and makes no call; with a trigger the one B1 call's schema has `deep`, its prompt lists her own memories as handles and no one else's, and no earlier reflection; good items become rows on the run (lines in force, rings as seeds with the code's delta), bad ones are dropped with warnings; a failed call leaves a warning and the tick's rows; undoing the skip drops them; a failure never breaks the diary.
+- [x] Commit: `feat(engine): after a long time away she reflects, on evidence (minds slice 8)`
 
 ### Task 5: Reinforcement
 
 **Files:** `growth.py` (`reinforce`), `between.py` (the tick calls it); tests `test_growth.py`.
 
-- [ ] Tests: a seed with three matching memories from two later scenes becomes a ring at the next skip (anchored on it), with fewer it stays a seed, after thirty days unreinforced it is past; a locked or rejected one is never touched; its drift starts counting only as a ring; zero calls, on lite too.
-- [ ] Commit: `feat(engine): a growth ring takes hold only when later scenes bear it out`
+- [x] Tests: a seed with three matching memories from two later scenes becomes a ring at the next skip (anchored on it), with fewer it stays a seed, after thirty days unreinforced it is past; a locked or rejected one is never touched; its drift starts counting only as a ring; zero calls, on lite too.
+- [x] Commit: `feat(engine): a growth ring takes hold only when later scenes bear it out`
 
 ### Task 6: One line in the mind block
 
 **Files:** `growth.py` (`line`), `turns.py` (`gen.growth`), `mind.py` (Growth node); tests `test_growth.py`, `test_mind.py`.
 
-- [ ] Tests: the relationship line about the one she answers wins, else the strongest ring; a seed, a rejected or past one never reaches the prompt; one line at most, no digits; off → nothing; a failure never breaks the turn; the node shows it.
-- [ ] Commit: `feat(engine): what she has come to feel reaches her reply, in one line`
+- [x] Tests: the relationship line about the one she answers wins, else the strongest ring; a seed, a rejected or past one never reaches the prompt; one line at most, no digits; off → nothing; a failure never breaks the turn; the node shows it.
+- [x] Commit: `feat(engine): what she has come to feel reaches her reply, in one line`
 
 ### Task 7: Peek and the user's say
 
 **Files:** `people.py` (`growth`), `server.py` (`POST /reflections/{id}`, `POST /opinions/{id}/reject`), `bonds.py` (`reject`, `grudge.id`), `growth.py` (`public`); tests `test_api.py`, `test_bonds.py`.
 
-- [ ] Tests: Peek lists reflections with sources, evidence, trait words and warnings; accept/reject/lock through the route (404 unknown, 422 bad action); rejecting a ring takes its drift away; rejecting a grudge removes it from the ledger's words and the mind block, on every branch; off → `growth: null`.
-- [ ] Commit: `feat(engine): Peek shows how she has changed, and you can accept, reject or lock it`
+- [x] Tests: Peek lists reflections with sources, evidence, trait words and warnings; accept/reject/lock through the route (404 unknown, 422 bad action); rejecting a ring takes its drift away; rejecting a grudge removes it from the ledger's words and the mind block, on every branch; off → `growth: null`.
+- [x] Commit: `feat(engine): Peek shows how she has changed, and you can accept, reject or lock it`
 
 ### Task 8: The group speaker score
 
 **Files:** `turns.py` (`speaker_why`, `_score`), `mind.py` (`WHY`); tests `test_turns.py`.
 
-- [ ] Tests: picked and named still win; with two who heard, the stirred one is picked (`urgent`), the one whose goal was named (`wants_in`), else the one who spoke less (`balance`); the same path gives the same speaker every time; one candidate keeps `last`/`quietest`; off → the old rules.
-- [ ] Commit: `feat(engine): in a group, who answers is weighed, not just whoever spoke last`
+- [x] Tests: picked and named still win; with two who heard, the stirred one is picked (`urgent`), the one whose goal was named (`wants_in`), else the one who spoke less (`balance`); the same path gives the same speaker every time; one candidate keeps `last`/`quietest`; off → the old rules.
+- [x] Commit: `feat(engine): in a group, who answers is weighed, not just whoever spoke last`
 
 ### Task 9: Probes, real-model check, progress
 
-- [ ] P12 `drift` and P14 `group` in `evals/probes.py`.
-- [ ] Run P12, P14 and the regressions still-upset, grudge, leak, absence, wants on HF (under $0.40); fix root causes with a test; record in §0.
-- [ ] Commit: `test(engine): minds slice 8 probes`, `docs: minds slice 8 progress`
+- [x] P12 `drift` and P14 `group` in `evals/probes.py`.
+- [x] Run P12, P14 and the regressions still-upset, grudge, leak, absence, wants on HF (under $0.40); fix root causes with a test; record in §0.
+- [x] Commit: `test(engine): minds slice 8 probes`, `docs: minds slice 8 progress`
