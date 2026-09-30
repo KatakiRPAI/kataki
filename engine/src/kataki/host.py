@@ -13,7 +13,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from kataki import features, roles, usage
-from kataki.llm import Endpoint
+from kataki.llm import Endpoint, NoCredit
 
 
 @dataclass(frozen=True)
@@ -65,6 +65,8 @@ class OnlineHost(Host):
         def closed(ep: Endpoint, estimate: float | None) -> bool:
             try:  # a balance that cannot be checked is not a balance: refuse
                 return bool(allow(ep, estimate))
+            except NoCredit:  # a refusal with its own reason (the daily cap) keeps it
+                raise
             except Exception as e:
                 logging.getLogger(__name__).warning("credit check failed, refused: %s", e)
                 return False

@@ -82,6 +82,13 @@ class NoCredit(LLMError):
     code = "NO_CREDIT"
 
 
+class DailyCap(NoCredit):
+    """Kataki online: this user's spending today would pass the daily cap (track B5). Refused
+    everywhere a NO_CREDIT is, said with its own code."""
+
+    code = "DAILY_CAP"
+
+
 @dataclass(frozen=True)
 class Endpoint:
     """A resolved model role: where to send the request and how to drive the model."""

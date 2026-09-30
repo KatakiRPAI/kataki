@@ -396,7 +396,7 @@ def create_app(
     def failed(e: LLMError, said: str = "") -> Exception:
         """A model call that failed is the provider's 502, but a refusal stays a refusal."""
         if isinstance(e, NoCredit):  # a fresh one, so `raise failed(e) from e` is not e from e
-            return NoCredit(str(e))
+            return type(e)(str(e))  # the daily cap stays the daily cap
         return HTTPException(502, f"{said}{e}")
 
     # Any origin is fine: auth is a bearer token, not a cookie, so a foreign page has
