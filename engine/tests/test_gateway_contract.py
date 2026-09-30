@@ -53,14 +53,10 @@ def test_two_users_a_turn_each_and_every_ledger_is_its_own_usage_log(tmp_path, b
     backend.say("Hello, Aren.", "Evening, Aren.")
     with TestClient(app) as client:
         for user in ("alice", "bob"):
-            r = client.post(
-                f"/stories/{stories[user]}/turn", json={"text": "Hi."}, auth=As(user)
-            )
+            r = client.post(f"/stories/{stories[user]}/turn", json={"text": "Hi."}, auth=As(user))
             assert last_event(r.text)[0] == "done"
         sent = len(backend.requests)
-        r = client.post(
-            f"/stories/{stories['carol']}/turn", json={"text": "Hi."}, auth=As("carol")
-        )
+        r = client.post(f"/stories/{stories['carol']}/turn", json={"text": "Hi."}, auth=As("carol"))
         assert last_event(r.text)[1]["code"] == "NO_CREDIT"
         assert len(backend.requests) == sent  # the refusal reached no model
     assert "alice" not in fake.ledger  # its meter was down; the row waits in the outbox

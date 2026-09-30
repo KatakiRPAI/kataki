@@ -68,7 +68,12 @@ def test_a_signed_request_says_who_and_which_channel():
 
 @pytest.mark.parametrize(
     "method, target",
-    [("DELETE", "/stories/1?"), ("GET", "/stories/1?"), ("POST", "/health?"), ("GET", "/health?x=1")],
+    [
+        ("DELETE", "/stories/1?"),
+        ("GET", "/stories/1?"),
+        ("POST", "/health?"),
+        ("GET", "/health?x=1"),
+    ],
 )
 def test_a_signature_is_good_for_its_own_request_only(method, target):
     assert hosted.who(SECRET, signed(), NOW, method, target) is None
