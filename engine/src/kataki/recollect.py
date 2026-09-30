@@ -220,7 +220,7 @@ def lapsed(seed: dict, path: list, who: int) -> bool:
 REPAIR_AFTER = 1  # ponytail: her replies between saying the slip and correcting it (note 15: 2-8)
 CORRECTING = re.compile(
     r"\b(no,|nope|actually|you'?re wrong|that'?s (?:wrong|not (?:right|true|how))|you mean"
-    r"|you said|didn'?t you|wasn'?t it|misremember\w*|remember(?:ing)? (?:it )?wrong)",
+    r"|you said|didn'?t you|wasn'?t it|misremember\w*|(?:remember(?:ing)?|got) (?:it |that )?wrong)",
     re.IGNORECASE,
 )
 
@@ -261,13 +261,15 @@ def repair(conn, who: int, path: list, user: str | None) -> dict | None:
     return None
 
 
-def hold(path: list, recalled: list, user: str | None) -> str:
+def hold(path: list, recalled: list, user: str | None, names: set[str] = frozenset()) -> str:
     """The user's line reads as a correction and she holds a sharp memory right now: tell her
-    to trust it (the sycophancy guard, note 15 §7A.6). The RULES' [SHARP] line says why."""
+    to trust it (the sycophancy guard, note 15 §7A.6). The RULES' [SHARP] line says why.
+    `names`: the words of the story's names and aliases, which never count as a shared word
+    (naming her is not talking about what she remembers)."""
     pending = path[-1] if path and path[-1]["role"] == "user" else None
     if pending is None or not CORRECTING.search(pending["text"]):
         return ""
-    words = _words(pending["text"]) - STOP
+    words = _words(pending["text"]) - STOP - names
     if not any(
         r.tier == "sharp"
         and "elsewhere" not in r.breakdown

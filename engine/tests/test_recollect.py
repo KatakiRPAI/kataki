@@ -543,3 +543,14 @@ def test_the_lock_floor_is_asked_for_not_assumed(conn, world):
     import inspect as pyinspect
 
     assert pyinspect.signature(retrieve._assess).parameters["mood"].default is None
+
+
+@pytest.mark.anyio
+async def test_a_name_alone_never_makes_her_dig_in(conn, duo, backend):
+    story, mira = duo
+    library.add_memory(conn, story, "Mira's brother is called Tobin.", importance=8,
+                       knower_ids=[mira], tags=["brother"])  # fmt: skip
+    await talk(conn, backend, story, mira, "How is your brother?", "My brother is well.")
+    tail, gen = await talk(conn, backend, story, mira, "Mira, you've got that wrong.", "Oh?")
+    assert "[SHARP] Mira's brother is called Tobin." in tail  # recalled, and sharp
+    assert "trust your memory" not in tail and "recall" not in gen

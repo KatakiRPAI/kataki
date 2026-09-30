@@ -487,7 +487,15 @@ async def _generate(
         try:  # the user "corrects" what she clearly remembers: she keeps it
             busy = repaired and repaired["directive"]
             if human and not busy and not (secret and secret["hot"]):  # a lie is not a slip
-                held = recollect.hold(path, recalled, names.get(story["persona_entity_id"]))
+                called = conn.execute(
+                    "SELECT e.name FROM entities e WHERE e.story_id=? UNION"
+                    " SELECT a.alias FROM aliases a JOIN entities e ON e.id=a.entity_id"
+                    " WHERE e.story_id=?",
+                    (story_id, story_id),
+                )
+                named = {w for (n,) in called for w in recollect._words(n)}
+                user = names.get(story["persona_entity_id"])
+                held = recollect.hold(path, recalled, user, named)
         except Exception as e:
             logging.getLogger(__name__).warning("hold skipped for story %s: %s", story_id, e)
             held = ""
