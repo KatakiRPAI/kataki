@@ -304,7 +304,7 @@ async def test_pressed_an_honest_one_confesses_and_it_is_no_longer_kept_from_him
     lines = ["Mira, whose ring is that?", "Whose ring, Mira?", "Please, whose ring is it?"]
     backend.say("Nothing.", "Leave it.", "It was my brother's.", "He was kind.")
     for line in lines:
-        await play(turns.turn(conn, backend.llm, story, line))
+        await play(turns.turn(conn, backend.llm, story, line, speaker=ent(conn, story, "Mira")))
     _, gen = leaf(conn, story)
     assert (gen["honest"]["move"], gen["honest"]["caught"]) == ("confess", "pressed")
     assert gen["honest"]["told"] == sorted([ent(conn, story, "Aren"), ent(conn, story, "Tobin")])
@@ -691,7 +691,7 @@ async def test_a_confession_on_one_branch_is_not_known_on_another(
     story = make(conn, cards, [SECRET | {"stakes": 0.5}], {"axes": {"honesty": [90, 5]}})
     backend.say("Nothing.", "Leave it.", "It was my brother's.")
     for line in ["Mira, whose ring is that?", "Whose ring, Mira?", "Please, whose ring is it?"]:
-        await play(turns.turn(conn, backend.llm, story, line))
+        await play(turns.turn(conn, backend.llm, story, line, speaker=ent(conn, story, "Mira")))
     assert peek(conn, story)[0]["status"] == "exposed"
     second = [m for m in chat.active_path(conn, story) if m["role"] == "assistant"][-2]["id"]
     chat.rewind(conn, story, second)  # back before the confession: another branch

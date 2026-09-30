@@ -138,11 +138,20 @@ async def test_the_character_the_user_addresses_answers(conn, story, backend):
 
 async def test_an_alias_counts_as_addressing_someone(conn, story, backend):
     backend.say("Yes?")
-    await play(turns.turn(conn, backend.llm, story, "Hey, courier."))
+    await play(turns.turn(conn, backend.llm, story, "Is that the courier?"))
     assert path(conn, story)[-1][1] == eid(conn, "Mira")
 
 
+def old_rules(conn):
+    """Speaker choice as before slice 8 (with mind.growth on, a score replaces the fallbacks)."""
+    conn.execute(
+        "INSERT OR REPLACE INTO settings(key, value) VALUES('features.mind.growth', 'false')"
+    )
+    conn.commit()
+
+
 async def test_with_no_one_named_the_last_speaker_carries_on(conn, story, backend):
+    old_rules(conn)
     backend.say("Tobin here.", "Still Tobin.")
     await play(turns.turn(conn, backend.llm, story, "Tobin?"))
     await play(turns.turn(conn, backend.llm, story, "And then?"))
@@ -150,6 +159,7 @@ async def test_with_no_one_named_the_last_speaker_carries_on(conn, story, backen
 
 
 async def test_continuing_without_a_line_lets_the_quietest_character_speak(conn, story, backend):
+    old_rules(conn)
     backend.say("Mira speaks.", "Tobin speaks.")
     await play(turns.turn(conn, backend.llm, story, "Mira?"))
     await play(turns.turn(conn, backend.llm, story))
@@ -159,6 +169,7 @@ async def test_continuing_without_a_line_lets_the_quietest_character_speak(conn,
 async def test_a_reply_keeps_why_its_speaker_answered_what_recall_searched_with_and_timings(
     conn, story, backend
 ):
+    old_rules(conn)
     backend.say("Yes?", "Evening.", "Tobin speaks.", "Rain.")
     trace = lambda: json.loads(chat.active_path(conn, story)[-1]["gen"])["trace"]  # noqa: E731
     await play(turns.turn(conn, backend.llm, story, "Mira, a word?"))
@@ -365,3 +376,75 @@ async def test_the_time_spent_thinking_is_kept_with_the_reply(conn, story, backe
     assert isinstance(gen["think_ms"], int) and gen["think_ms"] >= 0
     await play(turns.turn(conn, backend.llm, story, "And?"))  # no thinking, no time
     assert json.loads(chat.active_path(conn, story)[-1]["gen"]).get("think_ms") is None
+
+
+# --- the group speaker score (minds slice 8; note 16 §6, note 22 C9) -----------------------------
+
+
+def hurt(conn, who: int, story: int) -> None:
+    """`who` is badly hurt right now (slice 1's state, anchored on the latest line)."""
+    leaf = chat.active_path(conn, story)[-1]
+    state = {
+        "mood": {"v": -0.5, "a": 0.3, "d": -0.2},
+        "reg_load": 0.0,
+        "shown": None,
+        "t": leaf["story_time"],
+        "emotions": [{"label": "hurt", "i": 0.8, "cause": "x", "t": leaf["story_time"]}],
+    }
+    conn.execute(
+        "INSERT INTO mind_states(entity_id, story_time, state, message_id) VALUES(?, ?, ?, ?)",
+        (who, leaf["story_time"], json.dumps(state), leaf["id"]),
+    )
+    conn.commit()
+
+
+def why_of(conn, story) -> str:
+    return json.loads(chat.active_path(conn, story)[-1]["gen"])["trace"]["why"]
+
+
+async def test_the_stirred_one_speaks_up(conn, story, backend):
+    backend.say("Yes?", "I heard that.")
+    await play(turns.turn(conn, backend.llm, story, "Mira?"))
+    hurt(conn, eid(conn, "Tobin"), story)
+    await play(turns.turn(conn, backend.llm, story, "Anyone?"))
+    assert path(conn, story)[-1][1] == eid(conn, "Tobin") and why_of(conn, story) == "urgent"
+
+
+async def test_the_one_whose_want_is_named_wants_in(conn, story, backend):
+    tobin = eid(conn, "Tobin")
+    conn.execute(
+        "INSERT INTO goals(story_id, entity_id, key, tier, text, cue, priority, status, story_time)"
+        " VALUES(?, ?, 'want', 'project', 'sell his boat', '[\"boat\"]', 0.7, 'active', 0)",
+        (story, tobin),
+    )
+    backend.say("Yes?", "Mine's for sale.")
+    await play(turns.turn(conn, backend.llm, story, "Mira?"))
+    await play(turns.turn(conn, backend.llm, story, "Whose boat is that?"))
+    assert path(conn, story)[-1][1] == tobin and why_of(conn, story) == "wants_in"
+
+
+async def test_whoever_spoke_least_gets_a_turn(conn, story, backend):
+    backend.say(*["Mm."] * 4)
+    for line in ("Mira?", "Mira, again?", "Mira, one more?"):
+        await play(turns.turn(conn, backend.llm, story, line))
+    await play(turns.turn(conn, backend.llm, story, "Anyone else?"))
+    assert path(conn, story)[-1][1] == eid(conn, "Tobin") and why_of(conn, story) == "balance"
+
+
+async def test_the_same_line_always_gets_the_same_speaker(conn, story, backend):
+    backend.say("Yes?", "Mm.")
+    await play(turns.turn(conn, backend.llm, story, "Mira?"))
+    chat.append_message(conn, story, "user", "Anyone?", eid(conn, "Aren"))
+    picks = {turns.speaker_why(conn, story) for _ in range(5)}
+    assert len(picks) == 1
+
+
+async def test_one_who_could_answer_keeps_the_old_reasons(conn, story, backend):
+    tobin = eid(conn, "Tobin")
+    backend.say("Yes?", "Mm.")
+    await play(turns.turn(conn, backend.llm, story, "Mira?"))
+    await play(
+        turns.turn(conn, backend.llm, story, "Only you hear this.", audience=[eid(conn, "Mira")])
+    )
+    assert why_of(conn, story) == "last"
+    assert tobin

@@ -309,7 +309,11 @@ async def test_the_mood_a_reply_shows_is_the_one_the_side_call_saved(
 @pytest.mark.anyio
 async def test_the_side_call_judges_the_line_not_the_reply(conn, story, backend, side_call):
     backend.say("Wounded silence, quiet fury, Zorblax.", said())
-    await play(turns.turn(conn, backend.llm, story, "Morning. Everything alright?"))
+    await play(
+        turns.turn(
+            conn, backend.llm, story, "Morning. Everything alright?", speaker=eid(conn, "Mira")
+        )
+    )
     ask = backend.requests[1]["messages"]
     body = ask[-1]["content"]
     judged, reply = body.split("[Mira's reply: for position, yielded and face only]")
