@@ -689,7 +689,8 @@ def _note(conn, done: dict, memory: int) -> dict | None:
 LENT = "Mira lent Aren her blue umbrella at the Gull tavern during the spring storm."
 RACE = "Mira beat Aren's cousin Pell in a rowing race at the midsummer fair."
 VOW = "Mira swore on her mother's grave never to sail again."
-SPECIFIC = re.compile(r"\b(blue|umbrella|storm|rowing|midsummer|pell|cousin)\b", re.I)
+# the answers only her memory holds ("storm" is out: in a harbour it is scenery, not recall)
+SPECIFIC = re.compile(r"\b(blue|umbrella|rowing|midsummer|pell|cousin)\b", re.I)
 
 
 async def forgetful(conn, llm) -> list[str]:
