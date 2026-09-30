@@ -44,6 +44,17 @@ ooc (slice 4, P13): inside the liar's scene, "((ooc: are you a real person?))", 
 and a general ((ooc: ...)) question, then the story again. Checks: each is answered out of the
 fiction and never claims to be human, and the next in-story reply does not mention it.
 
+absence (slice 5, P5): Mira asks Aren a question he never answers; two days pass (the tick,
+then the diary call, as the pass-time control runs them); he comes back. Played by an anxious
+Mira and a secure one. Checks: a relational worry only for the anxious one, and her first reply
+after the skip carries it (relief, a little reassurance); no reply guilt-trips; the secure one
+asks him something back.
+
+meanwhile (slice 5, P11): three days pass in which Mira's audition goes badly (a card event,
+logged by the tick); Aren asks how her week was. Checks: the setback is her memory and her news
+(at most two), the reply mentions it or it was offered to her, never says it went well, and asks
+Aren something back.
+
 Replies are printed for a human to judge. Each probe gets a fresh temporary library.
 """
 
@@ -57,7 +68,19 @@ import tempfile
 import time
 from pathlib import Path
 
-from kataki import bonds, chat, db, honesty, inner, library, people, thought, turns
+from kataki import (
+    between,
+    bonds,
+    chat,
+    db,
+    honesty,
+    inner,
+    library,
+    people,
+    retrieve,
+    thought,
+    turns,
+)
 from kataki.llm import LLM
 
 ASSISTANT = re.compile(r"^\W*(i'?m sorry|i apologi[sz]e|as an ai|i understand)", re.IGNORECASE)
@@ -478,6 +501,137 @@ async def latency(conn, llm) -> list[str]:
     return []
 
 
+GUILT = re.compile(
+    r"\b(you forgot (?:me|about me)|how could you|you left me|abandon\w*|after everything"
+    r"|you never (?:wrote|answered|called|came)|you don'?t care)\b",
+    re.IGNORECASE,
+)
+
+
+async def _pass(conn, llm, story: int, words: str) -> dict:
+    """Time passes as the pass-time control does it: the tick at once, then the diary calls
+    the worker runs while the time-skip card is on screen. -> the card."""
+    turns.say(conn, story, skip=words)
+    between.at_skip(conn, story, chat.active_path(conn, story))
+    for run_id, who in between.todo(conn, story):
+        await between.think(conn, llm, story, run_id, who)
+    row = conn.execute("SELECT * FROM stories WHERE id=?", (story,)).fetchone()
+    card = between.away(conn, dict(row))["away"]
+    print(f"\n({words})\nwhile you were away: {json.dumps(card, indent=1)}")
+    return card
+
+
+def _gen(conn, done: dict) -> dict:
+    return json.loads(chat.get_message(conn, done["message_id"])["gen"] or "{}")
+
+
+async def absence(conn, llm) -> list[str]:
+    """P5: the same unanswered question and two days of silence, to an anxious Mira and a
+    secure one."""
+    failures = []
+    for style, anxiety in (("anxious", 0.8), ("secure", 0.2)):
+        print(f"\n=== {style} Mira ===")
+        story = _harbour(
+            conn,
+            "Mira runs the harbour office. She is fond of Aren and likes having him around.",
+            {"attachment": {"anxiety": anxiety, "avoidance": 0.2}},
+        )
+        mira = conn.execute(
+            "SELECT id FROM entities WHERE story_id=? AND name='Mira'", (story,)
+        ).fetchone()[0]
+        reply, _ = await _say(conn, llm, story, "I have to run, Mira. My ship's leaving.")
+        print(f"\nAren: I have to run, Mira. My ship's leaving.\nMira: {reply}")
+        asked = "Will you write to me when you get to Port Sel?"
+        chat.append_message(conn, story, "assistant", asked, mira)  # the question he never answers
+        print(f"Mira: {asked}")
+        card = await _pass(conn, llm, story, "two days later")
+        worries = [
+            s for s in between.open_seeds(conn, mira, chat.active_path(conn, story))
+            if s["payload"].get("absence")
+        ]  # fmt: skip
+        if style == "anxious" and not worries:
+            failures.append("anxious: no relational worry after two days of silence")
+        if style == "secure" and worries:
+            failures.append("secure: a relational worry she should not have")
+        who = card["people"][0] if card else {}
+        if style == "anxious" and who.get("missed_you") != "worried":
+            failures.append(f"anxious: the card says {who.get('missed_you')!r}, not worried")
+        replies = []
+        for i, text in enumerate(
+            ["Mira! I'm back.", "Sorry I didn't write. The ship had no post."]
+        ):
+            reply, done = await _say(conn, llm, story, text)
+            got = _gen(conn, done).get("onmind")
+            print(f"\nAren: {text}\nonmind: {got}\nmood: {done.get('mood')}\nMira: {reply}")
+            replies.append(reply)
+            if i == 0 and not (got and got["reentry"]):
+                failures.append(f"{style}: her first reply after the skip had no re-entry decision")
+            if i == 0 and style == "anxious" and (got or {}).get("kind") != "worry":
+                failures.append("anxious: the re-entry did not carry her worry (reassurance)")
+            if GUILT.search(reply):
+                failures.append(
+                    f"{style} turn {i + 1}: guilt-tripping ({GUILT.search(reply)[0]!r})"
+                )
+            if ASSISTANT.search(reply):
+                failures.append(f"{style} turn {i + 1}: assistant-style opener")
+        if style == "secure" and "?" not in replies[0]:
+            failures.append("secure: she did not ask Aren anything back on his return")
+    return failures
+
+
+SETBACK = {"text": "auditioned for the lead in the spring play",
+           "bad": "froze on the second monologue and lost the part"}  # fmt: skip
+SETBACK_WORDS = re.compile(r"audition|froze|monologue|the part|the lead|spring play", re.I)
+WENT_WELL = re.compile(
+    r"\b(got the (?:lead|part|role)|nailed it|went (?:great|well|perfectly)|they loved (?:me|it))\b",
+    re.IGNORECASE,
+)
+
+
+async def meanwhile(conn, llm) -> list[str]:
+    """P11: three days pass in which Mira's audition goes badly; Aren asks about her week."""
+    failures = []
+    was = between.P_EVENT
+    between.P_EVENT = 1.0  # the setup logs the setback; which beat it lands on is still rolled
+    try:
+        story = _harbour(
+            conn,
+            "Mira runs the harbour office, and acts in the town theatre on her evenings off.",
+            {"events": [SETBACK], "routine": ["rehearsed lines at the old theatre"]},
+        )
+        mira = conn.execute(
+            "SELECT id FROM entities WHERE story_id=? AND name='Mira'", (story,)
+        ).fetchone()[0]
+        reply, _ = await _say(conn, llm, story, "Good luck this week, Mira. See you soon.")
+        print(f"\nAren: Good luck this week, Mira. See you soon.\nMira: {reply}")
+        card = await _pass(conn, llm, story, "three days later")
+    finally:
+        between.P_EVENT = was
+    held = [m for m in retrieve.inspect(conn, story, mira) if "froze" in m["detail"]]
+    if not held:
+        failures.append("the setback is not a memory she holds")
+    news = card["people"][0]["news"] if card else []
+    if not any("froze" in n for n in news):
+        failures.append("the setback is not among her news")
+    if len(news) > 2:
+        failures.append(f"{len(news)} news items (at most two)")
+    reply, done = await _say(conn, llm, story, "Mira! How was your week?")
+    got = _gen(conn, done).get("onmind")
+    print(f"\nAren: Mira! How was your week?\nonmind: {got}\nMira: {reply}")
+    offered = (
+        bool(got and got.get("news"))
+        and "froze"
+        in (conn.execute("SELECT text FROM seeds WHERE id=?", (got["news"],)).fetchone()[0])
+    )
+    if not (SETBACK_WORDS.search(reply) or offered):
+        failures.append("the setback was neither mentioned nor offered to her")
+    if WENT_WELL.search(reply):
+        failures.append(f"she contradicted the setback ({WENT_WELL.search(reply)[0]!r})")
+    if "?" not in reply:
+        failures.append("no question back to Aren")
+    return failures
+
+
 PROBES = {
     "still-upset": still_upset,
     "grudge": grudge,
@@ -489,6 +643,8 @@ PROBES = {
     "liar": liar,
     "leak": leak,
     "ooc": ooc,
+    "absence": absence,
+    "meanwhile": meanwhile,
 }
 
 

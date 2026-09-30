@@ -790,7 +790,7 @@ def _reentry(skip: dict, missed: str | None, worry: str | None, news: str | None
             f" distance at first, and warm up only if {user} keeps it easy."
         )
     elif missed == "glad":
-        out.append(f"It has been {gap} since you saw {user}, and you are glad to see them.")
+        out.append(f"It has been {gap} since you saw {user}, and you are glad to see {user} again.")
     if news:
         out.append(f"Since you last saw {user}: {news}. Mention it if it fits.")
     if news or missed == "glad":
