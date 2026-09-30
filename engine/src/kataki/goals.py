@@ -117,17 +117,17 @@ def live(conn: sqlite3.Connection, who: int, path: list) -> list[dict]:
 
 def write(conn: sqlite3.Connection, goal: dict, message_id: int | None, run_id: int | None,
           now: int, **change) -> int:  # fmt: skip
-    """A new version of `goal` with `change` applied, anchored on a message or a run."""
+    """A new version of `goal` with `change` applied, anchored on a message or a run. Inside the
+    caller's transaction."""
     g = {**goal, **change}
-    with conn:
-        return conn.execute(
+    return conn.execute(
             "INSERT INTO goals(story_id, entity_id, key, tier, text, cue, priority, progress,"
             " status, tactic, deflections, story_time, message_id, run_id)"
             " VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (g["story_id"], g["entity_id"], g["key"], g["tier"], g["text"], json.dumps(g["cue"]),
              g["priority"], round(min(1.0, max(0.0, g["progress"])), 3), g["status"], g["tactic"],
              g["deflections"], now, message_id, run_id),
-        ).lastrowid  # fmt: skip
+    ).lastrowid  # fmt: skip
 
 
 # --- the agenda (note 22 §2 step 7f; §4 row 5) --------------------------------------------------
@@ -264,7 +264,8 @@ def _judge(conn, who: int, path: list, said: dict, line, outcome: str, by: str) 
     g = next((g for g in live(conn, who, upto) if g["key"] == said["key"]), None)
     if g is None:
         return None
-    write(conn, g, line["id"], None, line["story_time"], **_moved(g, outcome))
+    with conn:
+        write(conn, g, line["id"], None, line["story_time"], **_moved(g, outcome))
     return {"goal": g["id"], "key": g["key"], "text": g["text"], "outcome": outcome, "by": by,
             "line": line["id"]}  # fmt: skip
 
@@ -287,3 +288,32 @@ def relabel(conn: sqlite3.Connection, who: int, path: list, judged: dict, outcom
     """The side call's reading of the answer, in place of the rules'. -> the new gen.goal."""
     line = next(m for m in path if m["id"] == judged["line"])
     return _judge(conn, who, path, judged, line, outcome, "side") or judged
+
+
+# --- between scenes (note 22 §3: goal_changes, at most one per skip) -----------------------------
+
+CHANGES = ("progressed", "stalled", "done", "dropped", "revived")
+
+
+def handles(conn: sqlite3.Connection, who: int, path: list) -> dict[str, dict]:
+    """The goals the diary call may move: the ones she pursues, still open. {"G14": goal}."""
+    return {
+        f"G{g['id']}": g
+        for g in live(conn, who, path)
+        if g["key"] not in PURSUED and g["status"] in ("active", "dormant")
+    }
+
+
+def change(conn, g: dict, how: str, tactic: str | None, message_id: int, run_id: int, now: int):
+    """One goal moved by the time that passed, written on the skip's run."""
+    moved = {
+        "progressed": {"progress": g["progress"] + STEP, "status": "active", "deflections": 0},
+        "done": {"progress": 1.0, "status": "done", "deflections": 0},
+        "dropped": {"status": "dropped"},
+        "revived": {"status": "active", "deflections": 0},
+    }.get(how, {})
+    if not moved and not tactic:
+        return None
+    return write(
+        conn, g, message_id, run_id, now, **moved, **({"tactic": tactic} if tactic else {})
+    )

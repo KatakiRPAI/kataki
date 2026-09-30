@@ -94,7 +94,8 @@ def test_the_latest_version_on_this_branch_is_the_goal(conn, cards):
     here = line(conn, story, "Mira", "Morning!")
     first = goals.live(conn, mira, path(conn, story))[0]
     now = path(conn, story)[-1]["story_time"]
-    goals.write(conn, first, here, None, now, status="dormant", deflections=2)
+    with conn:
+        goals.write(conn, first, here, None, now, status="dormant", deflections=2)
     assert goals.live(conn, mira, path(conn, story))[0]["status"] == "dormant"
     other = chat.add_child(conn, story, root, "assistant", "Hi.", mira, 0, {})
     chat.set_leaf(conn, story, other)
@@ -349,3 +350,54 @@ async def test_bossed_about_she_bristles_and_off_there_are_no_needs(local_model,
         conn.execute("UPDATE stories SET epoch_offset_min=? WHERE id=?", (2 * 60, story))
     got = await talk(conn, backend, story, "Still up?", "Mm.")
     assert "need" not in got and "deny it" not in tail(backend)
+
+
+# --- between scenes ------------------------------------------------------------------------------
+
+from kataki import between, db  # noqa: E402
+
+DIARY = {"diary": "I worked on the boat all week.", "worth_telling": [], "seeds": [],
+         "preoccupation": "the launch"}  # fmt: skip
+
+
+@pytest.mark.anyio
+async def test_time_away_can_move_one_goal_and_undoing_the_skip_undoes_it(
+    local_model, cards, backend
+):
+    conn = local_model
+    story = make(conn, cards, {"want": BOAT, "need": "to let someone help her"})
+    mira = ent(conn, story, "Mira")
+    line(conn, story, "Aren", "See you, Mira.")
+    line(conn, story, "Mira", "Bye.")
+    turns.say(conn, story, skip="three days later")
+    run = between.at_skip(conn, story, path(conn, story))
+    want = goals.live(conn, mira, path(conn, story))[0]
+    backend.say(json.dumps(DIARY | {"goal": {"goal": f"G{want['id']}", "change": "progressed",
+                                             "tactic": "invite him to the launch"}}))  # fmt: skip
+    assert await between.think(conn, backend.llm, story, run, mira)
+    fmt = json.dumps(backend.requests[-1]["response_format"])
+    assert (
+        f'"G{want["id"]}"' in fmt and "to let someone help her" not in fmt
+    )  # the need is not moved
+    asked = "\n".join(m["content"] for m in backend.requests[-1]["messages"])
+    assert BOAT["text"] in asked
+    moved = goals.live(conn, mira, path(conn, story))[0]
+    assert (moved["progress"], moved["tactic"], moved["run_id"]) == (
+        0.25,
+        "invite him to the launch",
+        run,
+    )
+    db.discard_run(conn, run)
+    assert goals.live(conn, mira, path(conn, story))[0]["progress"] == 0
+
+
+def test_the_diary_call_drops_a_goal_it_was_not_given():
+    got = between.read(DIARY | {"goal": {"goal": "G99", "change": "done", "tactic": "x"}}, ["G1"])
+    assert got["goal"] is None
+    got = between.read(DIARY | {"goal": {"goal": "G1", "change": "won", "tactic": "x"}}, ["G1"])
+    assert got["goal"] is None
+    got = between.read(DIARY | {"goal": {"goal": "G1", "change": "done", "tactic": "a " * 30}},
+                       ["G1"])  # fmt: skip
+    assert got["goal"]["change"] == "done" and len(got["goal"]["tactic"].split()) == 12
+    assert "goal" not in between.read(DIARY)  # no goals: unchanged
+    assert "goal" in between.schema(["G1"])["properties"]
