@@ -9,7 +9,7 @@ An item's `data` is a JSON object. The engine reads `aliases`, `first_message` a
 import json
 import sqlite3
 
-from kataki import cards, chat
+from kataki import cards, chat, honesty
 
 ITEM_FIELDS = ("name", "description", "private", "data")
 
@@ -180,6 +180,10 @@ def create_story(
                         "INSERT INTO edges(story_id, src_id, dst_id, rel, story_time) VALUES(?, ?, ?, ?, 0)",
                         (story_id, src, dst, rel),
                     )
+        # ...and so do the secrets they keep (minds slice 4)
+        honesty.seed(
+            conn, story_id, [(item, e) for (item, _), e in zip(cast, entity_ids, strict=True)]
+        )
 
         place_entity = None
         if place_id is not None:
