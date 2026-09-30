@@ -75,7 +75,7 @@ def test_questions_and_accusations():
     assert honesty.question("Tell me who gave it to you.")
     assert not honesty.question("Nice ring.")
     assert honesty.ACCUSE.search("You're lying. Admit it.")
-    assert honesty.ACCUSE.search("Tobin told me it was your brother's.")
+    assert not honesty.ACCUSE.search("Tobin told me it was your brother's.")  # the key: caught
     assert not honesty.ACCUSE.search("Nice ring.")
 
 
@@ -187,7 +187,10 @@ def test_scrub_puts_the_cover_where_the_leak_began_and_ends_there():
         "brother",
     )
     assert honesty.scrub("Nothing here.", GUARDS) == ("Nothing here.", None)
-    assert honesty.scrub("It was my brother's.", [(["brother"], None)]) == ("…", "brother")
+    assert honesty.scrub("It was my brother's.", [(["brother"], None)], "Mira") == (
+        "*Mira looks away and changes the subject.*",
+        "brother",
+    )
 
 
 def feed(guard, *chunks):
@@ -403,9 +406,10 @@ async def test_the_opener_retake_and_a_leak_never_make_two_retakes(
 async def test_a_leak_when_it_was_not_on_the_table_is_taken_out_of_the_saved_reply(
     conn, liar, backend
 ):
-    backend.say("No ships. My brother loved ships, you know.")
+    backend.say("No ships. My brother loved ships, you know.", "unused")
     events = await play(turns.turn(conn, backend.llm, liar, "Mira, any ships in today?"))
-    assert shown(events) == "No ships. My brother loved ships, you know."  # not held: streamed
+    assert "brother" not in shown(events)  # held only by the word: the key never shows
+    assert len(backend.requests) == 1  # an ungated turn never spends the retake
     assert events[-1][1]["text"] == "No ships." == leaf(conn, liar)[0]
     assert leaf(conn, liar)[1]["trace"]["leak"]["covered"]
 
@@ -438,14 +442,22 @@ async def test_when_he_doubts_what_she_claimed_she_is_caught(conn, liar, backend
     "line, kind",
     [
         ("Wait, are you an AI?", "ai"),
-        ("Am I talking to a bot right now", "ai"),
-        ("are u a real person", "ai"),
+        ("Am I talking to an AI right now", "ai"),
+        ("are u a chatbot", "ai"),
+        ("Is this a language model?", "ai"),
         ("((ooc: are you a real person?))", "ai"),
+        ("((ooc: are you a bot?))", "ai"),
+        ("OOC: am I talking to a machine?", "ai"),
         ("((OOC: can we slow the pace down?))", "ooc"),
         ("(ooc: brb)", "ooc"),
         ("OOC: is this story going somewhere?", "ooc"),
         ("Are you real, or a dream?", None),  # in the story
         ("The bot on the dock is broken.", None),
+        ("*She laughs.* Are you a robot or something? You never sleep!", None),
+        ("Are you a real person or a ghost?", None),
+        ("Unit 7, are you a bot?", None),
+        ("Is this a real person's grave?", None),
+        ("Am I talking to a machine?", None),
     ],
 )
 def test_a_sincere_out_of_character_question_is_recognised(line, kind):
@@ -576,3 +588,154 @@ async def test_the_mind_graph_shows_what_she_decided(conn, liar, backend):
 async def test_switched_off_peek_shows_no_secrets(conn, liar):
     conn.execute("INSERT INTO settings(key, value) VALUES('features.mind.secrets', 'false')")
     assert peek(conn, liar) == []
+
+
+# --- review fixes ------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "secrets",
+    [
+        5,
+        "a secret",
+        [{"text": "x", "conceal_from": [{"id": 1}]}, {"text": "y", "conceal_from": "Aren"}],
+        [{"text": "z", "stakes": "high", "keys": "brother", "topic": 3, "cover": 9}],
+    ],
+)
+def test_a_malformed_card_never_breaks_story_creation(conn, cards, secrets):
+    story = make(conn, cards, secrets)
+    rows = honesty.held(conn, ent(conn, story, "Mira"), chat.active_path(conn, story))
+    assert all(r["conceal_from"] == "all" and r["stakes"] == 0.5 for r in rows)
+
+
+def test_a_story_is_created_even_when_seeding_fails(conn, cards, monkeypatch):
+    def boom(*a):
+        raise RuntimeError("bad")
+
+    monkeypatch.setattr(honesty, "seed", boom)
+    assert make(conn, cards, [SECRET])
+
+
+@pytest.mark.parametrize(
+    "line", ["Tobin told me the ship is late.", "Tell me the truth: is it raining?"]
+)
+def test_told_me_and_the_truth_alone_are_no_accusation(line):
+    assert not honesty.ACCUSE.search(line)
+
+
+@pytest.mark.parametrize(
+    "line", ["You're not telling the truth.", "You told me a lie.", "Liar.", "Admit it."]
+)
+def test_accusations(line):
+    assert honesty.ACCUSE.search(line)
+
+
+@pytest.mark.anyio
+async def test_naming_the_truth_to_her_face_catches_her(conn, liar, backend):
+    backend.say("It was my grandmother's.", "I told you. My grandmother's.")
+    await play(turns.turn(conn, backend.llm, liar, ASK))
+    await play(turns.turn(conn, backend.llm, liar, "Mira, Tobin says it was your brother's ring."))
+    honest = leaf(conn, liar)[1]["honest"]
+    assert (honest["move"], honest["caught"]) == ("double_down", "accused")
+
+
+@pytest.mark.anyio
+async def test_a_contradiction_believed_by_extraction_catches_her(conn, liar, backend):
+    from kataki import extract
+
+    backend.say("It was my grandmother's.")
+    await play(turns.turn(conn, backend.llm, liar, ASK))
+    path = chat.active_path(conn, liar)
+    mira, tobin = ent(conn, liar, "Mira"), ent(conn, liar, "Tobin")
+    run = extract.open_run(conn, liar, path[0]["id"], path[-1]["id"], "cadence")
+    said = {"kind": "claim", "detail": "Mira said the ring was her grandmother's.", "gist": "g",
+            "importance": 5, "asserted_by": f"E{mira}", "line": len(path)}  # fmt: skip
+    extract.apply(conn, run, {"memories": [said]})
+    hers = conn.execute("SELECT id FROM memories WHERE asserted_by=?", (mira,)).fetchone()[0]
+    backend.say("Hm.")  # Tobin speaks up, and Aren believes him
+    await play(turns.turn(conn, backend.llm, liar, None, speaker=tobin))
+    path = chat.active_path(conn, liar)
+    run = extract.open_run(conn, liar, path[-1]["id"], path[-1]["id"], "cadence")
+    other = said | {"detail": "Tobin said the ring was her brother's.", "asserted_by": f"E{tobin}"}
+    other.pop("line")
+    clash = {"claim": 0, "contradicts": f"M{hers}", "hearer": f"E{ent(conn, liar, 'Aren')}",
+             "resolution": "accepted"}  # fmt: skip
+    extract.apply(conn, run, {"memories": [other], "contradictions": [clash]})
+    backend.say("Grandmother's.")
+    await play(turns.turn(conn, backend.llm, liar, "Mira, the ring. Whose?"))
+    assert leaf(conn, liar)[1]["honest"]["caught"] == "doubted"
+
+
+@pytest.mark.anyio
+async def test_the_retake_is_spent_once_on_an_echo_then_a_leak_is_covered(
+    conn, cards, local_model, backend
+):
+    story = make(conn, cards, [SECRET], {"axes": {"honesty": [25, 5], "candor": [85, 5]}})
+    head = "<think>\nMira thinks: I promised myself I wouldn't ever talk about it.\n</think>\n"
+    backend.say(
+        head + "I promised myself I wouldn't ever talk about it. So no.",
+        head + "It was my brother's.",
+        "unused",
+    )
+    await play(turns.turn(conn, backend.llm, story, ASK))
+    assert len(backend.requests) == 2
+    text, gen = leaf(conn, story)
+    assert gen["trace"]["echo"]["resampled"] and text == "It was my grandmother's."
+    assert gen["trace"]["leak"] == {"hit": "brother", "resampled": False, "covered": True}
+
+
+@pytest.mark.anyio
+async def test_a_confession_on_one_branch_is_not_known_on_another(
+    conn, cards, local_model, backend
+):
+    story = make(conn, cards, [SECRET | {"stakes": 0.5}], {"axes": {"honesty": [90, 5]}})
+    backend.say("Nothing.", "Leave it.", "It was my brother's.")
+    for line in ["Mira, whose ring is that?", "Whose ring, Mira?", "Please, whose ring is it?"]:
+        await play(turns.turn(conn, backend.llm, story, line))
+    assert peek(conn, story)[0]["status"] == "exposed"
+    second = [m for m in chat.active_path(conn, story) if m["role"] == "assistant"][-2]["id"]
+    chat.rewind(conn, story, second)  # back before the confession: another branch
+    assert peek(conn, story)[0]["status"] == "hidden"
+    backend.say("Leave it, I said.")
+    await play(turns.turn(conn, backend.llm, story, "Nice ring, Mira."))
+    assert leaf(conn, story)[1]["honest"]["move"] == "omit"  # still kept from them here
+
+
+def test_peek_shows_her_suspected_when_a_hearer_doubts_her_claim(conn, liar):
+    mira, aren = ent(conn, liar, "Mira"), ent(conn, liar, "Aren")
+    claim = conn.execute(
+        "INSERT INTO memories(story_id, kind, story_time, detail, gist, asserted_by)"
+        " VALUES(?, 'claim', 0, 'Mira said the ring was her grandmother''s.', 'g', ?)",
+        (liar, mira),
+    ).lastrowid
+    conn.execute(
+        "INSERT INTO knowledge(knower_id, memory_id, source, learned_story_time, belief)"
+        " VALUES(?, ?, 'told', 0, 0.1)",
+        (aren, claim),
+    )
+    [s] = peek(conn, liar)
+    assert (s["status"], s["suspected_by"], s["said"]) == ("suspected", ["Aren"], None)
+
+
+def test_the_guard_can_hold_only_the_word_being_written():
+    g = honesty.Guard([(["brother"], None)], words=True)
+    assert g.feed("No ships. My") == "No ships. "
+    assert g.feed(" bro") == "My " and g.feed("ther loved") == ""
+    assert g.feed(" ships") == "" and g.hit == "brother" and g.kept == "No ships. "
+
+
+def test_a_broken_guard_lets_the_reply_through():
+    g = honesty.Guard([(["brother"], None)])
+    g.guards = None  # anything that breaks the check
+    assert g.feed("Hello there. ") == "Hello there. " and g.hit is None
+
+
+def test_a_merged_owner_keeps_her_secrets(conn, cards):
+    story = make(conn, cards, [SECRET])
+    mira = ent(conn, story, "Mira")
+    other = conn.execute(
+        "INSERT INTO entities(story_id, kind, name) VALUES(?, 'character', 'M.')", (story,)
+    ).lastrowid
+    conn.execute("UPDATE secrets SET owner_id=? WHERE story_id=?", (other, story))
+    library.merge_entities(conn, mira, other)
+    assert conn.execute("SELECT owner_id FROM secrets").fetchone()[0] == mira

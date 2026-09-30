@@ -14,6 +14,7 @@ tune them on the probes (evals/probes.py `liar`, `leak`), not by feel.
 """
 
 import json
+import logging
 import re
 import sqlite3
 
@@ -39,40 +40,47 @@ def _words_list(value) -> list[str]:
 def seed(conn: sqlite3.Connection, story_id: int, cast: list[tuple[dict, int]]) -> None:
     """Each card's `data.mind.secrets` into the new story, as the user's own rows (no anchor):
     who it is kept from turns from library ids into this story's people. Inside the caller's
-    transaction. A malformed entry is skipped, never fatal."""
+    transaction. A malformed entry is skipped with a warning, never fatal."""
     by_item = {item["id"]: e for item, e in cast}
     for item, owner in cast:
         mind = item["data"].get("mind")
-        for s in (mind.get("secrets") if isinstance(mind, dict) else None) or []:
-            if (
-                not isinstance(s, dict)
-                or not isinstance(s.get("text"), str)
-                or not s["text"].strip()
-            ):
-                continue
-            hide = s.get("conceal_from")
-            ids = [by_item[i] for i in hide if i in by_item] if isinstance(hide, list) else []
-            stakes = s.get("stakes", 0.5)
-            stakes = min(1.0, max(0.0, float(stakes))) if isinstance(stakes, (int, float)) else 0.5
-            cover = (
-                s.get("cover") if isinstance(s.get("cover"), str) and s["cover"].strip() else None
-            )
-            conn.execute(
-                "INSERT INTO secrets(story_id, owner_id, text, keys, topic, conceal_from, stakes,"
-                " motive, cover, sincere, story_time) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
-                (
-                    story_id,
-                    owner,
-                    s["text"].strip(),
-                    json.dumps(_words_list(s.get("keys"))),
-                    json.dumps(_words_list(s.get("topic"))),
-                    json.dumps(ids if ids else "all"),
-                    stakes,
-                    s.get("motive") if s.get("motive") in MOTIVES else None,
-                    cover and cover.strip(),
-                    int(s.get("sincere") is True),
-                ),
-            )
+        listed = mind.get("secrets") if isinstance(mind, dict) else None
+        for s in listed if isinstance(listed, list) else []:
+            try:
+                _seed_one(conn, story_id, owner, s, by_item)
+            except Exception as e:
+                logging.getLogger(__name__).warning("secret skipped for %s: %s", owner, e)
+
+
+def _seed_one(conn: sqlite3.Connection, story_id: int, owner: int, s, by_item: dict) -> None:
+    if not isinstance(s, dict) or not isinstance(s.get("text"), str) or not s["text"].strip():
+        return
+    hide = s.get("conceal_from")
+    ids = (
+        [by_item[i] for i in hide if isinstance(i, int) and i in by_item]
+        if isinstance(hide, list)
+        else []
+    )
+    stakes = s.get("stakes", 0.5)
+    stakes = min(1.0, max(0.0, float(stakes))) if isinstance(stakes, (int, float)) else 0.5
+    cover = s.get("cover") if isinstance(s.get("cover"), str) and s["cover"].strip() else None
+    motive = s.get("motive")
+    conn.execute(
+        "INSERT INTO secrets(story_id, owner_id, text, keys, topic, conceal_from, stakes,"
+        " motive, cover, sincere, story_time) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
+        (
+            story_id,
+            owner,
+            s["text"].strip(),
+            json.dumps(_words_list(s.get("keys"))),
+            json.dumps(_words_list(s.get("topic"))),
+            json.dumps(ids if ids else "all"),
+            stakes,
+            motive if isinstance(motive, str) and motive in MOTIVES else None,
+            cover and cover.strip(),
+            int(s.get("sincere") is True),
+        ),
+    )
 
 
 def _json(text: str, default):
@@ -85,6 +93,8 @@ def _json(text: str, default):
 def held(conn: sqlite3.Connection, owner_id: int, path: list) -> list[dict]:
     """Her live secrets on this branch (written by the user, or anchored on it), a superseded one
     left out."""
+    # ponytail: no run writes secrets yet (the card and the user do); pass db.live_runs here
+    # once extraction or the Between job writes them
     where, args = db.anchor_filter(set(), {m["id"] for m in path})
     rows = [
         dict(r)
@@ -147,8 +157,9 @@ QUESTION = re.compile(
     re.IGNORECASE,
 )
 ACCUSE = re.compile(  # ponytail: English phrases; the side call could label it later
-    r"\b(liar|lying|lie to me|you lied|not true|admit it|i know (?:you|it|that|what)|saw you"
-    r"|told me|don'?t believe|come clean|stop pretending|the truth)\b",
+    r"\b(liar|lying|lie to me|you lied|you told me|not true|admit it|come clean"
+    r"|i know (?:you|it|that|what)|saw you|don'?t believe|stop pretending"
+    r"|(?:not|never) tell(?:ing)? (?:me )?the truth)\b",
     re.IGNORECASE,
 )
 
@@ -292,7 +303,7 @@ def claims(conn: sqlite3.Connection, story_id: int, owner_id: int, sec: dict, pa
 
 END = re.compile(r"[.!?…]+[\"”’'*_)\]]*(?:\s+|$)|\n+")  # a sentence's end, closers and all
 SURE_END = re.compile(r"[.!?…]+[\"”’'*_)\]]*\s+|\n+")  # ...that no later character can extend
-SILENT = "…"  # what is left of a leak with no cover to put in its place
+SILENT = "*{name} looks away and changes the subject.*"  # a leak with no cover: never silence
 STRONGER = "{name} keeps the secret: if it comes up, {name} tells only the story they have told."
 
 
@@ -336,56 +347,82 @@ def _in_quotes(before: str, text: str, cover: str) -> str:
     return f'"{cover}"' if '"' in text else cover
 
 
-def cover_up(before: str, text: str, cover: str | None) -> str:
-    """What replaces a leak: the cover story, where the leaking sentence began."""
-    return _in_quotes(before, text, cover) if cover else ("" if before.strip() else SILENT)
+def cover_up(before: str, text: str, cover: str | None, name: str = "They") -> str:
+    """What replaces a leak: the cover story, where the leaking sentence began; with no cover,
+    nothing (the reply ends), or a line of her own when nothing was said yet (spec §6 rule 1)."""
+    if cover:
+        return _in_quotes(before, text, cover)
+    return "" if before.strip() else SILENT.format(name=name)
 
 
-def scrub(text: str, guards: list[tuple[list[str], str | None]]) -> tuple[str, str | None]:
+def scrub(
+    text: str, guards: list[tuple[list[str], str | None]], name: str = "They"
+) -> tuple[str, str | None]:
     """The text with its first leaking sentence replaced by the cover and the rest dropped (a
     reply that has started giving it away does not get to finish), and the key it said."""
     if (found := _first(text, guards)) is None:
         return text, None
     start, key, cover = found
     before = text[:start]
-    return (before + cover_up(before, text, cover)).strip(), key
+    return (before + cover_up(before, text, cover, name)).strip(), key
 
 
 class Guard:
-    """Holds a reply back a sentence at a time while a secret is on the table, so a sentence
-    that says a key in front of the wrong person is caught before anyone sees it. `hit` is the
-    key, `cover` what goes in its place, `shown` whether clean sentences went out before it.
-    ponytail: whole sentences only; a key split across a sentence end is not seen."""
+    """Holds a reply back while a secret is kept from someone listening, so a key said in front
+    of the wrong person is caught before anyone sees it: a sentence at a time while it is on the
+    table, else (`words`) only the word being written. `hit` is the key, `cover` what goes in its
+    place, `kept` what stays of the reply before the leaking sentence, `shown` whether anything
+    went out before it. A check that breaks lets the rest through unchecked (never the turn).
+    ponytail: by words, a leaking sentence's first words may already be on screen when its key
+    comes (only the saved text loses them), and so may the first words of a key of several."""
 
-    def __init__(self, guards: list[tuple[list[str], str | None]]):
+    def __init__(self, guards: list[tuple[list[str], str | None]], words: bool = False):
         self.guards = [(keys, cover) for keys, cover in guards if keys]
-        self.held, self.hit, self.cover, self.shown, self.before = "", None, None, False, ""
-        self.leaked = ""  # from the leaking sentence on: never shown
+        self.words, self.held, self.hit, self.cover = words, "", None, None
+        self.shown, self.before, self.kept, self.leaked = False, "", "", ""
 
     def _release(self, done: str) -> str:
-        if found := _first(done, self.guards):
+        whole = self.before + done
+        if found := _first(whole, self.guards):  # the sentence may have begun in `before`
             start, self.hit, self.cover = found
-            done, self.leaked = done[:start], done[start:] + self.held
-            self.held = ""
+            self.kept, self.leaked = whole[:start], whole[start:] + self.held
+            done, self.held = whole[len(self.before) : max(start, len(self.before))], ""
         self.shown = self.shown or bool(done.strip())
         self.before += done
         return done
+
+    def _cut(self) -> int:
+        ends = SURE_END if not self.words else re.compile(r"\s+")
+        return max((m.end() for m in ends.finditer(self.held)), default=0)
 
     def feed(self, text: str) -> str:
         if self.hit:
             return ""
         if not self.guards:
             return text
-        self.held += text
-        cut = max((m.end() for m in SURE_END.finditer(self.held)), default=0)
-        done, self.held = self.held[:cut], self.held[cut:]
-        return self._release(done) if done else ""
+        try:
+            self.held += text
+            cut = self._cut()
+            done, self.held = self.held[:cut], self.held[cut:]
+            return self._release(done) if done else ""
+        except Exception as e:
+            logging.getLogger(__name__).warning("leak check broke: %s", e)
+            return self._off()
 
     def flush(self) -> str:
         if self.hit or not self.guards:
             return ""
-        done, self.held = self.held, ""
-        return self._release(done)
+        try:
+            done, self.held = self.held, ""
+            return self._release(done)
+        except Exception as e:
+            logging.getLogger(__name__).warning("leak check broke: %s", e)
+            return self._off()
+
+    def _off(self) -> str:
+        """Guard([]) from here on: what was held goes out as it is."""
+        self.guards, held, self.held = [], self.held, ""
+        return held
 
 
 # --- the gate and the decision, for one reply (note 22 §2 steps 5 and 7a) ----------------------
@@ -479,7 +516,8 @@ def read(conn: sqlite3.Connection, story_id: int, speaker_id: int, path: list, p
         ]  # fmt: skip
         mine = [i for i, m in enumerate(heard) if m["role"] == "user" and m["speaker_id"] == asker]
         caught = None
-        if pending is not None and ACCUSE.search(pending["text"]):
+        said = pending["text"] if pending is not None else ""
+        if ACCUSE.search(said) or leak(said, sec["keys"]):  # or he names the truth to her face
             caught = "accused"
         elif asker is not None and _doubted(conn, story_id, speaker_id, sec, path, asker):
             caught = "doubted"
@@ -509,14 +547,24 @@ def read(conn: sqlite3.Connection, story_id: int, speaker_id: int, path: list, p
 # --- out of character (spec §6 rule 3; note 13 §5; note 22 §2 step 0) --------------------------
 
 OOC = re.compile(r"^\W*(?:\(\(\s*ooc\b|\(\s*ooc\b|\[\s*ooc\b|ooc\s*:)", re.IGNORECASE)
-ARE_YOU_AI = re.compile(  # ponytail: English phrases; a false alarm costs one aside
-    r"\b(?:are|r)\s+(?:you|u)\s+(?:even\s+|really\s+|actually\s+|just\s+)?(?:an?\s+)?"
-    r"(?:ai|a\.i\.|bot|chat\s?bot|robot|language model|llm|real person|actual person"
-    r"|human being)\b"
-    r"|\bam i (?:talking|chatting|speaking|writing) (?:to|with) (?:an? )?"
-    r"(?:ai|bot|chat\s?bot|robot|real person|human|machine|person)\b"
-    r"|\bis this (?:an? )?(?:ai|bot|chat\s?bot|real person)\b",
-    re.IGNORECASE,
+
+
+def _asked(terms: str) -> re.Pattern:
+    return re.compile(
+        rf"\b(?:are|r)\s+(?:you|u)\s+(?:even\s+|really\s+|actually\s+|just\s+)?(?:an?\s+)?"
+        rf"(?:{terms})\b"
+        rf"|\bam i (?:talking|chatting|speaking|writing) (?:to|with) (?:an? )?(?:{terms})\b"
+        rf"|\bis this (?:an? )?(?:{terms})\b",
+        re.IGNORECASE,
+    )
+
+
+# ponytail: English phrases. Outside an OOC marker only words no story uses for its own people
+# count ("a robot", "a real person", "a machine" can all be the fiction talking).
+PLAIN = r"ai|a\.i\.|llm|language model|chat\s?bot"
+ARE_YOU_AI = _asked(PLAIN)
+ARE_YOU_AI_MARKED = _asked(
+    PLAIN + r"|bot|robot|real person|actual person|human being|human|machine|person"
 )
 AI_ANSWER = (
     "(Out of character) Yes: you are talking to an AI. The characters and the narrator in this"
@@ -536,9 +584,10 @@ HUMAN = re.compile(r"\bi(?:'m| am) (?:a |an )?(?:real |actual )?(?:human|person)
 def ooc(text: str) -> str | None:
     """ "ai" for a sincere are-you-an-AI question, "ooc" for any other line marked out of
     character, else None (the line is part of the story)."""
-    if ARE_YOU_AI.search(text or ""):
+    marked = bool(OOC.search(text or ""))
+    if (ARE_YOU_AI_MARKED if marked else ARE_YOU_AI).search(text or ""):
         return "ai"
-    return "ooc" if OOC.search(text or "") else None
+    return "ooc" if marked else None
 
 
 # --- what the app shows (spec §8.3 slice 4) ----------------------------------------------------

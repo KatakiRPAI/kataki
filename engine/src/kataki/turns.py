@@ -492,7 +492,12 @@ async def _generate(
             first_thought = first_token = first_word = None  # a retake times its own take
             prefix, opener = _Prefix(name or "Narrator"), _Opener(hold and not attempt)
             header = thought.Header(voice == "inline", name or "", ep.think_tags)
-            guard = honesty.Guard(guards if guarding else [])
+            try:  # on the table: by sentences, the cover in place; else by words, no cover
+                unheld = [(keys, None) for keys, _ in guards]
+                guard = honesty.Guard(guards if guarding else unheld, words=not guarding)
+            except Exception as e:
+                logging.getLogger(__name__).warning("leak check skipped: %s", e)
+                guard = honesty.Guard([])
             stream = llm.chat_stream(
                 ep, built.messages, stop=stops, max_tokens=built.response_reserve
             )
@@ -523,20 +528,24 @@ async def _generate(
             if not cut and (rest := guard.feed(opener.feed(rest) + opener.flush()) + guard.flush()):
                 parts.append(rest)
                 yield ("token", rest)
-            redo = guard.hit and not guard.shown and not attempt and not lite  # nothing seen yet
+            # the one retake, only when the secret was on the table and nothing was seen yet
+            redo = guarding and guard.hit and not guard.shown and not attempt and not lite
             if guard.hit and not redo:  # said: the cover takes its place, and the reply ends
                 again = (trace.get("leak") or {}).get("resampled", False)
                 trace["leak"] = {"hit": guard.hit, "resampled": again, "covered": True}
-                fix = honesty.cover_up(guard.before, guard.before + guard.leaked, guard.cover)
-                parts.append(fix)
-                yield ("token", fix)
+                fix = honesty.cover_up(
+                    guard.kept, guard.kept + guard.leaked, guard.cover, name or "They"
+                )
+                parts = [guard.kept, fix]  # by words, the leaking sentence's start goes too
+                if fix:
+                    yield ("token", fix)
             if not opener.hit and not redo:
                 break
             # ponytail: the dropped take's thoughts were already streamed (no words were)
             dropped = opener.dropped
             if redo:  # it gave the secret away before a word was seen: the one retake
                 trace["leak"] = {"hit": guard.hit, "resampled": True, "covered": False}
-                dropped = honesty.cover_up("", guard.leaked, guard.cover)  # if the retake fails
+                dropped = honesty.cover_up("", guard.leaked, guard.cover, name or "They")
                 stronger = honesty.STRONGER.format(name=name)
             elif opener.echo:  # it said its thought aloud: the same one retake, told to keep it in
                 trace["echo"] = {"hit": opener.echo, "resampled": True}
@@ -585,7 +594,7 @@ async def _generate(
         if text and guards:  # whatever went unheld or unchecked: the saved reply keeps no secret
             try:
                 kept, key = honesty.scrub(
-                    text, guards if guarding else [(k, None) for k, _ in guards]
+                    text, guards if guarding else [(k, None) for k, _ in guards], name or "They"
                 )
                 if key:
                     text = kept
