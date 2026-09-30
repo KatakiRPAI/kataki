@@ -142,10 +142,13 @@ def _bonds(conn, entity_id: int, path: list, names: dict, persona_id, epoch: int
     try:
         rows = bonds.ledger(conn, entity_id, path)
         now = path[-1]["story_time"] if path else 0
-        stands = bonds.toward(rows, sorted({r["dst_id"] for r in rows}), now)
+        # every person the ledger still feels anything about: the prompt names only moves worth a
+        # word (bonds.toward), but the card shows small ones and their reasons too
+        stands = {d: bonds.standing(rows, d, now) for d in sorted({r["dst_id"] for r in rows})}
         return [
             bonds.public(st, d, names.get(d, "someone"), d == persona_id, epoch)
             for d, st in stands.items()
+            if st["grudge"] or st["recent"]
         ]
     except Exception as e:  # a bad row costs the bonds, not the whole Peek
         logging.getLogger(__name__).warning("bonds unavailable for %s: %s", entity_id, e)

@@ -30,6 +30,8 @@ handle of the person it is about, or null. cause: at most 12 words.
 - events: at most 3 things another person did to the character in that line only, never in \
 earlier ones: that person's handle (target), what it was (type) and how much (intensity \
 1-3). An apology is apology_sincere only if it owns what was done; otherwise apology_hollow. \
+A kiss, hug or touch the character welcomes is affection (unwelcome: boundary_crossed); \
+flirting is flirt; a joke they enjoy is shared_joy; ignoring them is dismissal. \
 Leave it empty when the line did nothing new.
 From the character's reply only (not for felt or events):
 - position: a stance the character took or kept in the reply (at most 12 words; firm 1-3), \

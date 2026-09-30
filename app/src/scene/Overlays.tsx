@@ -1,7 +1,7 @@
 // The Scene's own overlays (SCENE.md › Other overlays): Pass time (P11), Scene and place (P17),
 // Story settings (P18), a character's card (P15) and Find in story.
 import { useEffect, useRef, useState } from 'react'
-import { api, later as words, UNITS, type Book, type CastEntity, type Provider, type Feelings, type Item, type KnownMemory, type Person, type Story, type Unit } from '../api'
+import { api, later as words, UNITS, type Book, type BondDim, type CastEntity, type Provider, type Item, type KnownMemory, type Person, type Story, type Unit } from '../api'
 import { K } from '../ds'
 import { scenery, twelve, useLibrary, useLoad } from '../hooks'
 import { Overlay, toast } from '../overlay'
@@ -167,40 +167,83 @@ export function StorySettings({ story, advanced, onAdvanced, onClose, onChange }
   )
 }
 
-/** P15: a character's card, from their widget. */
+const DIMS: BondDim[] = ['closeness', 'trust', 'respect', 'attraction']
+const NEGATIVE = new Set(['anxious', 'afraid', 'sad', 'hurt', 'annoyed', 'angry', 'ashamed', 'bored']) // inner.NEGATIVE
+/** A ledger move (roughly -100..100, a few points per event) as a bar centred on "as they met". */
+const bar = (n: number) => Math.max(0, Math.min(100, 50 + n * 1.5))
+const signed = (n: number) => { const r = Math.round(n); return r > 0 ? `+${r}` : r < 0 ? `−${-r}` : '0' }
+
+/** P15: a character's card, from their widget: what anyone could see, how they stand with you
+ * and why, and (on a tap: the author's peek) what they feel inside, think, need and want. */
 export function CharacterCard({ story, entity, item, onClose, onAnswer, onMove, onWidget }: {
   story: Story; entity: CastEntity; item?: Item; onClose: () => void; onAnswer: () => void; onMove: () => void; onWidget?: () => void
 }) {
   const [people] = useLoad(() => api<Person[]>(`/stories/${story.id}/people`), [story.id])
-  const [feelings] = useLoad(() => (story.persona ? api<Feelings>(`/stories/${story.id}/feelings?who=${entity.id}`) : Promise.resolve(null)), [story.id, entity.id])
   const [known] = useLoad(() => api<KnownMemory[]>(`/stories/${story.id}/memories?knower=${entity.id}`), [story.id, entity.id])
+  const [inside, setInside] = useState(false)
   const person = people?.find((p) => p.id === entity.id)
   const p = item?.data.pronouns ?? 'they'
-  const last = feelings?.points.at(-1)
   const held = (known ?? []).filter((m) => m.tier !== 'forgotten' && !m.hidden)
   const top = held[0]
-  const meter = (n: number) => Math.max(0, Math.min(100, 50 + n * 10))
-  const mood = person?.state.find((s) => /mood|feel/i.test(s.key))?.value
+  const flag = person?.state.find((s) => /mood|feel/i.test(s.key))?.value
+  const mood = person?.mood
+  const bond = person?.bonds?.find((b) => b.you)
   return (
     <Overlay onClose={onClose}>
       <div className="scene-sheet">
         <K.Sheet tone="scene" title={entity.name} onClose={onClose}>
           <div className="col" style={{ gap: 16 }}>
-            {mood && <K.StatePill tone="warm">{mood}</K.StatePill>}
+            {(mood || flag) && (
+              <div className="row row--wrap" style={{ gap: 6 }}>
+                {mood && <K.StatePill tone={NEGATIVE.has(mood.shows) ? 'bad' : 'warm'}>{mood.shows}</K.StatePill>}
+                {mood?.word && <K.StatePill tone="muted">{mood.word}</K.StatePill>}
+                {!mood && flag && <K.StatePill tone="warm">{flag}</K.StatePill>}
+                {mood?.tell && <span className="scene-t">{t('cc.tell', { tell: mood.tell })}</span>}
+              </div>
+            )}
             <div className="col" style={{ gap: 6 }}>
               <K.Eyebrow>{t('cc.rightNow')}</K.Eyebrow>
               <K.KeyValue label={t('cc.where')}>{person?.where ?? story.place?.name ?? t('place.nowhere')}</K.KeyValue>
               {story.scene_title && <K.KeyValue label={t('cc.scene')}>{story.scene_title}</K.KeyValue>}
               {person?.since && <K.KeyValue label={t('cc.since')}>{person.since}</K.KeyValue>}
             </div>
-            {last && (
+            {bond && (
               <div className="col" style={{ gap: 8 }}>
                 <K.Eyebrow>{t('cc.feels', { p })}</K.Eyebrow>
-                <K.Meter label={t('pf.warmth')} value={meter(last.warmth)} tone="ok" />
-                <K.Meter label={t('pf.trust')} value={meter(last.trust)} />
-                <K.Meter label={t('pf.doubt')} value={Math.min(100, last.doubt * 20)} tone="warm" />
+                {DIMS.map((d) => <K.Meter key={d} label={t(`cc.dim.${d}` as Key)} value={bar(bond[d] ?? 0)} word={signed(bond[d] ?? 0)} tone={(bond[d] ?? 0) < 0 ? 'bad' : 'ok'} />)}
+                {bond.grudge && (
+                  <div className="row" style={{ gap: 6 }}>
+                    <K.StatePill tone="bad">{t('cc.grudge')}</K.StatePill>
+                    <span className="scene-t">{bond.grudge.cause}</span>
+                  </div>
+                )}
+                {(bond.recent ?? bond.causes).length > 0 && (
+                  <div className="col" style={{ gap: 4 }}>
+                    <b style={{ fontSize: 12.5 }}>{t('cc.why')}</b>
+                    {(bond.recent ?? bond.causes).slice(0, 3).map((c) => (
+                      <span key={`${c.event}${c.since}`} className="scene-t">
+                        {c.cause} · {Object.entries(c.moves ?? {}).map(([d, v]) => `${t(`cc.dim.${d}` as Key)} ${signed(v ?? 0)}`).join(', ')}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
+            {mood || person?.thought || person?.goals?.length || person?.needs ? (
+              inside ? (
+                <div className="col" style={{ gap: 8 }}>
+                  <K.Eyebrow tone="accent">{t('cc.inside', { p })}</K.Eyebrow>
+                  {(mood?.emotions ?? []).map((e) => <K.Meter key={e.label} label={e.label} value={Math.round(e.i * 100)} tone={NEGATIVE.has(e.label) ? 'bad' : 'warm'} />)}
+                  {mood?.emotions?.[0] && <span className="scene-t">{t('cc.because', { why: mood.emotions[0].why })}</span>}
+                  {mood?.label && mood.shows !== mood.label && <span className="scene-t">{t('cc.masks', { shows: mood.shows, feels: mood.label })}</span>}
+                  {person?.thought && <span className="scene-t">{t('cc.thinks', { thinks: person.thought.thinks })}</span>}
+                  {person?.needs && <K.Meter label={t('cc.energy')} value={Math.round(person.needs.energy * 100)} tone="muted" />}
+                  {person?.needs?.pressing && <span className="scene-t">{t('cc.needs', { need: t(`cc.need.${person.needs.pressing}` as Key) })}</span>}
+                  {person?.goals?.filter((g) => g.status === 'active').slice(0, 2).map((g) => <K.KeyValue key={g.id} label={t('cc.wants')}>{g.text}</K.KeyValue>)}
+                  <button type="button" className="k-btn k-btn--scene-ghost" onClick={() => setInside(false)}>{t('cc.hideInside')}</button>
+                </div>
+              ) : <button type="button" className="k-btn k-btn--scene-ghost" onClick={() => setInside(true)}>{t('cc.peekInside', { p })}</button>
+            ) : null}
             {top && (
               <div className="col" style={{ gap: 8 }}>
                 <K.Eyebrow>{t('cc.holding', { shown: 1, total: held.length })}</K.Eyebrow>

@@ -158,7 +158,8 @@ def test_the_app_gets_words_and_numbers():
     assert shown["words"] == "trusts much less · further · holds a grudge"
     assert shown["trust"] == pytest.approx(-17.6) and shown["you"] is True
     assert shown["grudge"] == {"event": "promise_broken", "cause": CAUSE, "since": "Day 1, 08:00",
-                               "kind": "sticky", "forgiven": False, "id": 1}  # fmt: skip
+                               "kind": "sticky", "forgiven": False, "id": 1,
+                               "moves": {"closeness": -6.6, "trust": -17.6}}  # fmt: skip
     assert [c["event"] for c in shown["causes"]] == ["promise_broken"]
 
 
