@@ -304,3 +304,48 @@ async def test_when_it_fires_the_seed_on_her_mind_waits(local_model, cards, back
     assert got["agenda"] and "onmind" not in got and "lantern" not in tail
     got = await talk(conn, backend, story, "Did Tobin pay?", "He did.")
     assert got["onmind"]["text"] == "fix the old lantern"  # its turn comes after
+
+
+# --- needs and energy ----------------------------------------------------------------------------
+
+
+def tail(backend, i=-1) -> str:
+    return backend.requests[i]["messages"][-1]["content"]
+
+
+@pytest.mark.anyio
+async def test_late_at_night_she_is_tired_and_denies_it_but_not_every_reply(
+    local_model, cards, backend
+):
+    conn = local_model
+    story = make(conn, cards)
+    with conn:
+        conn.execute("UPDATE stories SET epoch_offset_min=? WHERE id=?", (2 * 60, story))  # 2 am
+    got = [await talk(conn, backend, story, "You still up?", "Mm.") for _ in range(5)]
+    assert [bool(g.get("need")) for g in got] == [True, False, False, False, True]
+    assert got[0]["need"]["need"] == "energy"
+    assert "if anyone says you seem tired, deny it" in tail(backend, 0)
+    assert "deny it" not in tail(backend, 1)
+    mira = ent(conn, story, "Mira")
+    state = json.loads(
+        conn.execute(
+            "SELECT state FROM mind_states WHERE entity_id=? ORDER BY id DESC", (mira,)
+        ).fetchone()[0]
+    )
+    assert set(state["needs"]) == {"autonomy", "competence", "relatedness", "stimulation"}
+
+
+@pytest.mark.anyio
+async def test_bossed_about_she_bristles_and_off_there_are_no_needs(local_model, cards, backend):
+    conn = local_model
+    story = make(conn, cards)
+    orders = "You will do as I say, Mira. Obey me."
+    got = await talk(conn, backend, story, orders, "Hm.")
+    assert "need" not in got  # once is not yet a pattern
+    got = await talk(conn, backend, story, orders, "No.")
+    assert got["need"]["need"] == "autonomy" and "pushed around" in tail(backend)
+    setting(conn, "features.mind.goals", False)
+    with conn:
+        conn.execute("UPDATE stories SET epoch_offset_min=? WHERE id=?", (2 * 60, story))
+    got = await talk(conn, backend, story, "Still up?", "Mm.")
+    assert "need" not in got and "deny it" not in tail(backend)

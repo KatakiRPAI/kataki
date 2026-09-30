@@ -134,6 +134,18 @@ def _agenda_ask(gen: dict, path: list) -> dict | None:
     return None
 
 
+def _shown_needs(path: list, who: int) -> list[str]:
+    """The needs her last few replies were written with (their cooldown)."""
+    mine = [m for m in path if m["role"] == "assistant" and m["speaker_id"] == who]
+    out = []
+    for m in mine[-inner.NEED_COOL :]:
+        try:
+            out.append((json.loads(m["gen"] or "{}").get("need") or {}).get("need"))
+        except (ValueError, AttributeError):
+            continue
+    return out
+
+
 def _mood_of(state: dict | None) -> float | None:
     """Her mood's valence for mood-congruent recall (slice 6), or None when unknown."""
     try:
@@ -357,7 +369,9 @@ async def _generate(
     stood: list[dict] = []  # the same, as the app shows them (gen.bonds, the Mind graph)
     try:  # the mind adds to a turn, it never stops one
         if features.enabled(conn, "mind.affect"):
-            minds = inner.react(conn, story_id, path, await asyncio.to_thread(embed.builtin))
+            wants = features.enabled(conn, "mind.goals")  # slice 7: needs ride on the mood
+            model = await asyncio.to_thread(embed.builtin)
+            minds = inner.react(conn, story_id, path, model, needs=wants)
         if speaker_id in minds:
             felt = inner.lines(minds[speaker_id], inner.profile(conn, speaker_id))
     except Exception as e:
@@ -447,6 +461,20 @@ async def _generate(
         if onmind and not onmind["directive"]:
             onmind = None  # one thing on her mind at a time (note 22 §4 row 5)
     mind_rows = [onmind["row"]] if onmind and onmind["row"] else []
+    need = None  # slice 7: the one pressing need, as behaviour (note 22 §4 row 6)
+    try:
+        if speaker_id is not None and features.enabled(conn, "mind.goals"):
+            now = path[-1]["story_time"] if path else 0
+            minute = (now + story["epoch_offset_min"]) % clock.DAY
+            prof = inner.profile(conn, speaker_id)
+            need = inner.need_row(
+                minds.get(speaker_id), prof, minute, _shown_needs(path, speaker_id)
+            )
+    except Exception as e:
+        logging.getLogger(__name__).warning("needs skipped for story %s: %s", story_id, e)
+        need = None
+    if need:
+        mind_rows.append(need["text"])
     try:
         inside = (
             inner.block(names.get(speaker_id, ""), ties + felt + mind_rows)
@@ -757,6 +785,8 @@ async def _generate(
                     gen["agenda"] = {**agenda["record"], "tried": goals.tried(text, agenda["cue"])}
                 if judged:
                     gen["goal"] = judged
+                if need:
+                    gen["need"] = need
             except Exception as e:
                 logging.getLogger(__name__).warning("goal not kept: %s", e)
             try:
