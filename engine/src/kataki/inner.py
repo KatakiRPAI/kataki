@@ -266,14 +266,17 @@ WORDS = {
     "insult": r"\b(idiot|stupid|useless|pathetic|worthless|loser|moron|shut up|hate you"
     r"|disgusting|liar|fool|arrogant|coward|jerk)\b",
     # touch, flirting, laughter and being ignored: before these, a kiss or a snub did nothing on
-    # lite. ponytail: words and *actions* only, no negation, like the rest
+    # lite. ponytail: words and *actions* only, like the rest
     "affection": r"\b(kiss(es|ed|ing)?|hugs?|hugged|hugging|embraces?|embraced|cuddles?"
     r"|nuzzles?|caress(es|ed)?|holds? (his|her|their|your) hand)\b",
     "flirt": r"\b(winks?|winked|flirts?|flirting|handsome|gorgeous|cute|sexy"
     r"|you look (good|nice|great|lovely|stunning))\b",
     "joke": r"\b(ha(ha)+|he(he)+|lol|lmao|jokes?|joking|kidding|funny|laughs?|laughing)\b",
     "snub": r"\b(ignores?|ignored|ignoring|walks? (past|away)|turns? (my|his|her|their) back"
-    r"|without a word|whatever|not listening|leave me alone|go away)\b",
+    r"|without a word|whatever|not listening|leave me alone|go away"
+    # refusing their touch rebuffs them: "stop touching me", "get off me", *pushes him away*
+    r"|(don'?t|do not|stop|quit) (touch|kiss|hug|grabb?|hold)(ing)? me|hands off"
+    r"|get (off|away from) me|(push|shove)(es|ed|s)? (him|her|them|you) (away|off))\b",
     "bad_news": r"\b(died|passed away|got fired|lost my|broke up|bad news|in (the )?hospital)\b",
     "apology": r"\b(i'?m sorry|i apologi[sz]e|forgive me|my fault|i was wrong)\b",
     "good_news": r"\b(got the job|got in|we won|good news|i passed|engaged|promoted)\b",
@@ -281,6 +284,24 @@ WORDS = {
     r"|you'?re the best)\b",
 }
 PATTERNS = {event: re.compile(words, re.IGNORECASE) for event, words in WORDS.items()}
+# a refusal or denial earlier in the same clause cancels a word: "don't kiss me", "I'm not
+# flirting", "you're not stupid". Threats are exempt: "don't move or else" is still one.
+NEGATION = re.compile(
+    r"\b(not|no|never|stop|quit|dont|wont|cant|didnt|doesnt|isnt|\w+n['’]t)\b", re.IGNORECASE
+)
+CLAUSE = re.compile(r"[.!?;:,*\n]|\b(?:but|and|so)\b", re.IGNORECASE)
+
+
+def _meant(text: str, event: str) -> bool:
+    """Whether the event's words appear in `text` with no negation earlier in their clause.
+    ponytail: one cue word, no scope or double negatives ("I can't stop laughing" reads as not
+    laughing); the side call reads such lines on the standard level."""
+    for m in PATTERNS[event].finditer(text):
+        if event == "threat" or not NEGATION.search(CLAUSE.split(text[: m.start()])[-1]):
+            return True
+    return False
+
+
 SEEDS = {  # a few lines per event; their mean vector is what "means that" looks like
     "threat": ["I'll make you regret this.", "Do it or you'll get hurt.", "Watch your back."],
     "insult": ["You're worthless.", "Nobody could stand you.", "You're a joke."],
@@ -306,10 +327,10 @@ def _centre(model) -> tuple[list[str], np.ndarray]:
 def sense(text: str, model=None) -> tuple[str, float] | None:
     """What a line was, to the one who heard it: (event, strength 0-1), or None. A word list
     first (precise); then, with an embedding model, closeness in meaning (catches rewordings).
-    ponytail: no negation handling ("you're not stupid" reads as an insult); slice 2's side call
-    labels events on the standard level."""
+    ponytail: words and a negation cue (_meant), no deeper reading; slice 2's side call labels
+    events on the standard level."""
     for event in EVENTS:
-        if PATTERNS[event].search(text):
+        if _meant(text, event):
             return event, 1.0
     if model is None or not text.strip():
         return None

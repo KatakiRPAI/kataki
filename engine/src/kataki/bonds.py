@@ -236,6 +236,17 @@ RULED = {  # inner.sense's events, as the ledger names them
 }
 
 
+COLD = -5  # ponytail: closeness + trust + attraction this far below the start makes touch unwelcome
+
+
+def unwelcome(st: dict) -> bool:
+    """On the rules' reading, whether a kiss or hug from them lands as boundary_crossed: only
+    when the bond has gone cold (a fresh grudge does that; warmth since can undo it).
+    ponytail: one sum against COLD, no consent or scene sense, and inner.react still feels it
+    as fond; the side call tells welcome from unwelcome on the standard level."""
+    return st["closeness"] + st["trust"] + st["attraction"] <= COLD
+
+
 def rule_events(text: str, hit: tuple[str, float] | None) -> list[tuple[str, int]]:
     """What a line did to the one it was aimed at, by rules: [(event, intensity 1-3)]. An apology
     is sincere only when it owns the wrong, and one that names the wrong is not that wrong again.
@@ -286,6 +297,8 @@ def react(conn: sqlite3.Connection, story_id: int, path: list, model=None) -> di
         if dial not in HARSH:  # a stray value must never break a turn
             dial = "realistic"
         for event, intensity in events:
+            if event == "affection" and unwelcome(standing(rows + new, last["speaker_id"], now)):
+                event = "boundary_crossed"
             new += apply(
                 rows + new, last["speaker_id"], event, intensity, cause, now, scene_id, prof, dial
             )
