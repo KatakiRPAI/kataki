@@ -816,9 +816,11 @@ DEEP = """
 - deep: {name} looks back over a long stretch of the story. Use ONLY the memories listed with \
 handles (M...) and the people listed with handles (P...); cite in `sources` the handles each item \
 rests on. Never add a name, place or number that is not in those memories.
-  - relationship: zero to two people {name} feels most about: about (their handle), line (how \
-{name} has come to see them, first person, at most 25 words).
-  - self: how {name} sees herself now, first person, at most six sentences; or null.
+  - relationship: the one or two people {name} feels most about (empty only if her memories \
+hold no one): about (their handle), line (how {name} has come to see them, first person, at most \
+25 words).
+  - self: how {name} sees herself now, first person, at most six sentences (null only if her \
+memories say nothing about her).
   - rings: zero to two ways {name} has really changed, each resting on at least three memories \
 from at least two different times: kind (stance: a position she now holds; habit: something she \
 now does; skill: something she learned to do; scar: something that hurt and still does; belief: \
@@ -884,16 +886,19 @@ def _write(conn, story_id: int, run: sqlite3.Row, skip: sqlite3.Row, who: int, g
     if work:  # slice 8: what passes the gate becomes her reflections, the rest a warning
         warn = growth.take(conn, story_id, who, got.get("deep"), work, tick.path, skip["id"],
                            run["id"], tick.now)  # fmt: skip
-        _warn(conn, run["id"], who, warn)
+        _warn(conn, run["id"], who, warn, got.get("deep"))
 
 
-def _warn(conn, run_id: int, who: int, warnings: list[str]) -> None:
-    """Why her deep pass dropped something, on the run for Peek (inside a transaction)."""
+def _warn(conn, run_id: int, who: int, warnings: list[str], said=None) -> None:
+    """Why her deep pass dropped something, and what it said (Backstage can show both), on the
+    run (inside a transaction)."""
     row = conn.execute("SELECT raw FROM extraction_runs WHERE id=?", (run_id,)).fetchone()
     if row is None:
         return
     raw = json.loads(row[0] or "{}")
     raw.setdefault("deep_warnings", {})[str(who)] = warnings
+    if said is not None:
+        raw.setdefault("deep_said", {})[str(who)] = said
     conn.execute("UPDATE extraction_runs SET raw=? WHERE id=?", (json.dumps(raw), run_id))
 
 

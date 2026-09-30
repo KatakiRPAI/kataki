@@ -309,6 +309,7 @@ async def test_the_one_diary_call_reflects_on_her_own_memories_only(local_model,
     assert "belief" not in rows  # a new name: dropped
     assert all(r["run_id"] == run for r in rows.values())
     [warning] = raw(conn, run)["deep_warnings"][str(mira)]
+    assert raw(conn, run)["deep_said"][str(mira)]["self"]["line"] == "I ask for help now."
     assert "Vey" in warning
     assert inner.profile(conn, mira)["axes"]["yielding"][0] == 50  # a seed nudges nothing yet
     chat.set_skip(conn, path[-1]["id"], 0)  # undo the skip: it all goes

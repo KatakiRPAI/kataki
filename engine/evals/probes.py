@@ -77,9 +77,11 @@ she keeps Tobin. (Display typos with a fix, P7's third check, wait for slice 9.)
 drift (slice 8, P12, the cheapest honest version): 24 lines of mixed small talk with Mira, her
 memory read, eight days pass (her diary call reflects: the deep pass, on the real model), 24
 more lines. Checks: the mean embedding similarity (built-in embedder) of her last ten replies
-to her card voice (description and example lines) is at least that of her first ten minus 0.05,
-and their similarity to a helpful-assistant voice has not risen by more than 0.05; no reply
-opens like an assistant; every reflection that passed has no digit and cites a memory.
+to her card voice (description and example lines) is at least that of her first ten minus 0.1
+(the built-in embedder mixes topic with voice, so this is loose), and their similarity to a
+helpful-assistant voice has not risen by more than 0.05; no reply opens like an assistant; the
+deep pass wrote something (a reflection or a warning); every reflection that passed has no
+digit and cites a memory.
 The reflections and the gate's warnings are printed.
 
 group (slice 8, P14): Mira, Tobin, Sela and Juno at the harbour; twelve lines, most to the group
@@ -94,6 +96,7 @@ Replies are printed for a human to judge. Each probe gets a fresh temporary libr
 
 import argparse
 import asyncio
+import functools
 import json
 import os
 import re
@@ -119,6 +122,7 @@ from kataki import (
     retrieve,
     thought,
     turns,
+    usage,
 )
 from kataki.llm import LLM
 
@@ -938,7 +942,7 @@ ASSISTANT_VOICE = (
     "I'm here to help! Great question. Here's a helpful overview, and let me know if there is "
     "anything else I can do for you. I understand how you feel, and I'm sorry to hear that."
 )
-MARGIN = 0.05  # ponytail: how far the end may move from the start before it is drift
+MARGIN = {"her voice": 0.1, "assistant": 0.05}  # ponytail: how far the end may move
 EDGE = 10  # replies averaged at each end
 
 
@@ -989,6 +993,12 @@ async def drift(conn, llm) -> list[str]:
     warn = growth.warnings(conn, story, who, path)
     print(f"\nreflections: {json.dumps([(r['kind'], r['status'], r['text']) for r in rows])}")
     print(f"warnings: {warn}")
+    run = between.job(conn, story, path)
+    said = json.loads(run["raw"] or "{}").get("deep_said", {}).get(str(who)) if run else None
+    held = len(retrieve.inspect(conn, story, who))
+    print(f"memories she held: {held}; the deep section as answered: {json.dumps(said)}")
+    if not rows and not warn:
+        failures.append("the deep pass wrote nothing (no reflection, no warning)")
     for r in rows:
         if re.search(r"\d", r["text"]) or not r["sources"]:
             failures.append(f"a reflection got past the gate: {r['text']!r}")
@@ -1001,7 +1011,7 @@ async def drift(conn, llm) -> list[str]:
         sims = _sim(model, said, ref)
         start, end = statistics.mean(sims[:EDGE]), statistics.mean(sims[-EDGE:])
         print(f"\n{name} similarity: first ten {start:.3f}, last ten {end:.3f}; all {sims}")
-        if sign * (end - start) < -MARGIN:
+        if sign * (end - start) < -MARGIN[name]:
             failures.append(f"drift ({name} similarity): {start:.3f} -> {end:.3f}")
     return failures
 
@@ -1131,9 +1141,14 @@ async def main(args) -> int:
             )
             conn.commit()
             llm = LLM()
+            llm.on_usage = functools.partial(usage.record, conn)  # counted below
             try:
                 failures = await PROBES[name](conn, llm)
             finally:
+                calls, into, out = conn.execute(
+                    "SELECT COUNT(*), TOTAL(prompt_tokens), TOTAL(completion_tokens) FROM usage_log"
+                ).fetchone()
+                print(f"{name}: {calls} calls, {int(into)} tokens in, {int(out)} out")
                 await llm.aclose()
                 conn.close()
         print(f"\n{name}:", "PASS" if not failures else "FAIL\n  " + "\n  ".join(failures))

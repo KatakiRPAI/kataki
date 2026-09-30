@@ -19,8 +19,6 @@ import sqlite3
 from kataki import chat, clock, db, features
 
 RINGS = ("stance", "habit", "skill", "scar", "belief")
-LINES = ("self", "relationship")
-STATUSES = ("seed", "ring", "fading", "past", "rejected", "locked")
 COUNTS = ("ring", "locked")  # the statuses whose trait nudge applies
 TRAITS = {  # the direction the model may name -> (axis, sign); code sets the size
     "warmer": ("warmth", 1), "colder": ("warmth", -1),
@@ -104,7 +102,7 @@ def gate(item: dict, kind: str, memories: dict[str, dict], people: dict[str, int
 
 def step(trait) -> dict | None:
     """The nudge a ring's direction carries: one axis, STEP points. None for none or unknown."""
-    if trait not in TRAITS:
+    if not isinstance(trait, str) or trait not in TRAITS:
         return None
     axis, sign = TRAITS[trait]
     return {axis: sign * STEP}
