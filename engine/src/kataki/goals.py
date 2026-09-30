@@ -176,6 +176,26 @@ def _mine(path: list, who: int) -> list:
     return [m for m in path if m["role"] == "assistant" and m["speaker_id"] == who]
 
 
+def restraint(conn: sqlite3.Connection, who: int, path: list, user: str | None) -> str:
+    """Just dropped (dodged twice), a goal is left be for her next few replies, so the reply
+    model does not keep pushing it from the history alone (seen on the P10 probe). -> [Directive]
+    words, or ""."""
+    ids = [m["id"] for m in path]
+    for g in live(conn, who, path):
+        if g["key"] in PURSUED or g["status"] != "dormant" or g["deflections"] < DROP:
+            continue
+        if g["message_id"] not in ids:
+            continue
+        since = path[ids.index(g["message_id"]) + 1 :]
+        if sum(m["role"] == "assistant" and m["speaker_id"] == who for m in since) < EVERY:
+            them = user or "they"
+            return (
+                f"You have let this go for now: {g['text']}; leave it be, and don't bring it up"
+                f" unless {them} brings it up."
+            )
+    return ""
+
+
 def directive(g: dict, user: str, resurfaced: bool) -> str:
     """The decision for [Directive]: words only, answer first, once, let it go if dodged."""
     if resurfaced:

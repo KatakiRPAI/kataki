@@ -445,3 +445,21 @@ async def test_peek_shows_what_she_wants_and_needs_and_the_graph_the_goal_a_repl
     setting(conn, "features.mind.goals", False)
     me = peek(conn, story)
     assert me["goals"] == [] and me["needs"] is None
+
+
+@pytest.mark.anyio
+async def test_once_it_is_dropped_she_is_told_to_leave_it_be_for_a_few_replies(
+    local_model, cards, backend
+):
+    conn = local_model
+    story = make(conn, cards, {"want": BOAT})
+    for text, reply in [("Morning.", "Come see my boat!"), ("Did Tobin pay?", "Yes."),
+                        ("Ok.", "Mm."), ("Ok.", "Mm."), ("Hi.", "The boat, though!")]:  # fmt: skip
+        await talk(conn, backend, story, text, reply)
+    assert "leave it be" not in directive_of(backend)
+    got = [await talk(conn, backend, story, "How's the office?", "Busy.")]  # dodged twice
+    got += [await talk(conn, backend, story, "Ok.", "Mm.") for _ in range(4)]
+    told = ["leave it be" in directive_of(backend, i) for i in range(-5, 0)]
+    assert told == [True, True, True, True, False]  # the reply to the dodge, and three more
+    assert "unless Aren brings it up" in directive_of(backend, -5)
+    assert not any(ch.isdigit() for ch in directive_of(backend, -5).split("First, before")[0])

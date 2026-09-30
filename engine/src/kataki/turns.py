@@ -441,7 +441,7 @@ async def _generate(
         repaired = None
     if repaired and repaired["directive"]:
         decide = " ".join(p for p in (decide, repaired["directive"]) if p)
-    agenda, judged = None, None  # slice 7: what she wants, and how the user answered it
+    agenda, judged, let_go = None, None, ""  # slice 7: what she wants, how the user answered it
     try:
         if speaker_id is not None and features.enabled(conn, "mind.goals"):
             judged = goals.judge(conn, speaker_id, path)
@@ -450,12 +450,17 @@ async def _generate(
             stirred = bool(pending.get(speaker_id)) or (
                 last is not None and last["role"] == "user" and inner.sense(last["text"])
             )  # an emotional line is not the moment
+            user = names.get(story["persona_entity_id"])
             if not busy and not stirred:
-                user = names.get(story["persona_entity_id"])
                 agenda = goals.pick(conn, speaker_id, path, user)
+            if not agenda:  # just dropped: she lets it be for a while
+                let_go = goals.restraint(conn, speaker_id, path, user)
     except Exception as e:
         logging.getLogger(__name__).warning("goals skipped for story %s: %s", story_id, e)
         agenda = judged = None
+        let_go = ""
+    if let_go:
+        decide = " ".join(p for p in (decide, let_go) if p)
     if agenda:
         decide = " ".join(p for p in (decide, agenda["directive"]) if p)
         if onmind and not onmind["directive"]:
