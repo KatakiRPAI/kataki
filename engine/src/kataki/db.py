@@ -180,6 +180,10 @@ MIGRATIONS = {
         # the table is rebuilt with every row kept; nothing references model_roles. The first
         # destructive migration, so it is one transaction: a failure half-way changes nothing
         "BEGIN;"
+        # a role left pointing at a deleted provider (foreign keys were off once) would fail
+        # the copy and keep the library shut: it is unset, as deleting the provider does
+        "UPDATE model_roles SET provider_id=NULL, model=NULL"
+        " WHERE provider_id IS NOT NULL AND provider_id NOT IN (SELECT id FROM providers);"
         "CREATE TABLE model_roles_new("
         " role TEXT PRIMARY KEY CHECK(role IN('rp','narrator','utility','reasoning','embed',"
         "'image','music','voice')),"

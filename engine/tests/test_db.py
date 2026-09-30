@@ -593,16 +593,47 @@ def test_v17_is_all_or_nothing(tmp_path):
     )
     old.execute("PRAGMA foreign_keys=OFF")  # a row pointing at a provider that is gone
     old.execute("INSERT INTO model_roles(role, provider_id, model) VALUES('rp', 99, 'rp-8b')")
+    old.execute("PRAGMA ignore_check_constraints=ON")  # and one the copy will refuse, after
+    old.execute("INSERT INTO model_roles(role, kind) VALUES('utility', 'bogus')")  # the mend
     old.execute("PRAGMA user_version=16")
     old.commit()
     old.close()
 
     for _ in range(2):  # the same clear error each time, never "model_roles_new already exists"
-        with pytest.raises(sqlite3.IntegrityError, match="FOREIGN KEY"):
+        with pytest.raises(sqlite3.IntegrityError, match="CHECK"):
             db.connect(path)
     raw = sqlite3.connect(path)
     tables = {r[0] for r in raw.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert "model_roles" in tables and "model_roles_new" not in tables
     assert raw.execute("PRAGMA user_version").fetchone()[0] == 16
-    assert raw.execute("SELECT model FROM model_roles").fetchone()[0] == "rp-8b"
-    raw.close()
+    assert raw.execute("SELECT model FROM model_roles WHERE role='rp'").fetchone()[0] == "rp-8b"
+    raw.close()  # the mend was rolled back with the rest
+
+
+def test_v17_unsets_a_role_left_pointing_at_a_deleted_provider(tmp_path):
+    path = tmp_path / "v16.db"
+    old = db.connect(path)
+    old.executescript(
+        "DROP TABLE model_roles; CREATE TABLE model_roles("
+        " role TEXT PRIMARY KEY CHECK(role IN('rp','narrator','utility','reasoning','embed',"
+        "'image','music')), provider_id INTEGER REFERENCES providers, model TEXT,"
+        " kind TEXT NOT NULL DEFAULT 'auto' CHECK(kind IN('auto','reasoning','standard')),"
+        " detected_kind TEXT CHECK(detected_kind IN('reasoning','standard')),"
+        " params TEXT NOT NULL DEFAULT '{}');"
+    )
+    old.execute("INSERT INTO providers(id, name, base_url) VALUES(1, 'local', 'http://x/v1')")
+    old.execute("INSERT INTO model_roles(role, provider_id, model) VALUES('rp', 1, 'rp-8b')")
+    old.commit()  # foreign_keys cannot change inside a transaction
+    old.execute("PRAGMA foreign_keys=OFF")
+    old.execute("INSERT INTO model_roles(role, provider_id, model) VALUES('image', 99, 'z-img')")
+    old.execute("PRAGMA user_version=16")
+    old.commit()
+    old.close()
+
+    conn = db.connect(path)
+    rows = {
+        r["role"]: (r["provider_id"], r["model"]) for r in conn.execute("SELECT * FROM model_roles")
+    }
+    assert rows == {"rp": (1, "rp-8b"), "image": (None, None)}
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 17
+    conn.close()
