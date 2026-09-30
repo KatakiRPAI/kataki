@@ -469,3 +469,101 @@ async def test_a_line_nobody_heard_does_not_decide_who_speaks(conn, story, backe
     await play(turns.turn(conn, backend.llm, story, "Mira?"))
     await play(turns.turn(conn, backend.llm, story, "I wonder about the boat.", audience=[]))
     assert seen and all(t is None for t in seen)
+
+
+# --- texting (minds slice 9) ------------------------------------------------------------------
+
+
+def _set(conn, key, value):
+    conn.execute(
+        "INSERT OR REPLACE INTO settings(key, value) VALUES(?, ?)", (key, json.dumps(value))
+    )
+    conn.commit()
+
+
+def _tail(backend) -> str:
+    return backend.requests[-1]["messages"][-1]["content"]
+
+
+def _gen(conn, story) -> dict:
+    return json.loads(chat.active_path(conn, story)[-1]["gen"])
+
+
+async def test_texting_asks_a_length_from_state_and_plans_the_delivery(conn, story, backend):
+    backend.say("the tide turned early tonight\nyou should've seen it")
+    events = await play(turns.turn(conn, backend.llm, story, "Evening, Mira."))
+    assert events[0][1]["texting"] == "light"
+    tail = _tail(backend)
+    assert context.LENGTHS["short"] in tail and context.LENGTHS["medium"] not in tail  # curt line
+    done = events[-1][1]
+    got = done["delivery"]
+    assert got["mode"] == "text" and got["dial"] == "light" and got["length"] == "short"
+    assert [b["text"] for b in got["bursts"]] == [
+        "the tide turned early tonight",
+        "you should've seen it",
+    ]
+    assert all(b["typing_ms"] > 0 and b["delay_ms"] >= 0 for b in got["bursts"])
+    assert _gen(conn, story)["delivery"] == got
+    assert done["text"] == "the tide turned early tonight\nyou should've seen it"
+
+
+async def test_prose_gets_no_bursts(conn, story, backend):
+    backend.say('*Mira sets down the glass.* "Early tide."')
+    done = (await play(turns.turn(conn, backend.llm, story, "Evening, Mira.")))[-1][1]
+    assert done["delivery"]["mode"] == "prose" and done["delivery"]["bursts"] == []
+
+
+@pytest.mark.parametrize("off", ["dial", "feature"])
+async def test_texting_off_is_the_old_turn(conn, story, backend, off):
+    _set(
+        conn,
+        "realism.texting" if off == "dial" else "features.mind.texting",
+        "off" if off == "dial" else False,
+    )
+    backend.say("the tide turned early tonight")
+    events = await play(turns.turn(conn, backend.llm, story, "Evening, Mira."))
+    assert events[0][1]["texting"] is None and events[-1][1]["delivery"] is None
+    assert context.LENGTHS["medium"] in _tail(backend)
+    assert "delivery" not in _gen(conn, story)
+
+
+async def test_the_narrator_keeps_the_settings_length_and_gets_no_delivery(conn, story, backend):
+    backend.say("The tide turns.")
+    events = await play(turns.turn(conn, backend.llm, story, "Hm.", speaker="narrator"))
+    assert events[0][1]["texting"] is None and events[-1][1]["delivery"] is None
+    assert context.LENGTHS["medium"] in _tail(backend)
+
+
+async def test_a_typo_is_display_only_corrected_and_not_too_often(
+    conn, story, backend, monkeypatch
+):
+    from kataki import delivery
+
+    monkeypatch.setattr(delivery, "TYPO_RATE", {"natural": 1.0, "messy": 1.0})
+    _set(conn, "realism.texting", "messy")
+    line = "honestly the harbour was quiet tonight"
+    backend.say(line, line + " again", line + " still", line + " yes")
+    seen, texts = [], []
+    for _ in range(4):
+        done = (await play(turns.turn(conn, backend.llm, story, "Mira, how was the harbour?")))[-1][
+            1
+        ]
+        seen.append(done["delivery"]["typo"])
+        texts.append(done["text"])
+        assert chat.active_path(conn, story)[-1]["text"] == done["text"]
+        assert done["text"].startswith(line)  # the saved reply is clean
+    assert seen[0] is None and seen[1] is None  # never in her first two replies
+    typo = seen[2]
+    assert typo and typo["right"] in texts[2].split() and typo["wrong"] not in texts[2].split()
+    assert seen[3] is None  # and not again soon after
+    bursts = _gen(conn, story)  # the latest reply: no typo, clean bursts
+    assert all(not b.get("typo") for b in bursts["delivery"]["bursts"])
+
+
+async def test_a_delivery_failure_never_breaks_the_turn(conn, story, backend, monkeypatch):
+    from kataki import delivery
+
+    monkeypatch.setattr(delivery, "plan", lambda *a, **k: 1 / 0)
+    backend.say("the tide turned")
+    events = await play(turns.turn(conn, backend.llm, story, "Evening, Mira."))
+    assert events[-1][0] == "done" and events[-1][1]["delivery"] is None

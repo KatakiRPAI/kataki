@@ -264,6 +264,7 @@ def build(
     directive: str = "",
     inside: str = "",
     leaf_id: int | None = None,  # build as of this message (a regenerate); default: active leaf
+    length: str = "",  # the length (and register) words code chose (slice 9); else the setting's
 ) -> Built:
     story = conn.execute("SELECT * FROM stories WHERE id=?", (story_id,)).fetchone()
     ratio = token_ratio(conn, ep.model)
@@ -382,7 +383,7 @@ def build(
     mind_text, mind_clipped = _clip(inside, caps["mind"], ratio)
     if mind_text:
         state.append(mind_text)
-    directive = f"{LENGTHS[reply_length(conn)]} {directive}".strip()
+    directive = f"{(speaker and length) or LENGTHS[reply_length(conn)]} {directive}".strip()
     if speaker:
         state.append(f"[Directive] Reply only as {who}, in English only. {directive}".strip())
     else:
