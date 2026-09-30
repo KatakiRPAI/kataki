@@ -396,3 +396,31 @@ def test_a_turn_without_prices_is_null(local_model):
 def test_an_embed_price_needs_no_output_rate():
     """An embedding writes nothing back, so its price is its input rate alone."""
     assert usage.cost({"e": {"input": 2.0}}, "e", "embed", {"prompt_tokens": 10}) == 2e-5
+
+
+# --- the ledger in whole micro-dollars (B4) ---------------------------------------------------
+
+
+def a_row(model="m", role="rp", prompt=0, cached=0, completion=0):
+    return {
+        "model": model,
+        "role": role,
+        "prompt_tokens": prompt,
+        "cached_tokens": cached,
+        "completion_tokens": completion,
+    }
+
+
+def test_the_ledger_prices_a_row_in_whole_micro_dollars():
+    prices = {"m": {"input": 0.3, "cached": 0.03, "output": 1.2}}
+    # 7 uncached * 0.3 + 3 cached * 0.03 + 5 * 1.2 = 2.1 + 0.09 + 6 = 8.19 micro-dollars
+    assert usage.micros(prices, a_row(prompt=10, cached=3, completion=5)) == 8
+    assert usage.micros({"m": {"input": 0.5, "output": 0}}, a_row(prompt=1)) == 1  # half up
+    # a float sum would drift; exact decimals do not: 0.1 * 3 is 0.3, not 0.30000000000000004
+    assert usage.micros({"m": {"input": 0.1, "output": 0}}, a_row(prompt=30_000_000)) == 3_000_000
+
+
+def test_the_ledger_prices_speech_by_the_character_and_refuses_no_price():
+    assert usage.micros({"k": {"char": 15.0}}, a_row("k", "voice", prompt=100)) == 1500
+    assert usage.micros({}, a_row(prompt=10)) is None
+    assert usage.micros({"m": {"input": "x"}}, a_row(prompt=10)) is None
