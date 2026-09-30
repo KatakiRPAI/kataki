@@ -128,7 +128,10 @@ def test_accept_reject_lock_are_new_versions(conn, story):
     assert inner.profile(conn, mira)["axes"]["warmth"][0] == 50  # the drift went with it
     old = conn.execute("SELECT status FROM reflections WHERE id=?", (seed,)).fetchone()[0]
     assert old == "seed"  # append-only
-    locked = growth.act(conn, r["id"], "lock")
+    with pytest.raises(LookupError):  # rejected stays rejected (§6 rule 6): accept it first
+        growth.act(conn, r["id"], "lock")
+    assert inner.profile(conn, mira)["axes"]["warmth"][0] == 50
+    locked = growth.act(conn, growth.act(conn, r["id"], "accept"), "lock")
     assert growth.current(conn, mira, path)[0]["id"] == locked
     with pytest.raises(ValueError):
         growth.act(conn, locked, "delete")
@@ -531,8 +534,9 @@ def test_accept_reject_lock_through_the_api(conn, cards, api):
     assert rejected["status"] == "rejected" and rejected["trait"]["delta"] == 2
     assert inner.profile(conn, mira)["axes"]["warmth"][0] == 50
     assert peek(conn, story)["growth"]["drift"] == []
-    locked = api.post(f"/reflections/{rejected['id']}", json={"action": "lock"}).json()
-    assert locked["status"] == "locked"
+    refused = api.post(f"/reflections/{rejected['id']}", json={"action": "lock"})
+    assert refused.status_code == 409 and "accept it first" in refused.json()["detail"]
+    assert peek(conn, story)["growth"]["drift"] == []
     assert api.post(f"/reflections/{rid}", json={"action": "lock"}).status_code == 409  # stale
     assert api.post("/reflections/9999", json={"action": "lock"}).status_code == 404
     assert api.post(f"/reflections/{rid}", json={"action": "erase"}).status_code == 422

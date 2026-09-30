@@ -194,6 +194,8 @@ def act(conn: sqlite3.Connection, reflection_id: int, action: str) -> int:
     path = chat.active_path(conn, r["story_id"])
     if reflection_id not in {x["id"] for x in current(conn, r["knower_id"], path)}:
         raise LookupError("that reflection is not current on this branch")
+    if action == "lock" and r["status"] == "rejected":  # the user's no stands (§6 rule 6)
+        raise LookupError("it was rejected: accept it first")
     last = conn.execute(
         "SELECT MAX(story_time) FROM messages WHERE story_id=?", (r["story_id"],)
     ).fetchone()[0]
