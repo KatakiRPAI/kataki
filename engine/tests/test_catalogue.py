@@ -31,6 +31,7 @@ def test_a_bare_id_is_filed_by_its_name():
     assert describe({"id": "Sao10K/L3-8B-Stheno-v3.2"}) == {
         "id": "Sao10K/L3-8B-Stheno-v3.2",
         "params_b": 8,
+        "unfiltered": True,
         "kinds": ["chat", "roleplay", "small"],
     }
     assert describe({"id": "deepseek-ai/DeepSeek-R1"})["kinds"] == ["chat", "reasoning"]
@@ -92,6 +93,41 @@ def test_llama_cpp_says_the_loaded_models_size_and_context():
     assert m == {"id": "qwen", "context": 32768, "params_b": 8.95, "kinds": ["chat", "small"]}
 
 
+def test_unfiltered_is_what_the_server_says_or_the_id_names_and_never_a_guess():
+    def unfiltered(raw):
+        return describe(raw).get("unfiltered")
+
+    # OpenRouter says whether it moderates in front of the model
+    assert unfiltered({"id": "vendor/base", "top_provider": {"is_moderated": False}}) is True
+    assert unfiltered({"id": "vendor/base", "top_provider": {"is_moderated": True}}) is None
+    assert unfiltered({"id": "vendor/base", "top_provider": {"is_moderated": None}}) is None
+    for named in [
+        "cognitivecomputations/dolphin-mistral-24b-venice-edition",
+        "huihui-ai/Qwen3-8B-abliterated",
+        "mlabonne/gemma-3-27b-it-abliteration",
+        "p-e-w/gemma-3-12b-it-heretic",
+        "someone/Llama-3-8B-Uncensored",
+        "someone/story-nsfw-12b",
+        "Sao10K/L3-8B-Stheno-v3.2",
+        "anthracite-org/magnum-v4-72b",
+        "thedrummer/rocinante-12b",
+        "neversleep/llama-3-lumimaid-70b",
+    ]:
+        assert unfiltered({"id": named}) is True, named
+    # a plain base model is never tagged by its name; nor is one only filed under roleplay
+    for base in [
+        "meta-llama/Llama-3.3-70B-Instruct",
+        "Qwen/Qwen3.8-27B",
+        "openai/gpt-5-mini",
+        "mistralai/Mistral-Nemo-Instruct-2407",
+        "nousresearch/hermes-4-70b",
+        "latitudegames/wayfarer-large-70b",
+        "fake",
+    ]:
+        assert "unfiltered" not in describe({"id": base}), base
+
+
 def test_a_malformed_listing_never_breaks_the_picker():
     junk = {"id": 7, "architecture": "?", "pricing": [], "providers": ["x"], "created": "soon"}
+    junk["top_provider"] = "?"
     assert describe(junk) == {"id": "7", "kinds": ["chat"]}

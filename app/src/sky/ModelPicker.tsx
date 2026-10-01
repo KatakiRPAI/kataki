@@ -68,17 +68,18 @@ function Picker({ title, value, providers, job, none, onPick, onClose }: {
   const [fits, setFits] = useState(!!job)
   const [where, setWhere] = useState<'local' | 'online'>()
   const [pid, setPid] = useState<number>()
+  const [unfiltered, setUnfiltered] = useState(false)
   const [sort, setSort] = useState('listed')
   const [active, setActive] = useState(0)
-  useEffect(() => setActive(0), [q, kind, fits, where, pid, sort])
+  useEffect(() => setActive(0), [q, kind, fits, where, pid, unfiltered, sort])
 
   const { counts, found } = useMemo(() => {
     const words = q.toLowerCase().split(/\s+/).filter(Boolean)
     const base = (rows ?? []).filter((m) => (!fits || m.kinds.includes(job === 'embed' ? 'embedding' : 'chat')) && (!where || m.local === (where === 'local'))
-      && (pid === undefined || m.provider.id === pid) && words.every((w) => m.hay.includes(w)))
+      && (pid === undefined || m.provider.id === pid) && (!unfiltered || m.unfiltered) && words.every((w) => m.hay.includes(w)))
     const counts = Object.fromEntries(KINDS.map((k) => [k, base.filter((m) => m.kinds.includes(k)).length])) as Record<Kind, number>
     return { counts: { ...counts, all: base.length }, found: (kind ? base.filter((m) => m.kinds.includes(kind)) : base).sort(SORTS[sort]) }
-  }, [rows, q, kind, fits, where, pid, sort, job])
+  }, [rows, q, kind, fits, where, pid, unfiltered, sort, job])
 
   const is = (m: Row) => value?.provider_id === m.provider.id && value.model === m.id
   // what Enter and the arrows walk: the default (if there is one), a choice no connection lists now, then the list
@@ -121,6 +122,7 @@ function Picker({ title, value, providers, job, none, onPick, onClose }: {
             {job && <K.Chip size="sm" icon="filter" pressed={fits} onPress={setFits}>{t('mp.fits', { job: t(`mo.job.${job}` as Key) })}</K.Chip>}
             {mixed && (['local', 'online'] as const).map((w) => <K.Chip key={w} size="sm" pressed={where === w} onPress={(on) => setWhere(on ? w : undefined)}>{t(`mp.${w}`)}</K.Chip>)}
             {conns.length > 1 && conns.map((p) => <K.Chip key={p.id} size="sm" icon={local(p.base_url) ? 'server' : 'globe'} pressed={pid === p.id} onPress={(on) => setPid(on ? p.id : undefined)}>{p.name}</K.Chip>)}
+            {all.some((m) => m.unfiltered) && <span title={t('mp.unfilteredHint')}><K.Chip size="sm" pressed={unfiltered} onPress={setUnfiltered}>{t('mp.unfiltered')}</K.Chip></span>}
             <label className="mp-sort">
               <span className="t-meta">{t('mp.sort')}</span>
               <K.Select options={sorts.map(([, l]) => l)} value={sorts.find(([s]) => s === sort)?.[1]} onChange={(v) => setSort(sorts.find(([, l]) => l === v)?.[0] ?? 'listed')} />
@@ -153,6 +155,7 @@ function Tags({ m }: { m: Row }) {
         <span title={t('mp.tag.priceHint')}><K.Tag>{m.input + m.output ? t('mp.tag.price', { input: dollars(m.input), output: dollars(m.output) }) : t('mp.tag.free')}</K.Tag></span>
       )}
       {m.kinds.includes('roleplay') && <K.Tag tone="warm">{t('mp.kind.roleplay')}</K.Tag>}
+      {m.unfiltered && <span title={t('mp.unfilteredHint')}><K.Tag tone="warm">{t('mp.unfiltered')}</K.Tag></span>}
       {m.kinds.includes('reasoning') && <K.Tag tone="accent">{t('mp.tag.thinks')}</K.Tag>}
       {(['vision', 'image', 'voice', 'embedding'] as const).filter((k) => m.kinds.includes(k)).map((k) => <K.Tag key={k}>{t(`mp.kind.${k}`)}</K.Tag>)}
       {m.hosts && m.hosts.length > 1 && <span title={m.hosts.join(', ')}><K.Tag>{t('mp.tag.hosts', { n: m.hosts.length })}</K.Tag></span>}

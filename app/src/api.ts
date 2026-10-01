@@ -32,6 +32,8 @@ export type ModelInfo = {
   hosts?: string[]
   created?: number
   last_used?: string
+  /** No content filter on top of the model; left out when that isn't known. */
+  unfiltered?: true
 }
 
 export type RoleRow = {
