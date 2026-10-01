@@ -224,8 +224,10 @@ button.k-addcard { background: transparent; font: inherit; font-size: 12.5px; fo
 .txt__typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--scene-muted); animation: txt-dot 1.2s infinite ease-in-out; }
 .txt__typing i:nth-child(2) { animation-delay: .15s; }
 .txt__typing i:nth-child(3) { animation-delay: .3s; }
-@keyframes txt-dot { 0%, 60%, 100% { opacity: .35; transform: none; } 30% { opacity: 1; transform: translateY(-3px); } }
-@media (prefers-reduced-motion: reduce) { .txt__typing i { animation: none; opacity: .7; } }
+@keyframes txt-dot { 0%, 60%, 100% { opacity: .35; transform: none; } 30% { opacity: 1; transform: translateY(var(--txt-hop, -4px)); } }
+/* reduced motion (Settings → Motion, or the system's): the dots stay put and only pulse, so
+   "typing…" still reads as alive; this outranks the blanket 0s on [data-motion="reduce"] * below */
+[data-motion="reduce"] .txt__typing i { --txt-hop: 0; animation-duration: 1.2s !important; }
 .wcell { position: relative; }
 .wcell.is-edit { cursor: grab; touch-action: none; }
 .wcell.is-picked { outline: 2px solid var(--scene-primary); outline-offset: 3px; border-radius: 24px; }

@@ -652,6 +652,42 @@ async def test_a_texting_story_with_the_dial_off_still_gets_bubbles_but_no_pace(
     assert all(b["delay_ms"] == 0 and b["typing_ms"] == 0 for b in got["bursts"])
 
 
+async def test_a_text_is_handed_over_before_the_side_call(conn, story, backend, side_call):
+    # the side call once took two minutes, and the thread showed "typing…" until it was done
+    _texting(conn, story)
+    labels = {"felt": {"label": "calm", "intensity": 1, "about": None, "cause": ""},
+              "events": [], "position": None, "yielded": False, "face": "neutral"}  # fmt: skip
+    backend.say("the tide turned early\nyou should've seen it", json.dumps(labels))
+    seen = []
+    async for kind, value in turns.turn(conn, backend.llm, story, "Evening, Mira."):
+        seen.append((kind, value, len(backend.requests)))
+    early, done = next(s for s in seen if s[0] == "delivery"), seen[-1]
+    assert early[2] == 1 and done[0] == "done" and done[2] == 2  # before the side call is asked
+    assert early[1]["message_id"] == done[1]["message_id"]
+    assert early[1]["delivery"] == done[1]["delivery"] and early[1]["delivery"]["mode"] == "text"
+
+
+async def test_prose_is_not_handed_over_early(conn, story, backend):
+    backend.say('*Mira sets down the glass.* "Early tide."')
+    events = await play(turns.turn(conn, backend.llm, story, "Evening, Mira."))
+    assert "delivery" not in [kind for kind, _ in events]
+
+
+async def test_a_texting_story_drops_a_bare_sound_sent_as_a_message(conn, story, backend):
+    _texting(conn, story)
+    backend.say("m  \nwell, the tide turned early")
+    done = (await play(turns.turn(conn, backend.llm, story, "Evening, Mira.")))[-1][1]
+    assert done["text"] == "well, the tide turned early"
+    assert [b["text"] for b in done["delivery"]["bursts"]] == ["well, the tide turned early"]
+    assert path(conn, story)[-1][2] == "well, the tide turned early"
+
+
+async def test_an_in_person_story_keeps_a_hum(conn, story, backend):
+    backend.say("Mm.\nThe tide turned early.")
+    done = (await play(turns.turn(conn, backend.llm, story, "Evening, Mira.")))[-1][1]
+    assert done["text"] == "Mm.\nThe tide turned early."
+
+
 # --- voice (minds slice 10) -------------------------------------------------------------------
 
 

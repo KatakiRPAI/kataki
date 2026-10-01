@@ -44,3 +44,18 @@ export function pacer(show: (text: string) => void, cps: number) {
     },
   }
 }
+
+const TYPED = 400 // ms a bubble shows "typing…" at least, so bubbles never land together
+
+/** When a text reply's bubbles show (a Texting story): before each a pause, then "typing…".
+ *  The time the model already took (`spent`) comes off the plan from the front, so a slow reply
+ *  is not followed by more pretend typing. A plan with no pace (the dial off) stays instant. */
+export function paced(bursts: { delay_ms: number; typing_ms: number }[], spent: number) {
+  return bursts.map((b) => {
+    const pause = Math.max(0, b.delay_ms - spent)
+    spent = Math.max(0, spent - b.delay_ms)
+    const typing = b.typing_ms ? Math.max(TYPED, b.typing_ms - spent) : 0
+    spent = Math.max(0, spent - b.typing_ms)
+    return { pause, typing }
+  })
+}
