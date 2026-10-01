@@ -216,7 +216,7 @@ export default function Scene() {
   /** Your line is written first; only the reply waits for a model (SCENE.md › A turn). */
   const send = async (text: string, extra: { skip?: string; queued?: Waiting } = {}) => {
     const line = text.trim()
-    if (live) {
+    if (live || play) { // a reply still writing, or its texts still arriving
       if (line) { setQueue((q) => add(q, line, mode)); setDraft(''); setMode(home) }
       return
     }
