@@ -27,6 +27,21 @@ export function read(line: string): Reading {
   return { mode: acts ? 'Do' : 'Say', text, detected }
 }
 
+/** A line cut into its spans with the markers kept, for where the text must stay as typed
+ *  (the composer's highlight layer sits over the very same characters). */
+const MARK = new RegExp(`${ACT.source}|${THINK.source}`, 'g')
+export function spans(line: string): { text: string; as?: 'act' | 'think' }[] {
+  const out: { text: string; as?: 'act' | 'think' }[] = []
+  let at = 0
+  for (const m of line.matchAll(MARK)) {
+    if (m.index > at) out.push({ text: line.slice(at, m.index) })
+    out.push({ text: m[0], as: m[0][0] === '*' ? 'act' : 'think' })
+    at = m.index + m[0].length
+  }
+  if (at < line.length) out.push({ text: line.slice(at) })
+  return out
+}
+
 /** A mode picked from the menu, for this line only. */
 export function force(line: string, mode: Mode): Reading {
   const auto = read(line)

@@ -698,9 +698,14 @@
         h('span', { className: 'k-composer__hear' }, h(AvatarStack, { people: p.hearing || [], size: 22 }), h('b', null, p.hearingText || 'Only Mike will hear this'), p.away ? h('span', { className: 'k-composer__away' }, p.away) : null),
         h('span', { className: 'k-composer__answers' }, h('span', { className: 'k-composer__label' }, 'Answers'),
           (p.answers || []).map(function (a) { return h(Chip, { key: a.id, size: 'sm', icon: a.icon, who: a.who, src: a.src, pressed: a.id === p.answer, onPress: function () { if (p.onAnswer) p.onAnswer(a.id); } }, a.label); }))) : null,
-      h('label', { className: 'k-composer__field' }, h('span', { className: 'k-sr' }, 'Your line'),
+      /* `mirror`: the same text, styled as it will read once sent (*acts*, _thoughts_), laid over a real textarea whose own
+         glyphs are not painted. The textarea keeps the caret, selection, undo, paste, IME and the screen reader; the mirror
+         is aria-hidden and takes no clicks. `reads`: how the whole line will read (think, whisper, narrate…). */
+      h('label', { className: cx('k-composer__field', p.mirror != null && 'has-mirror', p.reads && 'k-composer__field--' + p.reads) }, h('span', { className: 'k-sr' }, 'Your line'),
         h('textarea', { rows: 2, value: v[0], placeholder: p.placeholder || 'Speak or act as Liv…', onChange: function (e) { v[1](e.target.value); },
-          onKeyDown: function (e) { if (p.onKey && p.onKey(e)) return; if (e.key === 'Escape' && p.streaming && p.onStop) { e.preventDefault(); p.onStop(); } else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } } })),
+          onScroll: p.mirror != null ? function (e) { e.currentTarget.nextSibling.scrollTop = e.currentTarget.scrollTop; } : undefined,
+          onKeyDown: function (e) { if (p.onKey && p.onKey(e)) return; if (e.key === 'Escape' && p.streaming && p.onStop) { e.preventDefault(); p.onStop(); } else if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } } }),
+        p.mirror != null ? h('div', { className: 'k-composer__mirror', 'aria-hidden': 'true' }, p.mirror, '​') : null),
       h('div', { className: 'k-composer__bar' },
         h('div', { className: 'k-composer__left' },
           h(Segmented, { label: 'Composer detail', options: ['Simple', 'Advanced'], value: adv[0] ? 'Advanced' : 'Simple', onChange: function (o) { adv[1](o === 'Advanced'); }, tone: 'scene', size: 'sm' }),

@@ -14,9 +14,11 @@ import { classify, err } from '../errors'
 import { Delete, Export } from '../sky/Stories'
 import Backstage from './Backstage'
 import Lines, { Bubbles, type LineActions, type Play } from './Lines'
-import { force, kind, read, type Mode } from './modes'
+import { force, kind, read, spans, type Mode } from './modes'
 import { CharacterCard, FindBar, PassTime, ScenePlace, StorySettings, type Pass } from './Overlays'
+import Queue from './Queue'
 import { later } from './time'
+import { add, type Waiting } from './waiting'
 import { Board, defaults } from './Widgets'
 
 type Live = { speaker: string; speakerId: number | null; text: string; thoughtAt?: number; thinkMs?: number; replacing?: number; rewriting?: number }
@@ -60,7 +62,9 @@ export default function Scene() {
   const [mode, setMode] = useState<Mode>(home)
   const [advanced, setAdvancedState] = useState(kept)
   const [answer, setAnswer] = useState<Answer>('any')
-  const [queue, setQueue] = useState<string[]>([])
+  const [queue, setQueue] = useState<Waiting[]>([]) // lines sent while a reply was writing; kept in this window only
+  const [queueEditing, setQueueEditing] = useState<number>() // a waiting line being edited holds the queue
+  const [draining, setDraining] = useState(false)
   const [editing, setEditing] = useState<number>()
   const [open, setOpen] = useState<Open>(null)
   const [card, setCard] = useState<number>()
@@ -102,7 +106,7 @@ export default function Scene() {
   useLayoutEffect(() => {
     const el = lines()
     if (el && follow.current) el.scrollTop = el.scrollHeight
-  }, [data, live?.text, said, failed, play])
+  }, [data, live?.text, said, failed, play, queue, queueEditing])
   useEffect(() => {
     const el = lines()
     if (!el) return
@@ -195,37 +199,41 @@ export default function Scene() {
   const narrow = useNarrow(1024) // R4: the header folds, the widgets go behind "Here"
   const present = data?.cast.entities.filter((e) => e.is_ai && e.kind === 'character' && e.present) ?? []
   /** Your line is written first; only the reply waits for a model (SCENE.md › A turn). */
-  const send = async (text: string, extra: { skip?: string } = {}) => {
+  const send = async (text: string, extra: { skip?: string; queued?: Waiting } = {}) => {
     const line = text.trim()
     if (live) {
-      if (line) { setQueue((q) => [...q, line]); setDraft('') }
+      if (line) { setQueue((q) => add(q, line, mode)); setDraft(''); setMode(home) }
       return
     }
-    const how = force(line, mode)
-    setMode(home)
-    setDraft('')
+    const was = extra.queued // a waiting line goes out as it was sent, and leaves what you are typing now alone
+    const how = force(line, was?.mode ?? mode)
+    if (!was) { setMode(home); setDraft('') }
     const lead = typeof speaker === 'number' ? speaker : present[0]?.id
     const audience = how.mode === 'Think' ? [] : how.mode === 'Whisper' ? (lead ? [lead] : []) : null
     if (how.mode === 'Think') {
       try {
         await api(`/stories/${id}/line`, 'POST', { text: how.text, audience: [], skip: extra.skip ?? null })
       } catch {
-        setDraft(line) // it stays in the composer until it can be written
+        if (was) { setQueue((q) => [was, ...q]); setQueueEditing(was.id) } // back at the front, held open
+        else setDraft(line) // it stays in the composer until it can be written
         const e = err('LINE_SAVE_FAILED')
-        toast(e.title, { icon: 'alert', action: e.actions[0], onAction: () => send(line, extra) }, 10000)
+        toast(e.title, was ? { icon: 'alert' } : { icon: 'alert', action: e.actions[0], onAction: () => send(line, extra) }, 10000)
       }
       return reload()
     }
     if (how.text) setSaid({ text: how.text, mode: how.mode === 'Narrate' || !persona ? 'narrate' : how.mode === 'Whisper' ? 'whisper' : undefined })
     await generate(`/stories/${id}/turn`, { text: how.text || null, speaker, audience, skip: extra.skip ?? null, narrate: how.mode === 'Narrate' })
   }
-  // Lines typed while a reply was writing go out in order, one turn each.
+  // Lines sent while a reply was writing go out in order, one turn each, once the reply has
+  // finished (and played out, in a Texting story). They wait while one of them is being edited,
+  // and while the model can't be reached.
   useEffect(() => {
-    if (live || !queue.length) return
+    if (live || play || failed || draining || queueEditing !== undefined || !queue.length) return
     const [next, ...rest] = queue
     setQueue(rest)
-    send(next)
-  }, [live, queue]) // eslint-disable-line react-hooks/exhaustive-deps
+    setDraining(true)
+    send(next.text, { queued: next }).finally(() => setDraining(false))
+  }, [live, play, failed, draining, queueEditing, queue]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!failed || live || !['REPLY_UNREACHABLE', 'API_UNREACHABLE', 'API_RATE_LIMITED'].includes(classify(failed))) return
@@ -402,6 +410,12 @@ export default function Scene() {
     : t('scene.placeholder', { persona: who })
   const reading1 = read(draft)
   const detected = mode === 'Auto' ? reading1.detected : ''
+  // how the whole line will read, for the composer's own styling; "act" = Do picked for a line with no *asterisks* of its own
+  const forced = force(draft, mode)
+  const reads = forced.mode === 'Do' && forced.text !== draft.trim() ? 'act' : forced.mode.toLowerCase()
+  const pickMode = (at: Element, now: Mode, pick: (m: Mode) => void) => openMenu(at, (['Auto', 'Say', 'Do', 'Whisper', 'Think', 'Narrate'] as Mode[]).map((m) => ({
+    label: t(`mode.${m.toLowerCase()}` as 'mode.auto'), detail: t(`mode.${m.toLowerCase()}Sub` as 'mode.autoSub'), checked: m === now, onSelect: () => pick(m),
+  })), t('mode.label'))
   const heard = mode === 'Think' || reading1.mode === 'Think' ? [] : present
   const answers = [
     { id: 'any', label: t('scene.answers.any'), icon: 'users' as const },
@@ -486,9 +500,8 @@ export default function Scene() {
               <K.Composer value={draft} onChange={setDraft} onSend={(v: string) => send(v)} placeholder={placeholder} onKey={onKey}
                 streaming={!!live} onStop={() => controller.current?.abort()} onContinue={() => send('')} onPassTime={() => setOpen('pass')}
                 advanced={advanced} onAdvanced={setAdvanced} mode={mode === 'Auto' ? t('mode.auto') : mode} detected={detected}
-                onMode={(e: { currentTarget: Element }) => openMenu(e.currentTarget, (['Auto', 'Say', 'Do', 'Whisper', 'Think', 'Narrate'] as Mode[]).map((m) => ({
-                  label: t(`mode.${m.toLowerCase()}` as 'mode.auto'), detail: t(`mode.${m.toLowerCase()}Sub` as 'mode.autoSub'), checked: m === mode, onSelect: () => setMode(m),
-                })), t('mode.label'))}
+                onMode={(e: { currentTarget: Element }) => pickMode(e.currentTarget, mode, setMode)}
+                reads={reads} mirror={spans(draft).map((s, i) => (s.as ? <em key={i} className={`k-${s.as}`}>{s.text}</em> : s.text))}
                 queued={queue.length ? t('composer.queued', { n: queue.length }) : undefined}
                 hearing={heard.map((e) => ({ ...face(item(e), e.name) }))}
                 hearingText={heard.length ? t('scene.hearing', { names: new Intl.ListFormat('en').format(heard.map((e) => e.name)) }) : t('mode.thinkSub')}
@@ -538,6 +551,8 @@ export default function Scene() {
                   </div>
                 )
               })()}
+              <Queue queue={queue} set={setQueue} editing={queueEditing} onEditing={setQueueEditing} name={persona} texting={texting} pickMode={pickMode}
+                to={(typeof speaker === 'number' ? present.find((e) => e.id === speaker) : present[0])?.name} />
             </K.ChatPanel>
             {below && (
               <button type="button" className="k-scenechip jump" onClick={() => { follow.current = true; const el = lines(); if (el) el.scrollTop = el.scrollHeight }}>

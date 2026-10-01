@@ -4,6 +4,8 @@
 @font-face { font-family: Figtree; src: url('./Figtree-Italic-Variable.ttf') format('truetype'); font-weight: 300 900; font-style: italic; font-display: swap; }
 @font-face { font-family: Newsreader; src: url('./Newsreader-Variable.ttf') format('truetype'); font-weight: 200 800; font-display: swap; }
 @font-face { font-family: Newsreader; src: url('./Newsreader-Italic-Variable.ttf') format('truetype'); font-weight: 200 800; font-style: italic; font-display: swap; }
+/* The upright face alone, so an italic in it is a synthesised slant with the upright's own widths (the composer's mirror). */
+@font-face { font-family: 'Newsreader Slant'; src: url('./Newsreader-Variable.ttf') format('truetype'); font-weight: 200 800; font-display: swap; }
 @font-face { font-family: 'JetBrains Mono'; src: url('./JetBrainsMono-Variable.ttf') format('truetype'); font-weight: 100 800; font-display: swap; }
 /* Arabic (R2, R3): the faces tokens.css names after the Latin ones */
 @font-face { font-family: 'Baloo Bhaijaan 2'; src: url('./BalooBhaijaan2-Variable.ttf') format('truetype'); font-weight: 400 800; font-display: swap; }
