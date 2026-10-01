@@ -19,6 +19,21 @@ export type Kind = 'auto' | 'reasoning' | 'standard'
 
 export type Provider = { id: number; name: string; base_url: string; has_key: boolean }
 
+/** One model a connection lists, and what is known about it (`GET /providers/{id}/models` › `info`):
+ *  what its server says, else what its id says. Prices are dollars per million tokens. */
+export type ModelInfo = {
+  id: string
+  kinds: ('chat' | 'roleplay' | 'reasoning' | 'small' | 'vision' | 'image' | 'voice' | 'embedding')[]
+  name?: string
+  context?: number
+  params_b?: number
+  input?: number
+  output?: number
+  hosts?: string[]
+  created?: number
+  last_used?: string
+}
+
 export type RoleRow = {
   role: string
   provider_id: number | null

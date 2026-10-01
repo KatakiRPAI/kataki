@@ -6,10 +6,10 @@ import { useLoad } from '../../hooks'
 import { Overlay, toast, openMenu, withMenu, type MenuItem } from '../../overlay'
 import { t, type Key } from '../../strings'
 import { classify, err } from '../../errors'
+import { ModelPicker, type Job } from '../ModelPicker'
 
 type Test = { ok: boolean; ms?: number; error?: string; models?: string[] }
-const JOBS = ['rp', 'narrator', 'utility', 'reasoning', 'embed'] as const
-type Job = (typeof JOBS)[number]
+const JOBS: Job[] = ['rp', 'narrator', 'utility', 'reasoning', 'embed']
 const ABOVE: Partial<Record<Job, Job>> = { narrator: 'rp', utility: 'rp', reasoning: 'utility' }
 
 async function test(p: Provider): Promise<Test> {
@@ -135,7 +135,6 @@ function JobPanel({ job, row, providers, onSaved }: { job: Job; row: RoleRow; pr
   const [model, setModel] = useState(row.model ?? '')
   const [params, setParams] = useState<Record<string, unknown>>(row.params ?? {})
   const body = (params.body ?? {}) as Record<string, unknown>
-  const [models] = useLoad(() => (pid ? api<{ models: string[] }>(`/providers/${pid}/models`).then((m) => m.models, () => []) : Promise.resolve([])), [pid])
   const setBody = (k: string, v: unknown) => setParams((p) => ({ ...p, body: { ...((p.body ?? {}) as object), [k]: v === '' || v === undefined ? undefined : v } }))
   const num = (k: string) => (body[k] === undefined ? '' : String(body[k]))
   const save = async () => {
@@ -148,11 +147,8 @@ function JobPanel({ job, row, providers, onSaved }: { job: Job; row: RoleRow; pr
     <div className="mo-job">
       {borrows && <K.Checkbox label={t('mo.borrow')} checked={inherit} onChange={setInherit} />}
       {!inherit && (
-        <div className="mo-grid">
-          <K.Select label={t('mo.connection')} options={providers.map((p) => p.name)} value={providers.find((p) => p.id === pid)?.name}
-            onChange={(v) => setPid(providers.find((p) => p.name === v)?.id ?? null)} />
-          <K.Select label={t('mo.model')} options={[...new Set([model, ...(models ?? [])].filter(Boolean))]} value={model} onChange={setModel} />
-        </div>
+        <ModelPicker label={t('mo.model')} job={job} providers={providers} value={pid && model ? { provider_id: pid, model } : null}
+          onChange={(v) => { if (v) { setPid(v.provider_id); setModel(v.model) } }} />
       )}
       {job !== 'embed' && (
         <>
@@ -238,7 +234,7 @@ function AddApi({ onClose, onAdded }: { onClose: () => void; onAdded: () => void
         {made && made.models.length > 0 && (
           <>
             <K.StatusLine tone="ok" title={t('api.result', { service: call, n: made.models.length })} />
-            <K.Select label={t('mo.model')} options={made.models} value={model} onChange={setModel} />
+            <ModelPicker label={t('mo.model')} job="rp" providers={[made.provider]} value={model ? { provider_id: made.provider.id, model } : null} onChange={(v) => setModel(v?.model ?? '')} />
           </>
         )}
       </K.Dialog>

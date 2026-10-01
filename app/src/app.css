@@ -259,6 +259,25 @@ button.k-addcard { background: transparent; font: inherit; font-size: 12.5px; fo
 .mo-job { padding: 6px 18px 18px; display: flex; flex-direction: column; gap: 14px; border-bottom: 1px solid var(--hairline); }
 .mo-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .mo-err { padding: 0 16px 14px; }
+
+/* The model picker: a field that opens a dialog of every listed model */
+button.mp-field { width: 100%; font: inherit; font-size: 14px; color: var(--ink); cursor: pointer; text-align: start; }
+button.mp-field:focus-visible { border-color: var(--accent); box-shadow: var(--focus-ring); outline: none; }
+.mp-field__v { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-field .k-icon, .mp-field svg { color: var(--muted); flex: none; }
+.mp { display: flex; flex-direction: column; gap: 12px; padding-bottom: 20px; min-width: 0; }
+.mp-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.mp-sort { margin-inline-start: auto; display: flex; align-items: center; gap: 8px; }
+.mp-sort .k-select { height: 32px; }
+.mp-list { height: min(46vh, 420px); overflow-y: auto; border: 1px solid var(--hairline); border-radius: var(--radius-md); padding: 4px; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+.mp-list:focus-visible { border-color: var(--accent); box-shadow: var(--focus-ring); outline: none; }
+.mp-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 8px 10px; border-radius: var(--radius-md); cursor: pointer; color: var(--mid); }
+.mp-row.is-active { background: var(--over); color: var(--ink); }
+.mp-row[aria-selected="true"] { color: var(--ink); }
+.mp-row__id { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; overflow-wrap: anywhere; }
+.mp-row__tags { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 4px; }
+.mp-row__tags .k-tag { padding: 2px 7px; font-size: 10px; }
+.mp-none { padding: 28px 12px; text-align: center; }
 .sh-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-items: start; }
 button.k-shortrow, button.k-job { width: 100%; background: transparent; border: 0; font: inherit; color: inherit; text-align: start; cursor: pointer; }
 .k-shortrow.is-recording { background: var(--raise); }
