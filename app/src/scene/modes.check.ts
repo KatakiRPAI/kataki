@@ -1,6 +1,6 @@
 // Run with: node app/src/scene/modes.check.ts (Node 24 strips the types).
 import assert from 'node:assert/strict'
-import { force, kind, read } from './modes.ts'
+import { force, kind, read, spans } from './modes.ts'
 
 assert.deepEqual(read('Hello there'), { mode: 'Say', text: 'Hello there', detected: 'Say' })
 assert.equal(read('*waves* Hi').detected, 'Do + Say')
@@ -35,4 +35,12 @@ assert.equal(kind({ speaker_id: null }), 'narrate')
 assert.equal(kind({ speaker_id: 1, audience: [] }), 'think')
 assert.equal(kind({ speaker_id: 1, audience: [2] }), 'whisper')
 assert.equal(kind({ speaker_id: 1, audience: null }), undefined)
+// spans keep every character, markers included, so the composer's highlight lines up with the text
+const typed = "*leans in* that's _interesting_, my_file_name\n> *again*"
+assert.equal(spans(typed).map((s) => s.text).join(''), typed)
+assert.deepEqual(spans("*leans in* that's _interesting_."), [
+  { text: '*leans in*', as: 'act' }, { text: " that's " }, { text: '_interesting_', as: 'think' }, { text: '.' },
+])
+assert.deepEqual(spans('my_file_name *unclosed'), [{ text: 'my_file_name *unclosed' }])
+assert.deepEqual(spans(''), [])
 console.log('modes: ok')

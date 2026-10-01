@@ -589,11 +589,11 @@ body { margin: 0; font-family: var(--font-ui); background: var(--ground); color:
 .k-line__time { font-size: 12px; color: var(--scene-muted); }
 .k-line__spark { display: inline-flex; align-self: center; }
 .k-line__text { margin: 6px 0 0; font-family: var(--font-story); font-size: 19px; line-height: 1.55; color: var(--scene-ink); text-wrap: pretty; }
-.k-line__text em { color: var(--scene-action); }
+.k-line__text em, .k-composer__mirror em { color: var(--scene-action); }
 /* How a line reads: said = plain ink; *acts* italic in the action colour; _thoughts_ dim and
    quiet with a soft tint; a whole thought gets a left rule; a whisper is small and muted;
    narration has no speaker and reads as the story's own prose. */
-.k-line__text em.k-think, .k-bubble em.k-think { color: var(--scene-muted); opacity: .85; font-weight: 300; background: rgba(255,230,200,.06); border-radius: 6px; padding-inline: 4px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.k-line__text em.k-think, .k-bubble em.k-think, .k-composer__mirror em.k-think {color: var(--scene-muted); opacity: .85; font-weight: 300; background: rgba(255,230,200,.06); border-radius: 6px; padding-inline: 4px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 .k-line__how { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-style: italic; color: var(--scene-muted); }
 .k-line--think .k-line__text { font-style: italic; color: var(--scene-muted); opacity: .9; border-inline-start: 2px solid var(--scene-border); padding-inline-start: 12px; }
 .k-line--think .k-line__text em.k-think { background: none; padding: 0; }
@@ -646,6 +646,21 @@ body { margin: 0; font-family: var(--font-ui); background: var(--ground); color:
 .k-composer__field textarea { width: 100%; min-height: 52px; box-sizing: border-box; resize: none; border: 0; background: none; color: var(--scene-ink); font-family: var(--font-story); font-size: 18px; line-height: 1.45; outline: none; padding: 2px 0; }
 .k-composer__field textarea:focus-visible { box-shadow: none; }
 .k-composer__field textarea::placeholder { color: var(--scene-muted); }
+/* The line as it will read once sent, over the textarea (which keeps the caret, selection and IME; only its glyphs are
+   not painted). Nothing here may change a glyph's width or the two layers drift apart: so the slant is synthesised from
+   the upright face ('Newsreader Slant', fonts.css) instead of the true italic, and there is no padding or weight change. */
+.k-composer__field.has-mirror { position: relative; }
+.k-composer__field.has-mirror textarea { display: block; -webkit-text-fill-color: transparent; scrollbar-gutter: stable; }
+.k-composer__field.has-mirror textarea::placeholder { -webkit-text-fill-color: var(--scene-muted); }
+.k-composer__mirror { position: absolute; inset: 0; box-sizing: border-box; padding: 2px 0; overflow: hidden; scrollbar-gutter: stable; pointer-events: none; white-space: pre-wrap; overflow-wrap: break-word; color: var(--scene-ink); font-family: 'Newsreader Slant', var(--font-story); font-size: 18px; line-height: 1.45; }
+.k-composer__mirror em.k-think { padding: 0; font-weight: inherit; }
+.k-composer__field--think .k-composer__mirror { font-style: italic; color: var(--scene-muted); }
+.k-composer__field--think .k-composer__mirror em.k-think { background: none; }
+.k-composer__field--whisper .k-composer__mirror { color: var(--scene-muted); }
+.k-composer__field--act .k-composer__mirror { font-style: italic; color: var(--scene-action); }
+.k-composer__field--narrate .k-composer__mirror { color: var(--scene-action); }
+[dir="rtl"] .k-composer__mirror, [dir="rtl"] .k-composer__mirror em { font-style: normal; }
+@media (forced-colors: active) { .k-composer__field.has-mirror textarea { -webkit-text-fill-color: currentColor; } .k-composer__mirror { display: none; } }
 .k-composer:focus-within { border-color: var(--scene-primary); }
 .k-composer__bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .k-composer__left, .k-composer__right { display: flex; align-items: center; gap: 8px; }

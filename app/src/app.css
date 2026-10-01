@@ -137,6 +137,11 @@ button.k-addcard { background: transparent; font: inherit; font-size: 12.5px; fo
 .smenu .k-menu__item{width:100%}
 .hid{display:flex;align-items:center;gap:10px;margin:6px 0 10px;padding:8px 12px;border-radius:12px;border:1px dashed var(--scene-border);color:var(--scene-muted);font-size:12.5px}
 .hid button{margin-inline-start:auto;background:transparent;border:0;color:var(--scene-action);font:inherit;font-weight:700;cursor:pointer}
+/* Lines waiting to send (scene/Queue.tsx): each as it will read, set apart by a dashed edge, with its own tools */
+.queue .k-line{border:1px dashed var(--scene-border);margin-block:4px}
+.queue__tools{display:inline-flex;flex-wrap:wrap;gap:6px}
+.queue__tools .k-scenechip{height:28px}
+.txt--me .queue__tools{margin-inline-start:auto}
 .dots{position:absolute;inset:0;z-index:15;background-image:radial-gradient(rgba(255,206,150,.22) 1px,transparent 1.2px);background-size:24px 24px;pointer-events:none}
 .editbar{position:absolute;inset-inline:320px;top:16px;z-index:25;display:flex;align-items:center;gap:14px;padding:10px 12px 10px 18px;border-radius:18px;background:var(--scene-card);border:1px solid var(--scene-border);box-shadow:0 20px 50px rgba(0,0,0,.45)}
 .addw{position:absolute;z-index:25;width:300px;padding:8px;border-radius:18px;background:var(--scene-card);border:1px solid var(--scene-border);box-shadow:0 20px 50px rgba(0,0,0,.45)}
