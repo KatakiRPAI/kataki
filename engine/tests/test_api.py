@@ -99,12 +99,23 @@ def test_probing_a_role_records_what_kind_of_model_it_is(api, story, backend):
     assert table["reasoning"]["effective_kind"] == "reasoning"
 
 
-def test_listing_a_providers_models(api, backend):
+def test_the_listing_carries_the_librarys_price_and_when_a_model_was_last_used(api, backend, conn):
     import httpx2
 
-    backend.say(httpx2.Response(200, json={"data": [{"id": "a"}, {"id": "b"}]}))
+    priced = {"id": "a", "pricing": {"prompt": "0.000001", "completion": "0"}}
+    backend.say(httpx2.Response(200, json={"data": [priced, {"id": "b"}, "junk"]}))
     pid = api.post("/providers", json={"name": "local", "base_url": "http://fake/v1"}).json()["id"]
-    assert api.get(f"/providers/{pid}/models").json() == {"models": ["a", "b"]}
+    conn.execute(
+        "INSERT INTO settings(key, value) VALUES('prices', ?)",
+        ('{"a": {"input": 3, "output": 9}}',),
+    )
+    conn.execute("INSERT INTO usage_log(role, model, at) VALUES('rp', 'b', '2026-10-01 10:00:00')")
+    got = api.get(f"/providers/{pid}/models").json()
+    assert got["models"] == ["a", "b"]
+    assert got["info"] == [
+        {"id": "a", "input": 3, "output": 9, "kinds": ["chat"]},
+        {"id": "b", "last_used": "2026-10-01 10:00:00", "kinds": ["chat"]},
+    ]
 
 
 def test_every_route_needs_the_token(conn, backend):

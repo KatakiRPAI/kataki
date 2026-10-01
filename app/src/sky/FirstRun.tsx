@@ -12,6 +12,7 @@ import { t, type Key } from '../strings'
 import { ImportCards } from './Characters'
 import { Crop, type Picture } from './Crop'
 import { openFeedback } from './Feedback'
+import { ModelPicker } from './ModelPicker'
 import Top from './Top'
 import { classify, err } from '../errors'
 
@@ -190,6 +191,7 @@ function Server() {
       </div>
       {state && !unreachable && !state.testing && <K.StatusLine tone={state.tone} title={state.title}>{state.body}</K.StatusLine>}
       {state?.testing && <K.StatusLine title={state.title}><span className="row" style={{ gap: 8 }}><K.Spinner size={14} />{state.body}</span></K.StatusLine>}
+      {state?.provider && state.model && <ModelPicker label={t('fr.model')} job="rp" providers={[state.provider]} value={{ provider_id: state.provider.id, model: state.model }} onChange={(v) => v && setState({ ...state, model: v.model })} />}
       <K.Select label={t('fr.kind')} options={KINDS.map(kindLabel)} value={kindLabel(kind)} onChange={(v) => setKind(KINDS.find((k) => kindLabel(k) === v) ?? 'auto')} hint={t('fr.kindHint')} />
       <K.TextField label={t('fr.key')} optional type="password" icon="key" placeholder={t('fr.keyPlaceholder')} hint={t('fr.keyHint')} value={key} onChange={setKey} />
       <div className="row" style={{ justifyContent: 'space-between' }}>
@@ -211,16 +213,23 @@ function Online() {
   const [key, setKey] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [made, setMade] = useState<{ provider: Provider; model: string; n: number }>()
   const url = service === 'Other' ? address.trim() : SERVICES.find(([s]) => s === service)![2]
+  // a different service, address or key is a different connection: the tested one goes
+  const changed = (set: (v: string) => void) => (v: string) => { if (made) api(`/providers/${made.provider.id}`, 'DELETE').catch(() => {}); setMade(undefined); set(v) }
   const go = async () => {
+    if (made) {
+      await api('/roles/rp', 'PUT', { provider_id: made.provider.id, model: made.model, kind: 'auto', params: {} })
+      return navigate('/welcome/who')
+    }
     setBusy(true)
     setError('')
     let p: Provider | undefined
     try {
       p = await api<Provider>('/providers', 'POST', { name: service === 'Other' ? new URL(url).host : service, base_url: url, api_key: key.trim() })
       const { models } = await api<{ models: string[] }>(`/providers/${p.id}/models`)
-      await api('/roles/rp', 'PUT', { provider_id: p.id, model: models[0], kind: 'auto', params: {} })
-      navigate('/welcome/who')
+      await api('/roles/rp', 'PUT', { provider_id: p.id, model: models[0], kind: 'auto', params: {} }) // a first pick, so going on works even if the list is left alone
+      setMade({ provider: p, model: models[0], n: models.length })
     } catch (e) {
       if (p) await api(`/providers/${p.id}`, 'DELETE').catch(() => {})
       setError(err(classify((e as Error).message, true), { service: service === 'Other' ? t('fr.otherService') : service }).body)
@@ -231,14 +240,19 @@ function Online() {
   return (
     <Form icon="globe" title={t('fr.online')}>
       <K.Callout tone="warm" title={t('api.privacy')}>{t('fr.onPrivacy')}</K.Callout>
-      <K.RadioGroup label={t('api.service')} value={service} onChange={setService}
+      <K.RadioGroup label={t('api.service')} value={service} onChange={changed(setService)}
         options={SERVICES.map(([v, l]) => ({ value: v, label: t(l as 'api.openrouter'), description: v === 'OpenRouter' ? t('fr.openrouterSub') : v === 'Other' ? t('fr.otherSub') : undefined }))} />
-      {service === 'Other' && <K.TextField label={t('api.address')} icon="link" value={address} onChange={setAddress} placeholder="https://…/v1" />}
-      <K.TextField label={t('api.key')} required type="password" icon="key" value={key} onChange={setKey} error={error || undefined} />
-      <K.Select label={t('fr.model')} options={[t('fr.modelWait')]} hint={t('fr.modelHint')} disabled />
+      {service === 'Other' && <K.TextField label={t('api.address')} icon="link" value={address} onChange={changed(setAddress)} placeholder="https://…/v1" />}
+      <K.TextField label={t('api.key')} required type="password" icon="key" value={key} onChange={changed(setKey)} error={error || undefined} />
+      {made ? (
+        <>
+          <K.StatusLine tone="ok" title={t('fr.keyWorks')}>{t('fr.keyWorksBody', { n: made.n })}</K.StatusLine>
+          <ModelPicker label={t('fr.model')} hint={t('fr.modelHint')} job="rp" providers={[made.provider]} value={{ provider_id: made.provider.id, model: made.model }} onChange={(v) => v && setMade({ ...made, model: v.model })} />
+        </>
+      ) : <K.Select label={t('fr.model')} options={[t('fr.modelWait')]} hint={t('fr.modelHint')} disabled />}
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <span className="t-faint">{t('fr.keyStored', { os: KEYCHAIN })}</span>
-        <K.Button variant="primary" loading={busy} disabled={!key.trim() || !url} onClick={go}>{t('fr.testContinue')}</K.Button>
+        <K.Button variant="primary" loading={busy} disabled={!key.trim() || !url} onClick={go}>{t(made ? 'fr.continue' : 'fr.testContinue')}</K.Button>
       </div>
     </Form>
   )

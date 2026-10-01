@@ -455,10 +455,14 @@ class LLM:
         """Record a call's usage the caller measured itself (speech: characters)."""
         self._used(ep, usage)
 
-    async def list_models(self, base_url: str, api_key: str | None) -> list[str]:
+    async def models(self, base_url: str, api_key: str | None) -> list[dict]:
+        """Every model the server lists, as the server describes it (catalogue.describe reads it)."""
         r = await self._send("GET", f"{base_url.rstrip('/')}/models", api_key)
         self._check(r)
-        return [m["id"] for m in r.json().get("data", [])]
+        return [m for m in r.json().get("data", []) if isinstance(m, dict) and m.get("id")]
+
+    async def list_models(self, base_url: str, api_key: str | None) -> list[str]:
+        return [m["id"] for m in await self.models(base_url, api_key)]
 
     async def embed(self, ep: Endpoint, texts: list[str]) -> list[list[float]]:
         body = {"model": ep.model, "input": texts}

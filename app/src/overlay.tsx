@@ -20,7 +20,7 @@ export function Overlay({ onClose, top, at, children }: { onClose: () => void; t
     const first = box.current?.querySelector<HTMLElement>('input:not([disabled]), textarea, select, button:not([aria-label="Close"])')
     first?.focus()
     const on = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
+      if (e.key !== 'Escape' || box.current !== [...document.querySelectorAll('.ov')].at(-1)) return // the top overlay only
       e.preventDefault()
       e.stopPropagation()
       close.current()

@@ -34,6 +34,7 @@ from kataki import (
     between,
     bonds,
     cards,
+    catalogue,
     chat,
     chats,
     clock,
@@ -644,11 +645,25 @@ def create_app(
 
     @app.get("/providers/{pid}/models", dependencies=[Depends(local_only)])
     async def provider_models(pid: int):
+        """The ids a connection lists (`models`), and what is known about each (`info`): what
+        the server says, the library's price where it has one, and when it was last used."""
         p = _row(conn, "SELECT * FROM providers WHERE id=?", (pid,))
         try:
-            return {"models": await llm.list_models(p["base_url"], get_key(p["name"]))}
+            listed = await llm.models(p["base_url"], get_key(p["name"]))
         except LLMError as e:
             raise failed(e) from e
+        prices = host.price_table(conn)
+        used = dict(conn.execute("SELECT model, MAX(at) FROM usage_log GROUP BY model").fetchall())
+        info = []
+        for raw in listed:
+            m = catalogue.describe(raw)
+            ours = prices.get(m["id"])
+            if isinstance(ours, dict) and "input" in ours and "output" in ours:
+                m["input"], m["output"] = ours["input"], ours["output"]
+            if m["id"] in used:
+                m["last_used"] = used[m["id"]]
+            info.append(m)
+        return {"models": [m["id"] for m in info], "info": info}
 
     @app.get("/roles")
     async def list_roles(story_id: int | None = None):

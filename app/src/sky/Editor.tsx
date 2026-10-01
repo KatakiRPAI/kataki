@@ -1,7 +1,7 @@
 // Making and editing a character (F1–F7): docs/handoff/kataki-handoff/SCREENS.md › /characters/new.
 import { useEffect, useRef, useState } from 'react'
 import { useBlocker, useNavigate, useParams } from 'react-router'
-import { api, mediaUrl, upload, type Item, type Pronouns, type Provider, type RoleRow, type StorySummary } from '../api'
+import { api, mediaUrl, upload, type Item, type Pronouns, type RoleRow, type StorySummary } from '../api'
 import { storiesWith } from '../characters'
 import { K } from '../ds'
 import { useLibrary, useLoad, utc, useTitle } from '../hooks'
@@ -10,6 +10,7 @@ import { t, type Key } from '../strings'
 import { err, type Shown } from '../errors'
 import { lines as linesOf } from './Profile'
 import { Crop } from './Crop'
+import { ModelPicker } from './ModelPicker'
 import liv from '../ds/art/liv.png'
 import mike from '../ds/art/mike.png'
 import theo from '../ds/art/theo.png'
@@ -101,13 +102,6 @@ export default function Editor() {
   const others = items.filter((i) => i.kind === 'character' && i.id !== id)
   const places = items.filter((i) => i.kind === 'place' && !i.data.unlisted)
   const rp = roles?.find((r) => r.role === 'rp')?.effective_model
-  // every model a connection offers now ("Only models that are connected now are listed.")
-  const [models] = useLoad(async () => {
-    const providers = await api<Provider[]>('/providers')
-    const all = await Promise.all(providers.map((p) => api<{ models: string[] }>(`/providers/${p.id}/models`).then((m) => m.models.map((x) => [`${p.id}:${x}`, `${p.name} · ${x}`] as [string, string]), () => [])))
-    return all.flat()
-  }, [])
-  const modelOptions: [string, string][] = [['', rp ? t('ed.modelDefault', { model: rp }) : t('ed.modelNone')], ...(models ?? []), ...(f.model && !(models ?? []).some(([k]) => k === f.model) ? [[f.model, f.model.split(':').slice(1).join(':')] as [string, string]] : [])]
   const theirs = item ? storiesWith(item, stories) : []
 
   const save = async () => {
@@ -267,8 +261,9 @@ export default function Editor() {
                         )}
                         {s === 'model' && (
                           <>
-                            <K.Select label={t('ed.modelLabel')} hint={t('ed.modelHint')} options={modelOptions.map(([, l]) => l)} value={modelOptions.find(([k]) => k === f.model)?.[1]}
-                              onChange={(v) => set('model', modelOptions.find(([, l]) => l === v)?.[0] ?? '')} />
+                            <ModelPicker label={t('ed.modelLabel')} hint={t('ed.modelHint')} job="rp" none={rp ? t('ed.modelDefault', { model: rp }) : t('ed.modelNone')}
+                              value={f.model ? { provider_id: Number(f.model.split(':')[0]), model: f.model.split(':').slice(1).join(':') } : null}
+                              onChange={(v) => set('model', v ? `${v.provider_id}:${v.model}` : '')} />
                             <K.Segmented label={t('ed.fade')} size="sm" options={FADES.map((x) => (x === 'inherit' ? t('ed.fadeInherit') : t(`fade.${x}` as Key)))}
                               value={f.fade === 'inherit' ? t('ed.fadeInherit') : t(`fade.${f.fade}` as Key)}
                               onChange={(v) => set('fade', FADES.find((x) => (x === 'inherit' ? t('ed.fadeInherit') : t(`fade.${x}` as Key)) === v) ?? 'inherit')} />
