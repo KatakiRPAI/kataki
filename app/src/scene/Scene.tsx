@@ -5,7 +5,7 @@ import { api, stream, type Provider, type RoleRow, type Burst, type Cast, type C
 import { K } from '../ds'
 import { face, scenery, twelve, useLibrary, useLoad, useNarrow, usePoll, useTitle } from '../hooks'
 import { openMenu, Overlay, toast, type MenuItem } from '../overlay'
-import { pacer, SPEEDS, type Speed } from '../pace'
+import { paced, pacer, SPEEDS, type Speed } from '../pace'
 import { pref } from '../prefs'
 import { t } from '../strings'
 import { is, keysOf, parts } from '../shortcuts'
@@ -21,7 +21,7 @@ import { later } from './time'
 import { add, type Waiting } from './waiting'
 import { Board, defaults } from './Widgets'
 
-type Live = { speaker: string; speakerId: number | null; text: string; thoughtAt?: number; thinkMs?: number; replacing?: number; rewriting?: number }
+type Live = { speaker: string; speakerId: number | null; text: string; thoughtAt?: number; thinkMs?: number; replacing?: number; rewriting?: number; shown?: boolean } // shown: a text already playing in the thread
 type Answer = 'any' | 'narrator' | `${number}`
 type Open = 'pass' | 'place' | 'settings' | 'export' | 'delete' | null
 type Skip = { minutes: number; from: string; to: string; line: number; note?: string }
@@ -133,6 +133,20 @@ export default function Scene() {
     setPlay(undefined)
     const started = performance.now()
     let planned: TurnDone | undefined
+    let played: Promise<void> | undefined
+    // A Texting story plays the reply the moment the engine hands it over ("delivery"), while the
+    // engine still reads the exchange; that read once took two minutes of "typing…".
+    const playNow = (sent: Pick<TurnDone, 'message_id' | 'delivery'>) => {
+      const bursts = data?.story.talk === 'text' && !ctl.signal.aborted && sent.delivery?.mode === 'text' ? sent.delivery.bursts : []
+      if (played || !bursts.length) return
+      setPlay({ id: sent.message_id, upto: 0, typing: true })
+      played = reload().then(() => {
+        if (playing.current !== token) return // a newer turn overtook it
+        setSaid(null)
+        setLive((l) => l && { ...l, shown: true })
+        return playOut(sent.message_id, bursts, performance.now() - started, token)
+      })
+    }
     setLive({ speaker: '', speakerId: null, text: '', ...extra })
     const typed = pacer((text) => setLive((l) => l && { ...l, text: l.text + text, thinkMs: l.thinkMs ?? (l.thoughtAt ? performance.now() - l.thoughtAt : undefined) }),
       SPEEDS[prefs?.reply_speed ?? 'normal'] ?? SPEEDS.normal)
@@ -145,6 +159,7 @@ export default function Scene() {
           if (!extra.replacing && !extra.rewriting && meta.skip >= 1440 && meta.parent_id) showSkip(meta.skip, meta.from_date, meta.date, meta.parent_id)
         } else if (kind === 'thought') setLive((l) => l && { ...l, thoughtAt: l.thoughtAt ?? performance.now() })
         else if (kind === 'token') typed.push(value)
+        else if (kind === 'delivery') playNow(value)
         else if (kind === 'done') {
           const done = value as TurnDone
           planned = done
@@ -158,26 +173,26 @@ export default function Scene() {
       typed.flush()
       if (controller.current === ctl) controller.current = null
       if (ctl.signal.aborted) await new Promise((r) => setTimeout(r, 400)) // the engine saves a stopped reply a moment later
-      const bursts = data?.story.talk === 'text' && !ctl.signal.aborted && planned?.delivery?.mode === 'text' ? planned.delivery.bursts : []
-      const still = matchMedia('(prefers-reduced-motion: reduce)').matches
-      if (planned && bursts.length && !still) setPlay({ id: planned.message_id, upto: 0, typing: true })
+      if (planned) playNow(planned) // an engine that hands nothing over early
       await reload()
       setLive(null)
       setSaid(null)
-      if (planned && bursts.length && !still) await playOut(planned.message_id, bursts, performance.now() - started, token)
+      await played
     }
   }
   /** A Texting story's new reply plays as it was planned: for each bubble a pause, "typing…",
-   *  then the bubble. The model's own time counts toward the first. History never plays. */
+   *  then the bubble (with reduced motion too: the order is the message, not an effect). The
+   *  model's own time comes off the plan. History never plays. */
   const playOut = async (id: number, bursts: Burst[], spent: number, token: number) => {
-    const wait = (ms: number) => new Promise((r) => setTimeout(r, Math.max(0, ms)))
-    for (const [i, b] of bursts.entries()) {
-      const pause = i === 0 ? 0 : b.delay_ms // the first one's "typing…" has shown since you sent
-      if (i > 0) setPlay({ id, upto: i, typing: false })
-      await wait(pause)
-      if (playing.current !== token) return
+    const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
+    for (const [i, { pause, typing }] of paced(bursts, spent).entries()) {
+      if (i > 0 && pause) { // the first one's "typing…" has shown since you sent
+        setPlay({ id, upto: i, typing: false })
+        await wait(pause)
+        if (playing.current !== token) return
+      }
       setPlay({ id, upto: i, typing: true })
-      await wait(i === 0 ? b.delay_ms + b.typing_ms - spent : b.typing_ms)
+      await wait(i === 0 ? pause + typing : typing)
       if (playing.current !== token) return
     }
     setPlay(undefined)
@@ -517,9 +532,10 @@ export default function Scene() {
                   <K.ChatLine speaker="user" color="var(--speaker-liv)" name={persona ?? t('scene.narrator')} time="" text=""><Bubbles text={said.text} /></K.ChatLine>
                 </div>
               ) : <K.ChatLine speaker="user" color="var(--speaker-liv)" name={persona ?? t('scene.narrator')} time="" text={said.text} mode={said.mode} />)}
-              {live && texting && (live.speakerId !== null || !live.speaker) ? (
+              {live?.shown ? null : live && texting && (live.speakerId !== null || !live.speaker) ? (
                 <div className="txt">
-                  <K.ChatLine speaker={String(live.speakerId)} color={colour({ role: 'assistant', speaker_id: live.speakerId } as Message)} name={live.speaker || lead?.name || '…'} time="" text="">
+                  <K.ChatLine speaker={String(live.speakerId)} color={colour({ role: 'assistant', speaker_id: live.speakerId } as Message)} name={live.speaker || lead?.name || '…'} time="" text=""
+                    thought={live.thinkMs ? t('scene.thought', { s: Math.max(1, Math.round(live.thinkMs / 1000)) }) : live.thoughtAt ? t('scene.thinking') : undefined}>
                     <Bubbles text="" typing />
                   </K.ChatLine>
                 </div>

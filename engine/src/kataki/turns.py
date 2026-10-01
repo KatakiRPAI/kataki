@@ -906,6 +906,8 @@ async def _generate(
                 logging.getLogger(__name__).warning("thought not read: %s", e)
                 heard = []
         text = _unsign(text, name or "Narrator")
+        if look and look["texting"]:
+            text = delivery.unhum(text)  # "m" is not a message; kept, she would copy herself
         if text and guards:  # whatever went unheld or unchecked: the saved reply keeps no secret
             try:
                 kept, key = honesty.scrub(
@@ -1042,6 +1044,9 @@ async def _generate(
         yield ("error", {"message": "The model returned an empty reply."})
     else:
         now = chat.get_message(conn, message_id)["story_time"]
+        if (gen.get("delivery") or {}).get("mode") == "text":
+            # a text shows only once it is whole: hand it over now, not after the side call
+            yield ("delivery", {"message_id": message_id, "delivery": gen["delivery"]})
         face, side_face = None, False  # the reply is already on screen; its face follows later
         if speaker_id is not None:
             at = time.monotonic()

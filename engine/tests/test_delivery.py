@@ -208,3 +208,13 @@ def test_a_word_or_two_in_asterisks_is_emphasis_not_narration():
         assert delivery.chatty(text, "Mira") and not delivery.marked(text)
     for text in ("*looks away* fine", "*she sighs and turns* ok", "*smiles* hey"):
         assert not delivery.chatty(text, "Mira") and delivery.marked(text)
+
+
+def test_a_bare_sound_is_not_a_text_of_its_own():
+    # the owner's Texting story on Qwen3-235B: "m" as a message of its own, twice in three replies
+    assert delivery.unhum("m  \nwell, the bed's still intact") == "well, the bed's still intact"
+    assert delivery.unhum("you up?\nMm.\ncall me") == "you up?\ncall me"
+    assert delivery.unhum("hmm") == "hmm"  # the whole reply: kept, never an empty one
+    for kept in ("hmm, not sure\nmaybe", "k\nu coming?", "I'm at the bar\nmmm that smells good"):
+        assert delivery.unhum(kept) == kept
+    assert "sound" in delivery.TEXTING  # and the model is told so

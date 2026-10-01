@@ -32,8 +32,19 @@ MOVED = 10  # ponytail: ledger points (trust fallen, closeness risen) that chang
 # a story set to Texting (overrides.talk == "text"): said in [Directive], every reply is a text
 TEXTING = (
     "You are texting on your phone: write only the message you send, the way people text. "
-    "No *actions*, no narration, no quotation marks; a new line is a new message."
+    "No *actions*, no narration, no quotation marks; a new line is a new message. "
+    "Every message says something in words: never a bare sound (mm, hm) as a message of its own."
 )
+# a model told "no *actions*" keeps the grunt that went with one ("*doesn't look up* Mm." in her
+# card's examples became a message of its own: "m"), and then copies itself from the history
+HUM = re.compile(r"\W*h?m+\W*", re.I)
+
+
+def unhum(text: str) -> str:
+    """A Texting reply without the lines that are only a hum ("m", "Mm.", "hmm"). One that is
+    nothing else is kept: never an empty reply."""
+    kept = [ln for ln in text.splitlines() if not HUM.fullmatch(ln)]
+    return "\n".join(kept).strip() or text
 
 
 def _num(x) -> float:
