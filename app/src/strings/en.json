@@ -1531,6 +1531,8 @@
   "mp.fits": "Fits {job}",
   "mp.local": "Local",
   "mp.online": "Online",
+  "mp.unfiltered": "Unfiltered",
+  "mp.unfilteredHint": "No extra content filter on top of the model. The model itself may still refuse or soften.",
   "mp.sort": "Sort",
   "mp.sort.listed": "As listed",
   "mp.sort.name": "Name",

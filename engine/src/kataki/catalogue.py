@@ -35,6 +35,15 @@ _BY_ID = {
         _word("mini", "small", "tiny", "nano", "lite", "flash", "haiku", "instant"), re.I
     ),
 }
+# No content filter on top of the model, as far as its id says: the words makers use for it, and
+# the roleplay finetunes made to write adult scenes. Never a plain base model, never a guess.
+_UNFILTERED = re.compile(
+    _word("erp", "nsfw")
+    + r"|uncensored|abliterat|heretic|sao10k|thedrummer|neversleep|mytho|stheno|euryale"
+    r"|lumimaid|noromaid|magnum|rocinante|cydonia|unslop|fimbulvetr|mag-mell|lunaris|dolphin"
+    r"|celeste|anubis|skyfall",
+    re.I,
+)
 SMALL_B = 10  # billions of parameters: what runs fast, and fits an 8 GB card
 
 
@@ -57,7 +66,8 @@ def _num(x) -> float | None:
 def describe(raw: dict) -> dict:
     """One listed model as the picker shows it: `id` and `kinds` always; `name`, `context`
     (tokens), `params_b`, `input` and `output` ($ per million tokens), `hosts` and `created`
-    when the server says them (or, for size, the id does)."""
+    when the server says them (or, for size, the id does); `unfiltered` (only ever True) when the
+    server says it puts no moderation in front of the model, or the id names it so."""
     mid = str(raw["id"])
     arch = raw.get("architecture") if isinstance(raw.get("architecture"), dict) else {}
     ins, outs = arch.get("input_modalities") or [], arch.get("output_modalities") or []
@@ -96,6 +106,10 @@ def describe(raw: dict) -> dict:
         out["hosts"] = [str(h.get("provider")) for h in hosts if h.get("provider")]
     if _num(raw.get("created")):
         out["created"] = int(raw["created"])
+
+    top = raw.get("top_provider") if isinstance(raw.get("top_provider"), dict) else {}
+    if top.get("is_moderated") is False or _UNFILTERED.search(mid):  # OpenRouter says; else the id
+        out["unfiltered"] = True
 
     kinds = []
     if "text" in outs or (not outs and not named & {"embedding", "image", "voice"}):
