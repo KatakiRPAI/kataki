@@ -1,7 +1,7 @@
-// Signing in to Kataki online (design-brief-3 S1–S2, as amended by the profiles spec: passwords
+// Signing in to Kataki online (design-brief-3 S1–S3, as amended by the profiles spec: passwords
 // are in). Shown instead of the app while nobody is signed in; signing in reloads into the app,
-// at the address the person was on.
-import { useState, type FormEvent } from 'react'
+// at the address the person was on. A mailed link (reset, sign-in) lands here with its token.
+import { useState, type FormEvent, type ReactNode } from 'react'
 import { K } from '../ds'
 import { auth, type AuthError } from './session'
 import { t, type Key } from '../strings'
@@ -11,41 +11,62 @@ const home = import.meta.env.BASE_URL // where a mailed link comes back to: the 
 // what the gateway can say, in our words; anything else reads as "try again"
 const SAID: Record<string, Key> = {
   INVALID_EMAIL_OR_PASSWORD: 'si.e.wrong', INVALID_EMAIL: 'si.e.email', PASSWORD_TOO_SHORT: 'si.e.short', PASSWORD_TOO_LONG: 'si.e.long',
-  PASSWORD_COMPROMISED: 'si.e.breached', TOO_MANY_REQUESTS: 'si.e.slow', ADULTS_ONLY: 'si.e.adult',
+  PASSWORD_COMPROMISED: 'si.e.breached', TOO_MANY_REQUESTS: 'si.e.slow', ADULTS_ONLY: 'si.e.adult', INVALID_TOKEN: 'si.e.link',
 }
+type View = 'in' | 'up' | 'forgot' | 'link' | 'reset' | 'magic'
 
 export default function SignIn() {
-  const [mode, setMode] = useState<'in' | 'up'>('in')
-  const [sent, setSent] = useState(false) // S2: check your email
+  const [asked] = useState(() => new URLSearchParams(location.search))
+  const [view, setView] = useState<View>(asked.get('magic') ? 'magic' : asked.get('token') ? 'reset' : 'in')
+  const [sent, setSent] = useState<Key>() // S2: what "check your email" says
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [adult, setAdult] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
+  const [note, setNote] = useState('')
+  const [error, setError] = useState(asked.get('error') ? t('si.e.link') : '') // S3: a link that is used up or too old
 
+  const go = (to: View) => { setView(to); setError(''); setNote(''); setSent(undefined) }
+  const mail = email.trim()
+  const acts: Record<View, () => Promise<void>> = {
+    in: async () => { await auth('/sign-in/email', { email: mail, password, callbackURL: home }); location.reload() },
+    up: async () => { await auth('/sign-up/email', { name: name.trim(), email: mail, password, adult, callbackURL: home }); setSent('si.sentBody') },
+    forgot: async () => { await auth('/request-password-reset', { email: mail, redirectTo: home }); setSent('si.forgotSent') },
+    link: async () => { await auth('/sign-in/magic-link', { email: mail, callbackURL: home }); setSent('si.linkSent') },
+    reset: async () => {
+      await auth('/reset-password', { newPassword: password, token: asked.get('token') })
+      history.replaceState(null, '', location.pathname) // the token is spent: off the address bar
+      setPassword('')
+      go('in')
+      setNote(t('si.resetDone'))
+    },
+    // the button, not the mail's link, makes the request that uses the token up
+    magic: async () => location.assign(`/api/auth/magic-link/verify?token=${encodeURIComponent(asked.get('magic')!)}&callbackURL=${encodeURIComponent(home)}`),
+  }
   const submit = async (e?: FormEvent) => {
     e?.preventDefault()
     setBusy(true)
     setError('')
     try {
-      if (mode === 'up') {
-        await auth('/sign-up/email', { name: name.trim(), email: email.trim(), password, adult, callbackURL: home })
-        setSent(true)
-      } else {
-        await auth('/sign-in/email', { email: email.trim(), password, callbackURL: home })
-        location.reload()
-      }
+      await acts[view]()
     } catch (x) {
       const said = x as AuthError
-      if (said.code === 'EMAIL_NOT_VERIFIED') setSent(true) // the gateway mails the link again
+      if (said.code === 'EMAIL_NOT_VERIFIED') setSent('si.sentBody') // the gateway mails the link again
       else setError(t(SAID[said.code ?? ''] ?? 'si.e.other'))
     } finally {
       setBusy(false)
     }
   }
-  const again = () => auth('/send-verification-email', { email: email.trim(), callbackURL: home }).catch(() => {})
-  const ready = email.includes('@') && password.length > 0 && (mode === 'in' || (name.trim() && adult && password.length >= 12))
+  const again = () => auth('/send-verification-email', { email: mail, callbackURL: home }).catch(() => {})
+  const ready = {
+    in: mail.includes('@') && password.length > 0,
+    up: mail.includes('@') && !!name.trim() && adult && password.length >= 12,
+    forgot: mail.includes('@'), link: mail.includes('@'), reset: password.length >= 12, magic: true,
+  }[view]
+  const title: Record<View, Key> = { in: 'si.title', up: 'si.upTitle', forgot: 'si.forgotTitle', link: 'si.linkTitle', reset: 'si.resetTitle', magic: 'si.magicTitle' }
+  const action: Record<View, Key> = { in: 'si.in', up: 'si.up', forgot: 'si.forgotGo', link: 'si.linkGo', reset: 'si.resetGo', magic: 'si.in' }
+  const link = (to: View, label: Key): ReactNode => <K.Button size="sm" variant="link" onClick={() => go(to)}>{t(label)}</K.Button>
 
   return (
     <div data-theme="night" className="si">
@@ -55,24 +76,32 @@ export default function SignIn() {
         {sent ? (
           <>
             <h1 className="si__title">{t('si.sentTitle')}</h1>
-            <p className="t-body">{t('si.sentBody', { email: email.trim() })}</p>
+            <p className="t-body">{t(sent, { email: mail })}</p>
             <div className="row" style={{ gap: 10 }}>
-              <K.Button size="sm" onClick={again}>{t('si.resend')}</K.Button>
-              <K.Button size="sm" variant="ghost" onClick={() => { setSent(false); setMode('in') }}>{t('si.back')}</K.Button>
+              {sent === 'si.sentBody' && <K.Button size="sm" onClick={again}>{t('si.resend')}</K.Button>}
+              <K.Button size="sm" variant="ghost" onClick={() => go('in')}>{t('si.back')}</K.Button>
             </div>
           </>
         ) : (
           <form className="col" style={{ gap: 16 }} onSubmit={submit}>
-            <h1 className="si__title">{t(mode === 'in' ? 'si.title' : 'si.upTitle')}</h1>
-            <K.Segmented label={t('si.title')} options={[t('si.in'), t('si.up')]} value={t(mode === 'in' ? 'si.in' : 'si.up')} onChange={(v) => { setMode(v === t('si.in') ? 'in' : 'up'); setError('') }} />
-            {mode === 'up' && <K.TextField label={t('si.name')} value={name} onChange={setName} max={40} />}
-            <K.TextField label={t('si.email')} type="email" value={email} onChange={setEmail} />
-            <K.TextField label={t('si.password')} type="password" value={password} onChange={setPassword} hint={mode === 'up' ? t('si.passwordHint') : undefined} />
-            {mode === 'up' && <K.Checkbox label={t('si.adult')} checked={adult} onChange={setAdult} />}
+            <h1 className="si__title">{t(title[view])}</h1>
+            {(view === 'in' || view === 'up') && <K.Segmented label={t('si.title')} options={[t('si.in'), t('si.up')]} value={t(view === 'in' ? 'si.in' : 'si.up')} onChange={(v) => go(v === t('si.in') ? 'in' : 'up')} />}
+            {view === 'forgot' && <p className="t-body">{t('si.forgotBody')}</p>}
+            {view === 'link' && <p className="t-body">{t('si.linkBody')}</p>}
+            {view === 'magic' && <p className="t-body">{t('si.magicBody')}</p>}
+            {view === 'up' && <K.TextField label={t('si.name')} value={name} onChange={setName} max={40} />}
+            {view !== 'reset' && view !== 'magic' && <K.TextField label={t('si.email')} type="email" value={email} onChange={setEmail} />}
+            {(view === 'in' || view === 'up' || view === 'reset') && (
+              <K.TextField label={t(view === 'reset' ? 'si.newPassword' : 'si.password')} type="password" value={password} onChange={setPassword} hint={view === 'in' ? undefined : t('si.passwordHint')} />
+            )}
+            {view === 'up' && <K.Checkbox label={t('si.adult')} checked={adult} onChange={setAdult} />}
+            {note && <K.Callout tone="ok">{note}</K.Callout>}
             {error && <K.Callout tone="bad">{error}</K.Callout>}
             {/* a real submit button too, so Enter in a field signs in */}
             <button type="submit" hidden disabled={!ready || busy} />
-            <K.Button variant="primary" full loading={busy} disabled={!ready} onClick={() => submit()}>{t(mode === 'in' ? 'si.in' : 'si.up')}</K.Button>
+            <K.Button variant="primary" full loading={busy} disabled={!ready} onClick={() => submit()}>{t(action[view])}</K.Button>
+            {view === 'in' && <div className="row" style={{ justifyContent: 'space-between' }}>{link('forgot', 'si.forgot')}{link('link', 'si.linkInstead')}</div>}
+            {(view === 'forgot' || view === 'link') && <div>{link('in', 'si.back')}</div>}
           </form>
         )}
       </main>

@@ -19,7 +19,13 @@ The owner chose Better Auth on 2026-10-02, so the gateway is a small TypeScript 
       micro-dollars, sign out, a wrong password, sign in back to the same page. Owed: the
       "you already have an account" mail to a known address (G2); `gateway` as a required
       check in the ruleset (**[owner]**: `setup-repo.sh`); first run still says "Step 2 of 2".
-- [ ] G2 · Magic links, password reset, change notices, throttling, the sign-up challenge.
+- [x] G2 · Getting back in (2026-10-02): a forgotten password (a 15-minute link, a new
+      password, every device signed out, a notice by mail); a sign-in link (10 minutes, once,
+      only for an account, used by a button on our own page so a mail scanner burns nothing);
+      the "you already have an account" mail; slower limits on sign-in, sign-up and the mail
+      routes. Checked in a browser on one machine. Not done: the sign-up challenge
+      (**[owner]**: Turnstile keys); binding a sign-in link to the browser that asked, with a
+      code for another device; a notice when the email changes (G5, with the change itself).
 - [ ] G3 · Google, GitHub, Discord, Apple.
 - [ ] G4 · TOTP and backup codes, sudo mode, passkeys.
 - [ ] G5 · Settings › Account: emails, methods, sessions, export, deletion.

@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { betterAuth } from 'better-auth'
 import { APIError } from 'better-auth/api'
 import { getMigrations } from 'better-auth/db/migration'
-import { haveIBeenPwned } from 'better-auth/plugins'
+import { haveIBeenPwned, magicLink } from 'better-auth/plugins'
 import type { Pool } from 'pg'
 
 export type Send = (to: string, subject: string, text: string) => void | Promise<void>
@@ -32,6 +32,18 @@ export function makeAuth({ pool, origin, secret, send, pwned = true }: AuthConfi
       minPasswordLength: 12,
       maxPasswordLength: 128,
       revokeSessionsOnPasswordReset: true,
+      resetPasswordTokenExpiresIn: 15 * 60,
+      sendResetPassword: async ({ user, url }) => {
+        void send(user.email, 'Reset your Kataki password', `Open this link to choose a new password:\n\n${url}\n\nIt works for 15 minutes. If you did not ask for this, ignore it: nothing has changed.`)
+      },
+      // every change to how an account is entered is told to its owner
+      onPasswordReset: async ({ user }) => {
+        void send(user.email, 'Your Kataki password was changed', `The password for your Kataki account was just changed, and every device was signed out.\n\nIf this was not you, reset it now at ${origin}/app/ and check who else can read this mailbox.`)
+      },
+      // sign-up answers a known address like a new one; this is how its owner hears of it
+      onExistingUserSignUp: async ({ user }) => {
+        void send(user.email, 'You already have a Kataki account', `Someone, maybe you, tried to make a Kataki account with this address. You already have one: sign in at ${origin}/app/, or reset your password there.\n\nIf it was not you, nothing has changed.`)
+      },
     },
     emailVerification: {
       sendOnSignUp: true,
@@ -53,12 +65,35 @@ export function makeAuth({ pool, origin, secret, send, pwned = true }: AuthConfi
       },
     },
     session: { expiresIn: 30 * DAY, updateAge: DAY, freshAge: 600 },
-    rateLimit: { storage: 'database' }, // on in production; shared by every gateway process
+    rateLimit: {
+      storage: 'database', // on in production; shared by every gateway process
+      // slowed, never locked: a lockout is something an attacker can do to someone else
+      customRules: {
+        '/sign-in/email': { window: 60, max: 5 },
+        '/sign-up/email': { window: 300, max: 5 },
+        '/sign-in/magic-link': { window: 300, max: 3 },
+        '/request-password-reset': { window: 300, max: 3 },
+        '/send-verification-email': { window: 300, max: 3 },
+      },
+    },
     advanced: {
       // a user's id is their library id: lowercase, so it passes the engine's folder-name rule
       database: { generateId: () => randomUUID() },
     },
-    plugins: [haveIBeenPwned({ enabled: pwned })],
+    plugins: [
+      haveIBeenPwned({ enabled: pwned }),
+      magicLink({
+        expiresIn: 10 * 60,
+        storeToken: 'hashed',
+        disableSignUp: true, // an account is made on the sign-up form, where 18 or older is said
+        // The mail links to the app's own page, whose button makes the request that uses the
+        // token up: a mail scanner that opens the link burns nothing. Only an account gets one.
+        sendMagicLink: async ({ email, token }, ctx) => {
+          if (!(await ctx?.context.internalAdapter.findUserByEmail(email))) return
+          void send(email, 'Your sign-in link for Kataki', `Open this link to sign in to Kataki:\n\n${origin}/app/?magic=${token}\n\nIt works once, for 10 minutes. If you did not ask for this, ignore it.`)
+        },
+      }),
+    ],
   })
 }
 
