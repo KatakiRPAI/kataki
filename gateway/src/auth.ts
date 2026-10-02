@@ -2,7 +2,7 @@
 // §2 says and why. G1 is email and password; later slices add to this one place.
 import { randomUUID } from 'node:crypto'
 import { betterAuth } from 'better-auth'
-import { APIError, getOAuthState } from 'better-auth/api'
+import { APIError, createAuthMiddleware, getOAuthState, isAPIError } from 'better-auth/api'
 import { getMigrations } from 'better-auth/db/migration'
 import { genericOAuth, haveIBeenPwned, magicLink, twoFactor, type GenericOAuthConfig } from 'better-auth/plugins'
 import type { Pool } from 'pg'
@@ -96,12 +96,30 @@ export function makeAuth({ pool, origin, secret, send, pwned = true, social = {}
       autoSignInAfterVerification: true,
       // not awaited by the library's caller either: the answer takes the same time whoever asks
       sendVerificationEmail: async ({ user, url }) => {
-        void send(user.email, 'Confirm your email for Kataki', `Open this link to finish making your Kataki account:\n\n${url}\n\nIt works for one hour. If you did not ask for this, ignore it.`)
+        void send(user.email, 'Confirm your email for Kataki', `Open this link to confirm this address for your Kataki account:\n\n${url}\n\nIt works for one hour. If you did not ask for this, ignore it.`)
       },
     },
     // 18 or older, said at sign-up and kept on the account with the time it was made
     // not "required": the library checks that before the hook below can fill it in from another service's sign-up
-    user: { additionalFields: { adult: { type: 'boolean', required: false, input: true } } },
+    user: {
+      additionalFields: { adult: { type: 'boolean', required: false, input: true } },
+      // a new address is asked for from a signed-in account, approved from the old address,
+      // then confirmed from the new one: neither a stolen session nor a typo moves the account
+      changeEmail: {
+        enabled: true,
+        sendChangeEmailConfirmation: async ({ user, newEmail, url }) => {
+          void send(user.email, 'Approve changing your Kataki email', `Your Kataki account was asked to change its email to ${newEmail}.\n\nIf that was you, open this link to approve it:\n\n${url}\n\nIf it was not you, do not open it, and change your password at ${origin}/app/.`)
+        },
+      },
+    },
+    hooks: {
+      // a changed password is told to the account's owner, as a reset is
+      after: createAuthMiddleware(async (ctx) => {
+        const who = ctx.context.session?.user
+        if (ctx.path !== '/change-password' || !who || isAPIError(ctx.context.returned)) return
+        void send(who.email, 'Your Kataki password was changed', `The password for your Kataki account was just changed.\n\nIf this was not you, reset it now at ${origin}/app/ and check who else can read this mailbox.`)
+      }),
+    },
     databaseHooks: {
       user: {
         create: {
