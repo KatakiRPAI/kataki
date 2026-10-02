@@ -42,14 +42,13 @@ Legend: **[you]** you decided it · **[default]** an agent picked it, you have n
 | 2026-10-02 | Backup email only hears about changes; it cannot sign in or reset [default] | a second address is a second way to be hacked |
 | 2026-10-03 | Mail through Resend's HTTP API [default] | see "Needs you" 1 |
 
-<<<<<<< HEAD
 ## Running the website
 
 | Date | Decision | Why |
 |---|---|---|
 | 2026-10-03 | One compose file: Postgres, gateway, engine; only the gateway is published [default] | simplest thing that runs anywhere Docker does |
 | 2026-10-03 | The engine shares the gateway's network so it still listens on loopback only [default] | the engine is not yet hardened to listen wider |
-=======
+
 ## Stories
 
 | Date | Decision | Why |
@@ -58,7 +57,6 @@ Legend: **[you]** you decided it · **[default]** an agent picked it, you have n
 | 2026-10-03 | No level ever allows sexual content involving anyone under 18 [default] | a line the app holds whatever the setting or the card says |
 | 2026-10-03 | Explicit on the desktop asks "I am 18 or older" once; online accounts said it at sign-up [default] | the desktop has no account to ask |
 | 2026-10-03 | "Keep out of stories": up to 20 topics, told to the model on every reply [default] | a simple, strong way to steer clear of what someone does not want |
->>>>>>> b8c0a8a (feat(engine,app): how far stories go, and topics to keep out of them)
 
 ## Desktop
 
