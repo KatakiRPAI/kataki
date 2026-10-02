@@ -5,6 +5,7 @@ import pg from 'pg'
 import { sweep } from './account.ts'
 import { createGateway } from './app.ts'
 import { makeAuth, migrateAuth, socialFrom, type Send } from './auth.ts'
+import { mailer } from './mail.ts'
 import { migrate } from './db.ts'
 import type { Prices } from './money.ts'
 
@@ -25,10 +26,7 @@ export function pricesFrom(catalogue: string): Prices {
   }
 }
 
-// ponytail: mail is printed until the owner picks a provider (spec §2); then this calls it over HTTPS
-export const printed: Send = (to, subject, text) => console.log(`\n--- mail to ${to}: ${subject}\n${text}\n---`)
-
-export async function start(send: Send = printed) {
+export async function start(send: Send = mailer(process.env)) {
   const origin = need('KATAKI_ORIGIN')
   const signing = need('KATAKI_GATEWAY_SECRET')
   if (Buffer.byteLength(signing) < 32) throw new Error('KATAKI_GATEWAY_SECRET must be at least 32 bytes')
