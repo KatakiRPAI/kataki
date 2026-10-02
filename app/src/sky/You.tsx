@@ -10,6 +10,7 @@ import { setPref, usePrefs } from '../prefs'
 import { personaMenu } from './Palette'
 import { t, type Key } from '../strings'
 import { Crop, type Picture } from './Crop'
+import ProfileCard from './ProfileCard'
 
 const PRONOUNS: Pronouns[] = ['she', 'he', 'they']
 
@@ -43,6 +44,8 @@ export default function You() {
         <div><h1 className="pg-title">{t('you.title')}</h1><p className="pg-sub">{t('you.sub')}</p></div>
         <K.Button icon="plus" onClick={() => setEditing('new')}>{t('you.new')}</K.Button>
       </div>
+
+      <ProfileCard />
 
       {current && (
         <section className="you-hero">

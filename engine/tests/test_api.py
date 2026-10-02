@@ -1206,6 +1206,11 @@ def test_folders_are_saved_views_the_engine_only_keeps(api):
     assert api.get("/settings").json()["folders"] == folders
 
 
+def test_the_profile_card_has_its_numbers(api, story):
+    got = api.get("/profile/stats").json()
+    assert (got["stories"], got["characters"], got["places"]) == (1, 3, 1)
+
+
 def test_where_else_this_person_is_and_adopting_one_the_reader_found(api, story, backend, conn):
     who = cast(api, story)
     lib = {i["name"]: i["id"] for i in api.get("/library").json()}

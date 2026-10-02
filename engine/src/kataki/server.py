@@ -49,6 +49,7 @@ from kataki import (
     media,
     mind,
     people,
+    profile,
     readable,
     recollect,
     retrieve,
@@ -575,6 +576,11 @@ def create_app(
                     (key, json.dumps(value)),
                 )
         return await get_settings()
+
+    @app.get("/profile/stats")
+    async def profile_stats():
+        """The numbers on the profile card; the card itself is the `profile` setting."""
+        return profile.stats(conn)
 
     # --- providers and model roles ---------------------------------------------------------
 
