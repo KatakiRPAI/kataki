@@ -1,6 +1,8 @@
 // `pnpm -C gateway start`: the gateway, from its environment (docs/specs/2026-10-02-kataki-online.md §6, §7).
 import { createServer } from 'node:http'
+import { existsSync, statSync } from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
+import { pathToFileURL } from 'node:url'
 import pg from 'pg'
 import { sweep } from './account.ts'
 import { chargeStorage } from './cloud.ts'
@@ -18,7 +20,12 @@ function need(name: string): string {
 
 /** The service's price table: the `prices` setting of the same catalogue the engine is given. */
 export function pricesFrom(catalogue: string): Prices {
-  const db = new DatabaseSync(catalogue, { readOnly: true })
+  // a file that never changes: no lock and no -shm, so it can be a read-only mount (hosted.py
+  // reads it the same way, and refuses one with changes left in its -wal, as this does)
+  if (existsSync(`${catalogue}-wal`) && statSync(`${catalogue}-wal`).size) throw new Error(`${catalogue}-wal holds changes not yet in the catalogue: open and close it once first`)
+  const at = pathToFileURL(catalogue)
+  at.searchParams.set('immutable', '1')
+  const db = new DatabaseSync(at, { readOnly: true })
   try {
     const row = db.prepare("SELECT value FROM settings WHERE key = 'prices'").get() as { value: string } | undefined
     return row ? JSON.parse(row.value) : {}

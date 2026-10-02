@@ -551,3 +551,17 @@ def test_a_403_stops_the_outbox_and_a_409_counts_as_sent(conn):
     client.meter = answering(409)  # the gateway already has it
     assert client.resend("alice", conn) == 1
     assert conn.execute("SELECT metered FROM usage_log").fetchone()[0] == 1
+
+
+def test_the_catalogue_is_read_without_writing_beside_it(tmp_path):
+    path = catalogue(tmp_path)
+    path.chmod(0o444)  # as on a read-only mount
+    try:
+        providers, _, prices = hosted._catalogue(path)
+    finally:
+        path.chmod(0o644)
+    assert [p[1] for p in providers] == ["svc"] and prices == PRICES
+    assert not (tmp_path / "catalogue.db-shm").exists()
+    (tmp_path / "catalogue.db-wal").write_bytes(b"unsaved")
+    with pytest.raises(ValueError, match="open and close it once"):
+        hosted._catalogue(path)

@@ -19,7 +19,9 @@ Legend: **[you]** you decided it · **[default]** an agent picked it, you have n
 3. **Apple sign-in**: needs the Apple Developer Program ($99/year). Not built until you join.
 4. **Google and Discord sign-in**: built; each needs its keys in `.env` (same steps as GitHub).
 5. **Payments (top-ups)**: needs a payment processor that accepts this kind of app. Not built.
-6. **Going online**: needs a domain and a host. Not built.
+6. **Going online**: the stack is packaged (`compose.online.yaml`) and runs in Docker. To put it
+   on a server it needs a domain or subdomain and a host; your existing server would do for
+   staging.
 
 ## Accounts (Kataki online)
 
@@ -39,6 +41,13 @@ Legend: **[you]** you decided it · **[default]** an agent picked it, you have n
 | 2026-10-02 | Usernames: 3–30 lowercase letters, digits, underscore; a reserved list; no "is it taken?" lookup [default] | stops look-alikes and listing who is here |
 | 2026-10-02 | Backup email only hears about changes; it cannot sign in or reset [default] | a second address is a second way to be hacked |
 | 2026-10-03 | Mail through Resend's HTTP API [default] | see "Needs you" 1 |
+
+## Running the website
+
+| Date | Decision | Why |
+|---|---|---|
+| 2026-10-03 | One compose file: Postgres, gateway, engine; only the gateway is published [default] | simplest thing that runs anywhere Docker does |
+| 2026-10-03 | The engine shares the gateway's network so it still listens on loopback only [default] | the engine is not yet hardened to listen wider |
 
 ## Desktop
 
