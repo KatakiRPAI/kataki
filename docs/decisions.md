@@ -1,0 +1,65 @@
+# Decisions to review
+
+Calls the agents made so development could keep going. Each one can be changed. Read the top
+section first; the rest is a record.
+
+Legend: **[you]** you decided it · **[default]** an agent picked it, you have not said yet.
+
+## Needs you (nothing is blocked; these are when you have time)
+
+1. **Mail sender: Resend** [default]. Emails are printed until a key is set. To turn real email
+   on: make a Resend account, verify a sending domain, create an API key, put
+   `RESEND_API_KEY=` and `KATAKI_MAIL_FROM="Kataki <hello@your-domain>"` in the gateway's
+   environment. Why Resend: one HTTP call, no SMTP, a free tier for a start. Any other provider
+   is one small function in `gateway/src/mail.ts`.
+2. **Cloud save limits** [default, not built yet]: free up to 10 characters, 10 places, 10
+   plots and 5 stories, and 250 MB; past that, storage charged to the credit balance. The
+   numbers are placeholders until you set them.
+3. **Apple sign-in**: needs the Apple Developer Program ($99/year). Not built until you join.
+4. **Google and Discord sign-in**: built; each needs its keys in `.env` (same steps as GitHub).
+5. **Payments (top-ups)**: needs a payment processor that accepts this kind of app. Not built.
+6. **Going online**: needs a domain and a host. Not built.
+
+## Accounts (Kataki online)
+
+| Date | Decision | Why |
+|---|---|---|
+| 2026-10-02 | Better Auth, run inside our own gateway [you] | free per user; no vendor can lock users out |
+| 2026-10-02 | Passwords allowed, at least 12 characters, checked against leaked lists [default] | you asked for passwords; 12 is the middle of the security guidance |
+| 2026-10-02 | Email must be confirmed before an account holds anything [default] | stops someone claiming an address that is not theirs |
+| 2026-10-02 | "Sign in with GitHub/Google/Discord" never creates an account; "Create account with …" does [default] | the 18+ tick has to come from the person |
+| 2026-10-02 | An existing account is joined automatically only by Google or GitHub, never Discord [default] | Discord's emails are less trustworthy |
+| 2026-10-02 | Sessions last 30 days; sensitive changes need a sign-in from the last 10 minutes [default] | long enough to be easy, short enough to be safe |
+| 2026-10-02 | Two-step sign-in asked after a password, a sign-in link and GitHub alike [default] | otherwise the weakest way in walks around it |
+| 2026-10-02 | A passkey counts as both steps, only if the device checked it was you [default] | that is what makes it safe to skip the code |
+| 2026-10-02 | Deleting an account: 14 days to change your mind, then gone [default] | common practice; undoes mistakes |
+| 2026-10-02 | Unused credit is not refunded on deletion [you] | |
+| 2026-10-02 | Payment records are kept after deletion, without name or email [default] | tax law; you may want a lawyer's view |
+| 2026-10-02 | Usernames: 3–30 lowercase letters, digits, underscore; a reserved list; no "is it taken?" lookup [default] | stops look-alikes and listing who is here |
+| 2026-10-02 | Backup email only hears about changes; it cannot sign in or reset [default] | a second address is a second way to be hacked |
+| 2026-10-03 | Mail through Resend's HTTP API [default] | see "Needs you" 1 |
+
+## Desktop
+
+| Date | Decision | Why |
+|---|---|---|
+| 2026-10-02 | A profile is a name and a folder; switching restarts the app [default] | the engine opens one library at a time |
+| 2026-10-02 | Synced folders (OneDrive, Dropbox…) get a warning, not a block [default] | they can corrupt the database, but it is your call |
+| 2026-10-02 | A PIN is privacy on this computer, not encryption, and says so [default] | the files are not locked; pretending otherwise would mislead |
+| 2026-10-02 | Moving a library copies it and leaves the old folder until you delete it [default] | nothing is lost if the copy goes wrong |
+
+## Cloud save
+
+| Date | Decision | Why |
+|---|---|---|
+| 2026-10-02 | Whole-library snapshots, not live sync [default] | simple and safe for one person on one or two computers |
+| 2026-10-02 | The newest 5 snapshots are kept [default] | room to go back without paying for much storage |
+| 2026-10-02 | If the cloud copy changed since this computer last saw it, ask before replacing [default] | never silently overwrite another computer's work |
+| 2026-10-02 | Snapshots are kept on the gateway's disk for now [default] | object storage comes with going online |
+
+## Profiles and badges
+
+| Date | Decision | Why |
+|---|---|---|
+| 2026-10-02 | The profile card lives inside the library, on the You page [default] | it travels with the library; no design board yet |
+| 2026-10-02 | 16 starter badges; no streaks; badges are private and worth nothing [default] | you said you would define the real list |

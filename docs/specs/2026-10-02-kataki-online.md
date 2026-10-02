@@ -141,9 +141,10 @@ Known gaps in the library, to close in the slice named:
 - **Advisories:** 37 published, most in plugins this service does not load (SSO, SCIM, OAuth
   provider, Stripe, OAuth proxy). The version is pinned exactly; Dependabot raises it.
 
-Mail goes through one function, `send(to, subject, text)`. In development it prints the mail
-and keeps it in memory for tests. In production it calls the owner's provider over HTTPS
-(**[owner]**: which one; a paid API, so the paid-API rule applies).
+Mail goes through one function, `send(to, subject, text)` (`gateway/src/mail.ts`). With no
+`RESEND_API_KEY` it prints the mail (tests keep it in memory). With one, it posts to Resend's
+HTTP API from `KATAKI_MAIL_FROM`; a failed send is logged by status only. The provider is a
+default in `docs/decisions.md`; the owner makes the account and the key.
 
 ## 3. The ledger
 
