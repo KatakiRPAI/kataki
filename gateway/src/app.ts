@@ -25,6 +25,7 @@ export type GatewayConfig = {
   prices: Prices
   web?: string // the web build's folder (app/dist-web)
   starter?: bigint // micro-dollars given once to a new account
+  social?: string[] // the services an account can sign in with (auth.ts › Social)
 }
 
 const TYPES: Record<string, string> = {
@@ -100,6 +101,8 @@ export function createGateway(c: GatewayConfig): RequestListener {
         return json(res, 405, { detail: 'method not allowed' })
       }
       if (path === '/') return void res.writeHead(302, { location: '/app/' }).end()
+      // what the sign-in screen may offer; nothing secret
+      if (path === '/api/providers') return json(res, 200, { social: c.social ?? [] })
       if (c.web && (path === '/app' || path.startsWith('/app/')) && (req.method === 'GET' || req.method === 'HEAD')) return serve(res, path === '/app' ? '/app/' : path)
 
       const session = await c.auth.api.getSession({ headers: fromNodeHeaders(req.headers) })

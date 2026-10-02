@@ -10,7 +10,7 @@ import { PGlite } from '@electric-sql/pglite'
 import { PGLiteSocketServer } from '@electric-sql/pglite-socket'
 import pg from 'pg'
 import { createGateway } from './app.ts'
-import { makeAuth, migrateAuth } from './auth.ts'
+import { makeAuth, migrateAuth, socialFrom } from './auth.ts'
 import { migrate } from './db.ts'
 import { balance } from './ledger.ts'
 import { sign } from './sign.ts'
@@ -57,11 +57,12 @@ before(async () => {
   let handler: RequestListener = () => {}
   gateway = createServer((req, res) => handler(req, res))
   origin = `http://127.0.0.1:${await listen(gateway)}`
-  const auth = makeAuth({ pool, origin, secret: 'x7Kq'.repeat(10), pwned: false, send: (to, _subject, text) => void mails.push({ to, text }) })
+  const social = socialFrom({ GITHUB_CLIENT_ID: 'an-id', GITHUB_CLIENT_SECRET: 'a-secret', GOOGLE_CLIENT_ID: 'half-set' })
+  const auth = makeAuth({ pool, origin, secret: 'x7Kq'.repeat(10), pwned: false, social, send: (to, _subject, text) => void mails.push({ to, text }) })
   await migrateAuth(auth)
   await migrate(pool)
   await migrate(pool) // again: nothing to do, nothing breaks
-  handler = createGateway({ auth, pool, origin, engine: `http://127.0.0.1:${enginePort}`, secret: SECRET, key: KEY, prices: PRICES, web, starter: 1_000_000n })
+  handler = createGateway({ auth, pool, origin, engine: `http://127.0.0.1:${enginePort}`, secret: SECRET, key: KEY, prices: PRICES, web, starter: 1_000_000n, social: Object.keys(social) })
 })
 
 after(async () => {
@@ -216,6 +217,19 @@ test('a sign-in link: only for an account, used by a button and only once', asyn
   assert.equal((await call('/stories', { cookie })).status, 200)
   const again = await call(`/api/auth/magic-link/verify?token=${token}&callbackURL=%2Fapp%2F`)
   assert.equal(again.headers.get('set-cookie'), null)
+})
+
+test('another service is offered only when both its keys are set', async () => {
+  assert.deepEqual(await (await call('/api/providers')).json(), { social: ['github'] })
+  const go = await post('/api/auth/sign-in/social', { provider: 'github', callbackURL: '/app/' })
+  assert.equal(go.status, 200)
+  const { url } = (await go.json()) as { url: string }
+  const there = new URL(url)
+  assert.equal(there.origin, 'https://github.com')
+  assert.equal(there.searchParams.get('client_id'), 'an-id')
+  assert.equal(there.searchParams.get('redirect_uri'), `${origin}/api/auth/callback/github`)
+  assert.match(there.searchParams.get('scope')!, /user:email/) // the verified address, never the profile's
+  assert.notEqual((await post('/api/auth/sign-in/social', { provider: 'google', callbackURL: '/app/' })).status, 200)
 })
 
 test('the web build is served, and nothing outside it', async () => {

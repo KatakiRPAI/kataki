@@ -1,7 +1,7 @@
 // Signing in to Kataki online (design-brief-3 S1–S3, as amended by the profiles spec: passwords
 // are in). Shown instead of the app while nobody is signed in; signing in reloads into the app,
 // at the address the person was on. A mailed link (reset, sign-in) lands here with its token.
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { K } from '../ds'
 import { auth, type AuthError } from './session'
 import { t, type Key } from '../strings'
@@ -13,6 +13,7 @@ const SAID: Record<string, Key> = {
   INVALID_EMAIL_OR_PASSWORD: 'si.e.wrong', INVALID_EMAIL: 'si.e.email', PASSWORD_TOO_SHORT: 'si.e.short', PASSWORD_TOO_LONG: 'si.e.long',
   PASSWORD_COMPROMISED: 'si.e.breached', TOO_MANY_REQUESTS: 'si.e.slow', ADULTS_ONLY: 'si.e.adult', INVALID_TOKEN: 'si.e.link',
 }
+const NAMES: Record<string, string> = { google: 'Google', github: 'GitHub', discord: 'Discord', apple: 'Apple' }
 type View = 'in' | 'up' | 'forgot' | 'link' | 'reset' | 'magic'
 
 export default function SignIn() {
@@ -25,7 +26,13 @@ export default function SignIn() {
   const [adult, setAdult] = useState(false)
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState('')
-  const [error, setError] = useState(asked.get('error') ? t('si.e.link') : '') // S3: a link that is used up or too old
+  // S3: a link that is used up or too old; or another service came back without an account here
+  const [error, setError] = useState(asked.get('error') === 'signup_disabled' ? t('si.e.noAccount') : asked.get('error') ? t('si.e.link') : '')
+  const [social, setSocial] = useState<string[]>([])
+  useEffect(() => { fetch('/api/providers').then((r) => r.json()).then((p: { social: string[] }) => setSocial(p.social), () => {}) }, [])
+  // Leave for the other service. Creating an account carries "18 or older" with it; signing in never creates one.
+  const leave = (provider: string) => auth<{ url: string }>('/sign-in/social', { provider, callbackURL: home, errorCallbackURL: home, ...(view === 'up' ? { requestSignUp: true, additionalData: { adult: true } } : {}) })
+    .then((r) => location.assign(r.url), () => setError(t('si.e.other')))
 
   const go = (to: View) => { setView(to); setError(''); setNote(''); setSent(undefined) }
   const mail = email.trim()
@@ -101,6 +108,10 @@ export default function SignIn() {
             <button type="submit" hidden disabled={!ready || busy} />
             <K.Button variant="primary" full loading={busy} disabled={!ready} onClick={() => submit()}>{t(action[view])}</K.Button>
             {view === 'in' && <div className="row" style={{ justifyContent: 'space-between' }}>{link('forgot', 'si.forgot')}{link('link', 'si.linkInstead')}</div>}
+            {(view === 'in' || view === 'up') && social.map((p) => (
+              <K.Button key={p} full disabled={view === 'up' && !adult} onClick={() => leave(p)}>{t(view === 'in' ? 'si.with' : 'si.upWith', { name: NAMES[p] ?? p })}</K.Button>
+            ))}
+            {view === 'up' && social.length > 0 && !adult && <p className="t-meta">{t('si.adultFirst')}</p>}
             {(view === 'forgot' || view === 'link') && <div>{link('in', 'si.back')}</div>}
           </form>
         )}

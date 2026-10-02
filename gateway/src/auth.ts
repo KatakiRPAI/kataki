@@ -2,7 +2,7 @@
 // §2 says and why. G1 is email and password; later slices add to this one place.
 import { randomUUID } from 'node:crypto'
 import { betterAuth } from 'better-auth'
-import { APIError } from 'better-auth/api'
+import { APIError, getOAuthState } from 'better-auth/api'
 import { getMigrations } from 'better-auth/db/migration'
 import { haveIBeenPwned, magicLink } from 'better-auth/plugins'
 import type { Pool } from 'pg'
@@ -14,11 +14,29 @@ export type AuthConfig = {
   secret: string
   send: Send
   pwned?: boolean // refuse breached passwords (asks api.pwnedpasswords.com); tests turn it off
+  social?: Social // the providers the owner has registered an app with; none by default
+}
+
+// Sign in with another service (spec §2, G3). Apple is not here yet: it needs a signed client
+// secret and a form-post callback.
+export const PROVIDERS = ['google', 'github', 'discord'] as const
+export type Provider = (typeof PROVIDERS)[number]
+export type Social = Partial<Record<Provider, { clientId: string; clientSecret: string }>>
+
+/** The providers whose keys are in the environment: GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET, and so on. */
+export function socialFrom(env: Record<string, string | undefined>): Social {
+  const found: Social = {}
+  for (const p of PROVIDERS) {
+    const clientId = env[`${p.toUpperCase()}_CLIENT_ID`]
+    const clientSecret = env[`${p.toUpperCase()}_CLIENT_SECRET`]
+    if (clientId && clientSecret) found[p] = { clientId, clientSecret }
+  }
+  return found
 }
 
 const DAY = 86_400
 
-export function makeAuth({ pool, origin, secret, send, pwned = true }: AuthConfig) {
+export function makeAuth({ pool, origin, secret, send, pwned = true, social = {} }: AuthConfig) {
   return betterAuth({
     baseURL: origin,
     secret,
@@ -58,10 +76,26 @@ export function makeAuth({ pool, origin, secret, send, pwned = true }: AuthConfi
     databaseHooks: {
       user: {
         create: {
+          // said on the sign-up form; with another service, said on our page before leaving
+          // for theirs and carried through the redirect
           before: async (user) => {
-            if (user.adult !== true) throw new APIError('BAD_REQUEST', { code: 'ADULTS_ONLY', message: 'Kataki online is for people aged 18 or older.' })
+            const said = user.adult === true || (await getOAuthState<{ adult?: boolean }>().catch(() => null))?.adult === true
+            if (!said) throw new APIError('BAD_REQUEST', { code: 'ADULTS_ONLY', message: 'Kataki online is for people aged 18 or older.' })
+            return { data: { ...user, adult: true } }
           },
         },
+      },
+    },
+    // "Sign in with" never makes an account by itself: that is "Create account", where 18 or
+    // older is said first
+    socialProviders: Object.fromEntries(Object.entries(social).map(([name, keys]) => [name, { ...keys, disableImplicitSignUp: true }])),
+    account: {
+      accountLinking: {
+        enabled: true,
+        // a sign-in joins an existing account only when the service vouches for the address;
+        // Discord's is never trusted for that (research §7)
+        trustedProviders: ['google', 'github'],
+        allowDifferentEmails: false,
       },
     },
     session: { expiresIn: 30 * DAY, updateAge: DAY, freshAge: 600 },
