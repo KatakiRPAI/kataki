@@ -48,7 +48,11 @@ Research: `docs/research/reports/Profiles accounts and cloud.md`.
       library opens. A PIN is privacy on this computer, not encryption, and the screens say so.
       Not done: the discreet list (type the name instead of choosing it); the picker's and the
       dialogs' text is English in the shell, outside `strings/`.
-- [ ] P5 · Settings, completed.
+- [ ] P5 · Settings, completed. Content (2026-10-03): Settings › General › Stories sets how far
+      stories go (Gentle, Mature by default, Explicit) and topics to keep out; every reply's
+      rules carry them (`context.content`), with a line about minors that no level removes.
+      Explicit on the desktop asks for 18 or older once; online accounts already said so.
+      Not done: a per-story level; hiding characters by tag; a settings-only export.
 - [x] A0 · The gateway's spec: `docs/specs/2026-10-02-kataki-online.md` (2026-10-02). The owner
       chose Better Auth. A1–A6 are its G1–G6, and their progress is kept there.
 - [ ] A1–A6 · Accounts: A1 (G1) done; see the gateway spec.

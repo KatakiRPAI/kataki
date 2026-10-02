@@ -369,6 +369,35 @@ def test_the_rules_keep_notes_out_of_the_story_and_the_story_in_english(conn, st
     assert "English" in system and "never mention" in system.lower()
 
 
+def test_every_reply_is_told_how_far_the_story_may_go(conn, story):
+    say(conn, story, "Aren", "Hello.")
+
+    def system():
+        return context.build(conn, story, eid(conn, "Mira"), EP).messages[0]["content"]
+
+    assert context.CONTENT["mature"] in system() and context.NEVER in system()  # the default
+    for level in ("gentle", "explicit"):
+        conn.execute(
+            "INSERT OR REPLACE INTO settings(key, value) VALUES('content.level', ?)",
+            (json.dumps(level),),
+        )
+        assert (
+            context.CONTENT[level] in system() and context.NEVER in system()
+        )  # the line never goes
+    conn.execute(
+        "INSERT OR REPLACE INTO settings(key, value) VALUES('content.level', '\"anything\"')"
+    )
+    assert context.CONTENT["mature"] in system()  # an unknown level is the default
+    avoid = ["spiders", "  ", 7, "x" * 60] + [f"t{i}" for i in range(30)]
+    conn.execute(
+        "INSERT OR REPLACE INTO settings(key, value) VALUES('content.avoid', ?)",
+        (json.dumps(avoid),),
+    )
+    said = system()
+    assert "Keep these out of the story entirely" in said and "spiders; " + "x" * 40 + ";" in said
+    assert "t17" in said and "t18" not in said  # twenty at most
+
+
 def test_the_inside_block_sits_before_the_directive_and_is_capped(conn, story):
     inside = "[Inside Mira right now: show it, never say it]\nFeeling: hurt."
     built = context.build(conn, story, eid(conn, "Mira"), EP, inside=inside)

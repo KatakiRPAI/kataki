@@ -13,6 +13,7 @@ import { complete, lang, LANGUAGES, RTL, switchLanguage, t, type Key } from '../
 import { account } from '../online/session'
 import Account from './settings/Account'
 import Data from './settings/Data'
+import { Overlay } from '../overlay'
 import Models from './settings/Models'
 import Profiles from './settings/Profiles'
 import Shortcuts from './settings/Shortcuts'
@@ -121,7 +122,42 @@ function General() {
         <K.SettingsRow title={t('g.speed')} description={t('g.speedSub')}>
           <Choice k="reply_speed" fallback="normal" options={[['slow', 'g.speed.slow'], ['normal', 'g.speed.normal'], ['fast', 'g.speed.fast'], ['instant', 'g.speed.instant']]} />
         </K.SettingsRow>
+        <Content />
       </K.SettingsSection>
+    </>
+  )
+}
+
+/** How far stories may go, and what to keep out of them (the engine's [Content] rule, context.py). */
+function Content() {
+  const [prefs] = usePrefs()
+  const level = String(prefs['content.level'] ?? 'mature')
+  const [asking, setAsking] = useState(false) // explicit, on a computer with no account that said 18 or older
+  const [avoid, setAvoid] = useState(() => ((prefs['content.avoid'] as string[] | undefined) ?? []).join(', '))
+  const levels: [string, Key][] = [['gentle', 'g.content.gentle'], ['mature', 'g.content.mature'], ['explicit', 'g.content.explicit']]
+  const pick = (v: string) => {
+    const to = levels.find(([, l]) => t(l) === v)?.[0] ?? 'mature'
+    if (to === 'explicit' && !account() && !prefs['content.adult']) return setAsking(true)
+    setPref('content.level', to)
+  }
+  return (
+    <>
+      <K.SettingsRow title={t('g.content')} description={t(`g.content.${level}Sub` as Key)}>
+        <K.Segmented label={t('g.content')} size="sm" options={levels.map(([, l]) => t(l))} value={t(levels.find(([v]) => v === level)?.[1] ?? 'g.content.mature')} onChange={pick} />
+      </K.SettingsRow>
+      <K.SettingsRow title={t('g.avoid')} description={t('g.avoidSub')}>
+        <div style={{ width: 260 }}>
+          <K.TextField label="" value={avoid} placeholder={t('g.avoidHint')}
+            onChange={(v) => { setAvoid(v); setPref('content.avoid', v.split(',').map((x) => x.trim()).filter(Boolean).slice(0, 20)) }} />
+        </div>
+      </K.SettingsRow>
+      {asking && (
+        <Overlay onClose={() => setAsking(false)}>
+          <K.Dialog size="sm" icon="alert" tone="warm" title={t('g.adultTitle')} description={t('g.adultBody')} onClose={() => setAsking(false)}
+            actions={[<K.Button key="n" variant="ghost" onClick={() => setAsking(false)}>{t('ep.cancel')}</K.Button>,
+              <K.Button key="y" variant="primary" onClick={() => { setPref('content.adult', new Date().toISOString()); setPref('content.level', 'explicit'); setAsking(false) }}>{t('g.adultYes')}</K.Button>]} />
+        </Overlay>
+      )}
     </>
   )
 }
