@@ -11,6 +11,7 @@ import { PGlite } from '@electric-sql/pglite'
 import { PGLiteSocketServer } from '@electric-sql/pglite-socket'
 import pg from 'pg'
 import { GRACE_DAYS, sweep, type AccountConfig } from './account.ts'
+import { chargeStorage } from './cloud.ts'
 import { createGateway } from './app.ts'
 import { makeAuth, migrateAuth, personChecked, socialFrom, usernameOk } from './auth.ts'
 import { migrate } from './db.ts'
@@ -78,7 +79,7 @@ before(async () => {
   const social = socialFrom({ GITHUB_CLIENT_ID: 'an-id', GITHUB_CLIENT_SECRET: 'a-secret', GOOGLE_CLIENT_ID: 'half-set' })
   const send = (to: string, _subject: string, text: string) => void mails.push({ to, text })
   cloudDir = mkdtempSync(join(tmpdir(), 'kataki-cloud-'))
-  const cloud = { dir: cloudDir, maxBytes: 1000 }
+  const cloud = { dir: cloudDir, maxBytes: 1000, limits: { free: { stories: 2, characters: 3 }, microsPerGbMonth: 100_000 } }
   const auth = makeAuth({ pool, origin, secret: 'x7Kq'.repeat(10), pwned: false, social, others, send })
   await migrateAuth(auth)
   await migrate(pool)
@@ -609,6 +610,34 @@ test('cloud save: snapshots have revisions, one computer never silently overwrit
   assert.equal(await sweep(leaving, new Date(Date.now() + (GRACE_DAYS + 1) * 86_400_000)), 1)
   assert.equal(existsSync(join(cloudDir, id)), false)
   assert.equal((await call('/api/cloud', { headers: desk })).status, 401)
+})
+
+test('cloud save past the free limit: kept while there is credit, charged once a day, never deleted', async () => {
+  const { cookie, id } = await account('bigwriter@example.com')
+  const device = await linked(cookie)
+  const small = encodeURIComponent(JSON.stringify({ stories: 2, characters: 3 }))
+  const big = encodeURIComponent(JSON.stringify({ stories: 9, characters: 3 }))
+  assert.equal((await put(device, 'small', `base=0&holds=${small}`)).status, 200) // free
+  const today = new Date('2026-10-03T12:00:00Z')
+  assert.equal(await chargeStorage(leaving as never, today), 0) // nothing to charge inside the limit
+
+  const bigger = await put(device, 'x'.repeat(900), `base=1&holds=${big}`)
+  assert.equal(bigger.status, 200) // past the limit, but there is credit
+  const info = (await (await call('/api/cloud', { headers: device })).json()) as { over: string[]; free: object; pricePerGbMonth: number }
+  assert.deepEqual([info.over, info.pricePerGbMonth], [['stories'], 0.1])
+
+  const before = await balance(pool, id)
+  assert.equal(await chargeStorage({ ...leaving, ...leaving.cloud!, limits: { free: { stories: 2, characters: 3 }, microsPerGbMonth: 100_000 } } as never, today), 1)
+  assert.equal(await chargeStorage({ ...leaving, ...leaving.cloud!, limits: { free: { stories: 2, characters: 3 }, microsPerGbMonth: 100_000 } } as never, today), 0) // once a day
+  assert.equal(await balance(pool, id), before - 1n) // a few hundred bytes cost the smallest unit, rounded up
+
+  // out of credit: a library past the limit is not taken; what is there stays and comes down
+  await pool.query("INSERT INTO credit(user_id, micros, reason, ref) VALUES($1, $2, 'adjust', $3)", [id, (-(await balance(pool, id))).toString(), `test:${id}`])
+  const refused = await put(device, 'y'.repeat(900), `base=2&holds=${big}`)
+  assert.equal(refused.status, 402)
+  assert.deepEqual(((await refused.json()) as { over: string[] }).over, ['stories'])
+  assert.equal((await put(device, 'small again', `base=2&holds=${small}`)).status, 200) // inside the limit it is free
+  assert.equal((await call('/api/cloud/download', { headers: device })).status, 200)
 })
 
 test('the web build is served, and nothing outside it', async () => {

@@ -10,8 +10,8 @@ import { relative, t } from '../../strings'
 
 type Holds = { stories?: number; characters?: number; places?: number; plots?: number }
 type Snapshot = { revision: number; holds: Holds; device: string; at?: string }
-type Status = { available: boolean; connected?: boolean; offline?: boolean; account?: string; snapshot?: Snapshot | null; base?: number; local?: Holds }
-type Sent = { snapshot?: Snapshot; conflict?: Snapshot | null; too_big?: number | null }
+type Status = { available: boolean; connected?: boolean; offline?: boolean; account?: string; snapshot?: Snapshot | null; base?: number; local?: Holds; free?: Holds; pricePerGbMonth?: number }
+type Sent = { snapshot?: Snapshot; conflict?: Snapshot | null; too_big?: number | null; needs_credit?: { over: string[]; free: Holds } }
 
 const holds = (h: Holds = {}) => t('cl.holds', { stories: h.stories ?? 0, characters: h.characters ?? 0, places: h.places ?? 0, plots: h.plots ?? 0 })
 const when = (s: Snapshot) => (s.at ? relative(Date.parse(s.at)) : '')
@@ -39,6 +39,7 @@ export default function Cloud() {
       const sent = await api<Sent>(`/cloud/upload${force ? '?force=true' : ''}`, 'POST')
       if (sent.conflict !== undefined) setClash(sent.conflict)
       else if (sent.too_big !== undefined) toast(t('cl.tooBig', { mb: Math.round((sent.too_big ?? 0) / 1048576) }), { icon: 'alert' }, 10_000)
+      else if (sent.needs_credit) toast(t('cl.needsCredit'), { icon: 'alert' }, 12_000)
       else { setClash(undefined); toast(t('cl.sent'), { icon: 'cloud' }, 5000) }
       reload()
     } catch (e) { said(e) } finally { setBusy('') }
@@ -54,6 +55,7 @@ export default function Cloud() {
   }
   const snapshot = status.snapshot
   const ahead = !!snapshot && snapshot.revision !== (status.base ?? 0) // the cloud has moved on since this library last met it
+  const past = Object.entries(status.free ?? {}).some(([what, most]) => (status.local?.[what as keyof Holds] ?? 0) > (most ?? 0)) // this library is past the free limit
 
   return (
     <K.SettingsSection title={t('cl.title')} note={t('cl.note')}>
@@ -74,6 +76,9 @@ export default function Cloud() {
             </K.SettingsRow>
           )}
         </>
+      )}
+      {status.connected && status.free && (
+        <K.SettingsRow title={t('cl.free')} description={t('cl.freeSub', { holds: holds(status.free), price: new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(status.pricePerGbMonth ?? 0) }) + (past ? ` ${t('cl.past')}` : '')}><span /></K.SettingsRow>
       )}
       {linking && <Linking {...linking} onClose={() => { setLinking(undefined); reload() }} />}
       {clash !== undefined && (

@@ -23,6 +23,7 @@ class FakeCloud:
         self.approved = False
         self.snapshots: list[dict] = []  # {"revision", "body", "holds", "device"}
         self.linked = True
+        self.broke = False  # past the free limit with no credit
 
     def __call__(self, request: httpx2.Request) -> httpx2.Response:
         path = request.url.path
@@ -48,6 +49,8 @@ class FakeCloud:
             q = request.url.params
             if not q.get("force") and int(q["base"]) != (newest["revision"] if newest else 0):
                 return httpx2.Response(409, json={"snapshot": shown})
+            if self.broke:
+                return httpx2.Response(402, json={"over": ["stories"], "free": {"stories": 5}})
             made = {
                 "revision": (newest["revision"] if newest else 0) + 1,
                 "body": request.content,
@@ -179,3 +182,11 @@ def test_an_empty_cloud_has_nothing_to_bring_down(api, fake):
     assert api.post("/cloud/download").json() == {"nothing": True}
     with pytest.raises(archive.BadArchive):  # and the helper it leans on still refuses rubbish
         archive.restore(api.conn, b"rubbish")
+
+
+def test_past_the_free_limit_with_no_credit_it_says_why(api, fake):
+    link(api, fake)
+    fake.broke = True
+    said = api.post("/cloud/upload").json()
+    assert said == {"needs_credit": {"over": ["stories"], "free": {"stories": 5}}}
+    assert fake.snapshots == []

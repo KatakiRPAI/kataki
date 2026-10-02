@@ -14,10 +14,16 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { join } from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import type { Pool } from 'pg'
+import { balance } from './ledger.ts'
 import { USER } from './sign.ts'
 
 export const KEPT = 5
-export type CloudConfig = { pool: Pool; origin: string; dir: string; maxBytes: number }
+// Free up to these counts; a library past any of them is kept for a price per GB-month, taken
+// from the credit balance once a day (docs/decisions.md holds the numbers until the owner sets them).
+export const FREE = { stories: 5, characters: 10, places: 10, plots: 10 }
+export type Limits = { free: Record<string, number>; microsPerGbMonth: number }
+export const LIMITS: Limits = { free: FREE, microsPerGbMonth: 100_000 } // $0.10
+export type CloudConfig = { pool: Pool; origin: string; dir: string; maxBytes: number; limits?: Limits }
 export type Snapshot = { revision: number; bytes: number; holds: Record<string, number>; device: string; at: string }
 
 const sealed = (secret: string) => createHash('sha256').update(secret).digest('hex')
@@ -90,11 +96,19 @@ const counts = (said: unknown): Record<string, number> => {
   return out
 }
 
+/** What, if anything, puts these counts past the free limit. */
+export function over(limits: Limits, holds: Record<string, number>): string[] {
+  return Object.entries(limits.free).filter(([what, most]) => (holds[what] ?? 0) > most).map(([what]) => what)
+}
+
 /** Take an upload. 409 with what is there when it was not built on the newest snapshot (and
- *  did not say to replace it); 413 past the size limit. */
-export async function upload(c: CloudConfig, who: { user: string; name: string }, req: IncomingMessage, base: number, force: boolean, holds: unknown): Promise<{ status: 200 | 409 | 413; snapshot: Snapshot | null }> {
+ *  did not say to replace it); 413 past the size limit; 402 past the free limit with no credit
+ *  left to pay for keeping it. */
+export async function upload(c: CloudConfig, who: { user: string; name: string }, req: IncomingMessage, base: number, force: boolean, holds: unknown): Promise<{ status: 200 | 402 | 409 | 413; snapshot: Snapshot | null; over?: string[] }> {
   const have = await newest(c, who.user)
   if (!force && (have?.revision ?? 0) !== base) return { status: 409, snapshot: have }
+  const past = over(c.limits ?? LIMITS, counts(holds))
+  if (past.length && (await balance(c.pool, who.user)) <= 0n) { req.resume(); return { status: 402, snapshot: have, over: past } }
   const revision = (have?.revision ?? 0) + 1
   const target = file(c, who.user, revision)
   mkdirSync(join(c.dir, who.user), { recursive: true })
@@ -134,7 +148,29 @@ export async function download(c: CloudConfig, user: string, res: ServerResponse
 export async function forgetCloud(c: CloudConfig, user: string): Promise<void> {
   if (!USER.test(user)) return
   await c.pool.query('DELETE FROM snapshot WHERE user_id = $1', [user])
+  // the charge rows stay with the ledger, as payment records do
   await c.pool.query('DELETE FROM device WHERE user_id = $1', [user])
   await c.pool.query('DELETE FROM device_link WHERE user_id = $1', [user])
   rmSync(join(c.dir, user), { recursive: true, force: true })
+}
+
+/** Once a day, charge each account whose newest snapshot is past the free limit for every byte
+ *  it keeps (all kept snapshots), at the GB-month price over 30 days. Once per account per day.
+ *  Returns how many were charged. Nothing is ever deleted for being out of credit: uploads stop,
+ *  downloads go on. */
+export async function chargeStorage(c: CloudConfig, day = new Date()): Promise<number> {
+  const limits = c.limits ?? LIMITS
+  const { rows } = await c.pool.query(
+    `SELECT s.user_id, s.holds, (SELECT sum(bytes) FROM snapshot k WHERE k.user_id = s.user_id) AS kept
+       FROM snapshot s WHERE s.revision = (SELECT max(revision) FROM snapshot n WHERE n.user_id = s.user_id)`,
+  )
+  let charged = 0
+  for (const row of rows as { user_id: string; holds: Record<string, number>; kept: string }[]) {
+    if (!over(limits, row.holds).length) continue
+    // micro-dollars per byte-day, rounded up once: a library past the limit always pays something
+    const micros = (BigInt(row.kept) * BigInt(limits.microsPerGbMonth) + 30n * 1_000_000_000n - 1n) / (30n * 1_000_000_000n)
+    const r = await c.pool.query("INSERT INTO charge(user_id, micros, reason, day, bytes) VALUES($1, $2, 'storage', $3, $4) ON CONFLICT DO NOTHING", [row.user_id, micros.toString(), day.toISOString().slice(0, 10), row.kept])
+    charged += r.rowCount ?? 0
+  }
+  return charged
 }
