@@ -23,6 +23,7 @@ const dev: Record<string, string> = {
   KATAKI_GATEWAY_KEY: 'dev-only-gateway-key',
   KATAKI_WEB: fileURLToPath(new URL('../../app/dist-web', import.meta.url)),
   KATAKI_STARTER_CREDIT: '1',
+  KATAKI_CLOUD_DIR: fileURLToPath(new URL('../../.dev/gateway-cloud', import.meta.url)),
   KATAKI_PWNED: '0',
 }
 for (const [k, v] of Object.entries(dev)) process.env[k] ??= v
