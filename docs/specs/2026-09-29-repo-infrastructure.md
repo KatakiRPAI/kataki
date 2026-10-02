@@ -48,6 +48,8 @@ Update this list as phases land (date · phase · what changed · anything left)
   library are in `/opt/kataki`). Update it there with `git pull && docker compose up -d --build`.
   It is one user's library, not the website: the gateway, GHCR images and `deploy.yml` are
   still owed.
+- 2026-10-02 · That hosted Kataki is the alpha: `AGENTS.md` has agents update it after every
+  merge, by hand until `deploy.yml` does it.
 
 Decisions made (2026-09-29):
 
