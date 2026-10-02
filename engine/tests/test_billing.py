@@ -147,7 +147,7 @@ def test_v18_prices_each_usage_row(tmp_path):
     [row] = conn.execute("SELECT * FROM usage_log").fetchall()
     got = (row["prompt_tokens"], row["cost"], row["estimated"], row["usage_id"], row["metered"])
     assert got == (12, None, 0, None, 0)
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION == 18
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION
     conn.close()
 
 
