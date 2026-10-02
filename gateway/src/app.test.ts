@@ -10,7 +10,7 @@ import { PGlite } from '@electric-sql/pglite'
 import { PGLiteSocketServer } from '@electric-sql/pglite-socket'
 import pg from 'pg'
 import { createGateway } from './app.ts'
-import { makeAuth, migrateAuth } from './auth.ts'
+import { makeAuth, migrateAuth, socialFrom } from './auth.ts'
 import { migrate } from './db.ts'
 import { balance } from './ledger.ts'
 import { sign } from './sign.ts'
@@ -22,7 +22,7 @@ const PASSWORD = 'correct horse battery'
 
 const mails: { to: string; text: string }[] = []
 const seen: { method: string; url: string; headers: IncomingMessage['headers']; body: string }[] = []
-let db: PGlite, socket: PGLiteSocketServer, pool: pg.Pool, engine: Server, gateway: Server, origin: string
+let db: PGlite, socket: PGLiteSocketServer, pool: pg.Pool, engine: Server, gateway: Server, provider: Server, origin: string
 
 const listen = (server: Server) => new Promise<number>((done) => server.listen(0, '127.0.0.1', () => done((server.address() as AddressInfo).port)))
 
@@ -57,16 +57,25 @@ before(async () => {
   let handler: RequestListener = () => {}
   gateway = createServer((req, res) => handler(req, res))
   origin = `http://127.0.0.1:${await listen(gateway)}`
-  const auth = makeAuth({ pool, origin, secret: 'x7Kq'.repeat(10), pwned: false, send: (to, _subject, text) => void mails.push({ to, text }) })
+  // another service: answers any code with one person, as GitHub would after "Authorize"
+  provider = createServer((req, res) => {
+    const body = req.url!.startsWith('/token') ? { access_token: 'a-token', token_type: 'bearer' } : { id: 'gh-1', sub: 'gh-1', email: 'octo@example.com', email_verified: true, name: 'Octo' }
+    res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(body))
+  })
+  const there = `http://127.0.0.1:${await listen(provider)}`
+  const others = [{ providerId: 'fake', clientId: 'an-id', clientSecret: 'a-secret', authorizationUrl: `${there}/authorize`, tokenUrl: `${there}/token`, userInfoUrl: `${there}/userinfo`, scopes: ['email'] }]
+  const social = socialFrom({ GITHUB_CLIENT_ID: 'an-id', GITHUB_CLIENT_SECRET: 'a-secret', GOOGLE_CLIENT_ID: 'half-set' })
+  const auth = makeAuth({ pool, origin, secret: 'x7Kq'.repeat(10), pwned: false, social, others, send: (to, _subject, text) => void mails.push({ to, text }) })
   await migrateAuth(auth)
   await migrate(pool)
   await migrate(pool) // again: nothing to do, nothing breaks
-  handler = createGateway({ auth, pool, origin, engine: `http://127.0.0.1:${enginePort}`, secret: SECRET, key: KEY, prices: PRICES, web, starter: 1_000_000n })
+  handler = createGateway({ auth, pool, origin, engine: `http://127.0.0.1:${enginePort}`, secret: SECRET, key: KEY, prices: PRICES, web, starter: 1_000_000n, social: Object.keys(social) })
 })
 
 after(async () => {
   gateway.close()
   engine.close()
+  provider.close()
   await pool.end()
   await socket.stop()
   await db.close()
@@ -216,6 +225,49 @@ test('a sign-in link: only for an account, used by a button and only once', asyn
   assert.equal((await call('/stories', { cookie })).status, 200)
   const again = await call(`/api/auth/magic-link/verify?token=${token}&callbackURL=%2Fapp%2F`)
   assert.equal(again.headers.get('set-cookie'), null)
+})
+
+test('another service is offered only when both its keys are set', async () => {
+  assert.deepEqual(await (await call('/api/providers')).json(), { social: ['github'] })
+  const go = await post('/api/auth/sign-in/social', { provider: 'github', callbackURL: '/app/' })
+  assert.equal(go.status, 200)
+  const { url } = (await go.json()) as { url: string }
+  const there = new URL(url)
+  assert.equal(there.origin, 'https://github.com')
+  assert.equal(there.searchParams.get('client_id'), 'an-id')
+  assert.equal(there.searchParams.get('redirect_uri'), `${origin}/api/auth/callback/github`)
+  assert.match(there.searchParams.get('scope')!, /user:email/) // the verified address, never the profile's
+  assert.notEqual((await post('/api/auth/sign-in/social', { provider: 'google', callbackURL: '/app/' })).status, 200)
+})
+
+/** Leave for the other service and come back, as the browser does after "Authorize". */
+async function viaProvider(extra: Record<string, unknown>) {
+  const left = await post('/api/auth/sign-in/social', { provider: 'fake', callbackURL: '/app/', errorCallbackURL: '/app/', ...extra })
+  assert.equal(left.status, 200)
+  const state = new URL(((await left.json()) as { url: string }).url).searchParams.get('state')!
+  const cookie = left.headers.getSetCookie().map((c) => c.split(';')[0]).join('; ')
+  const back = await call(`/api/auth/callback/fake?code=a-code&state=${encodeURIComponent(state)}`, { cookie })
+  return { location: back.headers.get('location') ?? '', session: back.headers.getSetCookie().find((c) => c.includes('session_token'))?.split(';')[0] }
+}
+
+test('another service: signing in never makes an account; creating one does, and carries 18 or older', async () => {
+  const none = await viaProvider({})
+  assert.match(none.location, /^\/app\/\?error=signup_disabled/)
+  assert.equal(none.session, undefined)
+
+  const unsaid = await viaProvider({ requestSignUp: true })
+  assert.match(unsaid.location, /error=/) // asked to create, never said 18 or older
+  assert.equal(unsaid.session, undefined)
+
+  const made = await viaProvider({ requestSignUp: true, additionalData: { adult: true } })
+  assert.equal(made.location, '/app/')
+  const me = (await (await call('/api/me', { cookie: made.session! })).json()) as { user: { email: string; id: string } }
+  assert.equal(me.user.email, 'octo@example.com')
+  assert.match(me.user.id, /^[0-9a-f-]{36}$/)
+
+  const again = await viaProvider({}) // and now plain sign-in works
+  assert.equal(again.location, '/app/')
+  assert.ok(again.session)
 })
 
 test('the web build is served, and nothing outside it', async () => {

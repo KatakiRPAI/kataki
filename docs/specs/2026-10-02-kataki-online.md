@@ -26,7 +26,16 @@ The owner chose Better Auth on 2026-10-02, so the gateway is a small TypeScript 
       routes. Checked in a browser on one machine. Not done: the sign-up challenge
       (**[owner]**: Turnstile keys); binding a sign-in link to the browser that asked, with a
       code for another device; a notice when the email changes (G5, with the change itself).
-- [ ] G3 · Google, GitHub, Discord, Apple.
+- [ ] G3 · Google, GitHub, Discord, Apple. Built (2026-10-02): a provider is offered when
+      both its keys are in the environment (`GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`; the
+      same for `GOOGLE_` and `DISCORD_`), `pnpm -C gateway dev` reads them from the repo's
+      `.env`; "Sign in with" never creates an account, "Create account with" does and carries
+      18-or-older through the redirect; linking joins an existing account only for Google and
+      GitHub. Callback: `{origin}/api/auth/callback/{provider}`. A stand-in provider in the
+      tests runs the whole round trip. The owner made an account through real GitHub on
+      2026-10-02 (a dev OAuth app, localhost). Signing in with no account opens Create account
+      with a note. Not done: Google and Discord against the real services (**[owner]**: their
+      keys); Apple; the production OAuth apps on the real domain.
 - [ ] G4 · TOTP and backup codes, sudo mode, passkeys.
 - [ ] G5 · Settings › Account: emails, methods, sessions, export, deletion.
 - [ ] G6 · Handles and the online profile.

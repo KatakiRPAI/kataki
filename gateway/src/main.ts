@@ -3,7 +3,7 @@ import { createServer } from 'node:http'
 import { DatabaseSync } from 'node:sqlite'
 import pg from 'pg'
 import { createGateway } from './app.ts'
-import { makeAuth, migrateAuth, type Send } from './auth.ts'
+import { makeAuth, migrateAuth, socialFrom, type Send } from './auth.ts'
 import { migrate } from './db.ts'
 import type { Prices } from './money.ts'
 
@@ -32,7 +32,8 @@ export async function start(send: Send = printed) {
   const signing = need('KATAKI_GATEWAY_SECRET')
   if (Buffer.byteLength(signing) < 32) throw new Error('KATAKI_GATEWAY_SECRET must be at least 32 bytes')
   const pool = new pg.Pool({ connectionString: need('DATABASE_URL'), max: Number(process.env.KATAKI_DB_POOL ?? 10) })
-  const auth = makeAuth({ pool, origin, secret: need('BETTER_AUTH_SECRET'), send, pwned: process.env.KATAKI_PWNED !== '0' })
+  const social = socialFrom(process.env)
+  const auth = makeAuth({ pool, origin, secret: need('BETTER_AUTH_SECRET'), send, pwned: process.env.KATAKI_PWNED !== '0', social })
   await migrateAuth(auth)
   await migrate(pool)
   const gateway = createGateway({
@@ -43,11 +44,12 @@ export async function start(send: Send = printed) {
     prices: process.env.KATAKI_CATALOGUE ? pricesFrom(process.env.KATAKI_CATALOGUE) : {},
     web: process.env.KATAKI_WEB,
     starter: BigInt(Math.round(Number(process.env.KATAKI_STARTER_CREDIT ?? 0) * 1e6)),
+    social: Object.keys(social),
   })
   const server = createServer(gateway)
   const port = Number(process.env.PORT ?? 8787)
   await new Promise<void>((done) => server.listen(port, process.env.KATAKI_BIND ?? '127.0.0.1', done))
-  console.log(`gateway: ${origin} (listening on ${port})`)
+  console.log(`gateway: ${origin} (listening on ${port}); sign in with: password${Object.keys(social).map((p) => `, ${p}`).join('')}`)
   return { server, pool }
 }
 

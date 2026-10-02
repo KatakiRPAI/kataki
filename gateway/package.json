@@ -9,7 +9,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev": "node src/dev.ts",
+    "dev": "node --env-file-if-exists=../.env src/dev.ts",
     "start": "node src/main.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --test \"src/**/*.test.ts\""
