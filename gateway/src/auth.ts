@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { betterAuth } from 'better-auth'
 import { APIError, getOAuthState } from 'better-auth/api'
 import { getMigrations } from 'better-auth/db/migration'
-import { haveIBeenPwned, magicLink } from 'better-auth/plugins'
+import { genericOAuth, haveIBeenPwned, magicLink, type GenericOAuthConfig } from 'better-auth/plugins'
 import type { Pool } from 'pg'
 
 export type Send = (to: string, subject: string, text: string) => void | Promise<void>
@@ -15,6 +15,7 @@ export type AuthConfig = {
   send: Send
   pwned?: boolean // refuse breached passwords (asks api.pwnedpasswords.com); tests turn it off
   social?: Social // the providers the owner has registered an app with; none by default
+  others?: GenericOAuthConfig[] // any other OAuth service, by its endpoints (the tests' stand-in for GitHub)
 }
 
 // Sign in with another service (spec §2, G3). Apple is not here yet: it needs a signed client
@@ -36,7 +37,7 @@ export function socialFrom(env: Record<string, string | undefined>): Social {
 
 const DAY = 86_400
 
-export function makeAuth({ pool, origin, secret, send, pwned = true, social = {} }: AuthConfig) {
+export function makeAuth({ pool, origin, secret, send, pwned = true, social = {}, others = [] }: AuthConfig) {
   return betterAuth({
     baseURL: origin,
     secret,
@@ -72,7 +73,8 @@ export function makeAuth({ pool, origin, secret, send, pwned = true, social = {}
       },
     },
     // 18 or older, said at sign-up and kept on the account with the time it was made
-    user: { additionalFields: { adult: { type: 'boolean', required: true, input: true } } },
+    // not "required": the library checks that before the hook below can fill it in from another service's sign-up
+    user: { additionalFields: { adult: { type: 'boolean', required: false, input: true } } },
     databaseHooks: {
       user: {
         create: {
@@ -116,6 +118,7 @@ export function makeAuth({ pool, origin, secret, send, pwned = true, social = {}
     },
     plugins: [
       haveIBeenPwned({ enabled: pwned }),
+      ...(others.length ? [genericOAuth({ config: others.map((o) => ({ ...o, disableImplicitSignUp: true })) })] : []),
       magicLink({
         expiresIn: 10 * 60,
         storeToken: 'hashed',

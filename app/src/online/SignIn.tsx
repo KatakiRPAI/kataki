@@ -18,21 +18,31 @@ type View = 'in' | 'up' | 'forgot' | 'link' | 'reset' | 'magic'
 
 export default function SignIn() {
   const [asked] = useState(() => new URLSearchParams(location.search))
-  const [view, setView] = useState<View>(asked.get('magic') ? 'magic' : asked.get('token') ? 'reset' : 'in')
+  // what a redirect back to us said went wrong, if anything
+  const [came] = useState(() => {
+    const code = asked.get('error')
+    if (code) history.replaceState(null, '', location.pathname) // said once: not again on a reload
+    return code
+  })
+  // another service signed someone in who has no account here: straight to making one
+  const [view, setView] = useState<View>(asked.get('magic') ? 'magic' : asked.get('token') ? 'reset' : came === 'signup_disabled' ? 'up' : 'in')
   const [sent, setSent] = useState<Key>() // S2: what "check your email" says
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [adult, setAdult] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [note, setNote] = useState('')
-  // S3: a link that is used up or too old; or another service came back without an account here
-  const [error, setError] = useState(asked.get('error') === 'signup_disabled' ? t('si.e.noAccount') : asked.get('error') ? t('si.e.link') : '')
+  const [note, setNote] = useState(came === 'signup_disabled' ? t('si.noAccount') : '')
+  // S3: a link that is used up or too old; anything else that went wrong on the way back says its code
+  const [error, setError] = useState(!came || came === 'signup_disabled' ? '' : /token|attempt/i.test(came) ? t('si.e.link') : t('si.e.back', { code: came }))
   const [social, setSocial] = useState<string[]>([])
   useEffect(() => { fetch('/api/providers').then((r) => r.json()).then((p: { social: string[] }) => setSocial(p.social), () => {}) }, [])
   // Leave for the other service. Creating an account carries "18 or older" with it; signing in never creates one.
-  const leave = (provider: string) => auth<{ url: string }>('/sign-in/social', { provider, callbackURL: home, errorCallbackURL: home, ...(view === 'up' ? { requestSignUp: true, additionalData: { adult: true } } : {}) })
-    .then((r) => location.assign(r.url), () => setError(t('si.e.other')))
+  const leave = (provider: string) => {
+    if (view === 'up' && !adult) return setError(t('si.e.tick')) // say what is missing, rather than a dead button
+    auth<{ url: string }>('/sign-in/social', { provider, callbackURL: home, errorCallbackURL: home, ...(view === 'up' ? { requestSignUp: true, additionalData: { adult: true } } : {}) })
+      .then((r) => location.assign(r.url), () => setError(t('si.e.other')))
+  }
 
   const go = (to: View) => { setView(to); setError(''); setNote(''); setSent(undefined) }
   const mail = email.trim()
@@ -101,7 +111,7 @@ export default function SignIn() {
             {(view === 'in' || view === 'up' || view === 'reset') && (
               <K.TextField label={t(view === 'reset' ? 'si.newPassword' : 'si.password')} type="password" value={password} onChange={setPassword} hint={view === 'in' ? undefined : t('si.passwordHint')} />
             )}
-            {view === 'up' && <K.Checkbox label={t('si.adult')} checked={adult} onChange={setAdult} />}
+            {view === 'up' && <K.Checkbox label={t('si.adult')} checked={adult} onChange={(v) => { setAdult(v); setError('') }} />}
             {note && <K.Callout tone="ok">{note}</K.Callout>}
             {error && <K.Callout tone="bad">{error}</K.Callout>}
             {/* a real submit button too, so Enter in a field signs in */}
@@ -109,9 +119,8 @@ export default function SignIn() {
             <K.Button variant="primary" full loading={busy} disabled={!ready} onClick={() => submit()}>{t(action[view])}</K.Button>
             {view === 'in' && <div className="row" style={{ justifyContent: 'space-between' }}>{link('forgot', 'si.forgot')}{link('link', 'si.linkInstead')}</div>}
             {(view === 'in' || view === 'up') && social.map((p) => (
-              <K.Button key={p} full disabled={view === 'up' && !adult} onClick={() => leave(p)}>{t(view === 'in' ? 'si.with' : 'si.upWith', { name: NAMES[p] ?? p })}</K.Button>
+              <K.Button key={p} full onClick={() => leave(p)}>{t(view === 'in' ? 'si.with' : 'si.upWith', { name: NAMES[p] ?? p })}</K.Button>
             ))}
-            {view === 'up' && social.length > 0 && !adult && <p className="t-meta">{t('si.adultFirst')}</p>}
             {(view === 'forgot' || view === 'link') && <div>{link('in', 'si.back')}</div>}
           </form>
         )}
