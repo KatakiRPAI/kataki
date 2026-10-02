@@ -10,15 +10,18 @@ import Top from './Top'
 import { useLibrary, useLoad } from '../hooks'
 import { setPref, usePrefs } from '../prefs'
 import { complete, lang, LANGUAGES, RTL, switchLanguage, t, type Key } from '../strings'
+import { account } from '../online/session'
+import Account from './settings/Account'
 import Data from './settings/Data'
 import Models from './settings/Models'
 import Profiles from './settings/Profiles'
 import Shortcuts from './settings/Shortcuts'
 
-const ALL = ['general', 'appearance', 'language', 'models', 'memory', 'profiles', 'data', 'shortcuts', 'about'] as const
+const ALL = ['general', 'appearance', 'language', 'models', 'memory', 'profiles', 'account', 'data', 'shortcuts', 'about'] as const
 type Panel = (typeof ALL)[number]
 // Profiles are the desktop shell's (electron/profiles.ts): no list on the web or on one fixed library
-const PANELS = ALL.filter((p) => p !== 'profiles' || !!window.kataki?.profiles)
+// and the account is Kataki online's (the gateway): the desktop has none
+const PANELS = ALL.filter((p) => (p !== 'profiles' || !!window.kataki?.profiles) && (p !== 'account' || !!account()))
 export const last = { panel: 'general' as Panel } // the rail's Settings comes back here this session
 
 /** A Select over [value, label key] pairs, saved to one setting. */
@@ -43,7 +46,7 @@ function Seg({ k, options, fallback, label }: { k: string; options: [string, Key
     onChange={(v) => setPref(k, options.find(([, l]) => t(l) === v)?.[0] ?? fallback)} />
 }
 
-const ICONS: Record<Panel, IconName> = { general: 'settings', appearance: 'sun', language: 'globe', models: 'cpu', memory: 'thought', profiles: 'users', data: 'shield', shortcuts: 'key', about: 'help' }
+const ICONS: Record<Panel, IconName> = { general: 'settings', appearance: 'sun', language: 'globe', models: 'cpu', memory: 'thought', profiles: 'users', account: 'user', data: 'shield', shortcuts: 'key', about: 'help' }
 
 export default function Settings() {
   const asked = useParams().panel as Panel
@@ -64,6 +67,7 @@ export default function Settings() {
           {panel === 'models' && <Models />}
           {panel === 'memory' && <Memory />}
           {panel === 'profiles' && <Profiles />}
+          {panel === 'account' && <Account />}
           {panel === 'data' && <Data />}
           {panel === 'shortcuts' && <Shortcuts />}
           {panel === 'about' && <About />}

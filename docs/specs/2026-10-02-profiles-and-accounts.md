@@ -42,8 +42,9 @@ Research: `docs/research/reports/Profiles accounts and cloud.md`.
       tiers, hidden badges, a pinned showcase.
 - [ ] P4 · Move a library; choose at startup; discreet list; PIN.
 - [ ] P5 · Settings, completed.
-- [ ] A0 · The `kataki-online` gateway spec (auth, ledger, deploy) and the owner's sign-offs below.
-- [ ] A1–A6 · Accounts.
+- [x] A0 · The gateway's spec: `docs/specs/2026-10-02-kataki-online.md` (2026-10-02). The owner
+      chose Better Auth. A1–A6 are its G1–G6, and their progress is kept there.
+- [ ] A1–A6 · Accounts: A1 (G1) done; see the gateway spec.
 - [ ] C1–C2 · Cloud for the desktop.
 
 ## 1. What the owner is after

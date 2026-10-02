@@ -1,0 +1,247 @@
+{
+ "prices": {
+  "rp-1": {
+   "input": 0.15,
+   "cached": 0.075,
+   "output": 0.6
+  },
+  "big": {
+   "input": 3,
+   "output": 15
+  },
+  "tiny": {
+   "input": 1e-07,
+   "output": 2.5e-06
+  },
+  "embed-1": {
+   "input": 0.02
+  },
+  "voice-1": {
+   "char": 15.5
+  },
+  "broken": {
+   "input": "free",
+   "output": 1
+  },
+  "negative": {
+   "input": -1,
+   "output": 1
+  },
+  "third": {
+   "input": 0.333333,
+   "output": 0.5
+  }
+ },
+ "money": [
+  {
+   "row": {
+    "model": "rp-1",
+    "role": "rp",
+    "prompt_tokens": 1000,
+    "cached_tokens": 0,
+    "completion_tokens": 200
+   },
+   "micros": 270
+  },
+  {
+   "row": {
+    "model": "rp-1",
+    "role": "rp",
+    "prompt_tokens": 1000,
+    "cached_tokens": 400,
+    "completion_tokens": 200
+   },
+   "micros": 240
+  },
+  {
+   "row": {
+    "model": "rp-1",
+    "role": "rp",
+    "prompt_tokens": 1000,
+    "cached_tokens": 5000,
+    "completion_tokens": 200
+   },
+   "micros": 195
+  },
+  {
+   "row": {
+    "model": "rp-1",
+    "role": "utility",
+    "prompt_tokens": 3,
+    "cached_tokens": 0,
+    "completion_tokens": 1
+   },
+   "micros": 1
+  },
+  {
+   "row": {
+    "model": "rp-1",
+    "role": "rp",
+    "prompt_tokens": 0,
+    "cached_tokens": 0,
+    "completion_tokens": 0
+   },
+   "micros": 0
+  },
+  {
+   "row": {
+    "model": "big",
+    "role": "reasoning",
+    "prompt_tokens": 123457,
+    "cached_tokens": 0,
+    "completion_tokens": 9871
+   },
+   "micros": 518436
+  },
+  {
+   "row": {
+    "model": "big",
+    "role": "rp",
+    "prompt_tokens": 10,
+    "cached_tokens": 4,
+    "completion_tokens": 0
+   },
+   "micros": 30
+  },
+  {
+   "row": {
+    "model": "tiny",
+    "role": "rp",
+    "prompt_tokens": 5000000,
+    "cached_tokens": 0,
+    "completion_tokens": 200000
+   },
+   "micros": 1
+  },
+  {
+   "row": {
+    "model": "tiny",
+    "role": "rp",
+    "prompt_tokens": 1,
+    "cached_tokens": 0,
+    "completion_tokens": 0
+   },
+   "micros": 0
+  },
+  {
+   "row": {
+    "model": "embed-1",
+    "role": "embed",
+    "prompt_tokens": 25,
+    "cached_tokens": 0,
+    "completion_tokens": 0
+   },
+   "micros": 1
+  },
+  {
+   "row": {
+    "model": "embed-1",
+    "role": "rp",
+    "prompt_tokens": 25,
+    "cached_tokens": 0,
+    "completion_tokens": 0
+   },
+   "micros": null
+  },
+  {
+   "row": {
+    "model": "voice-1",
+    "role": "voice",
+    "prompt_tokens": 321,
+    "cached_tokens": 0,
+    "completion_tokens": 0
+   },
+   "micros": 4976
+  },
+  {
+   "row": {
+    "model": "rp-1",
+    "role": "voice",
+    "prompt_tokens": 321,
+    "cached_tokens": 0,
+    "completion_tokens": 0
+   },
+   "micros": null
+  },
+  {
+   "row": {
+    "model": "broken",
+    "role": "rp",
+    "prompt_tokens": 10,
+    "cached_tokens": 0,
+    "completion_tokens": 10
+   },
+   "micros": null
+  },
+  {
+   "row": {
+    "model": "negative",
+    "role": "rp",
+    "prompt_tokens": 10,
+    "cached_tokens": 0,
+    "completion_tokens": 10
+   },
+   "micros": null
+  },
+  {
+   "row": {
+    "model": "nowhere",
+    "role": "rp",
+    "prompt_tokens": 10,
+    "cached_tokens": 0,
+    "completion_tokens": 10
+   },
+   "micros": null
+  },
+  {
+   "row": {
+    "model": "third",
+    "role": "rp",
+    "prompt_tokens": 3,
+    "cached_tokens": 0,
+    "completion_tokens": 1
+   },
+   "micros": 1
+  },
+  {
+   "row": {
+    "model": "third",
+    "role": "rp",
+    "prompt_tokens": 1,
+    "cached_tokens": 0,
+    "completion_tokens": 1
+   },
+   "micros": 1
+  },
+  {
+   "row": {
+    "model": "rp-1",
+    "role": "rp",
+    "prompt_tokens": null,
+    "cached_tokens": null,
+    "completion_tokens": null
+   },
+   "micros": 0
+  }
+ ],
+ "sign": [
+  {
+   "secret": "ssssssssssssssssssssssssssssssss",
+   "user": "2f1641eb-4813-484e-b5e3-60218e1af6fc",
+   "channel": "stable",
+   "at": 1790938653,
+   "method": "GET",
+   "target": "/stories?",
+   "sig": "1384529e783d1f30fc87bc385204c72667a9cd73968957d86ea097ae31656de1"
+  },
+  {
+   "secret": "another secret of thirty-two bytes!",
+   "user": "alice_1",
+   "channel": "beta",
+   "at": 1,
+   "method": "POST",
+   "target": "/stories/1/turn?x=1&y=%20z",
+   "sig": "dd7b1ec0bf97263f7a35f42418c00e47363977ec33353451ee176f9e6f34592e"
+  }
+ ]
+}

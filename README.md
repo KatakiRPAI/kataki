@@ -58,7 +58,8 @@ Prerequisites: [uv](https://docs.astral.sh/uv/) and Node 22+ with pnpm (`corepac
 ```bash
 cd engine && uv sync          # creates engine/.venv, which the desktop shell launches
 cd ../app && pnpm install
-cd .. && pnpm check           # ruff + pytest + tsc
+cd ../gateway && pnpm install  # Kataki online's gateway (only needed to work on the website)
+cd .. && pnpm check           # ruff + pytest + tsc + the gateway's tests
 pnpm dev                      # desktop app (spawns the engine, dev library in .dev/)
 pnpm smoke                    # headless end-to-end check: shell -> engine -> renderer
 ```

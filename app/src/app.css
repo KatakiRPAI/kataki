@@ -309,6 +309,10 @@ button.k-shortrow, button.k-job { width: 100%; background: transparent; border: 
 .pc { display: flex; flex-direction: column; gap: 14px; }
 .pc__row { display: flex; gap: 20px; align-items: center; }
 .pc__badges { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding-top: 12px; border-top: 1px solid var(--hairline); }
+.si { position: fixed; inset: 0; display: grid; place-items: center; background: var(--bg); color: var(--text); overflow: auto; }
+.si__sky { position: absolute; inset: 0; pointer-events: none; }
+.si__card { position: relative; width: min(420px, calc(100vw - 32px)); padding: 28px; display: flex; flex-direction: column; gap: 16px; }
+.si__title { margin: 0; font-family: var(--font-display); font-size: 26px; line-height: 32px; }
 .pc__face { border-radius: 50%; box-shadow: 0 0 0 3px var(--pc, transparent); line-height: 0; }
 .pc__name { margin: 0; font-size: 22px; line-height: 28px; font-weight: 600; display: flex; gap: 10px; align-items: baseline; }
 .pc__bio { margin: 0; color: var(--mid); overflow-wrap: anywhere; }
