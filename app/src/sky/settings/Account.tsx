@@ -7,7 +7,7 @@ import { K } from '../../ds'
 import { useLoad } from '../../hooks'
 import { account, signOut } from '../../online/session'
 import { t } from '../../strings'
-import { Sessions, SigningIn } from './AccountParts'
+import { Passkeys, Sessions, SigningIn } from './AccountParts'
 import Leaving from './Leaving'
 import TwoStep from './TwoStep'
 
@@ -24,6 +24,7 @@ export default function Account() {
         <K.SettingsRow title={t('ac.balance')} description={t('ac.balanceSub')}><b>{dollars}</b></K.SettingsRow>
       </K.SettingsSection>
       <SigningIn me={me} />
+      <Passkeys />
       <K.SettingsSection title={t('ts.title')} note={t('ts.note')}>
         <K.SettingsRow title={t('ts.app')} description={t(twoStep ? 'ts.isOn' : 'ts.isOff')}>
           {twoStep ? (

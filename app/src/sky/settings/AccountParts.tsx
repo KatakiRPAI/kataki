@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { api } from '../../api'
 import { K } from '../../ds'
 import { useLoad } from '../../hooks'
-import { auth, thisSession, type AuthError, type Me } from '../../online/session'
+import { addPasskey, auth, passkeysWork, thisSession, type AuthError, type Me } from '../../online/session'
 import { Overlay, toast } from '../../overlay'
 import { relative, t } from '../../strings'
 
@@ -93,6 +93,37 @@ function device(agent?: string | null): string {
   const browser = /Firefox|Edg|OPR|Chrome|Safari/.exec(agent ?? '')?.[0].replace('Edg', 'Edge').replace('OPR', 'Opera')
   const system = /Windows|Android|iPhone|iPad|Mac OS X|Linux/.exec(agent ?? '')?.[0].replace('Mac OS X', 'macOS')
   return browser && system ? `${browser} · ${system}` : browser ?? system ?? t('se.unknown')
+}
+
+type Passkey = { id: string; name?: string | null; createdAt: string }
+
+/** Passkeys: sign in with the device itself (a fingerprint, a face, its PIN). */
+export function Passkeys() {
+  const [keys, reload] = useLoad(() => auth<Passkey[]>('/passkey/list-user-passkeys', 'get'), [])
+  const [busy, setBusy] = useState(false)
+  if (!passkeysWork()) return null
+  const add = async () => {
+    setBusy(true)
+    try {
+      await addPasskey(device(navigator.userAgent))
+      reload()
+      toast(t('pk.added'), { icon: 'key' }, 6000)
+    } catch (x) {
+      if ((x as Error).name !== 'NotAllowedError') toast(t('pk.e'), { icon: 'alert' }, 8000) // NotAllowed: they cancelled
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <K.SettingsSection title={t('pk.title')} note={t('pk.note')}>
+      {(keys ?? []).map((k) => (
+        <K.SettingsRow key={k.id} title={k.name || t('pk.one')} description={t('pk.since', { when: relative(Date.parse(k.createdAt)) })}>
+          <K.Button size="sm" variant="ghost" onClick={() => auth('/passkey/delete-passkey', { id: k.id }).then(reload, () => {})}>{t('ep.remove')}</K.Button>
+        </K.SettingsRow>
+      ))}
+      <K.SettingsRow title={t('pk.add')} description={t('pk.addSub')}><K.Button size="sm" icon="key" loading={busy} onClick={add}>{t('pk.addBtn')}</K.Button></K.SettingsRow>
+    </K.SettingsSection>
+  )
 }
 
 export function Sessions() {

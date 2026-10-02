@@ -12,7 +12,7 @@ import { PGLiteSocketServer } from '@electric-sql/pglite-socket'
 import pg from 'pg'
 import { GRACE_DAYS, sweep, type AccountConfig } from './account.ts'
 import { createGateway } from './app.ts'
-import { makeAuth, migrateAuth, socialFrom } from './auth.ts'
+import { makeAuth, migrateAuth, personChecked, socialFrom } from './auth.ts'
 import { migrate } from './db.ts'
 import { balance } from './ledger.ts'
 import { sign } from './sign.ts'
@@ -475,6 +475,27 @@ test('a backup email hears of changes once it has confirmed itself, and can do n
 
   assert.equal((await call('/api/account/backup-email', { method: 'DELETE', cookie, headers: { origin } })).status, 200)
   assert.equal(((await (await call('/api/me', { cookie })).json()) as { backupEmail: string | null }).backupEmail, null)
+})
+
+test('passkeys: offered to a signed-in account, for this site, with the person checked each time', async () => {
+  const { cookie } = await account('keyholder@example.com')
+  assert.equal((await call('/api/auth/passkey/generate-register-options')).status, 401) // an account adds its own
+  const make = (await (await call('/api/auth/passkey/generate-register-options?name=Laptop', { cookie })).json()) as {
+    rp: { id: string; name: string }; challenge: string; authenticatorSelection: { userVerification: string }
+  }
+  assert.deepEqual(make.rp, { id: '127.0.0.1', name: 'Kataki' })
+  assert.ok(make.challenge.length > 20)
+  assert.equal(make.authenticatorSelection.userVerification, 'required')
+  const use = (await (await call('/api/auth/passkey/generate-authenticate-options')).json()) as { rpId: string; challenge: string }
+  assert.equal(use.rpId, '127.0.0.1')
+  // the library only "prefers" that the device checks who holds it; ours refuses a sign-in where it did not
+  assert.throws(() => personChecked(false), /did not confirm/)
+  assert.doesNotThrow(() => personChecked(true))
+  assert.deepEqual(await (await call('/api/auth/passkey/list-user-passkeys', { cookie })).json(), [])
+  // an answer that no device made is refused
+  const forged = await post('/api/auth/passkey/verify-authentication', { response: { id: 'x', rawId: 'x', type: 'public-key', response: {}, clientExtensionResults: {} } })
+  assert.notEqual(forged.status, 200)
+  assert.equal(forged.headers.getSetCookie().some((c) => /session_token=[^;]/.test(c)), false)
 })
 
 test('the web build is served, and nothing outside it', async () => {

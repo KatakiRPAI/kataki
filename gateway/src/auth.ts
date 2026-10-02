@@ -1,6 +1,7 @@
 // Accounts: Better Auth on the gateway's Postgres, set as docs/specs/2026-10-02-kataki-online.md
 // §2 says and why. G1 is email and password; later slices add to this one place.
 import { randomUUID } from 'node:crypto'
+import { passkey } from '@better-auth/passkey'
 import { betterAuth } from 'better-auth'
 import { APIError, createAuthMiddleware, getOAuthState, isAPIError } from 'better-auth/api'
 import { getMigrations } from 'better-auth/db/migration'
@@ -36,6 +37,12 @@ export function socialFrom(env: Record<string, string | undefined>): Social {
 }
 
 const DAY = 86_400
+
+/** Refuse a passkey sign-in where the device did not verify its holder (a bare security key
+ *  tapped by whoever has it): that is one step, and a passkey here stands for two. */
+export function personChecked(userVerified: boolean): void {
+  if (!userVerified) throw new APIError('UNAUTHORIZED', { code: 'PASSKEY_UNVERIFIED', message: 'This device did not confirm it was you.' })
+}
 
 type Owner = { email: string; backupEmail?: string | null; backupEmailVerified?: boolean | null }
 /** Tell an account's owner something happened to it: at its email, and at its backup email
@@ -178,6 +185,14 @@ export function makeAuth({ pool, origin, secret, send, pwned = true, social = {}
     plugins: [
       haveIBeenPwned({ enabled: pwned }),
       secondStep(origin),
+      // A passkey (fingerprint, face or the device's PIN) signs in by itself, and an account
+      // with two-step sign-in is not asked for a code after one: so the device must have
+      // checked it is really the person. The library only prefers that; `personChecked` insists.
+      passkey({
+        rpID: new URL(origin).hostname, rpName: 'Kataki', origin,
+        authenticatorSelection: { residentKey: 'preferred', userVerification: 'required' },
+        authentication: { afterVerification: async ({ verification }) => personChecked(verification.authenticationInfo.userVerified) },
+      }),
       ...(others.length ? [genericOAuth({ config: others.map((o) => ({ ...o, disableImplicitSignUp: true })) })] : []),
       magicLink({
         expiresIn: 10 * 60,
