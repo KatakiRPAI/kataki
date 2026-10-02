@@ -15,6 +15,7 @@ import { openFeedback } from './Feedback'
 import { ModelPicker } from './ModelPicker'
 import Top from './Top'
 import { classify, err } from '../errors'
+import { account } from '../online/session'
 
 type Found = { name: string; base_url: string; models: string[] }
 
@@ -76,6 +77,7 @@ function Frame({ step, gap, children }: { step: 1 | 2; gap?: number; children: R
 /** The first-run pages: /welcome, /welcome/server, /welcome/online, /welcome/who. */
 export default function FirstRun() {
   const page = useParams()['*'] ?? ''
+  if (account()) return <Who /> // Kataki online brings its own models: straight to who you are
   if (page === 'server') return <Server />
   if (page === 'online') return <Online />
   if (page === 'who') return <Who />

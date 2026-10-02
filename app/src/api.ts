@@ -533,6 +533,8 @@ export type PictureFailure = { message: string; refused?: boolean; alt?: string 
 
 async function failure(r: Response): Promise<Error & { detail?: unknown }> {
   const body = await r.json().catch(() => null)
+  // Kataki online: the session ended (S5). Reloading shows sign-in, and signing in comes back here.
+  if (r.status === 401 && body?.code === 'SIGNED_OUT') location.reload()
   const detail = body?.detail
   // N2: the library can't be written (disk full or read-only); the whole window says so
   if (r.status === 507) dispatchEvent(new CustomEvent('kataki:disk', { detail: detail?.code ?? 'DISK_FULL' }))

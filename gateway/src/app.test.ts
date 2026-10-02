@@ -80,7 +80,7 @@ const asEngine = { authorization: `Bearer ${KEY}` }
 
 /** Sign up, open the mailed link, and come back with the session cookie and the user's id. */
 async function account(email: string): Promise<{ cookie: string; id: string }> {
-  const r = await post('/api/auth/sign-up/email', { name: 'Qais', email, password: PASSWORD, callbackURL: '/app/' })
+  const r = await post('/api/auth/sign-up/email', { name: 'Qais', email, password: PASSWORD, adult: true, callbackURL: '/app/' })
   assert.equal(r.status, 200)
   const link = mails.findLast((m) => m.to === email)!.text.match(/http\S+/)![0]
   const verified = await call(link.slice(origin.length))
@@ -99,7 +99,7 @@ test('signed out, nothing reaches the engine', async () => {
 })
 
 test('an account holds nothing until its email is confirmed', async () => {
-  await post('/api/auth/sign-up/email', { name: 'Nobody', email: 'unconfirmed@example.com', password: PASSWORD })
+  await post('/api/auth/sign-up/email', { name: 'Nobody', email: 'unconfirmed@example.com', password: PASSWORD, adult: true })
   const r = await post('/api/auth/sign-in/email', { email: 'unconfirmed@example.com', password: PASSWORD })
   assert.equal(r.status, 403)
   assert.equal(r.headers.get('set-cookie'), null)
@@ -107,14 +107,22 @@ test('an account holds nothing until its email is confirmed', async () => {
 
 test('signing up with a known address answers like a new one', async () => {
   await account('known@example.com')
-  const again = await post('/api/auth/sign-up/email', { name: 'Someone else', email: 'known@example.com', password: PASSWORD })
+  const again = await post('/api/auth/sign-up/email', { name: 'Someone else', email: 'known@example.com', password: PASSWORD, adult: true })
   assert.equal(again.status, 200)
   assert.equal(((await again.json()) as { token: unknown }).token, null)
 })
 
 test('a short password is refused', async () => {
-  const r = await post('/api/auth/sign-up/email', { name: 'Short', email: 'short@example.com', password: 'elevenchars' })
+  const r = await post('/api/auth/sign-up/email', { name: 'Short', email: 'short@example.com', password: 'elevenchars', adult: true })
   assert.equal(r.status, 400)
+})
+
+test('an account is for someone who says they are 18 or older', async () => {
+  for (const adult of [false, undefined]) {
+    const r = await post('/api/auth/sign-up/email', { name: 'Young', email: 'young@example.com', password: PASSWORD, adult })
+    assert.equal(r.status, 400)
+  }
+  assert.equal(mails.some((m) => m.to === 'young@example.com'), false)
 })
 
 test('signed in, a request reaches the engine signed as that user and nothing else', async () => {

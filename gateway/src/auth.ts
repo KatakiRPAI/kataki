@@ -2,6 +2,7 @@
 // §2 says and why. G1 is email and password; later slices add to this one place.
 import { randomUUID } from 'node:crypto'
 import { betterAuth } from 'better-auth'
+import { APIError } from 'better-auth/api'
 import { getMigrations } from 'better-auth/db/migration'
 import { haveIBeenPwned } from 'better-auth/plugins'
 import type { Pool } from 'pg'
@@ -38,6 +39,17 @@ export function makeAuth({ pool, origin, secret, send, pwned = true }: AuthConfi
       // not awaited by the library's caller either: the answer takes the same time whoever asks
       sendVerificationEmail: async ({ user, url }) => {
         void send(user.email, 'Confirm your email for Kataki', `Open this link to finish making your Kataki account:\n\n${url}\n\nIt works for one hour. If you did not ask for this, ignore it.`)
+      },
+    },
+    // 18 or older, said at sign-up and kept on the account with the time it was made
+    user: { additionalFields: { adult: { type: 'boolean', required: true, input: true } } },
+    databaseHooks: {
+      user: {
+        create: {
+          before: async (user) => {
+            if (user.adult !== true) throw new APIError('BAD_REQUEST', { code: 'ADULTS_ONLY', message: 'Kataki online is for people aged 18 or older.' })
+          },
+        },
       },
     },
     session: { expiresIn: 30 * DAY, updateAge: DAY, freshAge: 600 },

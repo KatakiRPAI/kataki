@@ -10,8 +10,15 @@ The owner chose Better Auth on 2026-10-02, so the gateway is a small TypeScript 
 ## Progress
 
 - [x] This spec (2026-10-02).
-- [ ] G1 · The gateway: sign up and sign in with email and password, a session, the signed
-      proxy to the engine, the ledger's two routes, the sign-in screens. Runs on one machine.
+- [x] G1 · The gateway (2026-10-02): `gateway/` signs up and signs in with email and password
+      (verified email first, 12 characters, 18 or older), keeps the session, proxies signed
+      requests to the engine, answers `/allow` and `/usage` from the ledger, gives the starting
+      credit once, and serves the web build. The app shows sign-in when signed out, skips the
+      model step of first run, and has Settings › Account (name, email, balance, sign out).
+      Checked on one machine with the fake model: sign up, the mailed link, a turn billed 121
+      micro-dollars, sign out, a wrong password, sign in back to the same page. Owed: the
+      "you already have an account" mail to a known address (G2); `gateway` as a required
+      check in the ruleset (**[owner]**: `setup-repo.sh`); first run still says "Step 2 of 2".
 - [ ] G2 · Magic links, password reset, change notices, throttling, the sign-up challenge.
 - [ ] G3 · Google, GitHub, Discord, Apple.
 - [ ] G4 · TOTP and backup codes, sudo mode, passkeys.
@@ -122,14 +129,21 @@ Top-ups are G7. Until then the only credit is the starting credit, which is what
 
 ## 6. Running it on one machine
 
+Four terminals, from the repo root (bash; the dev secrets are `gateway/src/dev.ts`'s):
+
 ```
-pnpm -C gateway dev                      # PGlite + the gateway on :8787, mail printed
-kataki serve --hosted --root .dev/online --catalogue .dev/catalogue.db \
-  --gateway http://127.0.0.1:8787 --port 8788
+pnpm -C app build:web
+cd engine && uv run python evals/dev_catalogue.py ../.dev/catalogue.db
+cd engine && uv run python evals/demo.py serve-model --port 8099          # the fake model
+cd engine && KATAKI_KEY_FAKE=x KATAKI_GATEWAY_SECRET=dev-only-gateway-signing-secret-32b \
+  KATAKI_GATEWAY_KEY=dev-only-gateway-key uv run kataki serve --hosted --root ../.dev/online \
+  --catalogue ../.dev/catalogue.db --gateway http://127.0.0.1:8787 --port 8788
+KATAKI_CATALOGUE=.dev/catalogue.db pnpm -C gateway dev                    # PGlite + the gateway
 ```
 
-with `KATAKI_GATEWAY_SECRET` and `KATAKI_GATEWAY_KEY` the same in both, and the gateway given
-`KATAKI_ENGINE=http://127.0.0.1:8788`, `KATAKI_WEB=app/dist-web` and `KATAKI_CATALOGUE`.
+Then open `http://localhost:8787/`. The confirmation mail is printed by the gateway. `dev`
+gives each new account $1 and turns the breached-password check off; `start` reads everything
+from the environment and has no defaults.
 
 ## 7. Rules
 
