@@ -12,4 +12,4 @@ interface Window {
     profileForget?: (id: string) => Promise<DesktopProfile[]>
     profileSwitch?: (id: string) => void }
 }
-type DesktopProfile = { id: string; name: string; folder: string }
+type DesktopProfile = { id: string; name: string; folder: string; opened?: boolean }

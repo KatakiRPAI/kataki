@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { add, cleanName, current, forget, kind, load, rename, save, synced } from './profiles.ts'
+import { add, cleanName, current, forget, kind, load, lost, rename, save, synced } from './profiles.ts'
 
 const tmp = mkdtempSync(join(tmpdir(), 'kataki-profiles-'))
 const file = join(tmp, 'userData', 'profiles.json')
@@ -23,6 +23,13 @@ writeFileSync(join(main.folder, 'notes.txt'), '')
 assert.equal(kind(main.folder), 'other')
 writeFileSync(join(main.folder, 'library.db'), '')
 assert.equal(kind(main.folder), 'library')
+
+assert.equal(lost({ ...main, folder: join(tmp, 'nowhere') }), true, 'the folder is gone')
+assert.equal(lost({ ...main, folder: join(tmp, 'fresh') }), true)
+mkdirSync(join(tmp, 'fresh'))
+assert.equal(lost({ ...main, folder: join(tmp, 'fresh') }), false, 'a new profile: nothing to lose yet')
+assert.equal(lost({ ...main, folder: join(tmp, 'fresh'), opened: true }), true, 'it held a library once and does not now')
+assert.equal(lost({ ...main, opened: true }), false)
 
 let p = load(file, main)
 const second = add(p, '  Second  ', join(tmp, 'second'))

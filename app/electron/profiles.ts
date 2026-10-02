@@ -4,7 +4,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 
-export type Profile = { id: string; name: string; folder: string }
+export type Profile = { id: string; name: string; folder: string; opened?: boolean } // opened: its library has been seen there
 export type Profiles = { last: string; profiles: Profile[] }
 
 /** The saved list, or just `first` when there is none to read. */
@@ -40,6 +40,10 @@ export function synced(folder: string): string | null {
     .find(([word]) => parts.some((part) => part.startsWith(word)))
   return hit ? hit[1] : null
 }
+
+/** A profile whose library should be there and is not: the folder is gone, or it once held a
+ *  library and no longer does. A folder that has never held one is a new profile, not a loss. */
+export const lost = (p: Profile): boolean => kind(p.folder) === 'missing' || (!!p.opened && kind(p.folder) !== 'library')
 
 const same = (a: string, b: string) => (process.platform === 'win32' ? resolve(a).toLowerCase() === resolve(b).toLowerCase() : resolve(a) === resolve(b))
 
