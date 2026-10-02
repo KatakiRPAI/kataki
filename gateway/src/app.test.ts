@@ -343,6 +343,46 @@ test('two-step sign-in is asked after another service too', async () => {
   assert.equal((await call('/stories', { cookie: cookies(done) })).status, 200)
 })
 
+test('an account can see where it is signed in, and sign the other places out', async () => {
+  const email = 'everywhere@example.com'
+  const { cookie } = await account(email)
+  const phone = cookies(await post('/api/auth/sign-in/email', { email, password: PASSWORD }))
+  const listed = (await (await call('/api/auth/list-sessions', { cookie })).json()) as unknown[]
+  assert.equal(listed.length, 2)
+  assert.equal((await post('/api/auth/revoke-other-sessions', {}, { cookie })).status, 200)
+  assert.equal((await call('/stories', { cookie: phone })).status, 401)
+  assert.equal((await call('/stories', { cookie })).status, 200)
+})
+
+test('a changed password: the old one is needed, the other places are signed out, the owner is told', async () => {
+  const email = 'changer@example.com'
+  const { cookie } = await account(email)
+  const phone = cookies(await post('/api/auth/sign-in/email', { email, password: PASSWORD }))
+  const next = 'an entirely new pass phrase'
+  assert.notEqual((await post('/api/auth/change-password', { currentPassword: 'not it at all here', newPassword: next, revokeOtherSessions: true }, { cookie })).status, 200)
+  const before = mails.length
+  const changed = await post('/api/auth/change-password', { currentPassword: PASSWORD, newPassword: next, revokeOtherSessions: true }, { cookie })
+  assert.equal(changed.status, 200)
+  assert.equal(mails.length, before + 1)
+  assert.match(mails.at(-1)!.text, /was just changed/)
+  assert.equal((await call('/stories', { cookie: phone })).status, 401)
+  assert.equal((await post('/api/auth/sign-in/email', { email, password: next })).status, 200)
+})
+
+test('a changed email: approved from the old address, confirmed from the new one', async () => {
+  const old = 'old@example.com'
+  const fresh = 'fresh@example.com'
+  const { cookie } = await account(old)
+  assert.equal((await post('/api/auth/change-email', { newEmail: fresh, callbackURL: '/app/' }, { cookie })).status, 200)
+  assert.equal(mails.at(-1)!.to, old) // nothing moves until the old address says so
+  assert.equal((await post('/api/auth/sign-in/email', { email: fresh, password: PASSWORD })).status, 401)
+  await call(mails.at(-1)!.text.match(/http\S+/)![0].slice(origin.length), { cookie })
+  assert.equal(mails.at(-1)!.to, fresh)
+  await call(mails.at(-1)!.text.match(/http\S+/)![0].slice(origin.length), { cookie })
+  assert.equal((await post('/api/auth/sign-in/email', { email: fresh, password: PASSWORD })).status, 200)
+  assert.equal((await post('/api/auth/sign-in/email', { email: old, password: PASSWORD })).status, 401)
+})
+
 test('the web build is served, and nothing outside it', async () => {
   assert.equal((await call('/')).headers.get('location'), '/app/')
   assert.match(await (await call('/app/')).text(), /Kataki/)

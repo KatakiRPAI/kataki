@@ -7,6 +7,7 @@ import { K } from '../../ds'
 import { useLoad } from '../../hooks'
 import { account, signOut } from '../../online/session'
 import { t } from '../../strings'
+import { Sessions, SigningIn } from './AccountParts'
 import TwoStep from './TwoStep'
 
 export default function Account() {
@@ -21,6 +22,7 @@ export default function Account() {
         <K.SettingsRow title={me.name} description={me.email}><K.Button size="sm" onClick={signOut}>{t('ac.signOut')}</K.Button></K.SettingsRow>
         <K.SettingsRow title={t('ac.balance')} description={t('ac.balanceSub')}><b>{dollars}</b></K.SettingsRow>
       </K.SettingsSection>
+      <SigningIn me={me} />
       <K.SettingsSection title={t('ts.title')} note={t('ts.note')}>
         <K.SettingsRow title={t('ts.app')} description={t(twoStep ? 'ts.isOn' : 'ts.isOff')}>
           {twoStep ? (
@@ -32,6 +34,7 @@ export default function Account() {
           ) : <K.Button size="sm" icon="shield" onClick={() => setDoing('on')}>{t('ts.turnOn')}</K.Button>}
         </K.SettingsRow>
       </K.SettingsSection>
+      <Sessions />
       {doing && <TwoStep key={doing} doing={doing} onClose={() => setDoing(undefined)} onChange={(on) => { setTwoStep(on); me.twoFactorEnabled = on }} />}
     </>
   )

@@ -6,6 +6,8 @@ export type Me = { id: string; name: string; email: string; twoFactorEnabled?: b
 export type Session = 'none' | 'signed-out' | Me // none: there is no gateway here
 
 let me: Me | undefined
+let here = '' // this browser's session, to mark it in the list of places signed in
+export const thisSession = (): string => here
 /** Who is signed in, once `session()` has said (undefined on the desktop and self-hosted). */
 export const account = (): Me | undefined => me
 
@@ -15,7 +17,8 @@ export async function session(): Promise<Session> {
   try {
     const r = await fetch('/api/auth/get-session')
     if (!r.ok || !r.headers.get('content-type')?.includes('json')) return 'none'
-    const got = (await r.json()) as { user?: Me } | null
+    const got = (await r.json()) as { user?: Me; session?: { token: string } } | null
+    here = got?.session?.token ?? ''
     return got?.user ? (me = got.user) : 'signed-out'
   } catch {
     return 'none'
@@ -24,9 +27,10 @@ export async function session(): Promise<Session> {
 
 export type AuthError = { code?: string; message?: string }
 
-/** One of Better Auth's routes. Resolves to its JSON, or throws its `{code, message}`. */
+/** One of Better Auth's routes (a POST, or a GET with `body` left as "get"). Resolves to its
+ *  JSON, or throws its `{code, message}`. */
 export async function auth<T = unknown>(path: string, body?: unknown): Promise<T> {
-  const r = await fetch(`/api/auth${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body ?? {}) })
+  const r = await fetch(`/api/auth${path}`, body === 'get' ? undefined : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body ?? {}) })
   const got = await r.json().catch(() => null)
   if (!r.ok) throw (got ?? { message: `HTTP ${r.status}` }) as AuthError
   return got as T

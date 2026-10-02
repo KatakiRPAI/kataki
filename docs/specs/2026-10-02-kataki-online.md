@@ -46,7 +46,13 @@ The owner chose Better Auth on 2026-10-02, so the gateway is a small TypeScript 
       sign-in before sensitive changes beyond the password these already ask for; an account
       made through another service must set a password (the reset link) before it can turn
       this on.
-- [ ] G5 · Settings › Account: emails, methods, sessions, export, deletion.
+- [ ] G5 · Settings › Account: emails, methods, sessions, export, deletion. Built
+      (2026-10-02): change email (approved from the old address, then confirmed from the new
+      one), change password (the old one needed, every other place signed out, a notice by
+      mail), link and unlink another service, the list of places signed in with sign out one
+      and sign out everywhere else. Checked in a browser on one machine. Not done: deleting
+      the account with a grace period (the engine has no way yet to remove a user's library
+      on the gateway's word); an account export beyond the library's own; the backup email.
 - [ ] G6 · Handles and the online profile.
 - [ ] G7 · Top-ups (the owner's payment processor, test mode).
 - [ ] G8 · The image, staging and production (infrastructure Phase 6).
