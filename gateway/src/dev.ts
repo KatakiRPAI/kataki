@@ -7,7 +7,7 @@ import { PGlite } from '@electric-sql/pglite'
 import { PGLiteSocketServer } from '@electric-sql/pglite-socket'
 import { start } from './main.ts'
 
-const data = fileURLToPath(new URL('../../.dev/gateway-pg', import.meta.url))
+const data = process.env.KATAKI_PG_DATA ?? fileURLToPath(new URL('../../.dev/gateway-pg', import.meta.url))
 mkdirSync(data, { recursive: true })
 const db = await PGlite.create(data)
 const pgPort = Number(process.env.KATAKI_PG_PORT ?? 54329)

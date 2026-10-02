@@ -2,7 +2,7 @@
 // (docs/specs/2026-10-02-kataki-online.md §5). The desktop and a self-hosted Kataki have no
 // gateway, and nothing here changes them. Auth routes are called with fetch: no new dependency.
 
-export type Me = { id: string; name: string; email: string }
+export type Me = { id: string; name: string; email: string; twoFactorEnabled?: boolean | null }
 export type Session = 'none' | 'signed-out' | Me // none: there is no gateway here
 
 let me: Me | undefined
