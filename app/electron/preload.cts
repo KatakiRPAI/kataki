@@ -16,4 +16,12 @@ contextBridge.exposeInMainWorld('kataki', {
   reveal: (what: string) => ipcRenderer.send('kataki:reveal', what),
   edit: (what: string, word?: string) => ipcRenderer.send('kataki:edit', what, word),
   onTextMenu: (f: (m: unknown) => void) => ipcRenderer.on('kataki:textmenu', (_e, m) => f(m)),
+  // Settings › Profiles: only when the shell keeps a list (not the smoke test, not KATAKI_DB)
+  ...(process.argv.includes('--kataki-profiles') && {
+    profiles: () => ipcRenderer.invoke('kataki:profiles'),
+    profileAdd: (name: string) => ipcRenderer.invoke('kataki:profile:add', name),
+    profileRename: (id: string, name: string) => ipcRenderer.invoke('kataki:profile:rename', id, name),
+    profileForget: (id: string) => ipcRenderer.invoke('kataki:profile:forget', id),
+    profileSwitch: (id: string) => ipcRenderer.send('kataki:profile:switch', id),
+  }),
 })
