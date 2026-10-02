@@ -12,7 +12,7 @@ from pathlib import Path
 
 import uvicorn
 
-from kataki import backups, data_dir, db, embed, knobs
+from kataki import backups, data_dir, db, embed, knobs, lock
 from kataki.server import create_app
 
 
@@ -37,6 +37,12 @@ def serve(db_path: Path, parent_watch: bool, port: int = 0, web: Path | None = N
 
     # load (on first run, download) the built-in embedding model now, not on the first turn
     threading.Thread(target=embed.builtin, daemon=True).start()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        held = lock.hold(db_path.parent)  # noqa: F841 (kept for the life of the process)
+    except lock.InUse as e:
+        print(json.dumps({"error": {"code": "LIBRARY_IN_USE", "message": str(e)}}), flush=True)
+        sys.exit(4)
     backups.apply_pending(db_path)  # a restore asked for last time happens before the library opens
     try:
         conn = db.connect(db_path)
