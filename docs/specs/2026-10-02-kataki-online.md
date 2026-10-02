@@ -90,7 +90,12 @@ The owner chose Better Auth on 2026-10-02, so the gateway is a small TypeScript 
       (402) and says why; inside the limit it is always free; nothing is deleted and downloads
       always work. The numbers are defaults in `docs/decisions.md`.
 - [ ] G7 · Top-ups (the owner's payment processor, test mode).
-- [ ] G8 · The image, staging and production (infrastructure Phase 6).
+- [ ] G8 · The image, staging and production (infrastructure Phase 6). Built (2026-10-03):
+      `gateway/Dockerfile` (the gateway with the web build inside) and `compose.online.yaml`
+      (Postgres, the gateway, and the engine in the gateway's network namespace so it still
+      binds loopback), with `.env.online.example`. Checked by running the stack in Docker on
+      one machine. Not done: a staging host, CI building the images, object storage for
+      cloud snapshots, backups of Postgres (**[owner]**: a host and a domain).
 
 G1–G6 are A1–A6 of the profiles spec.
 
@@ -233,6 +238,21 @@ library's own `.kataki`, never a live sync (research §5).
 - **Limits:** a byte ceiling per snapshot (`KATAKI_CLOUD_MAX_BYTES`, 250 MB by default), and the
   free limit by counts (the snapshot's `holds`) with the storage charge past it (C2 above).
 - **An account that is deleted** takes its snapshots and linked computers with it.
+
+## 9. Running it in containers
+
+`compose.online.yaml` is the whole service on one machine or one server:
+
+- **postgres** (17), with a health check; its data in a volume.
+- **gateway**, built from `gateway/Dockerfile` (the web build is made inside it), published only
+  on the machine's loopback (`127.0.0.1:${KATAKI_PORT:-8787}`), so a TLS proxy (Caddy, as on the
+  owner's server) goes in front.
+- **engine**, the root `Dockerfile` run as `kataki serve --hosted`, in the gateway's network
+  namespace (`network_mode: service:gateway`): it binds 127.0.0.1 as the engine requires (no
+  replay cache yet) and nothing but the gateway can reach it.
+- Secrets in `.env.online` (from `.env.online.example`; ignored by git); the catalogue at
+  `online/catalogue.db`, mounted read-only into both. Both read it as an immutable file and
+  refuse one with changes left in a `-wal`.
 
 ## 7. Rules
 

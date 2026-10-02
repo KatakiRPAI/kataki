@@ -1,0 +1,58 @@
+# Kataki online on one machine or one server (docs/specs/2026-10-02-kataki-online.md §9):
+#   docker compose -f compose.online.yaml --env-file .env.online up -d --build
+# Beside this file: `.env.online` (copy `.env.online.example`; never commit it) and
+# `online/catalogue.db`, the service's models and prices (a library built for it, e.g. with
+# `uv run python engine/evals/dev_catalogue.py online/catalogue.db` for the fake model).
+# Only the gateway is published, on this machine's loopback: put a TLS proxy in front of it.
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: kataki
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.online}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d kataki"]
+      interval: 5s
+      retries: 20
+
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    restart: unless-stopped
+    env_file: .env.online
+    environment:
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/kataki
+      KATAKI_ENGINE: http://127.0.0.1:8788 # the engine shares this container's network: loopback only
+      KATAKI_CATALOGUE: /catalogue.db
+    ports:
+      - "127.0.0.1:${KATAKI_PORT:-8787}:8787"
+    volumes:
+      - cloud:/data/cloud
+      - ./online/catalogue.db:/catalogue.db:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  engine:
+    build: .
+    restart: unless-stopped
+    # In the gateway's network namespace, so the engine still binds 127.0.0.1 and nothing but the
+    # gateway can reach it (hosted.py: no replay cache yet, so never a wider bind).
+    network_mode: "service:gateway"
+    env_file: .env.online
+    command: ["uv", "run", "--no-sync", "kataki", "serve", "--hosted", "--port", "8788",
+      "--root", "/data/libraries", "--catalogue", "/catalogue.db", "--gateway", "http://127.0.0.1:8787"]
+    volumes:
+      - libraries:/data
+      - ./online/catalogue.db:/catalogue.db:ro
+    depends_on:
+      - gateway
+
+volumes:
+  pgdata:
+  cloud:
+  libraries:

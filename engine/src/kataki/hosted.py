@@ -178,8 +178,15 @@ def secret(name: str) -> str | None:
 
 
 def _catalogue(path: Path) -> tuple[list, list, dict]:
-    """The service's providers, model roles and prices, from a library file built for it."""
-    c = sqlite3.connect(f"file:{Path(path).as_posix()}?mode=ro", uri=True)
+    """The service's providers, model roles and prices, from a library file built for it.
+
+    Read as a file that never changes (`immutable`), so it can sit on a read-only mount and no
+    lock or `-shm` is ever made beside it. Changes still in a `-wal` would be missed, so a
+    catalogue with one is refused: open it once in Kataki and close it, and they are folded in."""
+    wal = Path(f"{path}-wal")
+    if wal.exists() and wal.stat().st_size:
+        raise ValueError(f"{wal} holds changes not yet in {path}: open and close it once first.")
+    c = sqlite3.connect(f"file:{Path(path).resolve().as_posix()}?mode=ro&immutable=1", uri=True)
     try:
         providers = c.execute("SELECT id, name, base_url, extra FROM providers").fetchall()
         models = c.execute(

@@ -18,6 +18,8 @@ dist-web/
 *.db-shm
 blobs/
 .env
+.env.online
+online/
 
 # os / editor
 .DS_Store
