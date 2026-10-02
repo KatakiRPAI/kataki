@@ -426,7 +426,7 @@ test('deleting needs a sign-in of the last ten minutes', async () => {
   await pool.query(`UPDATE session SET "createdAt" = now() - interval '11 minutes' WHERE "userId" = $1`, [id])
   const r = await post('/api/account/delete', {}, { cookie })
   assert.equal(r.status, 403)
-  assert.equal(((await r.json()) as { code: string }).code, 'FRESH')
+  assert.equal(((await r.json()) as { detail: { code: string } }).detail.code, 'FRESH')
 })
 
 test('an account can take what the gateway holds about it', async () => {

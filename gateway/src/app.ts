@@ -128,7 +128,7 @@ export function createGateway(c: GatewayConfig): RequestListener {
       if (path === '/api/account/delete' && req.method === 'POST') {
         // only from a sign-in of the last ten minutes: a session left open on a shared computer cannot do this
         const fresh = Date.now() - new Date(session.session.createdAt).getTime() < 600_000
-        if (!fresh) return json(res, 403, { detail: 'Sign in again to do this.', code: 'FRESH' })
+        if (!fresh) return json(res, 403, { detail: { code: 'FRESH', message: 'Sign in again to do this.' } })
         return json(res, 200, { deleteAt: await askToDelete(c, who) })
       }
       // a leaving account opens nothing until it says it is staying

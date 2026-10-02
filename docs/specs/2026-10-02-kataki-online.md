@@ -50,9 +50,13 @@ The owner chose Better Auth on 2026-10-02, so the gateway is a small TypeScript 
       (2026-10-02): change email (approved from the old address, then confirmed from the new
       one), change password (the old one needed, every other place signed out, a notice by
       mail), link and unlink another service, the list of places signed in with sign out one
-      and sign out everywhere else. Checked in a browser on one machine. Not done: deleting
-      the account with a grace period (the engine has no way yet to remove a user's library
-      on the gateway's word); an account export beyond the library's own; the backup email.
+      and sign out everywhere else. Leaving: a sign-in of the last ten minutes, signed out
+      everywhere at once, 14 days to sign in and stay, then the engine forgets the library
+      (`POST /_gateway/forget`, refused while usage is unbilled, never proxied for a browser)
+      and the account is removed; the ledger's rows stay. `GET /api/account/export` gives what
+      the gateway holds (never a password hash). Checked in a browser on one machine. Not
+      done: the backup email. **[owner]**: what happens to unspent credit when an account is
+      deleted (the screen says the balance goes with it).
 - [ ] G6 · Handles and the online profile.
 - [ ] G7 · Top-ups (the owner's payment processor, test mode).
 - [ ] G8 · The image, staging and production (infrastructure Phase 6).
