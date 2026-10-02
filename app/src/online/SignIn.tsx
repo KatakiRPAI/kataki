@@ -12,9 +12,10 @@ const home = import.meta.env.BASE_URL // where a mailed link comes back to: the 
 const SAID: Record<string, Key> = {
   INVALID_EMAIL_OR_PASSWORD: 'si.e.wrong', INVALID_EMAIL: 'si.e.email', PASSWORD_TOO_SHORT: 'si.e.short', PASSWORD_TOO_LONG: 'si.e.long',
   PASSWORD_COMPROMISED: 'si.e.breached', TOO_MANY_REQUESTS: 'si.e.slow', ADULTS_ONLY: 'si.e.adult', INVALID_TOKEN: 'si.e.link',
+  INVALID_CODE: 'si.e.code', INVALID_BACKUP_CODE: 'si.e.code', INVALID_TWO_FACTOR_COOKIE: 'si.e.codeLate', TOO_MANY_ATTEMPTS_REQUEST_NEW_CODE: 'si.e.codeLate',
 }
 const NAMES: Record<string, string> = { google: 'Google', github: 'GitHub', discord: 'Discord', apple: 'Apple' }
-type View = 'in' | 'up' | 'forgot' | 'link' | 'reset' | 'magic'
+type View = 'in' | 'up' | 'forgot' | 'link' | 'reset' | 'magic' | 'code'
 
 export default function SignIn() {
   const [asked] = useState(() => new URLSearchParams(location.search))
@@ -25,7 +26,14 @@ export default function SignIn() {
     return code
   })
   // another service signed someone in who has no account here: straight to making one
-  const [view, setView] = useState<View>(asked.get('magic') ? 'magic' : asked.get('token') ? 'reset' : came === 'signup_disabled' ? 'up' : 'in')
+  // step=2: a sign-in link or another service signed in an account with two-step sign-in on
+  const [view, setView] = useState<View>(() => {
+    if (asked.get('step') === '2') { history.replaceState(null, '', location.pathname); return 'code' }
+    return asked.get('magic') ? 'magic' : asked.get('token') ? 'reset' : came === 'signup_disabled' ? 'up' : 'in'
+  })
+  const [code, setCode] = useState('')
+  const [backup, setBackup] = useState(false) // a backup code instead of the app's
+  const [trust, setTrust] = useState(false)
   const [sent, setSent] = useState<Key>() // S2: what "check your email" says
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -47,7 +55,15 @@ export default function SignIn() {
   const go = (to: View) => { setView(to); setError(''); setNote(''); setSent(undefined) }
   const mail = email.trim()
   const acts: Record<View, () => Promise<void>> = {
-    in: async () => { await auth('/sign-in/email', { email: mail, password, callbackURL: home }); location.reload() },
+    in: async () => {
+      const r = await auth<{ twoFactorRedirect?: boolean }>('/sign-in/email', { email: mail, password, callbackURL: home })
+      if (r?.twoFactorRedirect) return go('code') // the password was right; now the second step
+      location.reload()
+    },
+    code: async () => {
+      await auth(backup ? '/two-factor/verify-backup-code' : '/two-factor/verify-totp', { code: code.trim(), trustDevice: trust })
+      location.assign(location.pathname)
+    },
     up: async () => { await auth('/sign-up/email', { name: name.trim(), email: mail, password, adult, callbackURL: home }); setSent('si.sentBody') },
     forgot: async () => { await auth('/request-password-reset', { email: mail, redirectTo: home }); setSent('si.forgotSent') },
     link: async () => { await auth('/sign-in/magic-link', { email: mail, callbackURL: home }); setSent('si.linkSent') },
@@ -79,10 +95,10 @@ export default function SignIn() {
   const ready = {
     in: mail.includes('@') && password.length > 0,
     up: mail.includes('@') && !!name.trim() && adult && password.length >= 12,
-    forgot: mail.includes('@'), link: mail.includes('@'), reset: password.length >= 12, magic: true,
+    forgot: mail.includes('@'), link: mail.includes('@'), reset: password.length >= 12, magic: true, code: code.trim().length >= 6,
   }[view]
-  const title: Record<View, Key> = { in: 'si.title', up: 'si.upTitle', forgot: 'si.forgotTitle', link: 'si.linkTitle', reset: 'si.resetTitle', magic: 'si.magicTitle' }
-  const action: Record<View, Key> = { in: 'si.in', up: 'si.up', forgot: 'si.forgotGo', link: 'si.linkGo', reset: 'si.resetGo', magic: 'si.in' }
+  const title: Record<View, Key> = { in: 'si.title', up: 'si.upTitle', forgot: 'si.forgotTitle', link: 'si.linkTitle', reset: 'si.resetTitle', magic: 'si.magicTitle', code: 'si.codeTitle' }
+  const action: Record<View, Key> = { in: 'si.in', up: 'si.up', forgot: 'si.forgotGo', link: 'si.linkGo', reset: 'si.resetGo', magic: 'si.in', code: 'si.in' }
   const link = (to: View, label: Key): ReactNode => <K.Button size="sm" variant="link" onClick={() => go(to)}>{t(label)}</K.Button>
 
   return (
@@ -106,8 +122,15 @@ export default function SignIn() {
             {view === 'forgot' && <p className="t-body">{t('si.forgotBody')}</p>}
             {view === 'link' && <p className="t-body">{t('si.linkBody')}</p>}
             {view === 'magic' && <p className="t-body">{t('si.magicBody')}</p>}
+            {view === 'code' && (
+              <>
+                <p className="t-body">{t(backup ? 'si.backupBody' : 'si.codeBody')}</p>
+                <K.TextField label={t(backup ? 'si.backupCode' : 'si.code')} value={code} onChange={setCode} max={backup ? 16 : 6} />
+                <K.Checkbox label={t('si.trust')} checked={trust} onChange={setTrust} />
+              </>
+            )}
             {view === 'up' && <K.TextField label={t('si.name')} value={name} onChange={setName} max={40} />}
-            {view !== 'reset' && view !== 'magic' && <K.TextField label={t('si.email')} type="email" value={email} onChange={setEmail} />}
+            {view !== 'reset' && view !== 'magic' && view !== 'code' && <K.TextField label={t('si.email')} type="email" value={email} onChange={setEmail} />}
             {(view === 'in' || view === 'up' || view === 'reset') && (
               <K.TextField label={t(view === 'reset' ? 'si.newPassword' : 'si.password')} type="password" value={password} onChange={setPassword} hint={view === 'in' ? undefined : t('si.passwordHint')} />
             )}
@@ -122,6 +145,12 @@ export default function SignIn() {
               <K.Button key={p} full onClick={() => leave(p)}>{t(view === 'in' ? 'si.with' : 'si.upWith', { name: NAMES[p] ?? p })}</K.Button>
             ))}
             {(view === 'forgot' || view === 'link') && <div>{link('in', 'si.back')}</div>}
+            {view === 'code' && (
+              <div className="row" style={{ justifyContent: 'space-between' }}>
+                <K.Button size="sm" variant="link" onClick={() => { setBackup(!backup); setCode(''); setError('') }}>{t(backup ? 'si.useApp' : 'si.useBackup')}</K.Button>
+                {link('in', 'si.back')}
+              </div>
+            )}
           </form>
         )}
       </main>

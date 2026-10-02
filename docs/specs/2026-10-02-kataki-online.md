@@ -36,7 +36,16 @@ The owner chose Better Auth on 2026-10-02, so the gateway is a small TypeScript 
       2026-10-02 (a dev OAuth app, localhost). Signing in with no account opens Create account
       with a note. Not done: Google and Discord against the real services (**[owner]**: their
       keys); Apple; the production OAuth apps on the real domain.
-- [ ] G4 · TOTP and backup codes, sudo mode, passkeys.
+- [ ] G4 · TOTP and backup codes, sudo mode, passkeys. Built (2026-10-02): two-step sign-in
+      with an authenticator app (issuer `Kataki`), ten backup codes stored encrypted, "don't
+      ask on this device for 30 days". It is asked after a password, after a sign-in link and
+      after another service (the library's own hook, pointed at those routes too; tests walk
+      all three). Settings › Account turns it on (QR and key, a code typed back, the backup
+      codes shown once), makes new codes and turns it off, each with the password. Checked in
+      a browser on one machine. Not done: passkeys (a new dependency, its own slice); a fresh
+      sign-in before sensitive changes beyond the password these already ask for; an account
+      made through another service must set a password (the reset link) before it can turn
+      this on.
 - [ ] G5 · Settings › Account: emails, methods, sessions, export, deletion.
 - [ ] G6 · Handles and the online profile.
 - [ ] G7 · Top-ups (the owner's payment processor, test mode).
@@ -90,9 +99,9 @@ Known gaps in the library, to close in the slice named:
 
 - **Magic-link verification is a GET that uses the token up,** so a mail scanner can burn it.
   The mail links to the app's own page, whose button makes the request (G2).
-- **Two-factor only guards password sign-in.** A magic link, a social sign-in or a passkey is
-  not challenged. G4 adds the challenge on session creation for accounts with 2FA on (a
-  user-verified passkey counts as both factors).
+- **Two-factor only guards password sign-in** in the library. Closed in G4 for sign-in links
+  and other services (`secondStep` in `gateway/src/auth.ts`). Passkeys, when they come, count
+  as both factors when the user is verified.
 - **No backup email.** One column and a verify flow of our own (G5).
 - **Advisories:** 37 published, most in plugins this service does not load (SSO, SCIM, OAuth
   provider, Stripe, OAuth proxy). The version is pinned exactly; Dependabot raises it.

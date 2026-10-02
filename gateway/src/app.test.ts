@@ -1,6 +1,7 @@
 // The gateway end to end, on PGlite and a stand-in engine that checks the signature it is sent.
 import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { createHmac } from 'node:crypto'
 import { createServer, type IncomingMessage, type RequestListener, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -240,6 +241,57 @@ test('another service is offered only when both its keys are set', async () => {
   assert.notEqual((await post('/api/auth/sign-in/social', { provider: 'google', callbackURL: '/app/' })).status, 200)
 })
 
+/** What an authenticator app shows for this secret (RFC 6238: SHA-1, 30 seconds, 6 digits). */
+function totp(secret: string, at = Date.now()): string {
+  const bits = [...secret.replace(/=+$/, '')].map((ch) => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'.indexOf(ch).toString(2).padStart(5, '0')).join('')
+  const key = Buffer.from(bits.match(/.{8}/g)!.map((b) => Number.parseInt(b, 2)))
+  const counter = Buffer.alloc(8)
+  counter.writeBigUInt64BE(BigInt(Math.floor(at / 30_000)))
+  const mac = createHmac('sha1', key).update(counter).digest()
+  const from = mac[mac.length - 1] & 15
+  return String((mac.readUInt32BE(from) & 0x7fffffff) % 1_000_000).padStart(6, '0')
+}
+const cookies = (r: Response) => r.headers.getSetCookie().map((c) => c.split(';')[0]).join('; ')
+
+test('two-step sign-in: after a password, after a sign-in link, and a backup code once', async () => {
+  const email = 'careful@example.com'
+  const { cookie } = await account(email)
+  assert.equal((await post('/api/auth/two-factor/enable', { password: 'not my password' }, { cookie })).status, 400)
+  const on = await post('/api/auth/two-factor/enable', { password: PASSWORD }, { cookie })
+  assert.equal(on.status, 200)
+  const { totpURI, backupCodes } = (await on.json()) as { totpURI: string; backupCodes: string[] }
+  assert.equal(backupCodes.length, 10)
+  const secret = new URL(totpURI).searchParams.get('secret')!
+  assert.match(totpURI, /issuer=Kataki/)
+  // it is on only once a code from the app has been typed back
+  assert.equal((await post('/api/auth/two-factor/verify-totp', { code: totp(secret) }, { cookie })).status, 200)
+
+  const first = await post('/api/auth/sign-in/email', { email, password: PASSWORD })
+  assert.equal(((await first.json()) as { twoFactorRedirect?: boolean }).twoFactorRedirect, true)
+  assert.doesNotMatch(cookies(first), /session_token=[^;]/) // the password alone opens nothing
+  assert.notEqual((await post('/api/auth/two-factor/verify-totp', { code: '000000' }, { cookie: cookies(first) })).status, 200)
+  const second = await post('/api/auth/two-factor/verify-totp', { code: totp(secret) }, { cookie: cookies(first) })
+  assert.equal(second.status, 200)
+  assert.equal((await call('/stories', { cookie: cookies(second) })).status, 200)
+
+  const again = await post('/api/auth/sign-in/email', { email, password: PASSWORD })
+  assert.equal((await post('/api/auth/two-factor/verify-backup-code', { code: backupCodes[0] }, { cookie: cookies(again) })).status, 200)
+  const reused = await post('/api/auth/sign-in/email', { email, password: PASSWORD })
+  assert.notEqual((await post('/api/auth/two-factor/verify-backup-code', { code: backupCodes[0] }, { cookie: cookies(reused) })).status, 200)
+
+  // a sign-in link does not walk past the second step
+  await post('/api/auth/sign-in/magic-link', { email, callbackURL: '/app/' })
+  const token = new URL(mails.at(-1)!.text.match(/http\S+/)![0]).searchParams.get('magic')!
+  const linked = await call(`/api/auth/magic-link/verify?token=${token}&callbackURL=%2Fapp%2F`)
+  assert.equal(linked.status, 302)
+  assert.equal(linked.headers.get('location'), `${origin}/app/?step=2`)
+  assert.doesNotMatch(cookies(linked), /session_token=[^;]/)
+  assert.equal((await call('/stories', { cookie: cookies(linked) })).status, 401)
+  const done = await post('/api/auth/two-factor/verify-totp', { code: totp(secret) }, { cookie: cookies(linked) })
+  assert.equal(done.status, 200)
+  assert.equal((await call('/stories', { cookie: cookies(done) })).status, 200)
+})
+
 /** Leave for the other service and come back, as the browser does after "Authorize". */
 async function viaProvider(extra: Record<string, unknown>) {
   const left = await post('/api/auth/sign-in/social', { provider: 'fake', callbackURL: '/app/', errorCallbackURL: '/app/', ...extra })
@@ -268,6 +320,27 @@ test('another service: signing in never makes an account; creating one does, and
   const again = await viaProvider({}) // and now plain sign-in works
   assert.equal(again.location, '/app/')
   assert.ok(again.session)
+})
+
+test('two-step sign-in is asked after another service too', async () => {
+  // the account made through the other service gets a password (the reset link), then turns it on
+  const email = 'octo@example.com'
+  await post('/api/auth/request-password-reset', { email, redirectTo: '/app/' })
+  const opened = await call(mails.at(-1)!.text.match(/http\S+/)![0].slice(origin.length))
+  const token = new URL(opened.headers.get('location')!, origin).searchParams.get('token')!
+  assert.equal((await post('/api/auth/reset-password', { newPassword: PASSWORD, token })).status, 200)
+  const signedIn = cookies(await post('/api/auth/sign-in/email', { email, password: PASSWORD }))
+  const on = (await (await post('/api/auth/two-factor/enable', { password: PASSWORD }, { cookie: signedIn })).json()) as { totpURI: string }
+  const secret = new URL(on.totpURI).searchParams.get('secret')!
+  assert.equal((await post('/api/auth/two-factor/verify-totp', { code: totp(secret) }, { cookie: signedIn })).status, 200)
+
+  const left = await post('/api/auth/sign-in/social', { provider: 'fake', callbackURL: '/app/', errorCallbackURL: '/app/' })
+  const state = new URL(((await left.json()) as { url: string }).url).searchParams.get('state')!
+  const back = await call(`/api/auth/callback/fake?code=a-code&state=${encodeURIComponent(state)}`, { cookie: cookies(left) })
+  assert.equal(back.headers.get('location'), `${origin}/app/?step=2`)
+  assert.equal((await call('/stories', { cookie: cookies(back) })).status, 401) // the other service alone opens nothing
+  const done = await post('/api/auth/two-factor/verify-totp', { code: totp(secret) }, { cookie: cookies(back) })
+  assert.equal((await call('/stories', { cookie: cookies(done) })).status, 200)
 })
 
 test('the web build is served, and nothing outside it', async () => {

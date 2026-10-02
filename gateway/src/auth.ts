@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { betterAuth } from 'better-auth'
 import { APIError, getOAuthState } from 'better-auth/api'
 import { getMigrations } from 'better-auth/db/migration'
-import { genericOAuth, haveIBeenPwned, magicLink, type GenericOAuthConfig } from 'better-auth/plugins'
+import { genericOAuth, haveIBeenPwned, magicLink, twoFactor, type GenericOAuthConfig } from 'better-auth/plugins'
 import type { Pool } from 'pg'
 
 export type Send = (to: string, subject: string, text: string) => void | Promise<void>
@@ -36,6 +36,33 @@ export function socialFrom(env: Record<string, string | undefined>): Social {
 }
 
 const DAY = 86_400
+
+/** Two-step sign-in (spec §2, G4): an authenticator app's code, with ten backup codes.
+ *
+ *  The library asks for the second step only after a password. A sign-in link or another
+ *  service would walk straight past it, so its own hook is pointed at those routes too: the
+ *  session they made is taken back, and the browser goes to the app's code screen instead. */
+function secondStep(origin: string) {
+  const plugin = twoFactor({ issuer: 'Kataki', backupCodeOptions: { amount: 10, storeBackupCodes: 'encrypted' } })
+  const hook = plugin.hooks.after[0]
+  const afterPassword = hook.matcher
+  const ask = hook.handler
+  const byRedirect = (path?: string) => path === '/magic-link/verify' || path === '/callback/:id'
+  hook.matcher = (c) => afterPassword(c) || byRedirect(c.path)
+  // ponytail: leans on the library's hook shape ({response, headers}); the version is pinned and
+  // app.test.ts walks this path, so an upgrade that changes it fails there, not in production
+  type Said = { response?: unknown; headers?: Headers } | undefined
+  hook.handler = (async (ctx: { path?: string }) => {
+    const said = await (ask as unknown as (c: unknown) => Promise<Said>)(ctx)
+    if (said?.response === undefined || !byRedirect(ctx.path)) return said
+    // those routes answer with a redirect, not JSON: the browser goes to the code screen,
+    // with the cookie the library just set for the pending second step
+    const headers = new Headers(said.headers)
+    headers.set('location', `${origin}/app/?step=2`)
+    return { response: new APIError('FOUND', undefined, headers), headers }
+  }) as unknown as typeof ask
+  return plugin
+}
 
 export function makeAuth({ pool, origin, secret, send, pwned = true, social = {}, others = [] }: AuthConfig) {
   return betterAuth({
@@ -118,6 +145,7 @@ export function makeAuth({ pool, origin, secret, send, pwned = true, social = {}
     },
     plugins: [
       haveIBeenPwned({ enabled: pwned }),
+      secondStep(origin),
       ...(others.length ? [genericOAuth({ config: others.map((o) => ({ ...o, disableImplicitSignUp: true })) })] : []),
       magicLink({
         expiresIn: 10 * 60,
