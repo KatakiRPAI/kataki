@@ -40,7 +40,11 @@ so the history shows which changes an agent wrote.
    the bot): `gh pr merge <n> --squash`. Then tell the owner what landed, in plain words. This
    covers every path, including `.github/`, `AGENTS.md`, schema migrations and billing code;
    production deploys, stable releases and live payment keys still wait for the owner.
-6. Start the next change from `main` again, not on top of an unmerged branch, unless it truly
+6. Update the alpha at `https://kataki.qaiskilani.com` after every merge: it is the alpha
+   version of the app the owner uses, so it always runs `main`. On the owner's server, in
+   `/opt/kataki`: `git pull && docker compose up -d --build`. Done when that checkout is at
+   `main`'s tip and the site answers.
+7. Start the next change from `main` again, not on top of an unmerged branch, unless it truly
    depends on it (then say so in the PR). When the PR below a stacked one is squash-merged,
    rebase the upper branch onto `main` (`git rebase --onto origin/main <old base tip> <branch>`)
    and force-push that PR branch (`--force-with-lease`) before merging it.
