@@ -26,6 +26,8 @@ export async function session(): Promise<Session> {
 }
 
 export type AuthError = { code?: string; message?: string }
+/** Refused because the sign-in is more than ten minutes old: signing in again clears it. */
+export const stale = (x: unknown): boolean => (x as AuthError | null)?.code === 'SESSION_NOT_FRESH'
 
 /** One of Better Auth's routes (a POST, or a GET with `body` left as "get"). Resolves to its
  *  JSON, or throws its `{code, message}`. */

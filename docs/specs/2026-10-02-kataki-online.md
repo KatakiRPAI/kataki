@@ -47,9 +47,10 @@ The owner chose Better Auth on 2026-10-02, so the gateway is a small TypeScript 
       person each time, so a passkey stands for both steps. The app uses the browser's own
       WebAuthn JSON helpers, no library. **Not yet run with a real device** (**[owner]**: one
       try with Windows Hello or a phone). Not done: a fresh
-      sign-in before sensitive changes beyond the password these already ask for; an account
-      made through another service must set a password (the reset link) before it can turn
-      this on.
+      sign-in before sensitive changes beyond these. An account made through another service
+      has no password: it changes two-step sign-in from a sign-in of the last ten minutes
+      instead. Adding a passkey needs the same; the app says so and offers to sign out (found
+      by the owner's first real try, 2026-10-02).
 - [x] G5 · Settings › Account: emails, methods, sessions, export, deletion. Built
       (2026-10-02): change email (approved from the old address, then confirmed from the new
       one), change password (the old one needed, every other place signed out, a notice by

@@ -4,15 +4,18 @@ import { useState } from 'react'
 import { api } from '../../api'
 import { K } from '../../ds'
 import { useLoad } from '../../hooks'
-import { addPasskey, auth, passkeysWork, thisSession, type AuthError, type Me } from '../../online/session'
+import { addPasskey, auth, passkeysWork, signOut, stale, thisSession, type AuthError, type Me } from '../../online/session'
 import { Overlay, toast } from '../../overlay'
 import { relative, t } from '../../strings'
 
 const NAMES: Record<string, string> = { google: 'Google', github: 'GitHub', discord: 'Discord', apple: 'Apple' }
 type Linked = { providerId: string }
 
+/** How the account can be entered; `credential` among them means it has a password. */
+export const useLinked = () => useLoad(() => auth<Linked[]>('/list-accounts', 'get'), [])
+
 export function SigningIn({ me }: { me: Me }) {
-  const [linked, reload] = useLoad(() => auth<Linked[]>('/list-accounts', 'get'), [])
+  const [linked, reload] = useLinked()
   const [offered] = useLoad(() => fetch('/api/providers').then((r) => r.json()).then((p: { social: string[] }) => p.social, () => [] as string[]), [])
   const [changing, setChanging] = useState<'email' | 'password' | 'backup'>()
   const [mine, reloadMine] = useLoad(() => api<{ backupEmail: string | null; backupEmailVerified: boolean }>('/api/me'), [])
@@ -109,7 +112,8 @@ export function Passkeys() {
       reload()
       toast(t('pk.added'), { icon: 'key' }, 6000)
     } catch (x) {
-      if ((x as Error).name !== 'NotAllowedError') toast(t('pk.e'), { icon: 'alert' }, 8000) // NotAllowed: they cancelled
+      if (stale(x)) toast(t('am.fresh'), { icon: 'shield', action: t('ac.signOut'), onAction: signOut }, 20_000)
+      else if ((x as Error).name !== 'NotAllowedError') toast(t('pk.e'), { icon: 'alert' }, 8000) // NotAllowed: they cancelled
     } finally {
       setBusy(false)
     }
