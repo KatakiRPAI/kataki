@@ -75,6 +75,7 @@ A demo library and a fake model let you try the whole app without a GPU (from `e
 - `uv run python evals/demo.py build` writes `.dev/demo.db` from scratch: the design brief's friends, places, plots and five stories, including "The Third Floorboard" played through to the six-year skip, with its memories read, and "Texts from Tobin", a story set to Texting (bubbles, and a typo he corrects). It checks the result and exits non-zero if something is off.
 - `uv run python evals/demo.py serve-model --think` answers on `http://127.0.0.1:8099/v1` (model `fake`) with streamed lines, and some thinking first with `--think`. The demo library already points at it.
 - `KATAKI_DB=.dev/demo.db pnpm dev` opens the desktop app on the demo library; with `kataki serve --db ../.dev/demo.db` any browser can use it.
+- `KATAKI_ONLINE=<address of a Kataki online gateway>` turns on Settings › Data › Cloud in the desktop app (cloud save); without it the section is not shown.
 - The desktop app keeps profiles (Settings › Profiles), each a folder with its own library; the first is `.dev`. `KATAKI_DB` skips them, and `KATAKI_HOME=<folder>` moves the first one. `node app/electron/profiles.check.ts` checks the list.
 
 ## Connecting a model
