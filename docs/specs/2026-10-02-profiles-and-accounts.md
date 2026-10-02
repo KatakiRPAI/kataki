@@ -26,7 +26,12 @@ Research: `docs/research/reports/Profiles accounts and cloud.md`.
       engine. Not clicked through: the native dialogs (the folder picker, a missing folder, a
       library that will not open). Owed: a folder that exists but lost its `library.db` gets a
       new empty library; the dialogs' text is English in `main.ts`, outside `strings/`.
-- [ ] P2 · The profile card: name, picture, bio, colour, stats.
+- [x] P2 · The profile card (2026-10-02): the `profile` setting (name, pronouns, bio, picture,
+      colour) and `GET /profile/stats`, shown at the top of You with an edit dialog; saving it
+      renames the desktop profile to match. Not done: a banner; a `/profile` page or Settings
+      panel of its own (it lives on You until there are boards). Owed to C1: an import online
+      keeps the service's `settings` table whole (`archive.MANAGED`), so the card and every
+      preference are dropped on the way in; C1 has to split service keys from the person's.
 - [ ] P3 · Badges.
 - [ ] P4 · Move a library; choose at startup; discreet list; PIN.
 - [ ] P5 · Settings, completed.
