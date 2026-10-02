@@ -22,6 +22,7 @@ import Search from './sky/Search'
 import FirstRun, { ModelGone, Opening } from './sky/FirstRun'
 import { Palette } from './sky/Palette'
 import { Feedback, openFeedback } from './sky/Feedback'
+import { checkBadges } from './sky/Badges'
 import DiskFull from './sky/DiskFull'
 import Scene from './scene/Scene'
 
@@ -81,7 +82,10 @@ function Links({ children }: { children: ReactNode }) {
 /** The Sky: every page outside a story. Rail, the Sky behind, the Night/Day theme. */
 function Sky() {
   const { pathname } = useLocation()
-  const [prefs] = usePrefs()
+  const [prefs, loaded] = usePrefs()
+  // back in the Sky (the app opening, or a story left): the moment to say a badge was earned,
+  // never in the middle of a scene
+  useEffect(() => { if (loaded) checkBadges().catch(() => {}) }, [loaded])
   const theme = skyTheme(prefs)
   const compact = useNarrow(1280) // ROUTES.md › Layout breakpoints: the compact rail below 1280
   const flip = (to: string) => {

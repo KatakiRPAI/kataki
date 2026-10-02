@@ -11,6 +11,7 @@ def test_stats_count_what_the_person_made_and_wrote(conn):
         "words": 0,
         "days": 0,
         "since": None,
+        "longest_story": 0,
     }
     mira = library.create_item(conn, "character", "Mira")
     library.create_item(conn, "character", "Aren", data={"persona": True})
