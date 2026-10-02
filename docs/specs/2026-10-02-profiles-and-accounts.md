@@ -32,7 +32,13 @@ Research: `docs/research/reports/Profiles accounts and cloud.md`.
       panel of its own (it lives on You until there are boards). Owed to C1: an import online
       keeps the service's `settings` table whole (`archive.MANAGED`), so the card and every
       preference are dropped on the way in; C1 has to split service keys from the person's.
-- [ ] P3 · Badges.
+- [x] P3 · Badges (2026-10-02): schema v19 `achievements`; `achievements.py` holds the rules
+      (a number from `profile.stats` and a target) and `POST /achievements/check` awards them.
+      What a library already held at the first look is backdated and never announced. The card
+      shows earned badges, a list of all with progress, Hide per badge, and an off switch in
+      the edit dialog; a toast says a badge was earned when you are back in the Sky, never in
+      a scene. The 16 rules are a starter set: **[owner]** defines the real list. Not done:
+      tiers, hidden badges, a pinned showcase.
 - [ ] P4 · Move a library; choose at startup; discreet list; PIN.
 - [ ] P5 · Settings, completed.
 - [ ] A0 · The `kataki-online` gateway spec (auth, ledger, deploy) and the owner's sign-offs below.
