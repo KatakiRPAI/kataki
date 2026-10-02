@@ -31,8 +31,11 @@ The owner chose Better Auth on 2026-10-02, so the gateway is a small TypeScript 
       same for `GOOGLE_` and `DISCORD_`), `pnpm -C gateway dev` reads them from the repo's
       `.env`; "Sign in with" never creates an account, "Create account with" does and carries
       18-or-older through the redirect; linking joins an existing account only for Google and
-      GitHub. Callback: `{origin}/api/auth/callback/{provider}`. **Not yet run against a real
-      provider** (**[owner]**: the keys, and the click). Not done: Apple.
+      GitHub. Callback: `{origin}/api/auth/callback/{provider}`. A stand-in provider in the
+      tests runs the whole round trip. The owner made an account through real GitHub on
+      2026-10-02 (a dev OAuth app, localhost). Signing in with no account opens Create account
+      with a note. Not done: Google and Discord against the real services (**[owner]**: their
+      keys); Apple; the production OAuth apps on the real domain.
 - [ ] G4 · TOTP and backup codes, sudo mode, passkeys.
 - [ ] G5 · Settings › Account: emails, methods, sessions, export, deletion.
 - [ ] G6 · Handles and the online profile.
