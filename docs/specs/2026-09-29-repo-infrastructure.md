@@ -42,6 +42,12 @@ Update this list as phases land (date · phase · what changed · anything left)
   an error from Python 3.14), fixed in its own PR. Security and Scorecard passed. Dependabot
   opened its first grouped PRs. Left for the user: log the bot into gh, 2FA on QaisBOT and
   required org-wide.
+- 2026-10-02 · A first hosted Kataki, ahead of Phase 6: `Dockerfile` and `compose.yaml` run the
+  single-library engine with the web build (`kataki serve --web`) on the owner's server, behind
+  Caddy at `https://kataki.qaiskilani.com/app/` (the token opens it; the checkout, `.env` and
+  library are in `/opt/kataki`). Update it there with `git pull && docker compose up -d --build`.
+  It is one user's library, not the website: the gateway, GHCR images and `deploy.yml` are
+  still owed.
 
 Decisions made (2026-09-29):
 
