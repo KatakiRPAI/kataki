@@ -1,0 +1,13 @@
+# One self-hosted Kataki (see Dockerfile). Beside this file, a `.env` (gitignored) holds
+# KATAKI_TOKEN and any provider keys (KATAKI_KEY_<PROVIDER NAME>); the app is then at
+# https://<your host>/app/?token=<KATAKI_TOKEN> through a TLS proxy to 127.0.0.1:8091.
+services:
+  kataki:
+    build: .
+    restart: unless-stopped
+    network_mode: host # the engine binds 127.0.0.1 itself; nothing is published
+    env_file: .env
+    environment:
+      KATAKI_PORT: "8091"
+    volumes:
+      - ./data:/data
