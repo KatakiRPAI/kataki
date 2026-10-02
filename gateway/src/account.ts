@@ -8,13 +8,14 @@ import { createHash, randomBytes } from 'node:crypto'
 import { request } from 'node:http'
 import type { Pool } from 'pg'
 import { notify, type Auth, type Send } from './auth.ts'
+import { forgetCloud, type CloudConfig } from './cloud.ts'
 import { balance } from './ledger.ts'
 import { signed } from './sign.ts'
 
 export const GRACE_DAYS = 14
 export const FORGET = '/_gateway/forget' // the engine's route for this; never proxied for a browser
 
-export type AccountConfig = { auth: Auth; pool: Pool; origin: string; engine: string; secret: string; send: Send }
+export type AccountConfig = { auth: Auth; pool: Pool; origin: string; engine: string; secret: string; send: Send; cloud?: { dir: string; maxBytes: number } }
 type Who = { id: string; name: string; email: string; backupEmail?: string | null; backupEmailVerified?: boolean | null }
 
 const day = (d: Date) => d.toISOString().slice(0, 10)
@@ -101,6 +102,7 @@ export async function sweep(c: AccountConfig, now = new Date()): Promise<number>
   for (const { id } of due) {
     try {
       if ((await forget(c, id)) !== 200) continue
+      if (c.cloud) await forgetCloud({ pool: c.pool, origin: c.origin, ...c.cloud } satisfies CloudConfig, id) // its snapshots and linked computers too
       await internalAdapter.deleteUserSessions(id)
       await internalAdapter.deleteAccounts(id)
       await internalAdapter.deleteUser(id)

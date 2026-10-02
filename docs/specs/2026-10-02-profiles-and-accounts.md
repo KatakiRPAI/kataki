@@ -52,7 +52,8 @@ Research: `docs/research/reports/Profiles accounts and cloud.md`.
 - [x] A0 · The gateway's spec: `docs/specs/2026-10-02-kataki-online.md` (2026-10-02). The owner
       chose Better Auth. A1–A6 are its G1–G6, and their progress is kept there.
 - [ ] A1–A6 · Accounts: A1 (G1) done; see the gateway spec.
-- [ ] C1–C2 · Cloud for the desktop.
+- [ ] C1–C2 · Cloud for the desktop: C1 done (2026-10-02), see the gateway spec §8; C2 (the free
+      limit and the storage charge) waits for the owner's numbers.
 
 ## 1. What the owner is after
 

@@ -14,6 +14,10 @@ if (who === 'signed-out') {
 } else if (who !== 'none' && who.deleteAt) {
   const { default: Deleting } = await import('./online/Deleting')
   root.render(<StrictMode><Deleting me={who} /></StrictMode>)
+} else if (who !== 'none' && new URLSearchParams(location.search).get('link')) {
+  // the desktop app sent the person here to link that computer to this account
+  const { default: Link } = await import('./online/Link')
+  root.render(<StrictMode><Link me={who} code={new URLSearchParams(location.search).get('link')!} /></StrictMode>)
 } else {
   const { router } = await import('./router')
   root.render(

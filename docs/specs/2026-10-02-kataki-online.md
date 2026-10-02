@@ -72,6 +72,17 @@ The owner chose Better Auth on 2026-10-02, so the gateway is a small TypeScript 
       no way to ask whether one is taken), set in Settings › Account, and "email or username"
       on the sign-in screen. Not done: a cooldown on renaming and holding the old name; the
       shared online profile (profiles spec, Later).
+- [x] C1 · Cloud save for the desktop (2026-10-02; §8): a computer is linked to an account by a
+      code approved on the website; its token opens the cloud routes and nothing else, and can
+      be removed from Settings › Account. The desktop's Settings › Data sends the library up
+      and brings it down. Snapshots have revisions and the newest five are kept; an upload not
+      built on the newest is refused until the person chooses. Bringing one down swaps it in at
+      the next start, with what was there backed up first. Checked end to end in the real
+      desktop app against a local gateway. Not clicked: the shell opening the system browser
+      (the test approved the code in a browser directly). Not done: C2 (the free limit and the
+      charge for storage: **[owner]** the numbers); object storage instead of the gateway's
+      disk (G8); the desktop's address for Kataki online is `KATAKI_ONLINE` until there is a
+      domain; uploads are read into memory.
 - [ ] G7 · Top-ups (the owner's payment processor, test mode).
 - [ ] G8 · The image, staging and production (infrastructure Phase 6).
 
@@ -192,6 +203,30 @@ KATAKI_CATALOGUE=.dev/catalogue.db pnpm -C gateway dev                    # PGli
 Then open `http://localhost:8787/`. The confirmation mail is printed by the gateway. `dev`
 gives each new account $1 and turns the breached-password check off; `start` reads everything
 from the environment and has no defaults.
+
+## 8. Cloud save for the desktop
+
+Profiles spec C1. The desktop keeps its library on its owner's account as whole snapshots, the
+library's own `.kataki`, never a live sync (research §5).
+
+- **Linking** (`gateway/src/cloud.ts`, `engine/src/kataki/cloud.py`): the engine asks
+  `POST /api/device/start` and gets a code, a secret and an address; the shell opens the address
+  (only ever Kataki online's own origin); the signed-in person sees the computer's name and the
+  code and approves (`POST /api/device/approve`); the engine's `POST /api/device/poll` is handed
+  a token once. The token is kept in the OS keychain, stored hashed on the gateway, and listed
+  and removable under Settings › Account.
+- **Routes for a linked computer** (`Authorization: Bearer kd_…`): `GET /api/cloud` (the
+  account's name, the newest snapshot, the limits), `PUT /api/cloud?base=&force=&holds=` (the
+  body is the `.kataki`), `GET /api/cloud/download`, `DELETE /api/cloud/device`.
+- **Revisions:** an upload says which snapshot the library was last in step with (`base`, kept
+  in `cloud.json` beside the library, not in it). Anything else is `409` with what is there:
+  the person brings it down, or uploads again with `force`. The newest five are kept.
+- **Down:** the snapshot is checked to be a library, written beside the backups, and swapped in
+  at the next start by the backup-restore path, which keeps what was there.
+- **Limits:** a byte ceiling (`KATAKI_CLOUD_MAX_BYTES`, 250 MB by default) now. C2 adds the
+  free limit by counts (the snapshot's `holds`: stories, characters, places, plots) and the
+  charge for storage past it.
+- **An account that is deleted** takes its snapshots and linked computers with it.
 
 ## 7. Rules
 

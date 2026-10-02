@@ -1,6 +1,6 @@
 // The gateway end to end, on PGlite and a stand-in engine that checks the signature it is sent.
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs'
 import { createHmac } from 'node:crypto'
 import { createServer, type IncomingMessage, type RequestListener, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
@@ -26,6 +26,7 @@ const mails: { to: string; text: string }[] = []
 const seen: { method: string; url: string; headers: IncomingMessage['headers']; body: string }[] = []
 let db: PGlite, socket: PGLiteSocketServer, pool: pg.Pool, engine: Server, gateway: Server, provider: Server, origin: string, leaving: AccountConfig
 let forgetStatus = 200 // what the stand-in engine answers when asked to forget a library
+let cloudDir = ''
 
 const listen = (server: Server) => new Promise<number>((done) => server.listen(0, '127.0.0.1', () => done((server.address() as AddressInfo).port)))
 
@@ -76,12 +77,14 @@ before(async () => {
   const others = [{ providerId: 'fake', clientId: 'an-id', clientSecret: 'a-secret', authorizationUrl: `${there}/authorize`, tokenUrl: `${there}/token`, userInfoUrl: `${there}/userinfo`, scopes: ['email'] }]
   const social = socialFrom({ GITHUB_CLIENT_ID: 'an-id', GITHUB_CLIENT_SECRET: 'a-secret', GOOGLE_CLIENT_ID: 'half-set' })
   const send = (to: string, _subject: string, text: string) => void mails.push({ to, text })
+  cloudDir = mkdtempSync(join(tmpdir(), 'kataki-cloud-'))
+  const cloud = { dir: cloudDir, maxBytes: 1000 }
   const auth = makeAuth({ pool, origin, secret: 'x7Kq'.repeat(10), pwned: false, social, others, send })
   await migrateAuth(auth)
   await migrate(pool)
   await migrate(pool) // again: nothing to do, nothing breaks
-  handler = createGateway({ auth, pool, origin, engine: `http://127.0.0.1:${enginePort}`, secret: SECRET, key: KEY, prices: PRICES, web, starter: 1_000_000n, social: Object.keys(social), send })
-  leaving = { auth, pool, origin, engine: `http://127.0.0.1:${enginePort}`, secret: SECRET, send }
+  handler = createGateway({ auth, pool, origin, engine: `http://127.0.0.1:${enginePort}`, secret: SECRET, key: KEY, prices: PRICES, web, starter: 1_000_000n, social: Object.keys(social), send, cloud })
+  leaving = { auth, pool, origin, engine: `http://127.0.0.1:${enginePort}`, secret: SECRET, send, cloud }
 })
 
 after(async () => {
@@ -539,6 +542,73 @@ test('a username: one per account whatever the capitals, never ours, and a way t
   assert.equal((await post('/api/auth/sign-in/username', { username: 'harbour_fox', password: 'not the password' })).status, 401)
   assert.equal((await post('/api/auth/sign-in/username', { username: 'nobody_here', password: PASSWORD })).status, 401) // the same answer
   assert.equal((await call('/api/auth/is-username-available', { method: 'POST', body: JSON.stringify({ username: 'harbour_fox' }), headers: { 'content-type': 'application/json', origin } })).status, 404)
+})
+
+/** Link a computer to the signed-in account, as the desktop and the website do between them. */
+async function linked(cookie: string, name = 'Study PC'): Promise<{ authorization: string }> {
+  const started = (await (await post('/api/device/start', { name }, { headers: { origin: '' } })).json()) as { code: string; secret: string; url: string }
+  assert.match(started.code, /^[A-Z2-9]{8}$/)
+  assert.equal(started.url, `${origin}/app/?link=${started.code}`)
+  assert.equal((await post('/api/device/poll', { secret: started.secret })).status, 202) // nobody has said yes
+  assert.deepEqual(await (await call(`/api/device/link?code=${started.code.toLowerCase()}`, { cookie })).json(), { name })
+  assert.equal((await post('/api/device/approve', { code: started.code }, { cookie })).status, 200)
+  const got = (await (await post('/api/device/poll', { secret: started.secret })).json()) as { token: string }
+  assert.match(got.token, /^kd_[0-9a-f]{64}$/)
+  assert.equal((await post('/api/device/poll', { secret: started.secret })).status, 410) // handed over once
+  return { authorization: `Bearer ${got.token}` }
+}
+const put = (auth: { authorization: string }, bytes: string, query: string) =>
+  fetch(`${origin}/api/cloud?${query}`, { method: 'PUT', headers: auth, body: bytes })
+
+test('cloud save: a computer is linked by its owner, and its token opens the cloud and nothing else', async () => {
+  const { cookie } = await account('saver@example.com')
+  assert.equal((await call('/api/cloud')).status, 401)
+  assert.equal((await call('/api/device/approve', { method: 'POST', body: '{"code":"AAAAAAAA"}', headers: { 'content-type': 'application/json', origin } })).status, 401) // approving needs the account
+  assert.equal((await post('/api/device/approve', { code: 'AAAAAAAA' }, { cookie })).status, 404) // and a code that is waiting
+  const device = await linked(cookie)
+  assert.equal((await call('/stories', { headers: device })).status, 401) // not the library, not the account
+  assert.equal((await call('/api/me', { headers: device })).status, 401)
+  const seenFromWeb = (await (await call('/api/devices', { cookie })).json()) as { id: string; name: string }[]
+  assert.deepEqual(seenFromWeb.map((d) => d.name), ['Study PC'])
+  const info = (await (await call('/api/cloud', { headers: device })).json()) as { account: string; snapshot: unknown; kept: number }
+  assert.deepEqual([info.account, info.snapshot, info.kept], ['Qais', null, 5])
+  assert.equal((await call('/api/cloud/download', { headers: device })).status, 404)
+  // unlinked from the website: the token stops working at once
+  assert.equal((await call(`/api/devices/${seenFromWeb[0].id}`, { method: 'DELETE', cookie, headers: { origin } })).status, 200)
+  assert.equal((await call('/api/cloud', { headers: device })).status, 401)
+})
+
+test('cloud save: snapshots have revisions, one computer never silently overwrites another, and old ones go', async () => {
+  const { cookie, id } = await account('twocomputers@example.com')
+  const desk = await linked(cookie, 'Desk')
+  const laptop = await linked(cookie, 'Laptop')
+  const holds = encodeURIComponent(JSON.stringify({ stories: 2, characters: 3, 'not a count': 'x' }))
+
+  const first = await put(desk, 'the library, v1', `base=0&holds=${holds}`)
+  assert.equal(first.status, 200)
+  const one = ((await first.json()) as { snapshot: { revision: number; bytes: number; device: string; holds: object } }).snapshot
+  assert.deepEqual([one.revision, one.bytes, one.device, one.holds], [1, 15, 'Desk', { stories: 2, characters: 3 }])
+
+  // the laptop last saw nothing: it is told what is there instead of overwriting it
+  const clash = await put(laptop, 'the laptop library', 'base=0')
+  assert.equal(clash.status, 409)
+  assert.equal(((await clash.json()) as { snapshot: { device: string } }).snapshot.device, 'Desk')
+  const got = await call('/api/cloud/download', { headers: laptop })
+  assert.equal(got.headers.get('x-kataki-revision'), '1')
+  assert.equal(await got.text(), 'the library, v1')
+  assert.equal((await put(laptop, 'the laptop library', 'base=1')).status, 200) // built on what it downloaded
+  assert.equal((await put(desk, 'the desk again', 'base=1')).status, 409) // now the desk is the one behind
+  assert.equal((await put(desk, 'the desk again', 'base=1&force=1')).status, 200) // "upload and replace"
+
+  assert.equal((await put(desk, 'x'.repeat(1001), 'base=3')).status, 413) // past the size limit: refused, nothing kept
+  for (let base = 3; base < 8; base++) assert.equal((await put(desk, `v${base + 1}`, `base=${base}`)).status, 200)
+  assert.deepEqual(readdirSync(join(cloudDir, id)).sort(), ['4.kataki', '5.kataki', '6.kataki', '7.kataki', '8.kataki']) // the newest five
+
+  // the account goes: so do its snapshots and its computers
+  await post('/api/account/delete', {}, { cookie })
+  assert.equal(await sweep(leaving, new Date(Date.now() + (GRACE_DAYS + 1) * 86_400_000)), 1)
+  assert.equal(existsSync(join(cloudDir, id)), false)
+  assert.equal((await call('/api/cloud', { headers: desk })).status, 401)
 })
 
 test('the web build is served, and nothing outside it', async () => {

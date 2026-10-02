@@ -12,6 +12,7 @@ import { fromNodeHeaders, toNodeHandler } from 'better-auth/node'
 import type { Pool } from 'pg'
 import { askToDelete, exportOf, FORGET, keep, removeBackupEmail, setBackupEmail, verifyBackupEmail } from './account.ts'
 import type { Auth, Send } from './auth.ts'
+import { approveLink, deviceOf, devices, download, KEPT, linkName, newest, pollLink, startLink, unlink, upload, type CloudConfig } from './cloud.ts'
 import { allow, balance, bill, grant } from './ledger.ts'
 import type { Prices } from './money.ts'
 import { signed, USER } from './sign.ts'
@@ -28,6 +29,7 @@ export type GatewayConfig = {
   starter?: bigint // micro-dollars given once to a new account
   social?: string[] // the services an account can sign in with (auth.ts › Social)
   send: Send // mail (auth.ts)
+  cloud?: { dir: string; maxBytes: number } // where snapshots from the desktop are kept (cloud.ts); absent: no cloud save
 }
 
 const TYPES: Record<string, string> = {
@@ -54,6 +56,7 @@ export function createGateway(c: GatewayConfig): RequestListener {
   const authHandler = toNodeHandler(c.auth)
   const granted = new Set<string>() // accounts whose starting credit was looked at by this process
   const engine = new URL(c.engine)
+  const cloud: CloudConfig | null = c.cloud ? { pool: c.pool, origin: c.origin, ...c.cloud } : null
 
   const fromEngine = (req: IncomingMessage): boolean => {
     const said = Buffer.from(req.headers.authorization ?? '')
@@ -112,6 +115,33 @@ export function createGateway(c: GatewayConfig): RequestListener {
       }
       if (c.web && (path === '/app' || path.startsWith('/app/')) && (req.method === 'GET' || req.method === 'HEAD')) return serve(res, path === '/app' ? '/app/' : path)
 
+      // Cloud save: the desktop app talks to these itself, with no browser and no cookie.
+      if (cloud && path === '/api/device/start' && req.method === 'POST') {
+        const said = (await body(req).catch(() => null)) as { name?: unknown } | null
+        return json(res, 200, await startLink(cloud, said?.name))
+      }
+      if (cloud && path === '/api/device/poll' && req.method === 'POST') {
+        const got = await pollLink(cloud, ((await body(req).catch(() => null)) as { secret?: unknown } | null)?.secret)
+        return got === 'gone' ? json(res, 410, { detail: 'That link has expired.' }) : got === 'waiting' ? json(res, 202, { waiting: true }) : json(res, 200, got)
+      }
+      if (cloud && (path === '/api/cloud' || path.startsWith('/api/cloud/'))) {
+        const device = await deviceOf(cloud, req) // a linked computer's token: these routes and nothing else
+        if (!device) return json(res, 401, { detail: 'This computer is not linked to an account.', code: 'UNLINKED' })
+        if (path === '/api/cloud' && req.method === 'GET') {
+          const owner = (await c.pool.query('SELECT name, "deleteAt" FROM "user" WHERE id = $1', [device.user])).rows[0]
+          return json(res, 200, { account: owner?.name ?? '', device: device.name, snapshot: await newest(cloud, device.user), maxBytes: cloud.maxBytes, kept: KEPT })
+        }
+        if (path === '/api/cloud' && req.method === 'PUT') {
+          let holds: unknown = null
+          try { holds = JSON.parse(url.searchParams.get('holds') ?? 'null') } catch { /* it says nothing about itself */ }
+          const got = await upload(cloud, device, req, Number(url.searchParams.get('base') ?? 0), url.searchParams.get('force') === '1', holds)
+          return json(res, got.status, { snapshot: got.snapshot, ...(got.status === 409 ? { code: 'NEWER' } : got.status === 413 ? { code: 'TOO_BIG', maxBytes: cloud.maxBytes } : {}) })
+        }
+        if (path === '/api/cloud/download' && req.method === 'GET') return (await download(cloud, device.user, res)) ? undefined : json(res, 404, { detail: 'Nothing has been saved to the cloud yet.' })
+        if (path === '/api/cloud/device' && req.method === 'DELETE') { await unlink(cloud, device.user, device.id); return json(res, 200, { ok: true }) }
+        return json(res, 404, { detail: 'not found' })
+      }
+
       const session = await c.auth.api.getSession({ headers: fromNodeHeaders(req.headers) })
       // the id names a folder on the engine's disk: one that could not is never sent
       if (!session?.user.emailVerified || !USER.test(session.user.id)) return json(res, 401, { detail: 'Sign in to continue.', code: 'SIGNED_OUT' })
@@ -144,6 +174,17 @@ export function createGateway(c: GatewayConfig): RequestListener {
         if (!fresh) return json(res, 403, { detail: { code: 'FRESH', message: 'Sign in again to do this.' } })
         return json(res, 200, { deleteAt: await askToDelete(c, who) })
       }
+      // linking a computer: approved here, by the signed-in person, and listed and removed here
+      if (cloud && path === '/api/device/link' && req.method === 'GET') {
+        const name = await linkName(cloud, url.searchParams.get('code') ?? '')
+        return name ? json(res, 200, { name }) : json(res, 404, { detail: 'That code is not waiting. Ask for a new one on your computer.' })
+      }
+      if (cloud && path === '/api/device/approve' && req.method === 'POST') {
+        const said = (await body(req).catch(() => null)) as { code?: unknown } | null
+        return (await approveLink(cloud, user, String(said?.code ?? ''))) ? json(res, 200, { ok: true }) : json(res, 404, { detail: 'That code is not waiting. Ask for a new one on your computer.' })
+      }
+      if (cloud && path === '/api/devices' && req.method === 'GET') return json(res, 200, await devices(cloud, user))
+      if (cloud && path.startsWith('/api/devices/') && req.method === 'DELETE') return json(res, (await unlink(cloud, user, path.slice('/api/devices/'.length))) ? 200 : 404, { ok: true })
       // a leaving account opens nothing until it says it is staying
       if (deleteAt) return json(res, 401, { detail: 'This account is set to be deleted.', code: 'DELETING' })
       // the engine's routes for the gateway alone are never a browser's to call

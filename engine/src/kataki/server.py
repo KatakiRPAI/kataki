@@ -39,6 +39,7 @@ from kataki import (
     chat,
     chats,
     clock,
+    cloud,
     draft,
     extract,
     features,
@@ -1786,6 +1787,58 @@ def create_app(
             except FileNotFoundError:
                 raise HTTPException(404, "no such backup") from None
             return {"restart": True}
+
+        # --- cloud save: this library on its owner's Kataki online account (cloud.py) -------
+
+        def the_cloud() -> cloud.Cloud:
+            if (at := cloud.origin()) is None:
+                raise HTTPException(404, "This Kataki has no cloud to save to.")
+            if (kept := getattr(app.state, "cloud", None)) is None or kept.at != at:
+                app.state.cloud = kept = cloud.Cloud(conn, db_path, at)
+            return kept
+
+        async def reaching(doing):
+            """Run one cloud call; what goes wrong on the way is said in the app's own terms."""
+            try:
+                return await doing
+            except cloud.Unlinked:
+                raise HTTPException(
+                    409, {"code": "UNLINKED", "message": "Not connected."}
+                ) from None
+            except archive.BadArchive as e:
+                raise HTTPException(422, str(e)) from None
+            except cloud.Unreachable:
+                raise HTTPException(
+                    502, {"code": "CLOUD_DOWN", "message": "Kataki online is not answering."}
+                ) from None
+
+        @app.get("/cloud", dependencies=[Depends(local_only)])
+        async def cloud_status():
+            if cloud.origin() is None:
+                return {"available": False}
+            return await reaching(the_cloud().status())
+
+        @app.post("/cloud/connect", dependencies=[Depends(local_only)])
+        async def cloud_connect():
+            return await reaching(the_cloud().connect())
+
+        @app.post("/cloud/poll", dependencies=[Depends(local_only)])
+        async def cloud_poll():
+            return {"state": await reaching(the_cloud().poll())}
+
+        @app.post("/cloud/disconnect", dependencies=[Depends(local_only)])
+        async def cloud_disconnect():
+            await reaching(the_cloud().disconnect())
+            return {"connected": False}
+
+        @app.post("/cloud/upload", dependencies=[Depends(local_only)])
+        async def cloud_upload(force: bool = False):
+            return await reaching(the_cloud().upload(force))
+
+        @app.post("/cloud/download", dependencies=[Depends(local_only)])
+        async def cloud_download():
+            """Asked for now, done at the next start (the app restarts to finish)."""
+            return await reaching(the_cloud().download())
 
     if web_dir is not None:
         # The app's own files carry no data, so they need no token; every API call still does.

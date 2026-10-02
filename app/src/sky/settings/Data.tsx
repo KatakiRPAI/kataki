@@ -9,6 +9,7 @@ import { Overlay, toast } from '../../overlay'
 import { setPref, usePrefs } from '../../prefs'
 import { relative, t, type Key } from '../../strings'
 import { err } from '../../errors'
+import Cloud from './Cloud'
 
 export default function Data() {
   const navigate = useNavigate()
@@ -69,6 +70,7 @@ export default function Data() {
         </K.SettingsRow>
         <K.SettingsRow title={t('da.delete')} description={t('da.deleteSub')}><K.Button size="sm" variant="danger" onClick={() => setDeleting(true)}>{t('da.deleteBtn')}</K.Button></K.SettingsRow>
       </K.SettingsSection>
+      <Cloud />
       {deleting && <DeleteSomething onClose={() => setDeleting(false)} onExport={exportAll} />}
       {backing && <Backups list={list ?? []} onClose={() => setBacking(false)} onChange={reloadList} />}
     </>

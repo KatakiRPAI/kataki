@@ -38,8 +38,10 @@ export async function start(send: Send = printed) {
   await migrateAuth(auth)
   await migrate(pool)
   const engine = need('KATAKI_ENGINE')
+  // cloud save for the desktop is on when there is somewhere to keep the snapshots
+  const cloud = process.env.KATAKI_CLOUD_DIR ? { dir: process.env.KATAKI_CLOUD_DIR, maxBytes: Number(process.env.KATAKI_CLOUD_MAX_BYTES ?? 250 * 1024 * 1024) } : undefined
   const gateway = createGateway({
-    auth, pool, origin, send,
+    auth, pool, origin, send, cloud,
     engine,
     secret: signing,
     key: need('KATAKI_GATEWAY_KEY'),
@@ -52,7 +54,7 @@ export async function start(send: Send = printed) {
   const port = Number(process.env.PORT ?? 8787)
   await new Promise<void>((done) => server.listen(port, process.env.KATAKI_BIND ?? '127.0.0.1', done))
   // accounts whose day has come are removed now and every hour
-  const leaving = () => sweep({ auth, pool, origin, engine, secret: signing, send }).catch((e) => console.error('gateway: sweep failed:', e instanceof Error ? e.message : e))
+  const leaving = () => sweep({ auth, pool, origin, engine, secret: signing, send, cloud }).catch((e) => console.error('gateway: sweep failed:', e instanceof Error ? e.message : e))
   void leaving()
   setInterval(leaving, 3_600_000).unref()
   console.log(`gateway: ${origin} (listening on ${port}); sign in with: password${Object.keys(social).map((p) => `, ${p}`).join('')}`)
