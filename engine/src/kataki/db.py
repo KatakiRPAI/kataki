@@ -4,7 +4,7 @@ import sqlite3
 from importlib.resources import files
 from pathlib import Path
 
-SCHEMA_VERSION = 18
+SCHEMA_VERSION = 19
 # version -> the SQL that brings a library up from the version before it; schema.sql is v1
 MIGRATIONS = {
     2: "ALTER TABLE entities ADD COLUMN examples TEXT NOT NULL DEFAULT ''",  # example dialogue
@@ -218,6 +218,13 @@ MIGRATIONS = {
         "ALTER TABLE usage_log_new RENAME TO usage_log;"
         "CREATE INDEX ix_usage_story ON usage_log(story_id);"
         "COMMIT;"
+    ),
+    19: (  # badges (profiles spec P3): what the person has earned and when. `backdated` marks
+        # the ones found already met the first time a library was looked at, and never announced
+        "CREATE TABLE IF NOT EXISTS achievements("
+        " key TEXT PRIMARY KEY,"
+        " earned_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+        " backdated INTEGER NOT NULL DEFAULT 0)"
     ),
 }
 

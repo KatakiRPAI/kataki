@@ -7,9 +7,10 @@ import { useLoad } from '../hooks'
 import { Overlay } from '../overlay'
 import { setPref, usePrefs } from '../prefs'
 import { lang, t, type Key } from '../strings'
+import Badges, { type BadgePrefs } from './Badges'
 import { Crop, type Picture } from './Crop'
 
-export type Card = Picture & { name?: string; pronouns?: Pronouns; bio?: string; accent?: string }
+export type Card = Picture & { name?: string; pronouns?: Pronouns; bio?: string; accent?: string; badges?: BadgePrefs }
 type Stats = { stories: number; characters: number; words: number; days: number }
 
 const PRONOUNS: Pronouns[] = ['she', 'he', 'they']
@@ -24,6 +25,7 @@ export default function ProfileCard() {
   const n = (key: keyof Stats, label: Key): [string, string] => [compact.format(stats?.[key] ?? 0), t(label, { n: stats?.[key] ?? 0 })]
   return (
     <section className="card card--pad pc" aria-label={t('pc.title')} style={{ '--pc': card.accent } as CSSProperties}>
+      <div className="pc__row">
       <span className="pc__face"><K.Avatar src={card.portrait ? mediaUrl(card.portrait) : undefined} focus={card.focus} zoom={card.zoom} alt={card.alt} name={card.name || '?'} size={72} /></span>
       <div className="col" style={{ gap: 4, flex: 1, minWidth: 0 }}>
         <K.Eyebrow tone="mid">{t('pc.title')}</K.Eyebrow>
@@ -32,6 +34,8 @@ export default function ProfileCard() {
       </div>
       <K.StatRow stats={[n('stories', 'pc.stories'), n('characters', 'pc.characters'), n('words', 'pc.words'), n('days', 'pc.days')]} />
       <K.Button size="sm" icon="edit" onClick={() => setEditing(true)}>{t(card.name ? 'pc.edit' : 'pc.setUp')}</K.Button>
+      </div>
+      {!card.badges?.off && <Badges />}
       {editing && <EditCard card={card} onClose={() => setEditing(false)} />}
     </section>
   )
@@ -42,11 +46,12 @@ function EditCard({ card, onClose }: { card: Card; onClose: () => void }) {
   const [bio, setBio] = useState(card.bio ?? '')
   const [pronouns, setPronouns] = useState<Pronouns | undefined>(card.pronouns)
   const [accent, setAccent] = useState(card.accent)
+  const [badges, setBadges] = useState(!card.badges?.off)
   const [pic, setPic] = useState<Picture>({ portrait: card.portrait, focus: card.focus, zoom: card.zoom, alt: card.alt })
   const [cropping, setCropping] = useState<string>() // a media name
   const none = t('pc.pronounsNone')
   const save = async () => {
-    await setPref('profile', { name: name.trim(), bio: bio.trim().slice(0, 190), pronouns, accent, ...pic })
+    await setPref('profile', { name: name.trim(), bio: bio.trim().slice(0, 190), pronouns, accent, badges: { ...card.badges, off: !badges }, ...pic })
     // the desktop's list of profiles shows the same name
     const shell = window.kataki
     if (name.trim() && shell?.profiles) shell.profiles().then((s) => shell.profileRename!(s.current, name.trim()))
@@ -74,6 +79,7 @@ function EditCard({ card, onClose }: { card: Card; onClose: () => void }) {
             {accent && <K.Button size="sm" variant="ghost" onClick={() => setAccent(undefined)}>{t('ep.remove')}</K.Button>}
           </div>
         </K.Field>
+        <div className="row" style={{ gap: 12 }}><K.Toggle label={t('bd.title')} on={badges} onToggle={setBadges} /><span className="t-body">{t('bd.toggle')}</span></div>
       </K.Dialog>
     </Overlay>
   )

@@ -29,4 +29,7 @@ def stats(conn: sqlite3.Connection) -> dict:
         "words": sum(len(text.split()) for (text,) in conn.execute(f"SELECT text {mine}")),
         "days": one(f"SELECT count(DISTINCT date(created_at)) {mine}"),
         "since": one("SELECT min(created_at) FROM stories"),
+        "longest_story": one(
+            "SELECT coalesce(max(n), 0) FROM (SELECT count(*) n FROM messages GROUP BY story_id)"
+        ),
     }

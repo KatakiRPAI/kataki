@@ -29,6 +29,7 @@ from starlette.staticfiles import StaticFiles
 
 from kataki import (
     __version__,
+    achievements,
     archive,
     backups,
     between,
@@ -581,6 +582,11 @@ def create_app(
     async def profile_stats():
         """The numbers on the profile card; the card itself is the `profile` setting."""
         return profile.stats(conn)
+
+    @app.post("/achievements/check")
+    async def check_achievements():
+        """Every badge with how far along it is; the ones earned since the last look are `new`."""
+        return achievements.check(conn)
 
     # --- providers and model roles ---------------------------------------------------------
 
