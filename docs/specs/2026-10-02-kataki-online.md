@@ -67,7 +67,11 @@ The owner chose Better Auth on 2026-10-02, so the gateway is a small TypeScript 
       every address). Decided by the owner (2026-10-02): unspent credit is not refunded when
       an account is deleted. Was **[owner]**: what happens to unspent credit when an account is
       deleted (the screen says the balance goes with it).
-- [ ] G6 · Handles and the online profile.
+- [ ] G6 · Handles and the online profile. Built (2026-10-02): a username (3 to 30 lowercase
+      letters, digits or underscores, one per account whatever the capitals, a reserved list,
+      no way to ask whether one is taken), set in Settings › Account, and "email or username"
+      on the sign-in screen. Not done: a cooldown on renaming and holding the old name; the
+      shared online profile (profiles spec, Later).
 - [ ] G7 · Top-ups (the owner's payment processor, test mode).
 - [ ] G8 · The image, staging and production (infrastructure Phase 6).
 

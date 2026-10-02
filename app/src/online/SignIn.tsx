@@ -10,7 +10,7 @@ const home = import.meta.env.BASE_URL // where a mailed link comes back to: the 
 
 // what the gateway can say, in our words; anything else reads as "try again"
 const SAID: Record<string, Key> = {
-  INVALID_EMAIL_OR_PASSWORD: 'si.e.wrong', INVALID_EMAIL: 'si.e.email', PASSWORD_TOO_SHORT: 'si.e.short', PASSWORD_TOO_LONG: 'si.e.long',
+  INVALID_EMAIL_OR_PASSWORD: 'si.e.wrong', INVALID_USERNAME_OR_PASSWORD: 'si.e.wrong', INVALID_EMAIL: 'si.e.email', PASSWORD_TOO_SHORT: 'si.e.short', PASSWORD_TOO_LONG: 'si.e.long',
   PASSWORD_COMPROMISED: 'si.e.breached', TOO_MANY_REQUESTS: 'si.e.slow', ADULTS_ONLY: 'si.e.adult', INVALID_TOKEN: 'si.e.link',
   INVALID_CODE: 'si.e.code', INVALID_BACKUP_CODE: 'si.e.code', INVALID_TWO_FACTOR_COOKIE: 'si.e.codeLate', TOO_MANY_ATTEMPTS_REQUEST_NEW_CODE: 'si.e.codeLate',
 }
@@ -56,7 +56,8 @@ export default function SignIn() {
   const mail = email.trim()
   const acts: Record<View, () => Promise<void>> = {
     in: async () => {
-      const r = await auth<{ twoFactorRedirect?: boolean }>('/sign-in/email', { email: mail, password, callbackURL: home })
+      // an "@" means an email; anything else is a username
+      const r = await auth<{ twoFactorRedirect?: boolean }>(mail.includes('@') ? '/sign-in/email' : '/sign-in/username', mail.includes('@') ? { email: mail, password, callbackURL: home } : { username: mail, password })
       if (r?.twoFactorRedirect) return go('code') // the password was right; now the second step
       location.reload()
     },
@@ -93,7 +94,7 @@ export default function SignIn() {
   }
   const again = () => auth('/send-verification-email', { email: mail, callbackURL: home }).catch(() => {})
   const ready = {
-    in: mail.includes('@') && password.length > 0,
+    in: mail.length >= 3 && password.length > 0,
     up: mail.includes('@') && !!name.trim() && adult && password.length >= 12,
     forgot: mail.includes('@'), link: mail.includes('@'), reset: password.length >= 12, magic: true, code: code.trim().length >= 6,
   }[view]
@@ -130,7 +131,7 @@ export default function SignIn() {
               </>
             )}
             {view === 'up' && <K.TextField label={t('si.name')} value={name} onChange={setName} max={40} />}
-            {view !== 'reset' && view !== 'magic' && view !== 'code' && <K.TextField label={t('si.email')} type="email" value={email} onChange={setEmail} />}
+            {view !== 'reset' && view !== 'magic' && view !== 'code' && <K.TextField label={t(view === 'in' ? 'si.emailOrName' : 'si.email')} type={view === 'in' ? 'text' : 'email'} value={email} onChange={setEmail} />}
             {(view === 'in' || view === 'up' || view === 'reset') && (
               <K.TextField label={t(view === 'reset' ? 'si.newPassword' : 'si.password')} type="password" value={password} onChange={setPassword} hint={view === 'in' ? undefined : t('si.passwordHint')} />
             )}

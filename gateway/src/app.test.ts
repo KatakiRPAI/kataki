@@ -12,7 +12,7 @@ import { PGLiteSocketServer } from '@electric-sql/pglite-socket'
 import pg from 'pg'
 import { GRACE_DAYS, sweep, type AccountConfig } from './account.ts'
 import { createGateway } from './app.ts'
-import { makeAuth, migrateAuth, personChecked, socialFrom } from './auth.ts'
+import { makeAuth, migrateAuth, personChecked, socialFrom, usernameOk } from './auth.ts'
 import { migrate } from './db.ts'
 import { balance } from './ledger.ts'
 import { sign } from './sign.ts'
@@ -521,6 +521,24 @@ test('an account with no password turns two-step sign-in on from a recent sign-i
   assert.equal(((await stale.json()) as { code: string }).code, 'SESSION_NOT_FRESH')
   const keyTooLate = await call('/api/auth/passkey/generate-register-options', { cookie: now }) // the same rule, for a passkey
   assert.equal(((await keyTooLate.json()) as { code: string }).code, 'SESSION_NOT_FRESH')
+})
+
+test('a username: one per account whatever the capitals, never ours, and a way to sign in', async () => {
+  for (const good of ['mira', 'tobin_77', 'abc']) assert.ok(usernameOk(good), good)
+  for (const bad of ['ab', 'Mira', 'mi ra', 'm@ra', 'kataki', 'admin', 'x'.repeat(31), 'mïra']) assert.ok(!usernameOk(bad), bad)
+
+  const { cookie } = await account('named@example.com')
+  assert.notEqual((await post('/api/auth/update-user', { username: 'support' }, { cookie })).status, 200)
+  assert.equal((await post('/api/auth/update-user', { username: 'Harbour_Fox' }, { cookie })).status, 200) // kept lowercase
+  const other = await account('second@example.com')
+  assert.notEqual((await post('/api/auth/update-user', { username: 'harbour_fox' }, { cookie: other.cookie })).status, 200) // taken
+
+  const byName = await post('/api/auth/sign-in/username', { username: 'HARBOUR_FOX', password: PASSWORD })
+  assert.equal(byName.status, 200)
+  assert.equal((await call('/stories', { cookie: cookies(byName) })).status, 200)
+  assert.equal((await post('/api/auth/sign-in/username', { username: 'harbour_fox', password: 'not the password' })).status, 401)
+  assert.equal((await post('/api/auth/sign-in/username', { username: 'nobody_here', password: PASSWORD })).status, 401) // the same answer
+  assert.equal((await call('/api/auth/is-username-available', { method: 'POST', body: JSON.stringify({ username: 'harbour_fox' }), headers: { 'content-type': 'application/json', origin } })).status, 404)
 })
 
 test('the web build is served, and nothing outside it', async () => {
