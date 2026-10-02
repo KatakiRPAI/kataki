@@ -5,7 +5,7 @@ import { passkey } from '@better-auth/passkey'
 import { betterAuth } from 'better-auth'
 import { APIError, createAuthMiddleware, getOAuthState, getSessionFromCtx, isAPIError } from 'better-auth/api'
 import { getMigrations } from 'better-auth/db/migration'
-import { genericOAuth, haveIBeenPwned, magicLink, twoFactor, type GenericOAuthConfig } from 'better-auth/plugins'
+import { genericOAuth, haveIBeenPwned, magicLink, twoFactor, username, type GenericOAuthConfig } from 'better-auth/plugins'
 import type { Pool } from 'pg'
 
 export type Send = (to: string, subject: string, text: string) => void | Promise<void>
@@ -37,6 +37,14 @@ export function socialFrom(env: Record<string, string | undefined>): Social {
 }
 
 const DAY = 86_400
+
+// A username (spec G6): lowercase letters, digits and underscores, 3 to 30, one per account
+// whatever the capitals. No "@", so "email or username" is never ambiguous; and never a name
+// that reads as us or as a page of the site.
+const RESERVED = new Set(['admin', 'administrator', 'root', 'support', 'help', 'staff', 'mod', 'moderator', 'system', 'official', 'security',
+  'kataki', 'katakirpai', 'team', 'api', 'app', 'auth', 'www', 'mail', 'billing', 'settings', 'account', 'home', 'stories', 'characters', 'world', 'you',
+  'me', 'null', 'undefined', 'anonymous', 'everyone', 'here', 'google', 'github', 'discord', 'apple'])
+export const usernameOk = (name: string): boolean => /^[a-z0-9_]{3,30}$/.test(name) && !RESERVED.has(name)
 
 /** Refuse a passkey sign-in where the device did not verify its holder (a bare security key
  *  tapped by whoever has it): that is one step, and a passkey here stands for two. */
@@ -175,12 +183,14 @@ export function makeAuth({ pool, origin, secret, send, pwned = true, social = {}
         allowDifferentEmails: false,
       },
     },
+    disabledPaths: ['/is-username-available'],
     session: { expiresIn: 30 * DAY, updateAge: DAY, freshAge: 600 },
     rateLimit: {
       storage: 'database', // on in production; shared by every gateway process
       // slowed, never locked: a lockout is something an attacker can do to someone else
       customRules: {
         '/sign-in/email': { window: 60, max: 5 },
+        '/sign-in/username': { window: 60, max: 5 },
         '/sign-up/email': { window: 300, max: 5 },
         '/sign-in/magic-link': { window: 300, max: 3 },
         '/request-password-reset': { window: 300, max: 3 },
@@ -194,6 +204,9 @@ export function makeAuth({ pool, origin, secret, send, pwned = true, social = {}
     plugins: [
       haveIBeenPwned({ enabled: pwned }),
       secondStep(origin),
+      // checked after it is lowercased, so "Mira" is "mira" and can be had once; there is no
+      // route to ask whether a name is taken (it would list who is here)
+      username({ minUsernameLength: 3, maxUsernameLength: 30, displayUsername: false, usernameValidator: (name) => usernameOk(name.toLowerCase()), validationOrder: { username: 'post-normalization' } }),
       // A passkey (fingerprint, face or the device's PIN) signs in by itself, and an account
       // with two-step sign-in is not asked for a code after one: so the device must have
       // checked it is really the person. The library only prefers that; `personChecked` insists.

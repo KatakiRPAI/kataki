@@ -17,7 +17,8 @@ export const useLinked = () => useLoad(() => auth<Linked[]>('/list-accounts', 'g
 export function SigningIn({ me }: { me: Me }) {
   const [linked, reload] = useLinked()
   const [offered] = useLoad(() => fetch('/api/providers').then((r) => r.json()).then((p: { social: string[] }) => p.social, () => [] as string[]), [])
-  const [changing, setChanging] = useState<'email' | 'password' | 'backup'>()
+  const [changing, setChanging] = useState<'email' | 'password' | 'backup' | 'username'>()
+  const [username, setUsername] = useState(me.username ?? '')
   const [mine, reloadMine] = useLoad(() => api<{ backupEmail: string | null; backupEmailVerified: boolean }>('/api/me'), [])
   const dropBackup = () => api('/api/account/backup-email', 'DELETE').then(reloadMine, () => toast(t('am.e.other'), { icon: 'alert' }, 6000))
   const has = (provider: string) => !!linked?.some((a) => a.providerId === provider)
@@ -25,6 +26,9 @@ export function SigningIn({ me }: { me: Me }) {
   const unlink = (providerId: string) => auth('/unlink-account', { providerId }).then(reload, () => toast(t('am.e.unlink'), { icon: 'alert' }, 8000))
   return (
     <K.SettingsSection title={t('am.title')}>
+      <K.SettingsRow title={t('am.username')} description={username ? t('am.usernameIs', { name: username }) : t('am.usernameNone')}>
+        <K.Button size="sm" onClick={() => setChanging('username')}>{t(username ? 'am.change' : 'am.add')}</K.Button>
+      </K.SettingsRow>
       <K.SettingsRow title={t('am.email')} description={me.email}><K.Button size="sm" onClick={() => setChanging('email')}>{t('am.change')}</K.Button></K.SettingsRow>
       <K.SettingsRow title={t('am.backup')} description={mine?.backupEmail ? t(mine.backupEmailVerified ? 'am.backupOn' : 'am.backupWaiting', { email: mine.backupEmail }) : t('am.backupNone')}>
         <div className="row" style={{ gap: 8 }}>
@@ -45,40 +49,43 @@ export function SigningIn({ me }: { me: Me }) {
           ) : <K.Button size="sm" icon="link" onClick={() => link(p)}>{t('am.link')}</K.Button>}
         </K.SettingsRow>
       ))}
-      {changing && <Change what={changing} onClose={() => { setChanging(undefined); reloadMine() }} />}
+      {changing && <Change what={changing} onClose={() => { setChanging(undefined); reloadMine() }} onName={(n) => { setUsername(n); me.username = n }} />}
     </K.SettingsSection>
   )
 }
 
-function Change({ what, onClose }: { what: 'email' | 'password' | 'backup'; onClose: () => void }) {
+function Change({ what, onClose, onName }: { what: 'email' | 'password' | 'backup' | 'username'; onClose: () => void; onName: (name: string) => void }) {
   const [first, setFirst] = useState('') // the new email, or the current password
   const [next, setNext] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const email = what !== 'password' // an address is asked for, not a password
+  const email = what === 'email' || what === 'backup' // an address is asked for
   const backup = what === 'backup'
+  const naming = what === 'username'
+  const wanted = first.trim().toLowerCase()
   const go = async () => {
     setBusy(true)
     setError('')
     try {
-      if (backup) await api('/api/account/backup-email', 'POST', { email: first.trim() })
+      if (naming) { await auth('/update-user', { username: wanted }); onName(wanted) }
+      else if (backup) await api('/api/account/backup-email', 'POST', { email: first.trim() })
       else if (email) await auth('/change-email', { newEmail: first.trim(), callbackURL: location.pathname })
       else await auth('/change-password', { currentPassword: first, newPassword: next, revokeOtherSessions: true })
-      toast(backup ? t('am.backupSent', { email: first.trim() }) : email ? t('am.emailSent', { email: first.trim() }) : t('am.passwordDone'), { icon: 'shield' }, 8000)
+      toast(naming ? t('am.usernameDone', { name: wanted }) : backup ? t('am.backupSent', { email: first.trim() }) : email ? t('am.emailSent', { email: first.trim() }) : t('am.passwordDone'), { icon: 'shield' }, 8000)
       onClose()
     } catch (x) {
       const code = (x as AuthError).code
-      setError(t(code === 'PASSWORD_COMPROMISED' ? 'si.e.breached' : code === 'PASSWORD_TOO_SHORT' ? 'si.e.short' : 'am.e.other'))
+      setError(t(code === 'PASSWORD_COMPROMISED' ? 'si.e.breached' : code === 'PASSWORD_TOO_SHORT' ? 'si.e.short' : code === 'USERNAME_IS_ALREADY_TAKEN' ? 'am.e.taken' : naming ? 'am.e.name' : 'am.e.other'))
     } finally {
       setBusy(false)
     }
   }
   return (
     <Overlay onClose={onClose}>
-      <K.Dialog size="sm" icon="key" title={t(backup ? 'am.backupTitle' : email ? 'am.emailTitle' : 'am.passwordTitle')} description={t(backup ? 'am.backupBody' : email ? 'am.emailBody' : 'am.passwordBody')} onClose={onClose}
+      <K.Dialog size="sm" icon="key" title={t(naming ? 'am.usernameTitle' : backup ? 'am.backupTitle' : email ? 'am.emailTitle' : 'am.passwordTitle')} description={t(naming ? 'am.usernameBody' : backup ? 'am.backupBody' : email ? 'am.emailBody' : 'am.passwordBody')} onClose={onClose}
         actions={[<K.Button key="c" variant="ghost" onClick={onClose}>{t('ep.cancel')}</K.Button>,
-          <K.Button key="g" variant="primary" loading={busy} disabled={email ? !first.includes('@') : !first || next.length < 12} onClick={go}>{t(backup ? 'am.backupGo' : email ? 'am.emailGo' : 'am.passwordGo')}</K.Button>]}>
-        {email ? <K.TextField label={t(backup ? 'am.backup' : 'am.newEmail')} type="email" value={first} onChange={setFirst} /> : (
+          <K.Button key="g" variant="primary" loading={busy} disabled={naming ? !/^[a-z0-9_]{3,30}$/.test(wanted) : email ? !first.includes('@') : !first || next.length < 12} onClick={go}>{t(naming ? 'ep.save' : backup ? 'am.backupGo' : email ? 'am.emailGo' : 'am.passwordGo')}</K.Button>]}>
+        {naming ? <K.TextField label={t('am.username')} value={first} onChange={setFirst} max={30} hint={t('am.usernameHint')} /> : email ? <K.TextField label={t(backup ? 'am.backup' : 'am.newEmail')} type="email" value={first} onChange={setFirst} /> : (
           <>
             <K.TextField label={t('am.current')} type="password" value={first} onChange={setFirst} />
             <K.TextField label={t('si.newPassword')} type="password" value={next} onChange={setNext} hint={t('si.passwordHint')} />

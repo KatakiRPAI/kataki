@@ -45,8 +45,9 @@ The owner chose Better Auth on 2026-10-02, so the gateway is a small TypeScript 
       a browser on one machine. Passkeys (`@better-auth/passkey`, pinned): add one in
       Settings › Account, sign in with it from the sign-in screen; the device must verify the
       person each time, so a passkey stands for both steps. The app uses the browser's own
-      WebAuthn JSON helpers, no library. **Not yet run with a real device** (**[owner]**: one
-      try with Windows Hello or a phone). Not done: a fresh
+      WebAuthn JSON helpers, no library. The owner added a passkey with a real device and turned
+      two-step sign-in on from a GitHub-made account on 2026-10-02 (localhost). Not confirmed
+      with a real device: signing in with the passkey afterwards. Not done: a fresh
       sign-in before sensitive changes beyond these. An account made through another service
       has no password: it changes two-step sign-in from a sign-in of the last ten minutes
       instead. Adding a passkey needs the same; the app says so and offers to sign out (found
@@ -66,7 +67,11 @@ The owner chose Better Auth on 2026-10-02, so the gateway is a small TypeScript 
       every address). Decided by the owner (2026-10-02): unspent credit is not refunded when
       an account is deleted. Was **[owner]**: what happens to unspent credit when an account is
       deleted (the screen says the balance goes with it).
-- [ ] G6 · Handles and the online profile.
+- [ ] G6 · Handles and the online profile. Built (2026-10-02): a username (3 to 30 lowercase
+      letters, digits or underscores, one per account whatever the capitals, a reserved list,
+      no way to ask whether one is taken), set in Settings › Account, and "email or username"
+      on the sign-in screen. Not done: a cooldown on renaming and holding the old name; the
+      shared online profile (profiles spec, Later).
 - [ ] G7 · Top-ups (the owner's payment processor, test mode).
 - [ ] G8 · The image, staging and production (infrastructure Phase 6).
 
