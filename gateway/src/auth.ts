@@ -102,7 +102,10 @@ export function makeAuth({ pool, origin, secret, send, pwned = true, social = {}
     // 18 or older, said at sign-up and kept on the account with the time it was made
     // not "required": the library checks that before the hook below can fill it in from another service's sign-up
     user: {
-      additionalFields: { adult: { type: 'boolean', required: false, input: true } },
+      additionalFields: {
+        adult: { type: 'boolean', required: false, input: true },
+        deleteAt: { type: 'date', required: false, input: false }, // the day a leaving account goes (account.ts)
+      },
       // a new address is asked for from a signed-in account, approved from the old address,
       // then confirmed from the new one: neither a stolen session nor a typo moves the account
       changeEmail: {

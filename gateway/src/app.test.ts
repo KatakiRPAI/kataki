@@ -10,6 +10,7 @@ import { after, before, test } from 'node:test'
 import { PGlite } from '@electric-sql/pglite'
 import { PGLiteSocketServer } from '@electric-sql/pglite-socket'
 import pg from 'pg'
+import { GRACE_DAYS, sweep, type AccountConfig } from './account.ts'
 import { createGateway } from './app.ts'
 import { makeAuth, migrateAuth, socialFrom } from './auth.ts'
 import { migrate } from './db.ts'
@@ -23,7 +24,8 @@ const PASSWORD = 'correct horse battery'
 
 const mails: { to: string; text: string }[] = []
 const seen: { method: string; url: string; headers: IncomingMessage['headers']; body: string }[] = []
-let db: PGlite, socket: PGLiteSocketServer, pool: pg.Pool, engine: Server, gateway: Server, provider: Server, origin: string
+let db: PGlite, socket: PGLiteSocketServer, pool: pg.Pool, engine: Server, gateway: Server, provider: Server, origin: string, leaving: AccountConfig
+let forgetStatus = 200 // what the stand-in engine answers when asked to forget a library
 
 const listen = (server: Server) => new Promise<number>((done) => server.listen(0, '127.0.0.1', () => done((server.address() as AddressInfo).port)))
 
@@ -45,6 +47,7 @@ before(async () => {
       return void res.writeHead(401).end('{"detail":"missing or invalid gateway signature"}')
     }
     seen.push({ method: req.method!, url, headers: h, body })
+    if (url === '/_gateway/forget') return void res.writeHead(forgetStatus, { 'content-type': 'application/json' }).end('{}')
     res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ user: h['x-kataki-user'] }))
   })
   const enginePort = await listen(engine)
@@ -66,11 +69,13 @@ before(async () => {
   const there = `http://127.0.0.1:${await listen(provider)}`
   const others = [{ providerId: 'fake', clientId: 'an-id', clientSecret: 'a-secret', authorizationUrl: `${there}/authorize`, tokenUrl: `${there}/token`, userInfoUrl: `${there}/userinfo`, scopes: ['email'] }]
   const social = socialFrom({ GITHUB_CLIENT_ID: 'an-id', GITHUB_CLIENT_SECRET: 'a-secret', GOOGLE_CLIENT_ID: 'half-set' })
-  const auth = makeAuth({ pool, origin, secret: 'x7Kq'.repeat(10), pwned: false, social, others, send: (to, _subject, text) => void mails.push({ to, text }) })
+  const send = (to: string, _subject: string, text: string) => void mails.push({ to, text })
+  const auth = makeAuth({ pool, origin, secret: 'x7Kq'.repeat(10), pwned: false, social, others, send })
   await migrateAuth(auth)
   await migrate(pool)
   await migrate(pool) // again: nothing to do, nothing breaks
-  handler = createGateway({ auth, pool, origin, engine: `http://127.0.0.1:${enginePort}`, secret: SECRET, key: KEY, prices: PRICES, web, starter: 1_000_000n, social: Object.keys(social) })
+  handler = createGateway({ auth, pool, origin, engine: `http://127.0.0.1:${enginePort}`, secret: SECRET, key: KEY, prices: PRICES, web, starter: 1_000_000n, social: Object.keys(social), send })
+  leaving = { auth, pool, origin, engine: `http://127.0.0.1:${enginePort}`, secret: SECRET, send }
 })
 
 after(async () => {
@@ -381,6 +386,59 @@ test('a changed email: approved from the old address, confirmed from the new one
   await call(mails.at(-1)!.text.match(/http\S+/)![0].slice(origin.length), { cookie })
   assert.equal((await post('/api/auth/sign-in/email', { email: fresh, password: PASSWORD })).status, 200)
   assert.equal((await post('/api/auth/sign-in/email', { email: old, password: PASSWORD })).status, 401)
+})
+
+test('leaving: signed out at once, fourteen days to stay, then the library and the account go', async () => {
+  const email = 'leaver@example.com'
+  const { cookie, id } = await account(email)
+  assert.equal((await call('/_gateway/forget', { method: 'POST', cookie, headers: { origin } })).status, 404) // never a browser's to call
+  const asked = await post('/api/account/delete', {}, { cookie })
+  assert.equal(asked.status, 200)
+  const { deleteAt } = (await asked.json()) as { deleteAt: string }
+  assert.equal(Math.round((Date.parse(deleteAt) - Date.now()) / 86_400_000), GRACE_DAYS)
+  assert.match(mails.at(-1)!.text, /will be deleted on/)
+  assert.equal((await call('/stories', { cookie })).status, 401) // signed out everywhere
+
+  // signing in again shows what is coming, opens nothing, and can undo it
+  const back = cookies(await post('/api/auth/sign-in/email', { email, password: PASSWORD }))
+  assert.ok(((await (await call('/api/me', { cookie: back })).json()) as { deleteAt: string | null }).deleteAt)
+  assert.equal(((await (await call('/stories', { cookie: back })).json()) as { code: string }).code, 'DELETING')
+  assert.equal(await sweep(leaving), 0) // not its day yet
+  assert.equal((await post('/api/account/keep', {}, { cookie: back })).status, 200)
+  assert.equal((await call('/stories', { cookie: back })).status, 200)
+
+  // asked again, and this time the day comes
+  assert.equal((await post('/api/account/delete', {}, { cookie: back })).status, 200)
+  const theDay = new Date(Date.now() + (GRACE_DAYS + 1) * 86_400_000)
+  forgetStatus = 409 // the engine still has usage to bill: nothing goes yet
+  assert.equal(await sweep(leaving, theDay), 0)
+  assert.equal((await post('/api/auth/sign-in/email', { email, password: PASSWORD })).status, 200)
+  forgetStatus = 200
+  assert.equal(await sweep(leaving, theDay), 1)
+  assert.equal(seen.at(-1)!.url, '/_gateway/forget')
+  assert.equal(seen.at(-1)!.headers['x-kataki-user'], id) // the engine is told whose library
+  assert.equal((await post('/api/auth/sign-in/email', { email, password: PASSWORD })).status, 401) // gone
+  assert.equal((await pool.query('SELECT count(*) AS n FROM credit WHERE user_id = $1', [id])).rows[0].n, '1') // the payment record stays
+})
+
+test('deleting needs a sign-in of the last ten minutes', async () => {
+  const { cookie, id } = await account('stale@example.com')
+  await pool.query(`UPDATE session SET "createdAt" = now() - interval '11 minutes' WHERE "userId" = $1`, [id])
+  const r = await post('/api/account/delete', {}, { cookie })
+  assert.equal(r.status, 403)
+  assert.equal(((await r.json()) as { code: string }).code, 'FRESH')
+})
+
+test('an account can take what the gateway holds about it', async () => {
+  const { cookie } = await account('exporter@example.com')
+  const r = await call('/api/account/export', { cookie })
+  assert.match(r.headers.get('content-disposition')!, /kataki-account\.json/)
+  const got = (await r.json()) as { account: { email: string }; signInMethods: { providerId: string }[]; credit: unknown[]; balanceMicroDollars: number }
+  assert.equal(got.account.email, 'exporter@example.com')
+  assert.deepEqual(got.signInMethods.map((m) => m.providerId), ['credential'])
+  assert.equal(got.credit.length, 1)
+  assert.equal(got.balanceMicroDollars, 1_000_000)
+  assert.equal(JSON.stringify(got).includes('password'), false) // never the hash
 })
 
 test('the web build is served, and nothing outside it', async () => {
