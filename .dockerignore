@@ -1,0 +1,13 @@
+*
+!app
+!engine
+**/node_modules
+**/.venv
+**/__pycache__
+app/dist
+app/dist-electron
+app/dist-web
+engine/tests
+engine/evals
+**/*.db
+**/.env

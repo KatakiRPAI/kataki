@@ -37,3 +37,6 @@ docs/*.zip
 # superseded designs kept on disk only (the handoff in docs/handoff/ is the source of truth)
 docs/design/
 docs/kataki-design/kataki-design/screens/png/
+
+# a self-hosted library (compose.yaml)
+/data/
