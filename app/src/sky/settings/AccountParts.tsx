@@ -137,6 +137,23 @@ export function Passkeys() {
   )
 }
 
+type Device = { id: string; name: string; createdAt: string; lastUsedAt: string | null }
+
+/** Computers linked to this account for cloud save (the desktop app's Settings › Data). */
+export function Devices() {
+  const [list, reload] = useLoad(() => api<Device[]>('/api/devices').catch(() => [] as Device[]), [])
+  if (!list?.length) return null
+  return (
+    <K.SettingsSection title={t('dv.title')} note={t('dv.note')}>
+      {list.map((d) => (
+        <K.SettingsRow key={d.id} title={d.name} description={d.lastUsedAt ? t('dv.used', { when: relative(Date.parse(d.lastUsedAt)) }) : t('dv.never')}>
+          <K.Button size="sm" variant="ghost" onClick={() => api(`/api/devices/${d.id}`, 'DELETE').then(reload, () => {})}>{t('ep.remove')}</K.Button>
+        </K.SettingsRow>
+      ))}
+    </K.SettingsSection>
+  )
+}
+
 export function Sessions() {
   const [places, reload] = useLoad(() => auth<Place[]>('/list-sessions', 'get'), [])
   const here = thisSession()

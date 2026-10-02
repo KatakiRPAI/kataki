@@ -256,6 +256,13 @@ ipcMain.on('kataki:reveal', (_e, what: string) => {
   const folders: Record<string, string> = { library: '', pictures: 'blobs', backups: 'backups' }
   if (Object.hasOwn(folders, what)) shell.openPath(join(dirname(libraryDb), folders[what]))
 })
+// Settings › Data › Cloud: the page to approve this computer on, in the person's own browser.
+// Only ever Kataki online's own address (KATAKI_ONLINE), whatever the page asks for.
+ipcMain.on('kataki:open-online', (_e, url: unknown) => {
+  try {
+    if (process.env.KATAKI_ONLINE && typeof url === 'string' && new URL(url).origin === new URL(process.env.KATAKI_ONLINE).origin) void shell.openExternal(url)
+  } catch { /* not an address */ }
+})
 // Settings › Profiles. Forgetting a profile takes it off the list; its folder is never touched.
 // The page is told a profile's name, folder and whether it has a PIN: never the PIN's hash.
 const listing = () => ({ current: current(profiles).id, list: profiles.profiles.map(shown), ask: !!profiles.ask })

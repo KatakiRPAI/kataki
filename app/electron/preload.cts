@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('kataki', {
   restart: () => ipcRenderer.send('kataki:restart'),
   startup: (on: boolean) => ipcRenderer.send('kataki:startup', on),
   reveal: (what: string) => ipcRenderer.send('kataki:reveal', what),
+  openOnline: (url: string) => ipcRenderer.send('kataki:open-online', url),
   edit: (what: string, word?: string) => ipcRenderer.send('kataki:edit', what, word),
   onTextMenu: (f: (m: unknown) => void) => ipcRenderer.on('kataki:textmenu', (_e, m) => f(m)),
   // Settings › Profiles: only when the shell keeps a list (not the smoke test, not KATAKI_DB)
