@@ -1,12 +1,13 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { once } from 'node:events'
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { createInterface } from 'node:readline'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 import { app, BrowserWindow, dialog, ipcMain, screen, shell } from 'electron'
+import { add, cleanName, current, forget, kind, load, rename, save, synced, type Profile, type Profiles } from './profiles.js'
 
 const here = dirname(fileURLToPath(import.meta.url)) // app/dist-electron
 const appRoot = join(here, '..')
@@ -23,20 +24,89 @@ function fail(message: string): void {
   app.exit(1)
 }
 
+// The dev library and downloaded models stay in the repo (KATAKI_HOME moves them, e.g. for a scratch run).
+const home = process.env.KATAKI_HOME ? resolve(process.env.KATAKI_HOME) : join(repoRoot, '.dev')
+
+// Profiles (docs/specs/2026-10-02-profiles-and-accounts.md §2): each is a name and the folder that
+// holds its library; the list is ours, the engine opens one library. The smoke test and KATAKI_DB
+// (e.g. .dev/demo.db; a relative path is from the repo root) open one library and skip the list.
+const single = smoke || !!process.env.KATAKI_DB
+const profilesFile = () => join(app.getPath('userData'), 'profiles.json')
+let profiles: Profiles = { last: 'main', profiles: [{ id: 'main', name: 'Main', folder: home }] }
+const keep = (p: Profiles): Profiles => { save(profilesFile(), (profiles = p)); return p }
+
+/** The open profile's library can't be used. Ask what to do; returns once there is something new to try. */
+function choose(message: string, detail: string, can: { retry?: boolean; locate?: boolean }): void {
+  for (;;) {
+    const me = current(profiles)
+    const others = profiles.profiles.filter((p) => p.id !== me.id).slice(0, 3)
+    const options: [string, Profile?][] = [...(can.retry ? [['Try again']] : []), ...(can.locate ? [['Find the folder…']] : []), ...others.map((p) => [`Open ${p.name}`, p]), ['Quit']] as [string, Profile?][]
+    const [hit, other] = options[dialog.showMessageBoxSync({ type: 'warning', message, detail, buttons: options.map(([label]) => label), cancelId: options.length - 1, noLink: true })]
+    if (other) { keep({ ...profiles, last: other.id }); return }
+    if (hit === 'Try again') return
+    if (hit === 'Quit') { quitting = true; app.exit(0); process.exit(0) }
+    const folder = dialog.showOpenDialogSync({ title: `Where is ${me.name}?`, properties: ['openDirectory'] })?.[0]
+    if (!folder) continue
+    if (kind(folder) !== 'library') { dialog.showMessageBoxSync({ type: 'info', message: 'There is no Kataki library in that folder', detail: 'Choose the folder that holds library.db.' }); continue }
+    const listed = add(profiles, me.name, folder) // already another profile's folder: open that one
+    keep(listed.existing ? { ...profiles, last: listed.profile.id } : { ...profiles, profiles: profiles.profiles.map((p) => (p.id === me.id ? { ...p, folder } : p)) })
+    return
+  }
+}
+
+/** The folder to open: the last profile's, once it is there. A library is never made at a path that went missing. */
+function libraryFolder(): string {
+  if (!existsSync(profilesFile())) mkdirSync(home, { recursive: true }) // the first run: the one folder made unasked
+  profiles = load(profilesFile(), profiles.profiles[0])
+  for (;;) {
+    const me = current(profiles)
+    if (kind(me.folder) !== 'missing') return me.folder
+    choose(`Kataki can’t find ${me.name}`, `Its folder is not there:\n${me.folder}\n\nIf it is on a drive that isn’t plugged in, plug it in and try again.`, { retry: true, locate: true })
+  }
+}
+
+/** The engine would not open the library (3: made by a newer Kataki, 4: open in another one). */
+function libraryTrouble(code: number): void {
+  if (quitting) return
+  const me = current(profiles)
+  if (code === 4) choose(`${me.name} is open in another Kataki`, 'Close the other one and try again, or open another profile.', { retry: true })
+  else choose(`${me.name} was made by a newer Kataki`, 'Update Kataki to open it, or open another profile.', {})
+  quitting = true
+  app.relaunch()
+  app.exit(0)
+}
+
+/** Settings › Profiles › Add: the shell asks for the folder, so the page never names a path. */
+async function addProfile(win: BrowserWindow, name: unknown): Promise<Profile | null> {
+  for (;;) {
+    const folder = (await dialog.showOpenDialog(win, { title: 'Choose a folder for this profile', buttonLabel: 'Use this folder', properties: ['openDirectory', 'createDirectory'] })).filePaths[0]
+    if (!folder) return null
+    if (kind(folder) === 'other') {
+      await dialog.showMessageBox(win, { type: 'info', message: 'That folder has other things in it', detail: 'Choose an empty folder for a new library, or a folder that already holds a Kataki library.' })
+      continue
+    }
+    const where = synced(folder)
+    if (where) {
+      const { response } = await dialog.showMessageBox(win, { type: 'warning', message: `That folder is in ${where}`, detail: 'A folder that syncs or sits on a network can damage a library while Kataki has it open. A folder on this computer is safer.', buttons: ['Choose another folder', 'Use it anyway'], cancelId: 0, noLink: true })
+      if (response === 0) continue
+    }
+    const added = add(profiles, cleanName(name), folder)
+    keep(added.profiles)
+    return added.profile
+  }
+}
+
 let libraryDb = ''
-async function startEngine(token: string): Promise<number> {
+async function startEngine(token: string, db: string): Promise<number> {
   // ponytail: dev layout only (the repo venv). M5 packaging swaps in the bundled runtime path.
   const python = join(repoRoot, 'engine', '.venv', process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python')
-  const home = join(repoRoot, '.dev') // the dev library and downloaded models stay in the repo
-  // KATAKI_DB swaps the library, e.g. .dev/demo.db (a relative path is from the repo root)
-  const db = process.env.KATAKI_DB ? resolve(repoRoot, process.env.KATAKI_DB) : join(home, 'library.db')
   libraryDb = db
   const args = ['-m', 'kataki', 'serve', '--parent-watch', '--db', db]
   // The engine watches its stdin: when this process ends for any reason, the pipe closes and it exits.
   const env = { ...process.env, KATAKI_TOKEN: token, KATAKI_HOME: home }
   engine = spawn(python, args, { env, stdio: ['pipe', 'pipe', 'inherit'] })
   engine.on('error', (err) => fail(`could not start ${python}: ${err.message}`))
-  engine.on('exit', (code) => fail(`engine exited with code ${code}`))
+  engine.on('exit', (code) => (!single && (code === 3 || code === 4) ? libraryTrouble(code) : fail(`engine exited with code ${code}`)))
   const [hello] = await once(createInterface({ input: engine.stdout! }), 'line')
   engine.stdout!.resume() // keep draining so the engine can never block on a full pipe
   return JSON.parse(hello).port
@@ -67,7 +137,7 @@ async function createWindow(port: number, token: string, crashed = false): Promi
     show: !smoke,
     webPreferences: {
       preload: join(here, 'preload.cjs'),
-      additionalArguments: [`--kataki-port=${port}`, `--kataki-token=${token}`, ...(crashed ? ['--kataki-crashed'] : [])],
+      additionalArguments: [`--kataki-port=${port}`, `--kataki-token=${token}`, ...(crashed ? ['--kataki-crashed'] : []), ...(single ? [] : ['--kataki-profiles'])],
     },
   })
   win.on('close', () => { try { writeFileSync(boundsFile(), JSON.stringify(win.getBounds())) } catch { /* next time, the default */ } })
@@ -141,6 +211,17 @@ ipcMain.on('kataki:reveal', (_e, what: string) => {
   const folders: Record<string, string> = { library: '', pictures: 'blobs', backups: 'backups' }
   if (Object.hasOwn(folders, what)) shell.openPath(join(dirname(libraryDb), folders[what]))
 })
+// Settings › Profiles. Forgetting a profile takes it off the list; its folder is never touched.
+ipcMain.handle('kataki:profiles', () => ({ current: current(profiles).id, list: profiles.profiles }))
+ipcMain.handle('kataki:profile:add', (e, name: unknown) => addProfile(BrowserWindow.fromWebContents(e.sender)!, name))
+ipcMain.handle('kataki:profile:rename', (_e, id: unknown, name: unknown) => keep(rename(profiles, String(id), cleanName(name))).profiles)
+ipcMain.handle('kataki:profile:forget', (_e, id: unknown) => keep(forget(profiles, String(id))).profiles)
+ipcMain.on('kataki:profile:switch', (_e, id: unknown) => {
+  if (!profiles.profiles.some((p) => p.id === id)) return
+  keep({ ...profiles, last: String(id) })
+  app.relaunch()
+  app.quit()
+})
 
 // No top-level await here: Electron holds `ready` until this module finishes evaluating,
 // so `await app.whenReady()` at module scope deadlocks.
@@ -150,7 +231,8 @@ app
     const crashed = !smoke && existsSync(runningMark())
     writeFileSync(runningMark(), new Date().toISOString())
     const token = randomBytes(32).toString('base64url')
-    const win = await createWindow(await startEngine(token), token, crashed)
+    const db = single ? (process.env.KATAKI_DB ? resolve(repoRoot, process.env.KATAKI_DB) : join(home, 'library.db')) : join(libraryFolder(), 'library.db')
+    const win = await createWindow(await startEngine(token, db), token, crashed)
     if (smoke) await runSmoke(win)
   })
   .catch((err: Error) => fail(err.message))

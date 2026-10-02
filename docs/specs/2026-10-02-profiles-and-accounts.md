@@ -19,7 +19,13 @@ Research: `docs/research/reports/Profiles accounts and cloud.md`.
 ## Progress
 
 - [x] Research and this spec (2026-10-02).
-- [ ] P1 · Desktop profiles: several libraries, each a folder; switch, add, forget.
+- [x] P1 · Desktop profiles (2026-10-02): the shell keeps `profiles.json` and opens the last
+      profile's folder; Settings › Profiles adds, switches, renames and forgets; the engine holds
+      `library.lock` and a second engine on the folder exits 4 (`LIBRARY_IN_USE`). Checked in the
+      real app on a scratch home: two profiles, switch there and back, the lock refusing a second
+      engine. Not clicked through: the native dialogs (the folder picker, a missing folder, a
+      library that will not open). Owed: a folder that exists but lost its `library.db` gets a
+      new empty library; the dialogs' text is English in `main.ts`, outside `strings/`.
 - [ ] P2 · The profile card: name, picture, bio, colour, stats.
 - [ ] P3 · Badges.
 - [ ] P4 · Move a library; choose at startup; discreet list; PIN.
