@@ -40,7 +40,14 @@ Research: `docs/research/reports/Profiles accounts and cloud.md`.
       the edit dialog; a toast says a badge was earned when you are back in the Sky, never in
       a scene. The 16 rules are a starter set: **[owner]** defines the real list. Not done:
       tiers, hidden badges, a pinned showcase.
-- [ ] P4 · Move a library; choose at startup; discreet list; PIN.
+- [x] P4 · Move, startup, PIN (2026-10-02): Settings › Profiles moves the open library to an
+      empty folder (copied and compared at the restart, with nothing open; the old folder is
+      left until the person deletes it), can ask which profile each time Kataki starts, and
+      sets a PIN on a profile (4 to 12 digits, kept as a salted scrypt hash; a wrong guess costs
+      a second). The picker is the shell's own small window (`picker.html`), shown before any
+      library opens. A PIN is privacy on this computer, not encryption, and the screens say so.
+      Not done: the discreet list (type the name instead of choosing it); the picker's and the
+      dialogs' text is English in the shell, outside `strings/`.
 - [ ] P5 · Settings, completed.
 - [x] A0 · The gateway's spec: `docs/specs/2026-10-02-kataki-online.md` (2026-10-02). The owner
       chose Better Auth. A1–A6 are its G1–G6, and their progress is kept there.
