@@ -7,7 +7,7 @@ import { createInterface } from 'node:readline'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 import { app, BrowserWindow, dialog, ipcMain, screen, shell } from 'electron'
-import { add, cleanName, current, forget, kind, load, lost, rename, save, synced, type Profile, type Profiles } from './profiles.js'
+import { add, cleanName, current, forget, kind, load, lost, moveLibrary, needsPicker, pinOk, rename, save, setPin, shown, synced, type Profile, type Profiles } from './profiles.js'
 
 const here = dirname(fileURLToPath(import.meta.url)) // app/dist-electron
 const appRoot = join(here, '..')
@@ -54,10 +54,50 @@ function choose(message: string, detail: string, can: { retry?: boolean; locate?
   }
 }
 
+/** A library asked to be moved (Settings › Profiles) moves now, while nothing has it open. */
+function moveIfAsked(): void {
+  const { move, ...rest } = profiles
+  if (!move) return
+  const me = profiles.profiles.find((p) => p.id === move.id)
+  try {
+    if (!me) throw new Error('that profile is gone')
+    moveLibrary(me.folder, move.to)
+    keep({ ...rest, profiles: rest.profiles.map((p) => (p.id === me.id ? { ...p, folder: move.to, movedFrom: me.folder } : p)) })
+  } catch (e) {
+    keep(rest) // it stays where it was
+    dialog.showMessageBoxSync({ type: 'warning', message: 'The library was not moved', detail: `It is still in its old folder, untouched.\n\n${e instanceof Error ? e.message : e}` })
+  }
+}
+
+/** Ask which profile, and for its PIN if it has one (picker.html). Resolves once one is chosen; closing the window quits. */
+function pick(): Promise<void> {
+  return new Promise((chosen) => {
+    const win = new BrowserWindow({ width: 440, height: 560, resizable: false, backgroundColor: '#0b1230', autoHideMenuBar: true, webPreferences: { preload: join(here, 'picker-preload.cjs') } })
+    let done = false
+    ipcMain.handle('kataki:picker:list', () => ({ last: current(profiles).id, profiles: profiles.profiles.map(shown).map(({ id, name, locked }) => ({ id, name, locked })) }))
+    ipcMain.handle('kataki:picker:choose', async (_e, id: unknown, pin: unknown) => {
+      const p = profiles.profiles.find((x) => x.id === id)
+      if (!p) return false
+      if (!pinOk(p, pin)) { await sleep(1000); return false } // a wrong guess costs a second
+      keep({ ...profiles, last: p.id })
+      done = true
+      ipcMain.removeHandler('kataki:picker:list')
+      ipcMain.removeHandler('kataki:picker:choose')
+      chosen()
+      win.close()
+      return true
+    })
+    win.on('closed', () => { if (!done) { quitting = true; app.exit(0) } })
+    void win.loadFile(join(appRoot, 'electron', 'picker.html'))
+  })
+}
+
 /** The folder to open: the last profile's, once it is there. A library is never made at a path that went missing. */
-function libraryFolder(): string {
+async function libraryFolder(): Promise<string> {
   if (!existsSync(profilesFile())) mkdirSync(home, { recursive: true }) // the first run: the one folder made unasked
   profiles = load(profilesFile(), profiles.profiles[0])
+  moveIfAsked()
+  if (needsPicker(profiles)) await pick()
   for (;;) {
     const me = current(profiles)
     if (!lost(me)) {
@@ -184,7 +224,8 @@ app.on('before-quit', () => {
   quitting = true
   engine?.stdin?.end()
 })
-app.on('window-all-closed', () => app.quit())
+let starting = true // the picker closes before the main window opens: that is not the app closing
+app.on('window-all-closed', () => { if (!starting) app.quit() })
 
 // One Kataki at a time (ROUTES.md › Where the app starts): a second launch hands over to the
 // first, which comes to the front, and quits.
@@ -216,10 +257,56 @@ ipcMain.on('kataki:reveal', (_e, what: string) => {
   if (Object.hasOwn(folders, what)) shell.openPath(join(dirname(libraryDb), folders[what]))
 })
 // Settings › Profiles. Forgetting a profile takes it off the list; its folder is never touched.
-ipcMain.handle('kataki:profiles', () => ({ current: current(profiles).id, list: profiles.profiles }))
-ipcMain.handle('kataki:profile:add', (e, name: unknown) => addProfile(BrowserWindow.fromWebContents(e.sender)!, name))
-ipcMain.handle('kataki:profile:rename', (_e, id: unknown, name: unknown) => keep(rename(profiles, String(id), cleanName(name))).profiles)
-ipcMain.handle('kataki:profile:forget', (_e, id: unknown) => keep(forget(profiles, String(id))).profiles)
+// The page is told a profile's name, folder and whether it has a PIN: never the PIN's hash.
+const listing = () => ({ current: current(profiles).id, list: profiles.profiles.map(shown), ask: !!profiles.ask })
+ipcMain.handle('kataki:profiles', listing)
+ipcMain.handle('kataki:profile:add', async (e, name: unknown) => { const made = await addProfile(BrowserWindow.fromWebContents(e.sender)!, name); return made && shown(made) })
+ipcMain.handle('kataki:profile:rename', (_e, id: unknown, name: unknown) => { keep(rename(profiles, String(id), cleanName(name))); return listing().list })
+ipcMain.handle('kataki:profile:forget', (_e, id: unknown) => { keep(forget(profiles, String(id))); return listing().list })
+ipcMain.handle('kataki:profile:ask', (_e, on: unknown) => { keep({ ...profiles, ask: !!on }); return listing() })
+// set, change or remove a PIN: the one it has, if any, is needed
+ipcMain.handle('kataki:profile:pin', (_e, id: unknown, was: unknown, next: unknown) => {
+  const changed = setPin(profiles, String(id), was, typeof next === 'string' ? next : null)
+  if (changed) keep(changed)
+  return !!changed
+})
+// Move the open library: the shell asks for the folder, and the move happens at the restart, with nothing open.
+ipcMain.handle('kataki:profile:move', async (e) => {
+  const win = BrowserWindow.fromWebContents(e.sender)!
+  for (;;) {
+    const folder = (await dialog.showOpenDialog(win, { title: 'Choose an empty folder for this library', buttonLabel: 'Move it here', properties: ['openDirectory', 'createDirectory'] })).filePaths[0]
+    if (!folder) return false
+    if (kind(folder) !== 'empty') { await dialog.showMessageBox(win, { type: 'info', message: 'That folder is not empty', detail: 'Choose an empty folder: the library is copied into it.' }); continue }
+    const where = synced(folder)
+    if (where) {
+      const { response } = await dialog.showMessageBox(win, { type: 'warning', message: `That folder is in ${where}`, detail: 'A folder that syncs or sits on a network can damage a library while Kataki has it open. A folder on this computer is safer.', buttons: ['Choose another folder', 'Use it anyway'], cancelId: 0, noLink: true })
+      if (response === 0) continue
+    }
+    keep({ ...profiles, move: { id: current(profiles).id, to: folder } })
+    // the copy is made at the next start, so the engine must have let go of the library first
+    quitting = true
+    if (engine && engine.exitCode === null) {
+      engine.stdin?.end()
+      await Promise.race([once(engine, 'exit'), sleep(10_000)])
+    }
+    app.relaunch()
+    app.exit(0)
+    return true
+  }
+})
+// After a move the old folder is still there. Keep it, or (asked once more, natively) delete it.
+ipcMain.handle('kataki:profile:moved', async (e, what: unknown) => {
+  const me = current(profiles)
+  const old = me.movedFrom
+  if (!old) return listing()
+  if (what === 'delete') {
+    const { response } = await dialog.showMessageBox(BrowserWindow.fromWebContents(e.sender)!, { type: 'warning', message: 'Delete the old copy?', detail: `${old}\n\nThe library now lives in:\n${me.folder}`, buttons: ['Keep it', 'Delete the old copy'], cancelId: 0, defaultId: 0, noLink: true })
+    if (response !== 1) return listing()
+    if (kind(old) === 'library' && resolve(old) !== resolve(me.folder)) rmSync(old, { recursive: true, force: true }) // only ever a folder that holds a library, never the one in use
+  }
+  keep({ ...profiles, profiles: profiles.profiles.map((p) => { if (p.id !== me.id) return p; const { movedFrom: _gone, ...rest } = p; return rest }) })
+  return listing()
+})
 ipcMain.on('kataki:profile:switch', (_e, id: unknown) => {
   if (!profiles.profiles.some((p) => p.id === id)) return
   keep({ ...profiles, last: String(id) })
@@ -235,8 +322,9 @@ app
     const crashed = !smoke && existsSync(runningMark())
     writeFileSync(runningMark(), new Date().toISOString())
     const token = randomBytes(32).toString('base64url')
-    const db = single ? (process.env.KATAKI_DB ? resolve(repoRoot, process.env.KATAKI_DB) : join(home, 'library.db')) : join(libraryFolder(), 'library.db')
+    const db = single ? (process.env.KATAKI_DB ? resolve(repoRoot, process.env.KATAKI_DB) : join(home, 'library.db')) : join(await libraryFolder(), 'library.db')
     const win = await createWindow(await startEngine(token, db), token, crashed)
+    starting = false
     if (smoke) await runSmoke(win)
   })
   .catch((err: Error) => fail(err.message))

@@ -23,5 +23,9 @@ contextBridge.exposeInMainWorld('kataki', {
     profileRename: (id: string, name: string) => ipcRenderer.invoke('kataki:profile:rename', id, name),
     profileForget: (id: string) => ipcRenderer.invoke('kataki:profile:forget', id),
     profileSwitch: (id: string) => ipcRenderer.send('kataki:profile:switch', id),
+    profileAsk: (on: boolean) => ipcRenderer.invoke('kataki:profile:ask', on),
+    profilePin: (id: string, was: string | undefined, next: string | null) => ipcRenderer.invoke('kataki:profile:pin', id, was, next),
+    profileMove: () => ipcRenderer.invoke('kataki:profile:move'),
+    profileMoved: (what: 'keep' | 'delete') => ipcRenderer.invoke('kataki:profile:moved', what),
   }),
 })

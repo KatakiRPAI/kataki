@@ -9,5 +9,5 @@
     "rootDir": ".",
     "outDir": "../dist-electron"
   },
-  "include": ["main.ts", "preload.cts", "profiles.ts"]
+  "include": ["main.ts", "preload.cts", "picker-preload.cts", "profiles.ts"]
 }
