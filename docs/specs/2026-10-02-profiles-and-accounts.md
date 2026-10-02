@@ -24,8 +24,9 @@ Research: `docs/research/reports/Profiles accounts and cloud.md`.
       `library.lock` and a second engine on the folder exits 4 (`LIBRARY_IN_USE`). Checked in the
       real app on a scratch home: two profiles, switch there and back, the lock refusing a second
       engine. Not clicked through: the native dialogs (the folder picker, a missing folder, a
-      library that will not open). Owed: a folder that exists but lost its `library.db` gets a
-      new empty library; the dialogs' text is English in `main.ts`, outside `strings/`.
+      library that will not open). A profile whose folder once held a library and no longer
+      does is asked about like a missing folder (`opened` in `profiles.json`). Owed: the
+      dialogs' text is English in `main.ts`, outside `strings/`.
 - [x] P2 · The profile card (2026-10-02): the `profile` setting (name, pronouns, bio, picture,
       colour) and `GET /profile/stats`, shown at the top of You with an edit dialog; saving it
       renames the desktop profile to match. Not done: a banner; a `/profile` page or Settings
