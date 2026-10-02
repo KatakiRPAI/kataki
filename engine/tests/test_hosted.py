@@ -299,6 +299,41 @@ def test_an_unsigned_request_opens_nothing(tmp_path):
     assert not (tmp_path / "users").exists()
 
 
+def test_the_gateway_can_have_a_library_forgotten(tmp_path):
+    with TestClient(service(tmp_path)) as client:
+        made = {"kind": "character", "name": "Mira"}
+        assert client.post("/library", json=made, auth=As("alice")).status_code == 201
+        assert client.post("/library", json=made, auth=As("bob")).status_code == 201
+        assert client.post(hosted.FORGET).status_code == 401  # only on the gateway's signature
+        assert client.get(hosted.FORGET, auth=As("alice")).status_code == 405
+        assert (tmp_path / "users" / "alice").exists()
+
+        assert client.post(hosted.FORGET, auth=As("alice")).json() == {"forgotten": True}
+        assert not (tmp_path / "users" / "alice").exists()
+        assert client.post(hosted.FORGET, auth=As("alice")).status_code == 200  # already gone
+        assert [i["name"] for i in client.get("/library", auth=As("bob")).json()] == ["Mira"]
+        assert client.get("/library", auth=As("alice")).json() == []  # a new, empty library
+
+
+def test_a_library_with_unbilled_usage_is_not_forgotten_yet(tmp_path):
+    fake = FakeGateway(PRICES)
+    with TestClient(service(tmp_path, fake)) as client:
+        assert client.get("/health", auth=As("alice")).status_code == 200
+        conn = db.connect(tmp_path / "users" / "alice" / "library.db")
+        with conn:
+            conn.execute(
+                "INSERT INTO usage_log(role, model, usage_id, metered) VALUES('rp', 'rp-model', ?, 0)",
+                ("ab" * 16,),
+            )
+        conn.close()
+        fake.down = 2  # the meter tries twice
+        assert client.post(hosted.FORGET, auth=As("alice")).status_code == 409
+        assert (tmp_path / "users" / "alice" / "library.db").exists()
+        assert client.post(hosted.FORGET, auth=As("alice")).status_code == 200  # billed, then gone
+        assert fake.taken["ab" * 16] == 1
+        assert not (tmp_path / "users" / "alice").exists()
+
+
 def test_each_user_sees_only_their_own_library(tmp_path):
     with TestClient(service(tmp_path)) as client:
         made = {"kind": "character", "name": "Mira"}

@@ -46,13 +46,20 @@ The owner chose Better Auth on 2026-10-02, so the gateway is a small TypeScript 
       sign-in before sensitive changes beyond the password these already ask for; an account
       made through another service must set a password (the reset link) before it can turn
       this on.
-- [ ] G5 · Settings › Account: emails, methods, sessions, export, deletion. Built
+- [x] G5 · Settings › Account: emails, methods, sessions, export, deletion. Built
       (2026-10-02): change email (approved from the old address, then confirmed from the new
       one), change password (the old one needed, every other place signed out, a notice by
       mail), link and unlink another service, the list of places signed in with sign out one
-      and sign out everywhere else. Checked in a browser on one machine. Not done: deleting
-      the account with a grace period (the engine has no way yet to remove a user's library
-      on the gateway's word); an account export beyond the library's own; the backup email.
+      and sign out everywhere else. Leaving: a sign-in of the last ten minutes, signed out
+      everywhere at once, 14 days to sign in and stay, then the engine forgets the library
+      (`POST /_gateway/forget`, refused while usage is unbilled, never proxied for a browser)
+      and the account is removed; the ledger's rows stay. `GET /api/account/export` gives what
+      the gateway holds (never a password hash). The backup email: a second address,
+      confirmed by a mailed link, that gets a copy of every notice (password, email, two-step
+      sign-in off, leaving) and can do nothing else. Checked in a browser on one machine. Not
+      done: recovering an account through the backup email (it needs a delay and notices to
+      every address). **[owner]**: what happens to unspent credit when an account is
+      deleted (the screen says the balance goes with it).
 - [ ] G6 · Handles and the online profile.
 - [ ] G7 · Top-ups (the owner's payment processor, test mode).
 - [ ] G8 · The image, staging and production (infrastructure Phase 6).
@@ -108,7 +115,7 @@ Known gaps in the library, to close in the slice named:
 - **Two-factor only guards password sign-in** in the library. Closed in G4 for sign-in links
   and other services (`secondStep` in `gateway/src/auth.ts`). Passkeys, when they come, count
   as both factors when the user is verified.
-- **No backup email.** One column and a verify flow of our own (G5).
+- **No backup email** in the library. Ours is `account.ts` (G5).
 - **Advisories:** 37 published, most in plugins this service does not load (SSO, SCIM, OAuth
   provider, Stripe, OAuth proxy). The version is pinned exactly; Dependabot raises it.
 

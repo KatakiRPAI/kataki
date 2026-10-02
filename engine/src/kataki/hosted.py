@@ -15,6 +15,7 @@ import logging
 import os
 import re
 import secrets
+import shutil
 import sqlite3
 import time
 from collections import OrderedDict
@@ -38,6 +39,9 @@ log = logging.getLogger(__name__)
 # `Alice` and `alice` one folder), and never a Windows device name
 USER = re.compile(r"(?!(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$)[a-z0-9_-]{1,64}")
 WINDOW = 60  # seconds a signature is good for, either way (clock skew, and no replays after)
+# The gateway's own word to the engine, never a browser's (the gateway does not proxy `/_gateway/`):
+# POST it, signed as a user, and that user's library is gone (an account deleted, online spec G5)
+FORGET = "/_gateway/forget"
 
 
 def sign(secret: bytes, user: str, channel: str, at: int, method: str, target: str) -> str:
@@ -300,6 +304,25 @@ class Hosted:
         await lib.llm.aclose()
         lib.conn.close()
 
+    async def forget(self, user: str) -> int:
+        """Delete a user's library for good: its file, pictures and backups. 200 when it is gone
+        (or was never there); 409 while it holds usage the gateway has not taken, or a request
+        is in flight: the gateway asks again later, and nothing is lost unbilled."""
+        folder = self.root / user
+        if not folder.exists():
+            return 200
+        lib = self.open(user)
+        with contextlib.suppress(httpx2.HTTPError):  # what is still owed is billed first
+            self.gateway.resend(user, lib.conn)
+        unbilled = lib.conn.execute(
+            "SELECT count(*) FROM usage_log WHERE metered=0 AND usage_id IS NOT NULL"
+        ).fetchone()[0]
+        if unbilled or lib.busy:
+            return 409
+        await self.close(user, force=True)
+        shutil.rmtree(folder)
+        return 200
+
     async def sweep(self) -> None:
         """Close what has been idle too long; send the outbox of what stays open, until the
         gateway fails once (then the rest wait for the next sweep, not a timeout each)."""
@@ -336,6 +359,9 @@ class Hosted:
             refused = JSONResponse({"detail": "missing or invalid gateway signature"}, 401)
             return await refused(scope, receive, send)
         user, channel = found
+        if scope["path"] == FORGET:
+            status = await self.forget(user) if scope["method"] == "POST" else 405
+            return await JSONResponse({"forgotten": status == 200}, status)(scope, receive, send)
         lib = self.open(user)
         features.CURRENT.set(channel)  # this request's task only: never another request's
         # the library's own app still wants its bearer token: the signature stood in for it

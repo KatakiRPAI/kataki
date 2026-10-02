@@ -8,6 +8,7 @@ import { useLoad } from '../../hooks'
 import { account, signOut } from '../../online/session'
 import { t } from '../../strings'
 import { Sessions, SigningIn } from './AccountParts'
+import Leaving from './Leaving'
 import TwoStep from './TwoStep'
 
 export default function Account() {
@@ -35,6 +36,7 @@ export default function Account() {
         </K.SettingsRow>
       </K.SettingsSection>
       <Sessions />
+      <Leaving />
       {doing && <TwoStep key={doing} doing={doing} onClose={() => setDoing(undefined)} onChange={(on) => { setTwoStep(on); me.twoFactorEnabled = on }} />}
     </>
   )

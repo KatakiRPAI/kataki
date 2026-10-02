@@ -10,7 +10,8 @@ import { request, type IncomingMessage, type RequestListener, type ServerRespons
 import { extname, join, normalize, sep } from 'node:path'
 import { fromNodeHeaders, toNodeHandler } from 'better-auth/node'
 import type { Pool } from 'pg'
-import type { Auth } from './auth.ts'
+import { askToDelete, exportOf, FORGET, keep, removeBackupEmail, setBackupEmail, verifyBackupEmail } from './account.ts'
+import type { Auth, Send } from './auth.ts'
 import { allow, balance, bill, grant } from './ledger.ts'
 import type { Prices } from './money.ts'
 import { signed, USER } from './sign.ts'
@@ -26,6 +27,7 @@ export type GatewayConfig = {
   web?: string // the web build's folder (app/dist-web)
   starter?: bigint // micro-dollars given once to a new account
   social?: string[] // the services an account can sign in with (auth.ts › Social)
+  send: Send // mail (auth.ts)
 }
 
 const TYPES: Record<string, string> = {
@@ -103,6 +105,11 @@ export function createGateway(c: GatewayConfig): RequestListener {
       if (path === '/') return void res.writeHead(302, { location: '/app/' }).end()
       // what the sign-in screen may offer; nothing secret
       if (path === '/api/providers') return json(res, 200, { social: c.social ?? [] })
+      // the link mailed to a backup address: opened wherever that mailbox is read, signed in or not
+      if (path === '/api/account/backup-email/verify' && req.method === 'GET') {
+        const ok = await verifyBackupEmail(c, url.searchParams.get('token') ?? '')
+        return void res.writeHead(302, { location: ok ? '/app/settings/account' : '/app/?error=INVALID_TOKEN' }).end()
+      }
       if (c.web && (path === '/app' || path.startsWith('/app/')) && (req.method === 'GET' || req.method === 'HEAD')) return serve(res, path === '/app' ? '/app/' : path)
 
       const session = await c.auth.api.getSession({ headers: fromNodeHeaders(req.headers) })
@@ -115,7 +122,32 @@ export function createGateway(c: GatewayConfig): RequestListener {
         await grant(c.pool, user, c.starter, 'starter', `starter:${user}`)
         granted.add(user)
       }
-      if (path === '/api/me') return json(res, 200, { user: { id: user, name: session.user.name, email: session.user.email }, balance: Number(await balance(c.pool, user)) })
+      const backupEmail = session.user.backupEmail ?? null
+      const backupEmailVerified = !!session.user.backupEmailVerified
+      const who = { id: user, name: session.user.name, email: session.user.email, backupEmail, backupEmailVerified }
+      const deleteAt = session.user.deleteAt ?? null
+      if (path === '/api/me') return json(res, 200, { user: { id: user, name: who.name, email: who.email }, balance: Number(await balance(c.pool, user)), deleteAt, backupEmail, backupEmailVerified })
+      if (path === '/api/account/backup-email' && req.method === 'POST') {
+        let said: unknown
+        try { said = await body(req) } catch { said = null }
+        return (await setBackupEmail(c, who, (said as { email?: unknown } | null)?.email)) ? json(res, 200, { ok: true }) : json(res, 422, { detail: 'That address cannot be the backup email.' })
+      }
+      if (path === '/api/account/backup-email' && req.method === 'DELETE') { await removeBackupEmail(c, who); return json(res, 200, { ok: true }) }
+      if (path === '/api/account/export' && req.method === 'GET') {
+        res.writeHead(200, { 'content-type': 'application/json', 'content-disposition': 'attachment; filename="kataki-account.json"', 'cache-control': 'no-store' })
+        return void res.end(JSON.stringify(await exportOf(c, who), null, 2))
+      }
+      if (path === '/api/account/keep' && req.method === 'POST') { await keep(c, who); return json(res, 200, { ok: true }) }
+      if (path === '/api/account/delete' && req.method === 'POST') {
+        // only from a sign-in of the last ten minutes: a session left open on a shared computer cannot do this
+        const fresh = Date.now() - new Date(session.session.createdAt).getTime() < 600_000
+        if (!fresh) return json(res, 403, { detail: { code: 'FRESH', message: 'Sign in again to do this.' } })
+        return json(res, 200, { deleteAt: await askToDelete(c, who) })
+      }
+      // a leaving account opens nothing until it says it is staying
+      if (deleteAt) return json(res, 401, { detail: 'This account is set to be deleted.', code: 'DELETING' })
+      // the engine's routes for the gateway alone are never a browser's to call
+      if (path.startsWith('/_gateway/') || path === FORGET) return json(res, 404, { detail: 'not found' })
       proxy(req, res, user)
     } catch (e) {
       console.error('gateway:', e instanceof Error ? e.message : e)
