@@ -7,7 +7,7 @@ import { createInterface } from 'node:readline'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 import { app, BrowserWindow, dialog, ipcMain, screen, shell } from 'electron'
-import { add, cleanName, current, forget, kind, load, rename, save, synced, type Profile, type Profiles } from './profiles.js'
+import { add, cleanName, current, forget, kind, load, lost, rename, save, synced, type Profile, type Profiles } from './profiles.js'
 
 const here = dirname(fileURLToPath(import.meta.url)) // app/dist-electron
 const appRoot = join(here, '..')
@@ -60,8 +60,12 @@ function libraryFolder(): string {
   profiles = load(profilesFile(), profiles.profiles[0])
   for (;;) {
     const me = current(profiles)
-    if (kind(me.folder) !== 'missing') return me.folder
-    choose(`Kataki can’t find ${me.name}`, `Its folder is not there:\n${me.folder}\n\nIf it is on a drive that isn’t plugged in, plug it in and try again.`, { retry: true, locate: true })
+    if (!lost(me)) {
+      // remember that the library has been seen here, so an empty folder later reads as a loss
+      if (!me.opened && kind(me.folder) === 'library') keep({ ...profiles, profiles: profiles.profiles.map((p) => (p.id === me.id ? { ...p, opened: true } : p)) })
+      return me.folder
+    }
+    choose(`Kataki can’t find ${me.name}`, `Its library is not in:\n${me.folder}\n\nIf it is on a drive that isn’t plugged in, plug it in and try again.`, { retry: true, locate: true })
   }
 }
 
