@@ -7,7 +7,7 @@ import { K } from '../../ds'
 import { useLoad } from '../../hooks'
 import { account, signOut } from '../../online/session'
 import { t } from '../../strings'
-import { Sessions, SigningIn } from './AccountParts'
+import { Passkeys, Sessions, SigningIn, useLinked } from './AccountParts'
 import Leaving from './Leaving'
 import TwoStep from './TwoStep'
 
@@ -16,6 +16,8 @@ export default function Account() {
   const [got] = useLoad(() => api<{ balance: number }>('/api/me'), [])
   const [twoStep, setTwoStep] = useState(!!me.twoFactorEnabled)
   const [doing, setDoing] = useState<'on' | 'off' | 'codes'>()
+  const [linked] = useLinked()
+  const hasPassword = !!linked?.some((a) => a.providerId === 'credential')
   const dollars = got ? new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 }).format(got.balance / 1e6) : '…'
   return (
     <>
@@ -24,6 +26,7 @@ export default function Account() {
         <K.SettingsRow title={t('ac.balance')} description={t('ac.balanceSub')}><b>{dollars}</b></K.SettingsRow>
       </K.SettingsSection>
       <SigningIn me={me} />
+      <Passkeys />
       <K.SettingsSection title={t('ts.title')} note={t('ts.note')}>
         <K.SettingsRow title={t('ts.app')} description={t(twoStep ? 'ts.isOn' : 'ts.isOff')}>
           {twoStep ? (
@@ -37,7 +40,7 @@ export default function Account() {
       </K.SettingsSection>
       <Sessions />
       <Leaving />
-      {doing && <TwoStep key={doing} doing={doing} onClose={() => setDoing(undefined)} onChange={(on) => { setTwoStep(on); me.twoFactorEnabled = on }} />}
+      {doing && <TwoStep key={doing} doing={doing} hasPassword={hasPassword} onClose={() => setDoing(undefined)} onChange={(on) => { setTwoStep(on); me.twoFactorEnabled = on }} />}
     </>
   )
 }

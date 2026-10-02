@@ -1,8 +1,9 @@
 // Accounts: Better Auth on the gateway's Postgres, set as docs/specs/2026-10-02-kataki-online.md
 // §2 says and why. G1 is email and password; later slices add to this one place.
 import { randomUUID } from 'node:crypto'
+import { passkey } from '@better-auth/passkey'
 import { betterAuth } from 'better-auth'
-import { APIError, createAuthMiddleware, getOAuthState, isAPIError } from 'better-auth/api'
+import { APIError, createAuthMiddleware, getOAuthState, getSessionFromCtx, isAPIError } from 'better-auth/api'
 import { getMigrations } from 'better-auth/db/migration'
 import { genericOAuth, haveIBeenPwned, magicLink, twoFactor, type GenericOAuthConfig } from 'better-auth/plugins'
 import type { Pool } from 'pg'
@@ -37,6 +38,12 @@ export function socialFrom(env: Record<string, string | undefined>): Social {
 
 const DAY = 86_400
 
+/** Refuse a passkey sign-in where the device did not verify its holder (a bare security key
+ *  tapped by whoever has it): that is one step, and a passkey here stands for two. */
+export function personChecked(userVerified: boolean): void {
+  if (!userVerified) throw new APIError('UNAUTHORIZED', { code: 'PASSKEY_UNVERIFIED', message: 'This device did not confirm it was you.' })
+}
+
 type Owner = { email: string; backupEmail?: string | null; backupEmailVerified?: boolean | null }
 /** Tell an account's owner something happened to it: at its email, and at its backup email
  *  once that is confirmed. The backup address only ever hears; it cannot sign in or reset. */
@@ -51,7 +58,9 @@ export function notify(send: Send, owner: Owner, subject: string, text: string):
  *  service would walk straight past it, so its own hook is pointed at those routes too: the
  *  session they made is taken back, and the browser goes to the app's code screen instead. */
 function secondStep(origin: string) {
-  const plugin = twoFactor({ issuer: 'Kataki', backupCodeOptions: { amount: 10, storeBackupCodes: 'encrypted' } })
+  // allowPasswordless: an account made through another service has no password to ask for; it
+  // is asked for a recent sign-in instead (`hooks.before` in makeAuth)
+  const plugin = twoFactor({ issuer: 'Kataki', allowPasswordless: true, backupCodeOptions: { amount: 10, storeBackupCodes: 'encrypted' } })
   const hook = plugin.hooks.after[0]
   const afterPassword = hook.matcher
   const ask = hook.handler
@@ -126,6 +135,13 @@ export function makeAuth({ pool, origin, secret, send, pwned = true, social = {}
       },
     },
     hooks: {
+      // Two-step sign-in is changed with the password, or, by an account that has none, from a
+      // sign-in of the last ten minutes: never from a browser someone merely left open.
+      before: createAuthMiddleware(async (ctx) => {
+        if (!['/two-factor/enable', '/two-factor/disable', '/two-factor/generate-backup-codes'].includes(ctx.path) || ctx.body?.password) return
+        const session = await getSessionFromCtx(ctx)
+        if (session && Date.now() - new Date(session.session.createdAt).getTime() >= 600_000) throw new APIError('FORBIDDEN', { code: 'SESSION_NOT_FRESH', message: 'Sign in again to do this.' })
+      }),
       // a changed password is told to the account's owner, as a reset is
       after: createAuthMiddleware(async (ctx) => {
         const who = ctx.context.session?.user
@@ -178,6 +194,14 @@ export function makeAuth({ pool, origin, secret, send, pwned = true, social = {}
     plugins: [
       haveIBeenPwned({ enabled: pwned }),
       secondStep(origin),
+      // A passkey (fingerprint, face or the device's PIN) signs in by itself, and an account
+      // with two-step sign-in is not asked for a code after one: so the device must have
+      // checked it is really the person. The library only prefers that; `personChecked` insists.
+      passkey({
+        rpID: new URL(origin).hostname, rpName: 'Kataki', origin,
+        authenticatorSelection: { residentKey: 'preferred', userVerification: 'required' },
+        authentication: { afterVerification: async ({ verification }) => personChecked(verification.authenticationInfo.userVerified) },
+      }),
       ...(others.length ? [genericOAuth({ config: others.map((o) => ({ ...o, disableImplicitSignUp: true })) })] : []),
       magicLink({
         expiresIn: 10 * 60,

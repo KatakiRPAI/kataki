@@ -3,7 +3,7 @@
 // at the address the person was on. A mailed link (reset, sign-in) lands here with its token.
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { K } from '../ds'
-import { auth, type AuthError } from './session'
+import { auth, passkeySignIn, passkeysWork, type AuthError } from './session'
 import { t, type Key } from '../strings'
 
 const home = import.meta.env.BASE_URL // where a mailed link comes back to: the app
@@ -141,6 +141,9 @@ export default function SignIn() {
             <button type="submit" hidden disabled={!ready || busy} />
             <K.Button variant="primary" full loading={busy} disabled={!ready} onClick={() => submit()}>{t(action[view])}</K.Button>
             {view === 'in' && <div className="row" style={{ justifyContent: 'space-between' }}>{link('forgot', 'si.forgot')}{link('link', 'si.linkInstead')}</div>}
+            {view === 'in' && passkeysWork() && (
+              <K.Button full icon="key" onClick={() => passkeySignIn().then(() => location.reload(), (x) => { if ((x as Error).name !== 'NotAllowedError') setError(t('si.e.passkey')) })}>{t('si.passkey')}</K.Button>
+            )}
             {(view === 'in' || view === 'up') && social.map((p) => (
               <K.Button key={p} full onClick={() => leave(p)}>{t(view === 'in' ? 'si.with' : 'si.upWith', { name: NAMES[p] ?? p })}</K.Button>
             ))}

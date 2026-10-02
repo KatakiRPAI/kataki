@@ -26,6 +26,8 @@ export async function session(): Promise<Session> {
 }
 
 export type AuthError = { code?: string; message?: string }
+/** Refused because the sign-in is more than ten minutes old: signing in again clears it. */
+export const stale = (x: unknown): boolean => (x as AuthError | null)?.code === 'SESSION_NOT_FRESH'
 
 /** One of Better Auth's routes (a POST, or a GET with `body` left as "get"). Resolves to its
  *  JSON, or throws its `{code, message}`. */
@@ -34,6 +36,28 @@ export async function auth<T = unknown>(path: string, body?: unknown): Promise<T
   const got = await r.json().catch(() => null)
   if (!r.ok) throw (got ?? { message: `HTTP ${r.status}` }) as AuthError
   return got as T
+}
+
+// Passkeys use what the browser has built in (WebAuthn's JSON helpers); a browser without them
+// is simply not offered passkeys.
+type Json = Record<string, unknown>
+const helpers = () => window.PublicKeyCredential as unknown as { parseCreationOptionsFromJSON?: (o: Json) => CredentialCreationOptions['publicKey']; parseRequestOptionsFromJSON?: (o: Json) => CredentialRequestOptions['publicKey'] } | undefined
+export const passkeysWork = (): boolean => !!helpers()?.parseCreationOptionsFromJSON && !!helpers()?.parseRequestOptionsFromJSON
+const asJson = (made: Credential | null): Json => { if (!made) throw new Error('cancelled'); return (made as unknown as { toJSON: () => Json }).toJSON() }
+
+/** Add a passkey on this device to the signed-in account. */
+export async function addPasskey(name: string): Promise<void> {
+  const options = await auth<Json>(`/passkey/generate-register-options?name=${encodeURIComponent(name)}`, 'get')
+  const made = await navigator.credentials.create({ publicKey: helpers()!.parseCreationOptionsFromJSON!(options) })
+  await auth('/passkey/verify-registration', { response: asJson(made), name })
+}
+
+/** Sign in with a passkey on this device. */
+export async function passkeySignIn(): Promise<void> {
+  const options = await auth<Json>('/passkey/generate-authenticate-options', 'get')
+  // the device must check it is you (the gateway refuses a sign-in where it did not)
+  const made = await navigator.credentials.get({ publicKey: helpers()!.parseRequestOptionsFromJSON!({ ...options, userVerification: 'required' }) })
+  await auth('/passkey/verify-authentication', { response: asJson(made) })
 }
 
 export async function signOut(): Promise<void> {

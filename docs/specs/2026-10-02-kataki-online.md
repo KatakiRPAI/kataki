@@ -36,16 +36,21 @@ The owner chose Better Auth on 2026-10-02, so the gateway is a small TypeScript 
       2026-10-02 (a dev OAuth app, localhost). Signing in with no account opens Create account
       with a note. Not done: Google and Discord against the real services (**[owner]**: their
       keys); Apple; the production OAuth apps on the real domain.
-- [ ] G4 · TOTP and backup codes, sudo mode, passkeys. Built (2026-10-02): two-step sign-in
+- [x] G4 · TOTP and backup codes, sudo mode, passkeys. Built (2026-10-02): two-step sign-in
       with an authenticator app (issuer `Kataki`), ten backup codes stored encrypted, "don't
       ask on this device for 30 days". It is asked after a password, after a sign-in link and
       after another service (the library's own hook, pointed at those routes too; tests walk
       all three). Settings › Account turns it on (QR and key, a code typed back, the backup
       codes shown once), makes new codes and turns it off, each with the password. Checked in
-      a browser on one machine. Not done: passkeys (a new dependency, its own slice); a fresh
-      sign-in before sensitive changes beyond the password these already ask for; an account
-      made through another service must set a password (the reset link) before it can turn
-      this on.
+      a browser on one machine. Passkeys (`@better-auth/passkey`, pinned): add one in
+      Settings › Account, sign in with it from the sign-in screen; the device must verify the
+      person each time, so a passkey stands for both steps. The app uses the browser's own
+      WebAuthn JSON helpers, no library. **Not yet run with a real device** (**[owner]**: one
+      try with Windows Hello or a phone). Not done: a fresh
+      sign-in before sensitive changes beyond these. An account made through another service
+      has no password: it changes two-step sign-in from a sign-in of the last ten minutes
+      instead. Adding a passkey needs the same; the app says so and offers to sign out (found
+      by the owner's first real try, 2026-10-02).
 - [x] G5 · Settings › Account: emails, methods, sessions, export, deletion. Built
       (2026-10-02): change email (approved from the old address, then confirmed from the new
       one), change password (the old one needed, every other place signed out, a notice by
@@ -58,7 +63,8 @@ The owner chose Better Auth on 2026-10-02, so the gateway is a small TypeScript 
       confirmed by a mailed link, that gets a copy of every notice (password, email, two-step
       sign-in off, leaving) and can do nothing else. Checked in a browser on one machine. Not
       done: recovering an account through the backup email (it needs a delay and notices to
-      every address). **[owner]**: what happens to unspent credit when an account is
+      every address). Decided by the owner (2026-10-02): unspent credit is not refunded when
+      an account is deleted. Was **[owner]**: what happens to unspent credit when an account is
       deleted (the screen says the balance goes with it).
 - [ ] G6 · Handles and the online profile.
 - [ ] G7 · Top-ups (the owner's payment processor, test mode).

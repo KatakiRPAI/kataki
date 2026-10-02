@@ -3,34 +3,39 @@
 import { useState } from 'react'
 import { renderSVG } from 'uqr'
 import { K } from '../../ds'
-import { auth, type AuthError } from '../../online/session'
+import { auth, signOut, stale, type AuthError } from '../../online/session'
 import { Overlay, toast } from '../../overlay'
 import { t } from '../../strings'
 
 type Doing = 'on' | 'off' | 'codes'
 
-export default function TwoStep({ doing, onClose, onChange }: { doing: Doing; onClose: () => void; onChange: (on: boolean) => void }) {
+export default function TwoStep({ doing, hasPassword, onClose, onChange }: { doing: Doing; hasPassword: boolean; onClose: () => void; onChange: (on: boolean) => void }) {
   const [password, setPassword] = useState('')
   const [setup, setSetup] = useState<{ totpURI: string; backupCodes: string[] }>() // on: the app is being paired
   const [code, setCode] = useState('')
   const [codes, setCodes] = useState<string[]>() // shown once, at the end
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [old, setOld] = useState(false) // the sign-in is too old for this: sign in again
 
   const run = async (what: () => Promise<void>) => {
     setBusy(true)
     setError('')
-    try { await what() } catch (x) { setError(t((x as AuthError).code === 'INVALID_CODE' ? 'ts.e.code' : setup ? 'ts.e.code' : 'ts.e.password')) } finally { setBusy(false) }
+    try { await what() } catch (x) {
+      if (stale(x)) setOld(true)
+      else setError(t((x as AuthError).code === 'INVALID_CODE' || setup ? 'ts.e.code' : hasPassword ? 'ts.e.password' : 'am.e.other'))
+    } finally { setBusy(false) }
   }
   const next = () => run(async () => {
-    if (doing === 'on' && !setup) return setSetup(await auth('/two-factor/enable', { password }))
+    const said = hasPassword ? { password } : {} // an account with no password is asked for a recent sign-in instead
+    if (doing === 'on' && !setup) return setSetup(await auth('/two-factor/enable', said))
     if (doing === 'on') {
       await auth('/two-factor/verify-totp', { code: code.trim() }) // on only once a code has come back
       onChange(true)
       return setCodes(setup!.backupCodes)
     }
-    if (doing === 'codes') return setCodes((await auth<{ backupCodes: string[] }>('/two-factor/generate-backup-codes', { password })).backupCodes)
-    await auth('/two-factor/disable', { password })
+    if (doing === 'codes') return setCodes((await auth<{ backupCodes: string[] }>('/two-factor/generate-backup-codes', said)).backupCodes)
+    await auth('/two-factor/disable', said)
     onChange(false)
     toast(t('ts.offDone'), { icon: 'shield' }, 6000)
     onClose()
@@ -41,17 +46,20 @@ export default function TwoStep({ doing, onClose, onChange }: { doing: Doing; on
   return (
     <Overlay onClose={onClose}>
       <K.Dialog icon="shield" title={title} onClose={onClose}
-        description={codes ? t('ts.codesBody') : setup ? t('ts.scan') : t(doing === 'on' ? 'ts.onBody' : doing === 'off' ? 'ts.offBody' : 'ts.newCodesBody')}
-        actions={codes ? [
+        description={codes ? t('ts.codesBody') : setup ? t('ts.scan') : t(doing === 'on' ? (hasPassword ? 'ts.onBody' : 'ts.onBodyNoPassword') : doing === 'off' ? (hasPassword ? 'ts.offBody' : 'ts.offBodyNoPassword') : hasPassword ? 'ts.newCodesBody' : 'ts.newCodesBodyNoPassword')}
+        actions={old ? [
+          <K.Button key="c" variant="ghost" onClick={onClose}>{t('ep.cancel')}</K.Button>,
+          <K.Button key="o" variant="primary" onClick={signOut}>{t('ac.signOut')}</K.Button>,
+        ] : codes ? [
           <K.Button key="c" variant="ghost" onClick={() => navigator.clipboard.writeText(codes.join('\n')).then(() => toast(t('ts.copied'), {}, 3000))}>{t('ts.copy')}</K.Button>,
           <K.Button key="d" variant="primary" onClick={onClose}>{t('ts.saved')}</K.Button>,
         ] : [
           <K.Button key="c" variant="ghost" onClick={onClose}>{t('ep.cancel')}</K.Button>,
-          <K.Button key="n" variant={doing === 'off' ? 'danger' : 'primary'} loading={busy} disabled={setup ? code.trim().length < 6 : !password} onClick={next}>
+          <K.Button key="n" variant={doing === 'off' ? 'danger' : 'primary'} loading={busy} disabled={setup ? code.trim().length < 6 : hasPassword && !password} onClick={next}>
             {t(setup ? 'ts.finish' : doing === 'on' ? 'ts.continue' : doing === 'off' ? 'ts.offGo' : 'ts.newCodesGo')}
           </K.Button>,
         ]}>
-        {codes ? (
+        {old ? <K.Callout tone="warm" title={t('lv.staleTitle')}>{t('am.fresh')}</K.Callout> : codes ? (
           <pre className="ts-codes">{codes.join('\n')}</pre>
         ) : setup ? (
           <>
@@ -59,9 +67,9 @@ export default function TwoStep({ doing, onClose, onChange }: { doing: Doing; on
             <K.KeyValue label={t('ts.secret')}><code className="ts-secret">{secret}</code></K.KeyValue>
             <K.TextField label={t('ts.code')} value={code} onChange={setCode} max={6} />
           </>
-        ) : (
-          <K.TextField label={t('si.password')} type="password" value={password} onChange={setPassword} hint={t('ts.passwordHint')} />
-        )}
+        ) : hasPassword ? (
+          <K.TextField label={t('si.password')} type="password" value={password} onChange={setPassword} />
+        ) : null}
         {error && <K.Callout tone="bad">{error}</K.Callout>}
       </K.Dialog>
     </Overlay>

@@ -12,7 +12,7 @@ import { PGLiteSocketServer } from '@electric-sql/pglite-socket'
 import pg from 'pg'
 import { GRACE_DAYS, sweep, type AccountConfig } from './account.ts'
 import { createGateway } from './app.ts'
-import { makeAuth, migrateAuth, socialFrom } from './auth.ts'
+import { makeAuth, migrateAuth, personChecked, socialFrom } from './auth.ts'
 import { migrate } from './db.ts'
 import { balance } from './ledger.ts'
 import { sign } from './sign.ts'
@@ -62,8 +62,14 @@ before(async () => {
   gateway = createServer((req, res) => handler(req, res))
   origin = `http://127.0.0.1:${await listen(gateway)}`
   // another service: answers any code with one person, as GitHub would after "Authorize"
-  provider = createServer((req, res) => {
-    const body = req.url!.startsWith('/token') ? { access_token: 'a-token', token_type: 'bearer' } : { id: 'gh-1', sub: 'gh-1', email: 'octo@example.com', email_verified: true, name: 'Octo' }
+  // the code it is given says who: `a-code` is Octo, any other code is its own person
+  provider = createServer(async (req, res) => {
+    let sent = ''
+    for await (const chunk of req) sent += chunk
+    const who = req.url!.startsWith('/token') ? new URLSearchParams(sent).get('code')! : String(req.headers.authorization).replace('Bearer ', '')
+    const body = req.url!.startsWith('/token') ? { access_token: who, token_type: 'bearer' }
+      : who === 'a-code' ? { id: 'gh-1', sub: 'gh-1', email: 'octo@example.com', email_verified: true, name: 'Octo' }
+        : { id: who, sub: who, email: `${who}@example.com`, email_verified: true, name: who }
     res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(body))
   })
   const there = `http://127.0.0.1:${await listen(provider)}`
@@ -298,12 +304,12 @@ test('two-step sign-in: after a password, after a sign-in link, and a backup cod
 })
 
 /** Leave for the other service and come back, as the browser does after "Authorize". */
-async function viaProvider(extra: Record<string, unknown>) {
+async function viaProvider(extra: Record<string, unknown>, code = 'a-code') {
   const left = await post('/api/auth/sign-in/social', { provider: 'fake', callbackURL: '/app/', errorCallbackURL: '/app/', ...extra })
   assert.equal(left.status, 200)
   const state = new URL(((await left.json()) as { url: string }).url).searchParams.get('state')!
   const cookie = left.headers.getSetCookie().map((c) => c.split(';')[0]).join('; ')
-  const back = await call(`/api/auth/callback/fake?code=a-code&state=${encodeURIComponent(state)}`, { cookie })
+  const back = await call(`/api/auth/callback/fake?code=${code}&state=${encodeURIComponent(state)}`, { cookie })
   return { location: back.headers.get('location') ?? '', session: back.headers.getSetCookie().find((c) => c.includes('session_token'))?.split(';')[0] }
 }
 
@@ -475,6 +481,46 @@ test('a backup email hears of changes once it has confirmed itself, and can do n
 
   assert.equal((await call('/api/account/backup-email', { method: 'DELETE', cookie, headers: { origin } })).status, 200)
   assert.equal(((await (await call('/api/me', { cookie })).json()) as { backupEmail: string | null }).backupEmail, null)
+})
+
+test('passkeys: offered to a signed-in account, for this site, with the person checked each time', async () => {
+  const { cookie } = await account('keyholder@example.com')
+  assert.equal((await call('/api/auth/passkey/generate-register-options')).status, 401) // an account adds its own
+  const make = (await (await call('/api/auth/passkey/generate-register-options?name=Laptop', { cookie })).json()) as {
+    rp: { id: string; name: string }; challenge: string; authenticatorSelection: { userVerification: string }
+  }
+  assert.deepEqual(make.rp, { id: '127.0.0.1', name: 'Kataki' })
+  assert.ok(make.challenge.length > 20)
+  assert.equal(make.authenticatorSelection.userVerification, 'required')
+  const use = (await (await call('/api/auth/passkey/generate-authenticate-options')).json()) as { rpId: string; challenge: string }
+  assert.equal(use.rpId, '127.0.0.1')
+  // the library only "prefers" that the device checks who holds it; ours refuses a sign-in where it did not
+  assert.throws(() => personChecked(false), /did not confirm/)
+  assert.doesNotThrow(() => personChecked(true))
+  assert.deepEqual(await (await call('/api/auth/passkey/list-user-passkeys', { cookie })).json(), [])
+  // an answer that no device made is refused
+  const forged = await post('/api/auth/passkey/verify-authentication', { response: { id: 'x', rawId: 'x', type: 'public-key', response: {}, clientExtensionResults: {} } })
+  assert.notEqual(forged.status, 200)
+  assert.equal(forged.headers.getSetCookie().some((c) => /session_token=[^;]/.test(c)), false)
+})
+
+test('an account with no password turns two-step sign-in on from a recent sign-in, not a stale one', async () => {
+  const made = await viaProvider({ requestSignUp: true, additionalData: { adult: true } }, 'nopass')
+  const cookie = made.session!
+  const { user } = (await (await call('/api/me', { cookie })).json()) as { user: { id: string } }
+  const on = await post('/api/auth/two-factor/enable', {}, { cookie }) // just signed in: no password to ask for
+  assert.equal(on.status, 200)
+  const secret = new URL(((await on.json()) as { totpURI: string }).totpURI).searchParams.get('secret')!
+  const turnedOn = await post('/api/auth/two-factor/verify-totp', { code: totp(secret) }, { cookie })
+  assert.equal(turnedOn.status, 200)
+  const now = /session_token=[^;]/.test(cookies(turnedOn)) ? cookies(turnedOn) : cookie // turning it on may renew the session
+
+  await pool.query(`UPDATE session SET "createdAt" = now() - interval '11 minutes' WHERE "userId" = $1`, [user.id])
+  const stale = await post('/api/auth/two-factor/disable', {}, { cookie: now })
+  assert.equal(stale.status, 403)
+  assert.equal(((await stale.json()) as { code: string }).code, 'SESSION_NOT_FRESH')
+  const keyTooLate = await call('/api/auth/passkey/generate-register-options', { cookie: now }) // the same rule, for a passkey
+  assert.equal(((await keyTooLate.json()) as { code: string }).code, 'SESSION_NOT_FRESH')
 })
 
 test('the web build is served, and nothing outside it', async () => {

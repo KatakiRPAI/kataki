@@ -50,7 +50,7 @@ function Delete({ onClose }: { onClose: () => void }) {
           <K.Button key="k" variant="ghost" onClick={onClose}>{t('lv.keep')}</K.Button>,
           <K.Button key="d" variant="danger" disabled={!ok} loading={busy} onClick={go}>{t('lv.deleteGo')}</K.Button>,
         ]}>
-        {stale ? <K.Callout tone="warm" title={t('lv.staleTitle')}>{t('lv.stale')}</K.Callout> : (
+        {stale ? <K.Callout tone="warm" title={t('lv.staleTitle')}>{t('am.fresh')}</K.Callout> : (
           <>
             <K.Callout tone="bad" title={t('lv.what')}>{t('lv.whatBody')}</K.Callout>
             <K.TextField label={t('lv.type', { phrase: t('lv.phrase') })} value={typed} onChange={setTyped} />
