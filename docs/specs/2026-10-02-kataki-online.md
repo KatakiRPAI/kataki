@@ -89,7 +89,14 @@ The owner chose Better Auth on 2026-10-02, so the gateway is a small TypeScript 
       credit − usage − charges). With no credit left, an upload past the limit is refused
       (402) and says why; inside the limit it is always free; nothing is deleted and downloads
       always work. The numbers are defaults in `docs/decisions.md`.
-- [ ] G7 · Top-ups (the owner's payment processor, test mode).
+- [ ] G7 · Top-ups (the owner's payment processor, test mode). Built (2026-10-03): Settings ›
+      Account › Add credit opens a checkout for $5, $10, $20 or $50 (`checkout` table,
+      migration 004), sends the person to the processor's page, and says how it went when they
+      come back (paid, cancelled, still going through). Paying grants the credit once
+      (`credit.ref = topup:<id>`). The processor is the `test` one (`KATAKI_PAYMENTS=test`, our
+      own page, no money) until the owner chooses a real one: then a webhook route that calls
+      `settle`. Not done: the real processor (**[owner]**), the balance chip (T1), usage (T5),
+      a spending cap (T7).
 - [ ] G8 · The image, staging and production (infrastructure Phase 6). Built (2026-10-03):
       `gateway/Dockerfile` (the gateway with the web build inside) and `compose.online.yaml`
       (Postgres, the gateway, and the engine in the gateway's network namespace so it still

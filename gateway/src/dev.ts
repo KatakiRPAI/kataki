@@ -25,6 +25,7 @@ const dev: Record<string, string> = {
   KATAKI_STARTER_CREDIT: '1',
   KATAKI_CLOUD_DIR: fileURLToPath(new URL('../../.dev/gateway-cloud', import.meta.url)),
   KATAKI_PWNED: '0',
+  KATAKI_PAYMENTS: 'test',
 }
 for (const [k, v] of Object.entries(dev)) process.env[k] ??= v
 await start()

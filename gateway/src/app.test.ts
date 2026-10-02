@@ -84,7 +84,7 @@ before(async () => {
   await migrateAuth(auth)
   await migrate(pool)
   await migrate(pool) // again: nothing to do, nothing breaks
-  handler = createGateway({ auth, pool, origin, engine: `http://127.0.0.1:${enginePort}`, secret: SECRET, key: KEY, prices: PRICES, web, starter: 1_000_000n, social: Object.keys(social), send, cloud })
+  handler = createGateway({ auth, pool, origin, engine: `http://127.0.0.1:${enginePort}`, secret: SECRET, key: KEY, prices: PRICES, web, starter: 1_000_000n, social: Object.keys(social), send, cloud, payments: { processor: 'test' } })
   leaving = { auth, pool, origin, engine: `http://127.0.0.1:${enginePort}`, secret: SECRET, send, cloud }
 })
 
@@ -244,7 +244,7 @@ test('a sign-in link: only for an account, used by a button and only once', asyn
 })
 
 test('another service is offered only when both its keys are set', async () => {
-  assert.deepEqual(await (await call('/api/providers')).json(), { social: ['github'] })
+  assert.deepEqual(((await (await call('/api/providers')).json()) as { social: string[] }).social, ['github'])
   const go = await post('/api/auth/sign-in/social', { provider: 'github', callbackURL: '/app/' })
   assert.equal(go.status, 200)
   const { url } = (await go.json()) as { url: string }
@@ -638,6 +638,32 @@ test('cloud save past the free limit: kept while there is credit, charged once a
   assert.deepEqual(((await refused.json()) as { over: string[] }).over, ['stories'])
   assert.equal((await put(device, 'small again', `base=2&holds=${small}`)).status, 200) // inside the limit it is free
   assert.equal((await call('/api/cloud/download', { headers: device })).status, 200)
+})
+
+test('adding credit: a checkout for a set amount, paid once at the processor, and back to see how it went', async () => {
+  const { cookie, id } = await account('payer@example.com')
+  assert.deepEqual(((await (await call('/api/providers')).json()) as { payments: unknown }).payments, { amounts: [5, 10, 20, 50] })
+  assert.equal((await post('/api/topup', { dollars: 7 }, { cookie })).status, 400) // only the set amounts
+  assert.equal((await post('/api/topup', { dollars: 10 })).status, 401) // an account's own
+  const before = await balance(pool, id)
+
+  const opened = (await (await post('/api/topup', { dollars: 10 }, { cookie })).json()) as { id: string; url: string }
+  assert.equal(opened.url, `${origin}/test-checkout/${opened.id}`)
+  assert.match(await (await call(`/test-checkout/${opened.id}`)).text(), /Pay \$10 \(test\)/)
+  const paid = await call(`/test-checkout/${opened.id}/pay`, { method: 'POST' })
+  assert.equal(paid.status, 303)
+  assert.equal(paid.headers.get('location'), `/app/settings/account?topup=${opened.id}`)
+  await call(`/test-checkout/${opened.id}/pay`, { method: 'POST' }) // told twice: paid once
+  assert.equal(await balance(pool, id), before + 10_000_000n)
+  assert.deepEqual(await (await call(`/api/topup/${opened.id}`, { cookie })).json(), { id: opened.id, dollars: 10, status: 'paid' })
+  const other = await account('notthepayer@example.com')
+  assert.equal((await call(`/api/topup/${opened.id}`, { cookie: other.cookie })).status, 404) // not theirs
+
+  const dropped = (await (await post('/api/topup', { dollars: 5 }, { cookie })).json()) as { id: string }
+  await call(`/test-checkout/${dropped.id}/cancel`, { method: 'POST' })
+  await call(`/test-checkout/${dropped.id}/pay`, { method: 'POST' }) // too late: it was cancelled
+  assert.equal(((await (await call(`/api/topup/${dropped.id}`, { cookie })).json()) as { status: string }).status, 'cancelled')
+  assert.equal(await balance(pool, id), before + 10_000_000n)
 })
 
 test('the web build is served, and nothing outside it', async () => {
