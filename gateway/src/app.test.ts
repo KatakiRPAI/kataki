@@ -110,6 +110,8 @@ test('signing up with a known address answers like a new one', async () => {
   const again = await post('/api/auth/sign-up/email', { name: 'Someone else', email: 'known@example.com', password: PASSWORD, adult: true })
   assert.equal(again.status, 200)
   assert.equal(((await again.json()) as { token: unknown }).token, null)
+  assert.equal(mails.at(-1)!.to, 'known@example.com') // and the owner of the address hears of it
+  assert.match(mails.at(-1)!.text, /already have one/)
 })
 
 test('a short password is refused', async () => {
@@ -175,6 +177,45 @@ test('the ledger: starting credit once, a call billed once, and the gate', async
   assert.equal(await allowed(0), false) // and the next is refused
   const me = (await (await call('/api/me', { cookie })).json()) as { balance: number }
   assert.equal(me.balance, 1_000_000 - 240 - 1_200_000)
+})
+
+test('a forgotten password: a mailed link, a new password, every device signed out, and a notice', async () => {
+  const email = 'forgetful@example.com'
+  const { cookie } = await account(email)
+  const before = mails.length
+  assert.equal((await post('/api/auth/request-password-reset', { email: 'nobody@example.com', redirectTo: '/app/' })).status, 200)
+  assert.equal(mails.length, before) // the same answer, and no mail to someone who is not here
+  assert.equal((await post('/api/auth/request-password-reset', { email, redirectTo: '/app/' })).status, 200)
+  const link = mails.at(-1)!.text.match(/http\S+/)![0]
+  const opened = await call(link.slice(origin.length)) // opening it uses nothing up
+  const token = new URL(opened.headers.get('location')!, origin).searchParams.get('token')!
+  assert.ok(token)
+  assert.equal((await post('/api/auth/reset-password', { newPassword: 'too short', token })).status, 400)
+  assert.equal((await post('/api/auth/reset-password', { newPassword: 'a brand new pass phrase', token })).status, 200)
+  assert.match(mails.at(-1)!.text, /was just changed/)
+  assert.equal((await post('/api/auth/reset-password', { newPassword: 'and another pass phrase', token })).status, 400) // once
+  assert.equal((await post('/api/auth/sign-in/email', { email, password: PASSWORD })).status, 401)
+  assert.equal((await post('/api/auth/sign-in/email', { email, password: 'a brand new pass phrase' })).status, 200)
+  assert.equal((await call('/stories', { cookie })).status, 401) // the old session is gone
+})
+
+test('a sign-in link: only for an account, used by a button and only once', async () => {
+  const email = 'linker@example.com'
+  await account(email)
+  const before = mails.length
+  assert.equal((await post('/api/auth/sign-in/magic-link', { email: 'nobody@example.com', callbackURL: '/app/' })).status, 200)
+  assert.equal(mails.length, before)
+  assert.equal((await post('/api/auth/sign-in/magic-link', { email, callbackURL: '/app/' })).status, 200)
+  const page = new URL(mails.at(-1)!.text.match(/http\S+/)![0])
+  assert.equal(page.pathname, '/app/') // our page, not the request that uses the token up
+  const token = page.searchParams.get('magic')!
+  assert.match(await (await call(page.pathname + page.search)).text(), /Kataki/) // a scanner opening it burns nothing
+  const used = await call(`/api/auth/magic-link/verify?token=${token}&callbackURL=%2Fapp%2F`)
+  assert.equal(used.status, 302)
+  const cookie = used.headers.get('set-cookie')!.split(';')[0]
+  assert.equal((await call('/stories', { cookie })).status, 200)
+  const again = await call(`/api/auth/magic-link/verify?token=${token}&callbackURL=%2Fapp%2F`)
+  assert.equal(again.headers.get('set-cookie'), null)
 })
 
 test('the web build is served, and nothing outside it', async () => {
