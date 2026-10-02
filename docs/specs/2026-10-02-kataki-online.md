@@ -83,6 +83,12 @@ The owner chose Better Auth on 2026-10-02, so the gateway is a small TypeScript 
       charge for storage: **[owner]** the numbers); object storage instead of the gateway's
       disk (G8); the desktop's address for Kataki online is `KATAKI_ONLINE` until there is a
       domain; uploads are read into memory.
+- [x] C2 · Cloud limits (2026-10-03): free up to 5 stories, 10 characters, 10 places and 10
+      plots (the snapshot's own counts); a library past any of them is kept for $0.10 per GB
+      a month, charged once a day from the balance (`charge` table, migration 003; balance is
+      credit − usage − charges). With no credit left, an upload past the limit is refused
+      (402) and says why; inside the limit it is always free; nothing is deleted and downloads
+      always work. The numbers are defaults in `docs/decisions.md`.
 - [ ] G7 · Top-ups (the owner's payment processor, test mode).
 - [ ] G8 · The image, staging and production (infrastructure Phase 6).
 
@@ -224,9 +230,8 @@ library's own `.kataki`, never a live sync (research §5).
   the person brings it down, or uploads again with `force`. The newest five are kept.
 - **Down:** the snapshot is checked to be a library, written beside the backups, and swapped in
   at the next start by the backup-restore path, which keeps what was there.
-- **Limits:** a byte ceiling (`KATAKI_CLOUD_MAX_BYTES`, 250 MB by default) now. C2 adds the
-  free limit by counts (the snapshot's `holds`: stories, characters, places, plots) and the
-  charge for storage past it.
+- **Limits:** a byte ceiling per snapshot (`KATAKI_CLOUD_MAX_BYTES`, 250 MB by default), and the
+  free limit by counts (the snapshot's `holds`) with the storage charge past it (C2 above).
 - **An account that is deleted** takes its snapshots and linked computers with it.
 
 ## 7. Rules

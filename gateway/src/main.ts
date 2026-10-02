@@ -3,6 +3,7 @@ import { createServer } from 'node:http'
 import { DatabaseSync } from 'node:sqlite'
 import pg from 'pg'
 import { sweep } from './account.ts'
+import { chargeStorage } from './cloud.ts'
 import { createGateway } from './app.ts'
 import { makeAuth, migrateAuth, socialFrom, type Send } from './auth.ts'
 import { mailer } from './mail.ts'
@@ -53,8 +54,11 @@ export async function start(send: Send = mailer(process.env)) {
   await new Promise<void>((done) => server.listen(port, process.env.KATAKI_BIND ?? '127.0.0.1', done))
   // accounts whose day has come are removed now and every hour
   const leaving = () => sweep({ auth, pool, origin, engine, secret: signing, send, cloud }).catch((e) => console.error('gateway: sweep failed:', e instanceof Error ? e.message : e))
+  // and cloud storage past the free limit is charged, once a day per account (an hourly try is a no-op after the first)
+  const charging = () => cloud && chargeStorage({ pool, origin, ...cloud }).catch((e) => console.error('gateway: storage charge failed:', e instanceof Error ? e.message : e))
   void leaving()
-  setInterval(leaving, 3_600_000).unref()
+  void charging()
+  setInterval(() => { void leaving(); void charging() }, 3_600_000).unref()
   console.log(`gateway: ${origin} (listening on ${port}); sign in with: password${Object.keys(social).map((p) => `, ${p}`).join('')}`)
   return { server, pool }
 }

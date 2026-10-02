@@ -12,7 +12,7 @@ import { fromNodeHeaders, toNodeHandler } from 'better-auth/node'
 import type { Pool } from 'pg'
 import { askToDelete, exportOf, FORGET, keep, removeBackupEmail, setBackupEmail, verifyBackupEmail } from './account.ts'
 import type { Auth, Send } from './auth.ts'
-import { approveLink, deviceOf, devices, download, KEPT, linkName, newest, pollLink, startLink, unlink, upload, type CloudConfig } from './cloud.ts'
+import { approveLink, deviceOf, devices, download, KEPT, LIMITS, linkName, newest, over, pollLink, startLink, unlink, upload, type CloudConfig } from './cloud.ts'
 import { allow, balance, bill, grant } from './ledger.ts'
 import type { Prices } from './money.ts'
 import { signed, USER } from './sign.ts'
@@ -29,7 +29,7 @@ export type GatewayConfig = {
   starter?: bigint // micro-dollars given once to a new account
   social?: string[] // the services an account can sign in with (auth.ts › Social)
   send: Send // mail (auth.ts)
-  cloud?: { dir: string; maxBytes: number } // where snapshots from the desktop are kept (cloud.ts); absent: no cloud save
+  cloud?: { dir: string; maxBytes: number; limits?: CloudConfig['limits'] } // where snapshots from the desktop are kept (cloud.ts); absent: no cloud save
 }
 
 const TYPES: Record<string, string> = {
@@ -129,13 +129,15 @@ export function createGateway(c: GatewayConfig): RequestListener {
         if (!device) return json(res, 401, { detail: 'This computer is not linked to an account.', code: 'UNLINKED' })
         if (path === '/api/cloud' && req.method === 'GET') {
           const owner = (await c.pool.query('SELECT name, "deleteAt" FROM "user" WHERE id = $1', [device.user])).rows[0]
-          return json(res, 200, { account: owner?.name ?? '', device: device.name, snapshot: await newest(cloud, device.user), maxBytes: cloud.maxBytes, kept: KEPT })
+          const snapshot = await newest(cloud, device.user)
+          const limits = cloud.limits ?? LIMITS
+          return json(res, 200, { account: owner?.name ?? '', device: device.name, snapshot, maxBytes: cloud.maxBytes, kept: KEPT, free: limits.free, pricePerGbMonth: limits.microsPerGbMonth / 1e6, over: snapshot ? over(limits, snapshot.holds) : [], balance: Number(await balance(c.pool, device.user)) })
         }
         if (path === '/api/cloud' && req.method === 'PUT') {
           let holds: unknown = null
           try { holds = JSON.parse(url.searchParams.get('holds') ?? 'null') } catch { /* it says nothing about itself */ }
           const got = await upload(cloud, device, req, Number(url.searchParams.get('base') ?? 0), url.searchParams.get('force') === '1', holds)
-          return json(res, got.status, { snapshot: got.snapshot, ...(got.status === 409 ? { code: 'NEWER' } : got.status === 413 ? { code: 'TOO_BIG', maxBytes: cloud.maxBytes } : {}) })
+          return json(res, got.status, { snapshot: got.snapshot, ...(got.status === 409 ? { code: 'NEWER' } : got.status === 413 ? { code: 'TOO_BIG', maxBytes: cloud.maxBytes } : got.status === 402 ? { code: 'NEEDS_CREDIT', over: got.over, free: (cloud.limits ?? LIMITS).free } : {}) })
         }
         if (path === '/api/cloud/download' && req.method === 'GET') return (await download(cloud, device.user, res)) ? undefined : json(res, 404, { detail: 'Nothing has been saved to the cloud yet.' })
         if (path === '/api/cloud/device' && req.method === 'DELETE') { await unlink(cloud, device.user, device.id); return json(res, 200, { ok: true }) }

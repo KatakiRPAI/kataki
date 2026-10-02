@@ -142,7 +142,8 @@ class Cloud:
 
     async def upload(self, force: bool = False) -> dict:
         """Send this library. `{"snapshot"}` when it went; `{"conflict": snapshot}` when the
-        cloud holds something this library was not built on; `{"too_big": bytes}` past the limit."""
+        cloud holds something this library was not built on; `{"too_big": bytes}` past the size
+        limit; `{"needs_credit": {over, free}}` past the free limit with no credit left."""
         with tempfile.TemporaryDirectory(prefix="kataki-") as tmp:
             made = Path(tmp) / "library.kataki"
             archive.dump(self.conn, made)
@@ -159,6 +160,9 @@ class Cloud:
             return {"conflict": r.json()["snapshot"]}
         if r.status_code == 413:
             return {"too_big": r.json().get("maxBytes")}
+        if r.status_code == 402:  # past the free limit, with no credit to keep it
+            said = r.json()
+            return {"needs_credit": {"over": said.get("over", []), "free": said.get("free", {})}}
         r.raise_for_status()
         snapshot = r.json()["snapshot"]
         self._in_step_with(snapshot["revision"])

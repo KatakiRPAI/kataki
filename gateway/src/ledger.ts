@@ -6,7 +6,7 @@ import { USER } from './sign.ts'
 
 export async function balance(pool: Pool, user: string): Promise<bigint> {
   const { rows } = await pool.query(
-    'SELECT (SELECT coalesce(sum(micros), 0) FROM credit WHERE user_id = $1) - (SELECT coalesce(sum(micros), 0) FROM usage WHERE user_id = $1) AS micros',
+    'SELECT (SELECT coalesce(sum(micros), 0) FROM credit WHERE user_id = $1) - (SELECT coalesce(sum(micros), 0) FROM usage WHERE user_id = $1) - (SELECT coalesce(sum(micros), 0) FROM charge WHERE user_id = $1) AS micros',
     [user],
   )
   return BigInt(rows[0].micros)

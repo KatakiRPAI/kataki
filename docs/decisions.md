@@ -12,9 +12,10 @@ Legend: **[you]** you decided it · **[default]** an agent picked it, you have n
    `RESEND_API_KEY=` and `KATAKI_MAIL_FROM="Kataki <hello@your-domain>"` in the gateway's
    environment. Why Resend: one HTTP call, no SMTP, a free tier for a start. Any other provider
    is one small function in `gateway/src/mail.ts`.
-2. **Cloud save limits** [default, not built yet]: free up to 10 characters, 10 places, 10
-   plots and 5 stories, and 250 MB; past that, storage charged to the credit balance. The
-   numbers are placeholders until you set them.
+2. **Cloud save limits** [default, built]: free up to 5 stories, 10 characters, 10 places and
+   10 plots; past that $0.10 per GB a month, taken from the credit balance once a day; 250 MB
+   at most per snapshot. With no credit, a library past the limit is not saved (nothing is
+   deleted). Change the numbers in `gateway/src/cloud.ts` (`LIMITS`).
 3. **Apple sign-in**: needs the Apple Developer Program ($99/year). Not built until you join.
 4. **Google and Discord sign-in**: built; each needs its keys in `.env` (same steps as GitHub).
 5. **Payments (top-ups)**: needs a payment processor that accepts this kind of app. Not built.
@@ -56,6 +57,8 @@ Legend: **[you]** you decided it · **[default]** an agent picked it, you have n
 | 2026-10-02 | The newest 5 snapshots are kept [default] | room to go back without paying for much storage |
 | 2026-10-02 | If the cloud copy changed since this computer last saw it, ask before replacing [default] | never silently overwrite another computer's work |
 | 2026-10-02 | Snapshots are kept on the gateway's disk for now [default] | object storage comes with going online |
+| 2026-10-03 | Limits counted from what the library holds, charged by the bytes kept [default] | counts are easy to understand; bytes are what costs money |
+| 2026-10-03 | Out of credit: saving past the limit stops; nothing is deleted, downloads always work [default] | never lose someone's library over money |
 
 ## Profiles and badges
 
