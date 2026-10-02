@@ -37,6 +37,14 @@ export function socialFrom(env: Record<string, string | undefined>): Social {
 
 const DAY = 86_400
 
+type Owner = { email: string; backupEmail?: string | null; backupEmailVerified?: boolean | null }
+/** Tell an account's owner something happened to it: at its email, and at its backup email
+ *  once that is confirmed. The backup address only ever hears; it cannot sign in or reset. */
+export function notify(send: Send, owner: Owner, subject: string, text: string): void {
+  void send(owner.email, subject, text)
+  if (owner.backupEmail && owner.backupEmailVerified) void send(owner.backupEmail, subject, `${text}\n\n(You get this because this address is the backup email of a Kataki account.)`)
+}
+
 /** Two-step sign-in (spec §2, G4): an authenticator app's code, with ten backup codes.
  *
  *  The library asks for the second step only after a password. A sign-in link or another
@@ -84,7 +92,7 @@ export function makeAuth({ pool, origin, secret, send, pwned = true, social = {}
       },
       // every change to how an account is entered is told to its owner
       onPasswordReset: async ({ user }) => {
-        void send(user.email, 'Your Kataki password was changed', `The password for your Kataki account was just changed, and every device was signed out.\n\nIf this was not you, reset it now at ${origin}/app/ and check who else can read this mailbox.`)
+        notify(send, user, 'Your Kataki password was changed', `The password for your Kataki account was just changed, and every device was signed out.\n\nIf this was not you, reset it now at ${origin}/app/ and check who else can read this mailbox.`)
       },
       // sign-up answers a known address like a new one; this is how its owner hears of it
       onExistingUserSignUp: async ({ user }) => {
@@ -105,13 +113,15 @@ export function makeAuth({ pool, origin, secret, send, pwned = true, social = {}
       additionalFields: {
         adult: { type: 'boolean', required: false, input: true },
         deleteAt: { type: 'date', required: false, input: false }, // the day a leaving account goes (account.ts)
+        backupEmail: { type: 'string', required: false, input: false }, // a second address that hears of changes (account.ts)
+        backupEmailVerified: { type: 'boolean', required: false, input: false },
       },
       // a new address is asked for from a signed-in account, approved from the old address,
       // then confirmed from the new one: neither a stolen session nor a typo moves the account
       changeEmail: {
         enabled: true,
         sendChangeEmailConfirmation: async ({ user, newEmail, url }) => {
-          void send(user.email, 'Approve changing your Kataki email', `Your Kataki account was asked to change its email to ${newEmail}.\n\nIf that was you, open this link to approve it:\n\n${url}\n\nIf it was not you, do not open it, and change your password at ${origin}/app/.`)
+          notify(send, user, 'Approve changing your Kataki email', `Your Kataki account was asked to change its email to ${newEmail}.\n\nIf that was you, open this link to approve it:\n\n${url}\n\nIf it was not you, do not open it, and change your password at ${origin}/app/.`)
         },
       },
     },
@@ -119,8 +129,9 @@ export function makeAuth({ pool, origin, secret, send, pwned = true, social = {}
       // a changed password is told to the account's owner, as a reset is
       after: createAuthMiddleware(async (ctx) => {
         const who = ctx.context.session?.user
-        if (ctx.path !== '/change-password' || !who || isAPIError(ctx.context.returned)) return
-        void send(who.email, 'Your Kataki password was changed', `The password for your Kataki account was just changed.\n\nIf this was not you, reset it now at ${origin}/app/ and check who else can read this mailbox.`)
+        if (!who || isAPIError(ctx.context.returned)) return
+        if (ctx.path === '/change-password') notify(send, who, 'Your Kataki password was changed', `The password for your Kataki account was just changed.\n\nIf this was not you, reset it now at ${origin}/app/ and check who else can read this mailbox.`)
+        if (ctx.path === '/two-factor/disable') notify(send, who, 'Two-step sign-in was turned off', `Two-step sign-in for your Kataki account was just turned off.\n\nIf this was not you, change your password at ${origin}/app/ and turn it back on.`)
       }),
     },
     databaseHooks: {

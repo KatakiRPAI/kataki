@@ -441,6 +441,42 @@ test('an account can take what the gateway holds about it', async () => {
   assert.equal(JSON.stringify(got).includes('password'), false) // never the hash
 })
 
+test('a backup email hears of changes once it has confirmed itself, and can do nothing else', async () => {
+  const email = 'primary@example.com'
+  const backup = 'backup@example.com'
+  const { cookie } = await account(email)
+  assert.equal((await post('/api/account/backup-email', { email }, { cookie })).status, 422) // not the same address
+  assert.equal((await post('/api/account/backup-email', { email: 'not an address' }, { cookie })).status, 422)
+  assert.equal((await post('/api/account/backup-email', { email: backup }, { cookie })).status, 200)
+  const link = mails.at(-1)!
+  assert.equal(link.to, backup)
+
+  // silent until confirmed
+  let before = mails.length
+  await post('/api/auth/change-password', { currentPassword: PASSWORD, newPassword: 'the second pass phrase', revokeOtherSessions: false }, { cookie })
+  assert.deepEqual(mails.slice(before).map((m) => m.to), [email])
+
+  assert.equal((await call('/api/account/backup-email/verify?token=wrong')).headers.get('location'), '/app/?error=INVALID_TOKEN')
+  const opened = await call(link.text.match(/http\S+/)![0].slice(origin.length)) // from any browser
+  assert.equal(opened.headers.get('location'), '/app/settings/account')
+  assert.equal((await call(link.text.match(/http\S+/)![0].slice(origin.length))).headers.get('location'), '/app/?error=INVALID_TOKEN') // once
+  const me = (await (await call('/api/me', { cookie })).json()) as { backupEmail: string; backupEmailVerified: boolean }
+  assert.deepEqual([me.backupEmail, me.backupEmailVerified], [backup, true])
+
+  before = mails.length
+  await post('/api/auth/change-password', { currentPassword: 'the second pass phrase', newPassword: 'the third pass phrase!', revokeOtherSessions: false }, { cookie })
+  assert.deepEqual(mails.slice(before).map((m) => m.to).sort(), [backup, email])
+
+  // it hears; it cannot get in
+  before = mails.length
+  await post('/api/auth/request-password-reset', { email: backup, redirectTo: '/app/' })
+  await post('/api/auth/sign-in/magic-link', { email: backup, callbackURL: '/app/' })
+  assert.equal(mails.length, before)
+
+  assert.equal((await call('/api/account/backup-email', { method: 'DELETE', cookie, headers: { origin } })).status, 200)
+  assert.equal(((await (await call('/api/me', { cookie })).json()) as { backupEmail: string | null }).backupEmail, null)
+})
+
 test('the web build is served, and nothing outside it', async () => {
   assert.equal((await call('/')).headers.get('location'), '/app/')
   assert.match(await (await call('/app/')).text(), /Kataki/)

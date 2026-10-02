@@ -4,9 +4,10 @@
 // later; signing in before then and saying "keep it" undoes it. When the day comes the engine
 // forgets the library first (it refuses while usage is unbilled), then the account goes. The
 // ledger's rows stay: they are payment records, and hold only an id that no longer names anyone.
+import { createHash, randomBytes } from 'node:crypto'
 import { request } from 'node:http'
 import type { Pool } from 'pg'
-import type { Auth, Send } from './auth.ts'
+import { notify, type Auth, type Send } from './auth.ts'
 import { balance } from './ledger.ts'
 import { signed } from './sign.ts'
 
@@ -14,7 +15,7 @@ export const GRACE_DAYS = 14
 export const FORGET = '/_gateway/forget' // the engine's route for this; never proxied for a browser
 
 export type AccountConfig = { auth: Auth; pool: Pool; origin: string; engine: string; secret: string; send: Send }
-type Who = { id: string; name: string; email: string }
+type Who = { id: string; name: string; email: string; backupEmail?: string | null; backupEmailVerified?: boolean | null }
 
 const day = (d: Date) => d.toISOString().slice(0, 10)
 
@@ -23,7 +24,7 @@ export async function askToDelete(c: AccountConfig, who: Who, now = new Date()):
   const at = new Date(now.getTime() + GRACE_DAYS * 86_400_000)
   await c.pool.query('UPDATE "user" SET "deleteAt" = $1 WHERE id = $2', [at, who.id])
   await (await c.auth.$context).internalAdapter.deleteUserSessions(who.id)
-  void c.send(who.email, 'Your Kataki account is set to be deleted', `Your Kataki account, with its stories, characters and pictures, will be deleted on ${day(at)}.\n\nChanged your mind? Sign in at ${c.origin}/app/ before then and choose "Keep my account".\n\nIf you did not ask for this, sign in now, keep the account, and change your password.`)
+  notify(c.send, who, 'Your Kataki account is set to be deleted', `Your Kataki account, with its stories, characters and pictures, will be deleted on ${day(at)}.\n\nChanged your mind? Sign in at ${c.origin}/app/ before then and choose "Keep my account".\n\nIf you did not ask for this, sign in now, keep the account, and change your password.`)
   return at
 }
 
@@ -32,11 +33,41 @@ export async function keep(c: AccountConfig, who: Who): Promise<void> {
   void c.send(who.email, 'Your Kataki account is staying', 'Your Kataki account is no longer set to be deleted. Nothing was removed.')
 }
 
+const sealed = (token: string) => `backup-email:${createHash('sha256').update(token).digest('hex')}`
+
+/** A backup email: a second address that hears of every change to the account. It is asked to
+ *  confirm itself by a mailed link and is silent until it has. False: not an address we can use. */
+export async function setBackupEmail(c: AccountConfig, who: Who, email: unknown): Promise<boolean> {
+  if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 || email.toLowerCase() === who.email.toLowerCase()) return false
+  const token = randomBytes(32).toString('hex')
+  await c.pool.query('UPDATE "user" SET "backupEmail" = $1, "backupEmailVerified" = false WHERE id = $2', [email, who.id])
+  await (await c.auth.$context).internalAdapter.createVerificationValue({ identifier: sealed(token), value: JSON.stringify({ user: who.id, email }), expiresAt: new Date(Date.now() + 3_600_000) })
+  void c.send(email, 'Confirm this backup email for Kataki', `A Kataki account (${who.email}) wants to use this address as its backup email. It would get a copy of the notices about changes to that account, and nothing else.\n\nIf that is right, open this link within the hour:\n\n${c.origin}/api/account/backup-email/verify?token=${token}\n\nIf not, ignore this: nothing will be sent here.`)
+  return true
+}
+
+/** The mailed link was opened. True when the address is now confirmed. */
+export async function verifyBackupEmail(c: AccountConfig, token: string): Promise<boolean> {
+  const { internalAdapter } = await c.auth.$context
+  const found = await internalAdapter.findVerificationValue(sealed(token))
+  if (!found || found.expiresAt < new Date()) return false
+  const { user, email } = JSON.parse(found.value) as { user: string; email: string }
+  await internalAdapter.deleteVerificationByIdentifier(sealed(token))
+  // only if it is still the address the account asked for
+  const done = await c.pool.query('UPDATE "user" SET "backupEmailVerified" = true WHERE id = $1 AND "backupEmail" = $2', [user, email])
+  return done.rowCount === 1
+}
+
+export async function removeBackupEmail(c: AccountConfig, who: Who): Promise<void> {
+  await c.pool.query('UPDATE "user" SET "backupEmail" = NULL, "backupEmailVerified" = false WHERE id = $1', [who.id])
+  notify(c.send, who, 'Your Kataki backup email was removed', `The backup email of your Kataki account was just removed.\n\nIf this was not you, change your password at ${c.origin}/app/.`)
+}
+
 /** Everything the gateway holds about an account, for the person it is about. The library has
  *  its own export (Settings › Data). */
 export async function exportOf(c: AccountConfig, who: Who): Promise<object> {
   const rows = async (sql: string) => (await c.pool.query(sql, [who.id])).rows
-  const [user] = await rows('SELECT id, name, email, "emailVerified", "createdAt", adult, "twoFactorEnabled", "deleteAt" FROM "user" WHERE id = $1')
+  const [user] = await rows('SELECT id, name, email, "emailVerified", "createdAt", adult, "twoFactorEnabled", "deleteAt", "backupEmail", "backupEmailVerified" FROM "user" WHERE id = $1')
   return {
     exported: new Date().toISOString(),
     account: user,

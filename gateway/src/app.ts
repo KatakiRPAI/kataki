@@ -10,7 +10,7 @@ import { request, type IncomingMessage, type RequestListener, type ServerRespons
 import { extname, join, normalize, sep } from 'node:path'
 import { fromNodeHeaders, toNodeHandler } from 'better-auth/node'
 import type { Pool } from 'pg'
-import { askToDelete, exportOf, FORGET, keep } from './account.ts'
+import { askToDelete, exportOf, FORGET, keep, removeBackupEmail, setBackupEmail, verifyBackupEmail } from './account.ts'
 import type { Auth, Send } from './auth.ts'
 import { allow, balance, bill, grant } from './ledger.ts'
 import type { Prices } from './money.ts'
@@ -105,6 +105,11 @@ export function createGateway(c: GatewayConfig): RequestListener {
       if (path === '/') return void res.writeHead(302, { location: '/app/' }).end()
       // what the sign-in screen may offer; nothing secret
       if (path === '/api/providers') return json(res, 200, { social: c.social ?? [] })
+      // the link mailed to a backup address: opened wherever that mailbox is read, signed in or not
+      if (path === '/api/account/backup-email/verify' && req.method === 'GET') {
+        const ok = await verifyBackupEmail(c, url.searchParams.get('token') ?? '')
+        return void res.writeHead(302, { location: ok ? '/app/settings/account' : '/app/?error=INVALID_TOKEN' }).end()
+      }
       if (c.web && (path === '/app' || path.startsWith('/app/')) && (req.method === 'GET' || req.method === 'HEAD')) return serve(res, path === '/app' ? '/app/' : path)
 
       const session = await c.auth.api.getSession({ headers: fromNodeHeaders(req.headers) })
@@ -117,9 +122,17 @@ export function createGateway(c: GatewayConfig): RequestListener {
         await grant(c.pool, user, c.starter, 'starter', `starter:${user}`)
         granted.add(user)
       }
-      const who = { id: user, name: session.user.name, email: session.user.email }
+      const backupEmail = session.user.backupEmail ?? null
+      const backupEmailVerified = !!session.user.backupEmailVerified
+      const who = { id: user, name: session.user.name, email: session.user.email, backupEmail, backupEmailVerified }
       const deleteAt = session.user.deleteAt ?? null
-      if (path === '/api/me') return json(res, 200, { user: who, balance: Number(await balance(c.pool, user)), deleteAt })
+      if (path === '/api/me') return json(res, 200, { user: { id: user, name: who.name, email: who.email }, balance: Number(await balance(c.pool, user)), deleteAt, backupEmail, backupEmailVerified })
+      if (path === '/api/account/backup-email' && req.method === 'POST') {
+        let said: unknown
+        try { said = await body(req) } catch { said = null }
+        return (await setBackupEmail(c, who, (said as { email?: unknown } | null)?.email)) ? json(res, 200, { ok: true }) : json(res, 422, { detail: 'That address cannot be the backup email.' })
+      }
+      if (path === '/api/account/backup-email' && req.method === 'DELETE') { await removeBackupEmail(c, who); return json(res, 200, { ok: true }) }
       if (path === '/api/account/export' && req.method === 'GET') {
         res.writeHead(200, { 'content-type': 'application/json', 'content-disposition': 'attachment; filename="kataki-account.json"', 'cache-control': 'no-store' })
         return void res.end(JSON.stringify(await exportOf(c, who), null, 2))

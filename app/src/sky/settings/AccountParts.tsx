@@ -1,6 +1,7 @@
 // Settings › Account, the parts about getting in (docs/specs/2026-10-02-kataki-online.md G5):
 // the email, the password, the other services linked, and every place the account is signed in.
 import { useState } from 'react'
+import { api } from '../../api'
 import { K } from '../../ds'
 import { useLoad } from '../../hooks'
 import { auth, thisSession, type AuthError, type Me } from '../../online/session'
@@ -13,13 +14,21 @@ type Linked = { providerId: string }
 export function SigningIn({ me }: { me: Me }) {
   const [linked, reload] = useLoad(() => auth<Linked[]>('/list-accounts', 'get'), [])
   const [offered] = useLoad(() => fetch('/api/providers').then((r) => r.json()).then((p: { social: string[] }) => p.social, () => [] as string[]), [])
-  const [changing, setChanging] = useState<'email' | 'password'>()
+  const [changing, setChanging] = useState<'email' | 'password' | 'backup'>()
+  const [mine, reloadMine] = useLoad(() => api<{ backupEmail: string | null; backupEmailVerified: boolean }>('/api/me'), [])
+  const dropBackup = () => api('/api/account/backup-email', 'DELETE').then(reloadMine, () => toast(t('am.e.other'), { icon: 'alert' }, 6000))
   const has = (provider: string) => !!linked?.some((a) => a.providerId === provider)
   const link = (provider: string) => auth<{ url: string }>('/link-social', { provider, callbackURL: location.href }).then((r) => location.assign(r.url), () => toast(t('am.e.other'), { icon: 'alert' }, 6000))
   const unlink = (providerId: string) => auth('/unlink-account', { providerId }).then(reload, () => toast(t('am.e.unlink'), { icon: 'alert' }, 8000))
   return (
     <K.SettingsSection title={t('am.title')}>
       <K.SettingsRow title={t('am.email')} description={me.email}><K.Button size="sm" onClick={() => setChanging('email')}>{t('am.change')}</K.Button></K.SettingsRow>
+      <K.SettingsRow title={t('am.backup')} description={mine?.backupEmail ? t(mine.backupEmailVerified ? 'am.backupOn' : 'am.backupWaiting', { email: mine.backupEmail }) : t('am.backupNone')}>
+        <div className="row" style={{ gap: 8 }}>
+          <K.Button size="sm" onClick={() => setChanging('backup')}>{t(mine?.backupEmail ? 'am.change' : 'am.add')}</K.Button>
+          {mine?.backupEmail && <K.Button size="sm" variant="ghost" onClick={dropBackup}>{t('ep.remove')}</K.Button>}
+        </div>
+      </K.SettingsRow>
       <K.SettingsRow title={t('am.password')} description={t(has('credential') ? 'am.passwordSet' : 'am.passwordNone')}>
         <K.Button size="sm" disabled={!has('credential')} onClick={() => setChanging('password')}>{t('am.change')}</K.Button>
       </K.SettingsRow>
@@ -33,24 +42,26 @@ export function SigningIn({ me }: { me: Me }) {
           ) : <K.Button size="sm" icon="link" onClick={() => link(p)}>{t('am.link')}</K.Button>}
         </K.SettingsRow>
       ))}
-      {changing && <Change what={changing} onClose={() => setChanging(undefined)} />}
+      {changing && <Change what={changing} onClose={() => { setChanging(undefined); reloadMine() }} />}
     </K.SettingsSection>
   )
 }
 
-function Change({ what, onClose }: { what: 'email' | 'password'; onClose: () => void }) {
+function Change({ what, onClose }: { what: 'email' | 'password' | 'backup'; onClose: () => void }) {
   const [first, setFirst] = useState('') // the new email, or the current password
   const [next, setNext] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const email = what === 'email'
+  const email = what !== 'password' // an address is asked for, not a password
+  const backup = what === 'backup'
   const go = async () => {
     setBusy(true)
     setError('')
     try {
-      if (email) await auth('/change-email', { newEmail: first.trim(), callbackURL: location.pathname })
+      if (backup) await api('/api/account/backup-email', 'POST', { email: first.trim() })
+      else if (email) await auth('/change-email', { newEmail: first.trim(), callbackURL: location.pathname })
       else await auth('/change-password', { currentPassword: first, newPassword: next, revokeOtherSessions: true })
-      toast(email ? t('am.emailSent', { email: first.trim() }) : t('am.passwordDone'), { icon: 'shield' }, 8000)
+      toast(backup ? t('am.backupSent', { email: first.trim() }) : email ? t('am.emailSent', { email: first.trim() }) : t('am.passwordDone'), { icon: 'shield' }, 8000)
       onClose()
     } catch (x) {
       const code = (x as AuthError).code
@@ -61,10 +72,10 @@ function Change({ what, onClose }: { what: 'email' | 'password'; onClose: () => 
   }
   return (
     <Overlay onClose={onClose}>
-      <K.Dialog size="sm" icon="key" title={t(email ? 'am.emailTitle' : 'am.passwordTitle')} description={t(email ? 'am.emailBody' : 'am.passwordBody')} onClose={onClose}
+      <K.Dialog size="sm" icon="key" title={t(backup ? 'am.backupTitle' : email ? 'am.emailTitle' : 'am.passwordTitle')} description={t(backup ? 'am.backupBody' : email ? 'am.emailBody' : 'am.passwordBody')} onClose={onClose}
         actions={[<K.Button key="c" variant="ghost" onClick={onClose}>{t('ep.cancel')}</K.Button>,
-          <K.Button key="g" variant="primary" loading={busy} disabled={email ? !first.includes('@') : !first || next.length < 12} onClick={go}>{t(email ? 'am.emailGo' : 'am.passwordGo')}</K.Button>]}>
-        {email ? <K.TextField label={t('am.newEmail')} type="email" value={first} onChange={setFirst} /> : (
+          <K.Button key="g" variant="primary" loading={busy} disabled={email ? !first.includes('@') : !first || next.length < 12} onClick={go}>{t(backup ? 'am.backupGo' : email ? 'am.emailGo' : 'am.passwordGo')}</K.Button>]}>
+        {email ? <K.TextField label={t(backup ? 'am.backup' : 'am.newEmail')} type="email" value={first} onChange={setFirst} /> : (
           <>
             <K.TextField label={t('am.current')} type="password" value={first} onChange={setFirst} />
             <K.TextField label={t('si.newPassword')} type="password" value={next} onChange={setNext} hint={t('si.passwordHint')} />
