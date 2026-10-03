@@ -132,6 +132,10 @@ The owner chose Better Auth on 2026-10-02, so the gateway is a small TypeScript 
       with Google, GitHub or Discord comes back to the page you were on (password and passkey
       already did), and the Scene keeps an unsent line per story in session storage, so a reload
       does not lose it; sending clears it.
+- [x] K · Settings that are the desktop's own are gone online (design brief 3, K; 2026-10-03):
+      General's updates, start with the computer and closing the window show only in the desktop
+      app; Data hides backups on disk and API keys online; About gains "Get the desktop app".
+      Not done: "last backed up" for the service's own backups, which do not exist yet (G8).
 
 G1–G6 are A1–A6 of the profiles spec.
 

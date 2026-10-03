@@ -99,12 +99,16 @@ function General() {
             <Switch k="general.editHistory" fallback label={t('g.history')} />
           </div>
         </K.SettingsRow>
-        <K.SettingsRow title={t('g.updates')} description={t('g.updatesSub')}><Choice k="general.updates" fallback="weekly" options={[['weekly', 'g.updates.weekly'], ['daily', 'g.updates.daily'], ['never', 'g.updates.never']]} /></K.SettingsRow>
-        <K.SettingsRow title={t('g.startup', { os: OS })} description={t('g.startupSub')}>
-          <K.Toggle label={t('g.startup', { os: OS })} on={!!prefs['general.startup']} disabled={!window.kataki?.startup}
-            onToggle={(v) => { setPref('general.startup', v); window.kataki?.startup?.(v) }} />
-        </K.SettingsRow>
-        <K.SettingsRow title={t('g.close')} description={t('g.closeSub')}><Choice k="general.closeAction" fallback="quit" options={[['quit', 'g.close.quit'], ['tray', 'g.close.tray']]} /></K.SettingsRow>
+        {window.kataki && ( // the desktop app's own: online and in a browser there is no app to update, start or close
+          <>
+            <K.SettingsRow title={t('g.updates')} description={t('g.updatesSub')}><Choice k="general.updates" fallback="weekly" options={[['weekly', 'g.updates.weekly'], ['daily', 'g.updates.daily'], ['never', 'g.updates.never']]} /></K.SettingsRow>
+            <K.SettingsRow title={t('g.startup', { os: OS })} description={t('g.startupSub')}>
+              <K.Toggle label={t('g.startup', { os: OS })} on={!!prefs['general.startup']} disabled={!window.kataki?.startup}
+                onToggle={(v) => { setPref('general.startup', v); window.kataki?.startup?.(v) }} />
+            </K.SettingsRow>
+            <K.SettingsRow title={t('g.close')} description={t('g.closeSub')}><Choice k="general.closeAction" fallback="quit" options={[['quit', 'g.close.quit'], ['tray', 'g.close.tray']]} /></K.SettingsRow>
+          </>
+        )}
         <K.SettingsRow title={t('g.usage')} description={t('g.usageSub')}><K.StatePill tone="muted" icon="shield">{t('g.notCollected')}</K.StatePill></K.SettingsRow>
       </K.SettingsSection>
       <K.SettingsSection title={t('g.stories')} note={t('g.storiesNote')}>
@@ -254,6 +258,11 @@ function About() {
           <K.Button size="sm" icon="refresh" disabled>{t('ab.check')}</K.Button>
         </K.ButtonGroup>
       </div>
+      {account() && ( // design brief 3: a small, friendly way to the free desktop app
+        <K.SettingsSection title={t('ab.desktop')}>
+          <K.SettingsRow title={t('ab.desktop')} description={t('ab.desktopSub')}><K.Button size="sm" icon="download" href="https://github.com/KatakiRPAI/kataki/releases">{t('ab.desktopGet')}</K.Button></K.SettingsRow>
+        </K.SettingsSection>
+      )}
       <K.SettingsSection title={t('ab.tell')} note={t('ab.tellNote')}>
         <K.SettingsRow title={t('ab.feedback')} description={t('ab.feedbackSub')}><K.Button size="sm" onClick={() => openFeedback('feedback')}>{t('ab.feedback')}</K.Button></K.SettingsRow>
         <K.SettingsRow title={t('ab.bug')} description={t('ab.bugSub')}><K.Button size="sm" onClick={() => openFeedback('bug')}>{t('ab.bug')}</K.Button></K.SettingsRow>
