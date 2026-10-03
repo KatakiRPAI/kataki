@@ -358,6 +358,25 @@ def test_spend_totals_by_role_and_by_day(local_model):
     assert days == [("2026-09-29", 1, 0.5), ("2026-09-30", 2, round(today, 9))]
 
 
+def test_spend_by_story_most_first_and_calls_outside_any_story_apart(local_model):
+    conn = local_model
+    story, other = a_story(conn), a_story(conn)
+    conn.execute("UPDATE stories SET title='Small' WHERE id=?", (story,))
+    set_prices(conn, {"rp-model": {"input": 1.0, "output": 2.0}})
+    log(conn, story, "rp", "rp-model", 1000, 100, "2026-09-29 10:00:00", cost=0.5)
+    log(conn, story, "rp", "rp-model", 1000, 100, "2026-09-30 10:00:00")  # priced at today's table
+    log(conn, other, "rp", "rp-model", 9, 9, "2026-09-30 11:00:00", cost=9.0)
+    log(conn, None, "utility", "free-local", 5, 5, "2026-09-30 12:00:00")  # no story, no price
+    client, auth = client_for(conn)
+
+    got = client.get("/spend", headers=auth).json()
+
+    today = (1000 * 1.0 + 100 * 2.0) / 1e6
+    rows = [(s["story_id"], s["title"], s["calls"], round(s["cost"], 9)) for s in got["stories"]]
+    assert rows == [(other, "s", 1, 9.0), (story, "Small", 2, round(0.5 + today, 9))]
+    assert got["other"] == {"calls": 1, "cost": 0}
+
+
 def test_spend_for_no_story_is_404(conn):
     client, auth = client_for(conn)
     assert client.get("/stories/99/spend", headers=auth).status_code == 404

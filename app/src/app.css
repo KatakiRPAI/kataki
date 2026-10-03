@@ -332,6 +332,7 @@ button.k-shortrow, button.k-job { width: 100%; background: transparent; border: 
 .bal { text-decoration: none; font-variant-numeric: tabular-nums; }
 .bal--low { color: var(--warm); border-color: var(--warm); }
 .bal--out { color: var(--bad); border-color: var(--bad); }
+.spend { display: flex; flex-direction: column; gap: 10px; padding-block: 8px; }
 .sr-row { display: block; color: inherit; border-radius: var(--radius-lg); }
 .sr-row:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .sr-row mark { background: color-mix(in srgb, var(--accent) 30%, transparent); color: var(--ink); border-radius: 3px; }

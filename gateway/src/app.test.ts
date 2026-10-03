@@ -640,6 +640,22 @@ test('cloud save past the free limit: kept while there is credit, charged once a
   assert.equal((await call('/api/cloud/download', { headers: device })).status, 200)
 })
 
+test('usage: the last 30 days by day, replies and storage apart, and what was added; only your own', async () => {
+  const { cookie, id } = await account('ledger-days@example.com')
+  const use = (uid: string, micros: number, at: string) => pool.query("INSERT INTO usage(usage_id, user_id, micros, role, model, prompt_tokens, cached_tokens, completion_tokens, estimated, used_at) VALUES($1, $2, $3, 'rp', 'm', 1, 0, 1, false, $4)", [uid, id, micros, at])
+  const day = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10)
+  await use('a1', 1000, `${day(1)}T10:00:00Z`)
+  await use('a2', 500, `${day(1)}T23:00:00Z`)
+  await use('a3', 7, `${day(40)}T10:00:00Z`) // too long ago
+  await pool.query("INSERT INTO charge(user_id, micros, reason, day, bytes) VALUES($1, 30, 'storage', $2, 1)", [id, day(2)])
+  assert.equal((await call('/api/usage')).status, 401)
+  const got = (await (await call('/api/usage', { cookie })).json()) as { days: unknown[]; added: { reason: string }[] }
+  assert.deepEqual(got.days, [{ day: day(1), replies: 1500, calls: 2, storage: 0 }, { day: day(2), replies: 0, calls: 0, storage: 30 }])
+  assert.deepEqual(got.added.map((a) => a.reason), ['starter'])
+  const other = await account('notusage@example.com')
+  assert.deepEqual(((await (await call('/api/usage', { cookie: other.cookie })).json()) as { days: unknown[] }).days, [])
+})
+
 test('adding credit: a checkout for a set amount, paid once at the processor, and back to see how it went', async () => {
   const { cookie, id } = await account('payer@example.com')
   assert.deepEqual(((await (await call('/api/providers')).json()) as { payments: unknown }).payments, { amounts: [5, 10, 20, 50] })
