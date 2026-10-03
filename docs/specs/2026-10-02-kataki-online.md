@@ -142,6 +142,9 @@ The owner chose Better Auth on 2026-10-02, so the gateway is a small TypeScript 
       › Monthly limit (none, $5, $10, $20, $50, $100; library setting `spend.monthly_cap`). The
       hosted engine refuses a call that would pass it, before sending, with `SPEND_CAP` (like
       `DAILY_CAP`); the Scene says so, keeps the line, and "Raise the limit" opens Account.
+- [x] T5 · A story's own cost (design brief 3 T5, "open a story → its cost"; 2026-10-03): Backstage's
+      Engine panel shows "This story so far" with its model calls and cost (`/stories/{id}/spend`),
+      when it has cost anything; the desktop too, when prices are set.
 
 G1–G6 are A1–A6 of the profiles spec.
 

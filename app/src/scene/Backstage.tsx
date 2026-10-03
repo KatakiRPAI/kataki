@@ -28,6 +28,7 @@ export default function Backstage({ story, messages, cast, tick, focus, onForget
   const [node, setNode] = useState<MindNode>()
   const [mind] = useLoad(() => (reply ? api<Mind>(`/messages/${reply.id}/mind`) : Promise.resolve(undefined)), [reply?.id, tick])
   const [ctx] = useLoad(() => (reply ? api<ContextLog>(`/messages/${reply.id}/context`).catch(() => undefined) : Promise.resolve(undefined)), [reply?.id, tick])
+  const [spend] = useLoad(() => api<{ calls: number; cost: number; unpriced: number }>(`/stories/${story.id}/spend`).catch(() => undefined), [story.id, tick])
   const [runs, reloadRuns] = useLoad(() => api<Run[]>(`/stories/${story.id}/runs`), [story.id, tick])
   const [known, reloadKnown] = useLoad(() => (typeof who === 'number' ? api<KnownMemory[]>(`/stories/${story.id}/memories?knower=${who}`) : Promise.resolve([])), [story.id, who, tick])
   const name = who === 'narrator' ? t('scene.narrator') : characters.find((e) => e.id === who)?.name ?? ''
@@ -48,6 +49,9 @@ export default function Backstage({ story, messages, cast, tick, focus, onForget
             <K.EngineRow job={t('bs.job.reader')} model={lastRun?.model ?? '—'} stat={lastRun ? lastRun.status : t('bs.idle')}
               detail={lastRun?.filed ? t('bs.filed', { n: lastRun.filed }) : undefined}
               state={!lastRun ? 'idle' : lastRun.error ? 'bad' : lastRun.status === 'done' ? 'ok' : 'wait'} />
+            {!!spend?.cost && ( // T5: open a story, see its cost (what its model calls cost so far)
+              <K.EngineRow job={t('bs.job.cost')} model={t('bs.calls', { n: spend.calls })} stat={new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: spend.cost < 0.1 ? 4 : 2 }).format(spend.cost)} state="ok" />
+            )}
           </K.BackstagePanel>
           <K.BackstagePanel title={t('bs.whose')}>
             <div className="who-tabs" role="tablist" aria-label={t('bs.whose')}>
