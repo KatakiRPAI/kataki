@@ -50,6 +50,8 @@ Legend: **[you]** you decided it · **[default]** an agent picked it, you have n
 |---|---|---|
 | 2026-10-03 | One compose file: Postgres, gateway, engine; only the gateway is published [default] | simplest thing that runs anywhere Docker does |
 | 2026-10-03 | The engine shares the gateway's network so it still listens on loopback only [default] | the engine is not yet hardened to listen wider |
+| 2026-10-03 | Online, Data says nothing about backups until the service really backs libraries up [default] | showing a backup row before there are backups would mislead |
+| 2026-10-03 | "Get the desktop app" links to the GitHub releases page [default] | the only place the app is published today |
 | 2026-10-03 | The ribbon shows whenever the test processor is on, not only on a host called staging [default] | the thing to warn about is fake payments, wherever they run |
 | 2026-10-03 | Online, Models shows each job's model and a price per 100 replies, and nothing to change [default] | the service picks the models; a choice of models per job comes when the catalogue has more than one |
 | 2026-10-03 | Every job's price is for a reply-sized call (4,000 tokens in, 300 out) [default] | one honest yardstick; side jobs vary, so it says "about" |

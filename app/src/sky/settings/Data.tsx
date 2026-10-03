@@ -10,15 +10,17 @@ import { setPref, usePrefs } from '../../prefs'
 import { relative, t, type Key } from '../../strings'
 import { err } from '../../errors'
 import Cloud from './Cloud'
+import { account } from '../../online/session'
 
 export default function Data() {
+  const online = !!account()
   const navigate = useNavigate()
   const { reload } = useLibrary()
-  const [providers, reloadProviders] = useLoad(() => api<Provider[]>('/providers'), [])
+  const [providers, reloadProviders] = useLoad(() => (online ? Promise.resolve([]) : api<Provider[]>('/providers')), [])
   const [busy, setBusy] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [backing, setBacking] = useState(false)
-  const [list, reloadList] = useLoad(() => api<Backup[]>('/backups').catch(() => []), [])
+  const [list, reloadList] = useLoad(() => (online ? Promise.resolve([]) : api<Backup[]>('/backups').catch(() => [])), [])
   const keyed = (providers ?? []).filter((p) => p.has_key)
   const [places] = useLoad(() => api<Storage>('/storage').then((s) => s.places.filter((p) => p.what !== 'backups'), () => []), [])
   const [prefs] = usePrefs()
@@ -50,24 +52,28 @@ export default function Data() {
       )}
       <K.SettingsSection title={t('da.take')}>
         <K.SettingsRow title={t('da.export')} description={t('da.exportSub')}><K.Button size="sm" icon="download" loading={busy} onClick={exportAll}>{t('da.exportBtn')}</K.Button></K.SettingsRow>
-        <K.SettingsRow title={t('bk.row')} description={every === 'never' ? t('bk.off') : [t(`bk.${every}` as Key), t('bk.summary', { n: list?.length ?? 0, when: list?.[0] ? relative(Date.parse(list[0].at)) : 'none' })].join(' · ')}>
-          <div className="row" style={{ gap: 12 }}>
-            <K.Button size="sm" onClick={() => setBacking(true)}>{t('bk.change')}</K.Button>
-            <K.Toggle label={t('bk.row')} on={every !== 'never'} onToggle={(on) => setPref('backups.every', on ? 'daily' : 'never')} />
-          </div>
-        </K.SettingsRow>
+        {!online && ( // backups on disk and keys are this computer's; online has neither
+          <K.SettingsRow title={t('bk.row')} description={every === 'never' ? t('bk.off') : [t(`bk.${every}` as Key), t('bk.summary', { n: list?.length ?? 0, when: list?.[0] ? relative(Date.parse(list[0].at)) : 'none' })].join(' · ')}>
+            <div className="row" style={{ gap: 12 }}>
+              <K.Button size="sm" onClick={() => setBacking(true)}>{t('bk.change')}</K.Button>
+              <K.Toggle label={t('bk.row')} on={every !== 'never'} onToggle={(on) => setPref('backups.every', on ? 'daily' : 'never')} />
+            </div>
+          </K.SettingsRow>
+        )}
         <K.SettingsRow title={t('da.import')} description={t('da.importSub')}>
           <div className="row" style={{ gap: 8 }}>
             <K.Button onClick={() => navigate('/characters')}>{t('da.importCards')}</K.Button>
             <label className="k-btn k-btn--ghost">{t('da.importLibrary')}<input type="file" accept=".kataki" hidden onChange={(e) => importLibrary(e.target.files?.[0])} /></label>
           </div>
         </K.SettingsRow>
-        <K.SettingsRow title={t('da.keys')} description={t('da.keysSub', { n: keyed.length, names: new Intl.ListFormat('en').format(keyed.map((p) => p.name)), os: /Win/.test(navigator.userAgent) ? 'win' : /Mac/.test(navigator.userAgent) ? 'mac' : 'other' })}>
-          <K.Button size="sm" variant="ghost" disabled={!keyed.length}
-            onClick={() => Promise.all(keyed.map((p) => api(`/providers/${p.id}`, 'PATCH', { api_key: '' }))).then(() => { reloadProviders(); toast(t('toast.keysForgotten'), {}, 3000) })}>
-            {t('da.forgetKeys', { n: keyed.length })}
-          </K.Button>
-        </K.SettingsRow>
+        {!online && (
+          <K.SettingsRow title={t('da.keys')} description={t('da.keysSub', { n: keyed.length, names: new Intl.ListFormat('en').format(keyed.map((p) => p.name)), os: /Win/.test(navigator.userAgent) ? 'win' : /Mac/.test(navigator.userAgent) ? 'mac' : 'other' })}>
+            <K.Button size="sm" variant="ghost" disabled={!keyed.length}
+              onClick={() => Promise.all(keyed.map((p) => api(`/providers/${p.id}`, 'PATCH', { api_key: '' }))).then(() => { reloadProviders(); toast(t('toast.keysForgotten'), {}, 3000) })}>
+              {t('da.forgetKeys', { n: keyed.length })}
+            </K.Button>
+          </K.SettingsRow>
+        )}
         <K.SettingsRow title={t('da.delete')} description={t('da.deleteSub')}><K.Button size="sm" variant="danger" onClick={() => setDeleting(true)}>{t('da.deleteBtn')}</K.Button></K.SettingsRow>
       </K.SettingsSection>
       <Cloud />
