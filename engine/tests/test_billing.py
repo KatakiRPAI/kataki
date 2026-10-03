@@ -375,6 +375,8 @@ def test_spend_by_story_most_first_and_calls_outside_any_story_apart(local_model
     rows = [(s["story_id"], s["title"], s["calls"], round(s["cost"], 9)) for s in got["stories"]]
     assert rows == [(other, "s", 1, 9.0), (story, "Small", 2, round(0.5 + today, 9))]
     assert got["other"] == {"calls": 1, "cost": 0}
+
+
 def test_roles_say_what_one_reply_costs_per_job(local_model):
     set_prices(local_model, {"rp-model": {"input": 1.0, "output": 2.0}})
     client, auth = client_for(local_model)
