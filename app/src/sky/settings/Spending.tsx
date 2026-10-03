@@ -4,17 +4,22 @@
 import { api } from '../../api'
 import { K } from '../../ds'
 import { useLoad } from '../../hooks'
+import { setPref, usePrefs } from '../../prefs'
 import { t } from '../../strings'
 
 type Usage = { days: { day: string; replies: number; calls: number; storage: number }[]; added: { micros: number; reason: string; at: string }[] }
 type ByStory = { stories: { story_id: number; title: string; calls: number; cost: number }[] }
 
 const usd = (dollars: number) => new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: dollars && dollars < 0.01 ? 4 : 2 }).format(dollars)
+const CAPS = [0, 5, 10, 20, 50, 100] // dollars a month; 0 is no limit (T7)
 const date = (iso: string) => new Date(iso.length === 10 ? `${iso}T12:00:00Z` : iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
 
 export default function Spending() {
   const [usage] = useLoad(() => api<Usage>('/api/usage'), [])
   const [byStory] = useLoad(() => api<ByStory>('/spend'), [])
+  const [prefs] = usePrefs()
+  const cap = Number(prefs['spend.monthly_cap']) || 0
+  const capWord = (c: number) => (c ? t('sp.capOf', { amount: usd(c) }) : t('sp.noCap'))
   if (!usage) return null
   const spent = (d: Usage['days'][number]) => (d.replies + d.storage) / 1e6
   const total = usage.days.reduce((s, d) => s + spent(d), 0)
@@ -23,6 +28,11 @@ export default function Spending() {
   return (
     <K.SettingsSection title={t('sp.title')} note={t('sp.note')}>
       <K.SettingsRow title={t('sp.month')} description={t('sp.monthSub', { calls: usage.days.reduce((s, d) => s + d.calls, 0) })}><b>{usd(total)}</b></K.SettingsRow>
+      <K.SettingsRow title={t('sp.cap')} description={t('sp.capSub')}>
+        <div style={{ width: 160 }}>
+          <K.Select label="" options={CAPS.map(capWord)} value={capWord(CAPS.includes(cap) ? cap : 0)} onChange={(v) => setPref('spend.monthly_cap', CAPS.find((c) => capWord(c) === v) || 'none')} />
+        </div>
+      </K.SettingsRow>
       {usage.days.length > 0 && (
         <div className="spend">
           {usage.days.slice(0, 14).map((d) => (

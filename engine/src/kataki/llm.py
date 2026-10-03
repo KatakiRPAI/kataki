@@ -89,6 +89,13 @@ class DailyCap(NoCredit):
     code = "DAILY_CAP"
 
 
+class SpendCap(NoCredit):
+    """Kataki online: this month's spending would pass the limit the user set themselves
+    (design brief 3 T7). Refused everywhere a NO_CREDIT is, said with its own code."""
+
+    code = "SPEND_CAP"
+
+
 @dataclass(frozen=True)
 class Endpoint:
     """A resolved model role: where to send the request and how to drive the model."""

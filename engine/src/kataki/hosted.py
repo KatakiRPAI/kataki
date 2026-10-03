@@ -30,7 +30,7 @@ from fastapi.responses import JSONResponse
 
 from kataki import db, features, roles, usage
 from kataki.host import OnlineHost
-from kataki.llm import LLM, DailyCap, Endpoint
+from kataki.llm import LLM, DailyCap, Endpoint, SpendCap
 from kataki.server import create_app
 
 log = logging.getLogger(__name__)
@@ -177,6 +177,17 @@ def secret(name: str) -> str | None:
     return None
 
 
+def _monthly_cap(conn: sqlite3.Connection) -> float | None:
+    """The monthly limit the user set (`spend.monthly_cap`, dollars), or None: none, or not a
+    positive number."""
+    row = conn.execute("SELECT value FROM settings WHERE key='spend.monthly_cap'").fetchone()
+    try:
+        cap = float(json.loads(row[0])) if row else None
+    except (TypeError, ValueError):
+        return None
+    return cap if cap is not None and cap > 0 else None
+
+
 def _catalogue(path: Path) -> tuple[list, list, dict]:
     """The service's providers, model roles and prices, from a library file built for it.
 
@@ -289,6 +300,13 @@ class Hosted:
             today = sum(usage.micros(self.prices, dict(r)) or 0 for r in rows)
             if today + round(estimate * 1e6) > round(self.daily_cap * 1e6):
                 raise DailyCap("You have reached today's spending limit. It resets at 00:00 UTC.")
+            if (cap := _monthly_cap(conn)) is not None:  # the user's own limit (T7)
+                rows = conn.execute(
+                    "SELECT * FROM usage_log WHERE at >= date('now', 'start of month')"
+                ).fetchall()
+                month = sum(usage.micros(self.prices, dict(r)) or 0 for r in rows)
+                if month + round(estimate * 1e6) > round(cap * 1e6):
+                    raise SpendCap("You have reached your monthly spending limit.")
             return self.gateway.allow(user, estimate)
 
         return allow

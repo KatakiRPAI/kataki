@@ -1069,6 +1069,22 @@
   "drawnOn": []
  },
  {
+  "code": "SPEND_CAP",
+  "group": "Kataki online",
+  "surface": "inline",
+  "title": "You’ve reached your monthly limit",
+  "body": "Nothing was sent, and your line is kept. Raise the limit in Settings › Account, or wait for the new month.",
+  "actions": [
+   "Raise the limit",
+   "Try again"
+  ],
+  "recovery": "The engine refuses before sending (SSE error code SPEND_CAP). Design brief 3 T7.",
+  "appearsOn": [
+   "Scene"
+  ],
+  "drawnOn": []
+ },
+ {
   "code": "UNKNOWN",
   "group": "System",
   "surface": "dialog",
