@@ -128,6 +128,10 @@ The owner chose Better Auth on 2026-10-02, so the gateway is a small TypeScript 
       carries `reply_cost`, priced at `usage.REPLY`); no servers, keys or tuning, which the
       service resets anyway. Not done: a choice of models per job with a quality line, and the
       mind level's cost.
+- [x] S5 · An ended session keeps your place (design brief 3 S5, 2026-10-03): signing in again
+      with Google, GitHub or Discord comes back to the page you were on (password and passkey
+      already did), and the Scene keeps an unsent line per story in session storage, so a reload
+      does not lose it; sending clears it.
 
 G1–G6 are A1–A6 of the profiles spec.
 
