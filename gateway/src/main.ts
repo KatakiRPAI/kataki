@@ -55,7 +55,10 @@ export async function start(send: Send = mailer(process.env)) {
     web: process.env.KATAKI_WEB,
     starter: BigInt(Math.round(Number(process.env.KATAKI_STARTER_CREDIT ?? 0) * 1e6)),
     social: Object.keys(social),
+    // the test processor pays without money: for development and staging, never production
+    payments: process.env.KATAKI_PAYMENTS === 'test' ? { processor: 'test' as const } : undefined,
   })
+  if (process.env.KATAKI_PAYMENTS === 'test') console.warn('gateway: payments are the TEST processor: credit is granted without money')
   const server = createServer(gateway)
   const port = Number(process.env.PORT ?? 8787)
   await new Promise<void>((done) => server.listen(port, process.env.KATAKI_BIND ?? '127.0.0.1', done))

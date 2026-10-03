@@ -16,6 +16,7 @@ import { approveLink, deviceOf, devices, download, KEPT, LIMITS, linkName, newes
 import { allow, balance, bill, grant } from './ledger.ts'
 import type { Prices } from './money.ts'
 import { signed, USER } from './sign.ts'
+import { AMOUNTS, cancel, checkoutOf, settle, startTopup, testCheckoutPage, type Payments, type TopupConfig } from './topup.ts'
 
 export type GatewayConfig = {
   auth: Auth
@@ -29,6 +30,7 @@ export type GatewayConfig = {
   starter?: bigint // micro-dollars given once to a new account
   social?: string[] // the services an account can sign in with (auth.ts › Social)
   send: Send // mail (auth.ts)
+  payments?: Payments // how credit is bought (topup.ts); absent: it cannot be, yet
   cloud?: { dir: string; maxBytes: number; limits?: CloudConfig['limits'] } // where snapshots from the desktop are kept (cloud.ts); absent: no cloud save
 }
 
@@ -57,6 +59,7 @@ export function createGateway(c: GatewayConfig): RequestListener {
   const granted = new Set<string>() // accounts whose starting credit was looked at by this process
   const engine = new URL(c.engine)
   const cloud: CloudConfig | null = c.cloud ? { pool: c.pool, origin: c.origin, ...c.cloud } : null
+  const paying: TopupConfig | null = c.payments ? { pool: c.pool, origin: c.origin, payments: c.payments } : null
 
   const fromEngine = (req: IncomingMessage): boolean => {
     const said = Buffer.from(req.headers.authorization ?? '')
@@ -107,7 +110,21 @@ export function createGateway(c: GatewayConfig): RequestListener {
       }
       if (path === '/') return void res.writeHead(302, { location: '/app/' }).end()
       // what the sign-in screen may offer; nothing secret
-      if (path === '/api/providers') return json(res, 200, { social: c.social ?? [] })
+      if (path === '/api/providers') return json(res, 200, { social: c.social ?? [], payments: paying ? { amounts: AMOUNTS } : null })
+      // the test processor's own pages (KATAKI_PAYMENTS=test): stand-ins for a real hosted checkout
+      const testing = paying?.payments.processor === 'test' && /^\/test-checkout\/([0-9a-f]{24})(\/pay|\/cancel)?$/.exec(path)
+      if (paying && testing) {
+        const [, id, act] = testing
+        if (!act && req.method === 'GET') {
+          const checkout = await checkoutOf(paying, null, id)
+          return checkout ? void res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }).end(testCheckoutPage(checkout)) : json(res, 404, { detail: 'not found' })
+        }
+        if (act && req.method === 'POST') {
+          if (act === '/pay') await settle(paying, id, `test-${id}`)
+          else await cancel(paying, id)
+          return void res.writeHead(303, { location: `/app/settings/account?topup=${id}` }).end()
+        }
+      }
       // the link mailed to a backup address: opened wherever that mailbox is read, signed in or not
       if (path === '/api/account/backup-email/verify' && req.method === 'GET') {
         const ok = await verifyBackupEmail(c, url.searchParams.get('token') ?? '')
@@ -175,6 +192,17 @@ export function createGateway(c: GatewayConfig): RequestListener {
         const fresh = Date.now() - new Date(session.session.createdAt).getTime() < 600_000
         if (!fresh) return json(res, 403, { detail: { code: 'FRESH', message: 'Sign in again to do this.' } })
         return json(res, 200, { deleteAt: await askToDelete(c, who) })
+      }
+      // adding credit (topup.ts): open a checkout, then come back and see how it went
+      if (path === '/api/topup' && req.method === 'POST') {
+        if (!paying) return json(res, 503, { detail: 'Credit cannot be bought here yet.', code: 'NO_PROCESSOR' })
+        const said = (await body(req).catch(() => null)) as { dollars?: unknown } | null
+        const made = await startTopup(paying, user, said?.dollars)
+        return made ? json(res, 200, made) : json(res, 400, { detail: `Choose one of: ${AMOUNTS.map((a) => `$${a}`).join(', ')}.` })
+      }
+      if (paying && path.startsWith('/api/topup/') && req.method === 'GET') {
+        const checkout = await checkoutOf(paying, user, path.slice('/api/topup/'.length))
+        return checkout ? json(res, 200, checkout) : json(res, 404, { detail: 'not found' })
       }
       // linking a computer: approved here, by the signed-in person, and listed and removed here
       if (cloud && path === '/api/device/link' && req.method === 'GET') {

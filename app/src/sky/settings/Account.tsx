@@ -8,12 +8,13 @@ import { useLoad } from '../../hooks'
 import { account, signOut } from '../../online/session'
 import { t } from '../../strings'
 import { Devices, Passkeys, Sessions, SigningIn, useLinked } from './AccountParts'
+import Credit from './Credit'
 import Leaving from './Leaving'
 import TwoStep from './TwoStep'
 
 export default function Account() {
   const me = account()!
-  const [got] = useLoad(() => api<{ balance: number }>('/api/me'), [])
+  const [got, reloadMe] = useLoad(() => api<{ balance: number }>('/api/me'), [])
   const [twoStep, setTwoStep] = useState(!!me.twoFactorEnabled)
   const [doing, setDoing] = useState<'on' | 'off' | 'codes'>()
   const [linked] = useLinked()
@@ -23,7 +24,7 @@ export default function Account() {
     <>
       <K.SettingsSection title={t('set.n.account')} note={t('ac.note')}>
         <K.SettingsRow title={me.name} description={me.email}><K.Button size="sm" onClick={signOut}>{t('ac.signOut')}</K.Button></K.SettingsRow>
-        <K.SettingsRow title={t('ac.balance')} description={t('ac.balanceSub')}><b>{dollars}</b></K.SettingsRow>
+        <K.SettingsRow title={t('ac.balance')} description={t('ac.balanceSub')}><div className="row" style={{ gap: 12 }}><b>{dollars}</b><Credit onChange={reloadMe} /></div></K.SettingsRow>
       </K.SettingsSection>
       <SigningIn me={me} />
       <Passkeys />

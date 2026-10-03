@@ -18,7 +18,9 @@ Legend: **[you]** you decided it · **[default]** an agent picked it, you have n
    deleted). Change the numbers in `gateway/src/cloud.ts` (`LIMITS`).
 3. **Apple sign-in**: needs the Apple Developer Program ($99/year). Not built until you join.
 4. **Google and Discord sign-in**: built; each needs its keys in `.env` (same steps as GitHub).
-5. **Payments (top-ups)**: needs a payment processor that accepts this kind of app. Not built.
+5. **Payments (top-ups)**: built against a test processor (no money moves). Amounts: $5,
+   $10, $20, $50. It needs a real processor that accepts an app that can be explicit (several
+   mainstream ones do not); once you pick one, it is a webhook and a checkout link.
 6. **Going online**: the stack is packaged (`compose.online.yaml`) and runs in Docker. To put it
    on a server it needs a domain or subdomain and a host; your existing server would do for
    staging.
