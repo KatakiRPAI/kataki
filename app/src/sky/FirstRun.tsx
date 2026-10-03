@@ -263,16 +263,16 @@ function Online() {
 /** B5, B6: who to meet first, and who you are. */
 function Who() {
   const navigate = useNavigate()
-  const { items, reload } = useLibrary()
+  const { items, byId, reload } = useLibrary()
   const [prefs] = usePrefs()
   const [seeding, setSeeding] = useState(false)
   const [picked, setPicked] = useState<number>()
   const [persona, setPersona] = useState(false)
   useEffect(() => {
-    if (seeding || items.length) return
+    if (seeding || byId.size) return // byId: a library whose characters are all hidden is not empty
     setSeeding(true)
     seedSampleWorld().then(() => { reload(); loadPrefs() }).finally(() => setSeeding(false))
-  }, [items.length]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [byId.size]) // eslint-disable-line react-hooks/exhaustive-deps
   const me = typeof prefs.persona === 'number' ? items.find((i) => i.id === prefs.persona) : items.find(isPersona)
   const people = items.filter((i) => i.kind === 'character' && i.id !== me?.id)
     .sort(byShipped).slice(0, 6)

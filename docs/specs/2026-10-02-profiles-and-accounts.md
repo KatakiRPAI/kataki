@@ -58,7 +58,10 @@ Research: `docs/research/reports/Profiles accounts and cloud.md`.
       offers a per-story model online. A settings-only export (2026-10-03): Settings › Data › "Your settings
       alone" exports `kataki-settings.json` (`GET /export/settings`: the profile card and every
       preference; the card's picture stays) and imports one (`POST /import/settings`, online
-      without `prices`). Not done: hiding characters by tag.
+      without `prices`). Hiding characters by tag (2026-10-03): Settings › General ›
+      Stories › "Hide characters tagged" (`content.hideTags`, up to 20): such characters leave
+      every list (Home, Characters, search, first run); personas never; stories that have them
+      still open.
 - [x] A0 · The gateway's spec: `docs/specs/2026-10-02-kataki-online.md` (2026-10-02). The owner
       chose Better Auth. A1–A6 are its G1–G6, and their progress is kept there.
 - [ ] A1–A6 · Accounts: A1 (G1) done; see the gateway spec.

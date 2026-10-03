@@ -139,6 +139,7 @@ function Content() {
   const level = String(prefs['content.level'] ?? 'mature')
   const [asking, setAsking] = useState(false) // explicit, on a computer with no account that said 18 or older
   const [avoid, setAvoid] = useState(() => ((prefs['content.avoid'] as string[] | undefined) ?? []).join(', '))
+  const [hide, setHide] = useState(() => ((prefs['content.hideTags'] as string[] | undefined) ?? []).join(', '))
   const levels: [string, Key][] = [['gentle', 'g.content.gentle'], ['mature', 'g.content.mature'], ['explicit', 'g.content.explicit']]
   const pick = (v: string) => {
     const to = levels.find(([, l]) => t(l) === v)?.[0] ?? 'mature'
@@ -154,6 +155,12 @@ function Content() {
         <div style={{ width: 260 }}>
           <K.TextField label="" value={avoid} placeholder={t('g.avoidHint')}
             onChange={(v) => { setAvoid(v); setPref('content.avoid', v.split(',').map((x) => x.trim()).filter(Boolean).slice(0, 20)) }} />
+        </div>
+      </K.SettingsRow>
+      <K.SettingsRow title={t('g.hideTags')} description={t('g.hideTagsSub')}>
+        <div style={{ width: 260 }}>
+          <K.TextField label="" value={hide} placeholder={t('g.hideTagsHint')}
+            onChange={(v) => { setHide(v); setPref('content.hideTags', v.split(',').map((x) => x.trim()).filter(Boolean).slice(0, 20)) }} />
         </div>
       </K.SettingsRow>
       {asking && (
