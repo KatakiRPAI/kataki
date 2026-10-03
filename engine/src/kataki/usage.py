@@ -117,6 +117,27 @@ def spend(conn: sqlite3.Connection, story_id: int, prices: dict) -> dict:
     return out
 
 
+def by_story(conn: sqlite3.Connection, prices: dict) -> dict:
+    """What each story's calls cost, most first, and the calls outside any story (GET /spend).
+    Priced as `spend` prices them; an unpriced call counts and costs nothing."""
+    stories: dict[int, dict] = {}
+    other = {"calls": 0, "cost": 0.0}
+    rows = conn.execute(
+        "SELECT u.*, s.title FROM usage_log u LEFT JOIN stories s ON s.id = u.story_id"
+    )
+    for r in rows:
+        used = dict(r)
+        used["prompt_tokens_details"] = {"cached_tokens": r["cached_tokens"]}
+        spent = r["cost"] if r["cost"] is not None else cost(prices, r["model"], r["role"], used)
+        sid = r["story_id"]
+        part = other if sid is None else stories.setdefault(
+            sid, {"story_id": sid, "title": r["title"], "calls": 0, "cost": 0.0}
+        )  # fmt: skip
+        part["calls"] += 1
+        part["cost"] += spent or 0
+    return {"stories": sorted(stories.values(), key=lambda s: -s["cost"]), "other": other}
+
+
 # ponytail: call shapes per turn beside the reply, from note 21 §2 (Arch B): (role, calls a
 # turn, tokens in, tokens out); replace with this library's own averages once it has them
 READ = ("utility", 0.2, 2000, 300)  # a memory read every fifth turn

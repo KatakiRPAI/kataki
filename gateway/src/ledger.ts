@@ -12,6 +12,23 @@ export async function balance(pool: Pool, user: string): Promise<bigint> {
   return BigInt(rows[0].micros)
 }
 
+/** `GET /api/usage` (design brief 3 T5): the last 30 days' spending by day (UTC), replies and cloud
+ *  storage apart, and the last 20 times credit was added. Micro-dollars, as numbers. */
+export async function spending(pool: Pool, user: string) {
+  const { rows: days } = await pool.query(
+    `SELECT day::text, sum(replies)::bigint AS replies, sum(calls)::int AS calls, sum(storage)::bigint AS storage FROM (
+       SELECT (used_at AT TIME ZONE 'UTC')::date AS day, micros AS replies, 1 AS calls, 0 AS storage FROM usage WHERE user_id = $1 AND used_at > now() - interval '30 days'
+       UNION ALL SELECT day, 0, 0, micros FROM charge WHERE user_id = $1 AND day > (now() - interval '30 days')::date
+     ) x GROUP BY day ORDER BY day DESC`,
+    [user],
+  )
+  const { rows: added } = await pool.query('SELECT micros, reason, at FROM credit WHERE user_id = $1 ORDER BY id DESC LIMIT 20', [user])
+  return {
+    days: days.map((d) => ({ day: d.day, replies: Number(d.replies), calls: d.calls, storage: Number(d.storage) })),
+    added: added.map((a) => ({ micros: Number(a.micros), reason: a.reason, at: a.at })),
+  }
+}
+
 /** Give credit once per `ref`. True when this call was the one that gave it. */
 export async function grant(pool: Pool, user: string, amount: bigint, reason: 'starter' | 'topup' | 'refund' | 'adjust', ref: string): Promise<boolean> {
   const r = await pool.query('INSERT INTO credit(user_id, micros, reason, ref) VALUES($1, $2, $3, $4) ON CONFLICT (ref) DO NOTHING', [user, amount.toString(), reason, ref])

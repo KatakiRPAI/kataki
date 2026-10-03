@@ -1378,6 +1378,11 @@ def create_app(
         The card polls this until `done`."""
         return between.away(conn, story_row(story_id))
 
+    @app.get("/spend")
+    async def get_spend_all():
+        """What each story's model calls cost, most first (design brief 3 T5). No call is made."""
+        return usage.by_story(conn, host.price_table(conn))
+
     @app.get("/stories/{story_id}/spend")
     async def get_spend(story_id: int):
         """What this story's model calls cost, by role and day, and a turn at each mind level

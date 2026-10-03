@@ -1,6 +1,7 @@
 // The gateway's HTTP surface (docs/specs/2026-10-02-kataki-online.md §1):
 //   /api/auth/*        Better Auth
 //   /api/me            who is signed in, and their balance
+//   /api/usage         what they spent lately, by day, and what they added
 //   /allow, /usage     the engine asks (its bearer key)
 //   /app/*             the web build
 //   everything else    a signed request to the engine, for whoever the session says
@@ -13,7 +14,7 @@ import type { Pool } from 'pg'
 import { askToDelete, exportOf, FORGET, keep, removeBackupEmail, setBackupEmail, verifyBackupEmail } from './account.ts'
 import type { Auth, Send } from './auth.ts'
 import { approveLink, deviceOf, devices, download, KEPT, LIMITS, linkName, newest, over, pollLink, startLink, unlink, upload, type CloudConfig } from './cloud.ts'
-import { allow, balance, bill, grant } from './ledger.ts'
+import { allow, balance, bill, grant, spending } from './ledger.ts'
 import type { Prices } from './money.ts'
 import { signed, USER } from './sign.ts'
 import { AMOUNTS, cancel, checkoutOf, settle, startTopup, testCheckoutPage, type Payments, type TopupConfig } from './topup.ts'
@@ -175,6 +176,7 @@ export function createGateway(c: GatewayConfig): RequestListener {
       const backupEmailVerified = !!session.user.backupEmailVerified
       const who = { id: user, name: session.user.name, email: session.user.email, backupEmail, backupEmailVerified }
       const deleteAt = session.user.deleteAt ?? null
+      if (path === '/api/usage') return json(res, 200, await spending(c.pool, user))
       if (path === '/api/me') return json(res, 200, { user: { id: user, name: who.name, email: who.email }, balance: Number(await balance(c.pool, user)), deleteAt, backupEmail, backupEmailVerified })
       if (path === '/api/account/backup-email' && req.method === 'POST') {
         let said: unknown

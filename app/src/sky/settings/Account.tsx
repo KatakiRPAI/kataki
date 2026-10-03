@@ -10,6 +10,7 @@ import { t } from '../../strings'
 import { Devices, Passkeys, Sessions, SigningIn, useLinked } from './AccountParts'
 import Credit from './Credit'
 import Leaving from './Leaving'
+import Spending from './Spending'
 import TwoStep from './TwoStep'
 
 export default function Account() {
@@ -26,6 +27,7 @@ export default function Account() {
         <K.SettingsRow title={me.name} description={me.email}><K.Button size="sm" onClick={signOut}>{t('ac.signOut')}</K.Button></K.SettingsRow>
         <K.SettingsRow title={t('ac.balance')} description={t('ac.balanceSub')}><div className="row" style={{ gap: 12 }}><b>{dollars}</b><Credit onChange={reloadMe} /></div></K.SettingsRow>
       </K.SettingsSection>
+      <Spending />
       <SigningIn me={me} />
       <Passkeys />
       <K.SettingsSection title={t('ts.title')} note={t('ts.note')}>
