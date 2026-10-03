@@ -57,7 +57,8 @@ export default function Settings() {
     <main className="app__main" aria-label={t('set.nav')} style={{ gap: 24 }}>
       <Top />
       <h1 className="pg-title">{t('set.nav')}</h1>
-      <div className="set">
+      {asked && <span className="set__back"><K.TextLink icon="left" href="/settings">{t('set.all')}</K.TextLink></span>}
+      <div className={`set${asked ? ' set--open' : ' set--list'}`}>
         <K.SideNav label={t('set.nav')} active={t(`set.n.${panel}` as Key)}
           items={PANELS.map((p) => ({ icon: ICONS[p], label: t(`set.n.${p}` as Key), href: `/settings/${p}` }))}
           footer={<K.TextLink icon="spark" href="/settings/about">{t('set.n.new')}</K.TextLink>} />

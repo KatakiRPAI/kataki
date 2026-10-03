@@ -115,6 +115,14 @@ The owner chose Better Auth on 2026-10-02, so the gateway is a small TypeScript 
       binds loopback), with `.env.online.example`. Checked by running the stack in Docker on
       one machine. Not done: a staging host, CI building the images, object storage for
       cloud snapshots, backups of Postgres (**[owner]**: a host and a domain).
+- [ ] G9 · Phones (design brief 3, Constraints: "online must work at 390 × 844"). Built
+      (2026-10-03), a stopgap until there are phone designs: under 600 px the rail is a tab bar at
+      the bottom (the five places and Settings), the main column has 16 px gutters, nothing is
+      wider than the screen (search, cards, settings rows, list rows, dialogs), the Scene header
+      truncates, and Settings shows its list or one panel with "All settings" back. Checked at
+      375 × 812 on Home, Stories, Characters, World, You, every Settings panel, the Scene and its
+      Here panel, and Add credit. Not done: phone designs (**[owner]**: the designer), Peek and
+      the editor at phone size, touch gestures.
 
 G1–G6 are A1–A6 of the profiles spec.
 
