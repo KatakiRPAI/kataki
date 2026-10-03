@@ -1085,6 +1085,22 @@
   "drawnOn": []
  },
  {
+  "code": "SERVICE_BUSY",
+  "group": "Kataki online",
+  "surface": "inline",
+  "title": "Kataki is busy right now",
+  "body": "The reply didn’t come through. Nothing was charged and your line is kept. Kataki tries again by itself in a few seconds.",
+  "actions": [
+   "Try again",
+   "Edit my line"
+  ],
+  "recovery": "Online: the service could not reach or use its model (unreachable, rate limited, key or model trouble). Retried by itself every 10 s. Design brief 3 New errors.",
+  "appearsOn": [
+   "Scene"
+  ],
+  "drawnOn": []
+ },
+ {
   "code": "UNKNOWN",
   "group": "System",
   "surface": "dialog",

@@ -149,6 +149,10 @@ The owner chose Better Auth on 2026-10-02, so the gateway is a small TypeScript 
       thinking › "How deep their minds go" (Light, Standard, Deep = `mind.level` lite, standard,
       premium, which no screen set before), with about what 100 replies cost at each when prices
       are known (`GET /mind-levels`, `usage.per_turn` sized as a new story). Both products.
+- [x] SERVICE_BUSY (design brief 3, New errors; 2026-10-03): online, a reply the service could
+      not get from its model (unreachable, rate limited, key or model trouble) says "Kataki is busy
+      right now" (nothing charged, line kept) and retries by itself every 10 s, instead of the
+      desktop's server and key words; the Scene no longer asks for `/providers` online.
 
 G1–G6 are A1–A6 of the profiles spec.
 
