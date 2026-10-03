@@ -124,6 +124,8 @@ def crafted(tmp_path) -> bytes:
     theirs.execute("INSERT INTO providers(id, name, base_url) VALUES(1, 'hf', 'http://evil/v1')")
     theirs.execute("INSERT INTO model_roles(role, provider_id, model) VALUES('rp', 1, 'x')")
     theirs.execute("INSERT INTO settings(key, value) VALUES('prices', '{}')")
+    theirs.execute("INSERT INTO settings(key, value) VALUES('profile', '{\"name\": \"Liv\"}')")
+    theirs.execute("INSERT INTO settings(key, value) VALUES('content.level', '\"gentle\"')")
     theirs.execute("INSERT INTO usage_log(role, model, cost) VALUES('rp', 'x', -5)")
     theirs.commit()
     archive.dump(theirs, tmp_path / "evil.kataki")
@@ -150,6 +152,8 @@ def test_an_import_online_cannot_touch_the_services_routing_or_its_ledger(conn, 
     assert rows(conn, "SELECT model FROM model_roles") == [("rp-model",)]
     assert conn.execute("SELECT count(*) FROM settings WHERE key='prices'").fetchone()[0] == 0
     assert rows(conn, "SELECT model, cost FROM usage_log") == [("rp-model", None)]
+    # the person's own settings arrive: their profile card and preferences are theirs
+    assert rows(conn, "SELECT key FROM settings ORDER BY key") == [("content.level",), ("profile",)]
 
 
 def test_an_import_on_the_desktop_still_brings_everything_back(conn, tmp_path):

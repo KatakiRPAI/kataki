@@ -30,9 +30,9 @@ Research: `docs/research/reports/Profiles accounts and cloud.md`.
 - [x] P2 · The profile card (2026-10-02): the `profile` setting (name, pronouns, bio, picture,
       colour) and `GET /profile/stats`, shown at the top of You with an edit dialog; saving it
       renames the desktop profile to match. Not done: a banner; a `/profile` page or Settings
-      panel of its own (it lives on You until there are boards). Owed to C1: an import online
-      keeps the service's `settings` table whole (`archive.MANAGED`), so the card and every
-      preference are dropped on the way in; C1 has to split service keys from the person's.
+      panel of its own (it lives on You until there are boards). An import online keeps the
+      service's keys (`archive.SERVICE_SETTINGS`: `prices`) and brings the person's settings,
+      card included (2026-10-03; it dropped them before).
 - [x] P3 · Badges (2026-10-02): schema v19 `achievements`; `achievements.py` holds the rules
       (a number from `profile.stats` and a target) and `POST /achievements/check` awards them.
       What a library already held at the first look is backdated and never announced. The card

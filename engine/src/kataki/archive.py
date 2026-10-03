@@ -36,6 +36,9 @@ REPLACED = ("providers", "model_roles", "settings", "tags")
 # Online, these are the service's (a provider named like the service's with another address would
 # be sent the service's key): an import leaves them as they are, whatever the file holds.
 MANAGED = ("providers", "model_roles", "settings", "usage_log")
+# ...but of `settings` only these keys are the service's; the rest (the profile card, every
+# preference) are the person's, and an import brings them.
+SERVICE_SETTINGS = ("prices",)
 
 
 class BadArchive(ValueError):
@@ -219,7 +222,7 @@ def restore(conn: sqlite3.Connection, blob: bytes, keep: tuple[str, ...] = ()) -
                         f"the library in this file has no {missing[0]}, so it is not a library."
                     )
                 _room_for_it(conn, ours)
-                _copy(conn, incoming, ours)
+                _copy(conn, incoming, ours, settings_too="settings" in keep)
                 pictures = _pictures(conn, z)
         except BadArchive:
             raise
@@ -231,7 +234,9 @@ def restore(conn: sqlite3.Connection, blob: bytes, keep: tuple[str, ...] = ()) -
     return _holds(conn) | {"pictures": pictures}
 
 
-def _copy(conn: sqlite3.Connection, incoming: Path, tables: list[str]) -> None:
+def _copy(
+    conn: sqlite3.Connection, incoming: Path, tables: list[str], settings_too: bool = False
+) -> None:
     """Every row, in one transaction: either the whole library arrives or none of it does.
     Keys are off while it lands — half a library never satisfies its own references — and
     checked in full before the commit."""
@@ -244,6 +249,13 @@ def _copy(conn: sqlite3.Connection, incoming: Path, tables: list[str]) -> None:
                 conn.execute(f'DELETE FROM main."{table}"')
             for table in tables:
                 conn.execute(f'INSERT INTO main."{table}" SELECT * FROM incoming."{table}"')
+            if settings_too:  # online: the person's settings, never the service's keys
+                held = ", ".join("?" * len(SERVICE_SETTINGS))
+                conn.execute(
+                    "INSERT OR REPLACE INTO main.settings SELECT * FROM incoming.settings"
+                    f" WHERE key NOT IN ({held})",
+                    SERVICE_SETTINGS,
+                )
             if broken := conn.execute("PRAGMA foreign_key_check").fetchall():
                 # raised inside the transaction, so it is rolled back and nothing is left here
                 raise BadArchive(
