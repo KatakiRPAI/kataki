@@ -83,12 +83,15 @@ def test_cue_words_leave_out_small_words_and_names():
     assert goals.cues("to get Aren to come and see the boat she built", {"aren"}) == ["boat"]
     assert goals.cues("I want THE harbour-master's job!") == ["harbour", "master", "job"]
     assert goals.cues("save for a bigger workshop, finally working") == ["workshop"]
+    # short and common nouns are topics, not verbs or adjectives (minds spec, owed 7)
+    assert goals.cues("the ring from the shed, for the wedding") == ["ring", "shed", "wedding"]
+    assert goals.cues("see her family by the sea") == ["family", "sea"]
 
 
-def test_the_cards_own_topic_words_need_four_letters(conn, cards):
+def test_the_cards_own_topic_words_need_three_letters(conn, cards):
     story = make(conn, cards, {"want": {"text": "see the boat", "cue": ["a", "sea", "Boat"]}})
     want = goals.live(conn, ent(conn, story, "Mira"), path(conn, story))[0]
-    assert want["cue"] == ["boat"]
+    assert want["cue"] == ["sea", "boat"]  # "a" would match anything; "sea" is a topic
 
 
 def test_the_latest_version_on_this_branch_is_the_goal(conn, cards):
@@ -513,6 +516,16 @@ async def test_on_lite_a_yes_is_a_yes(local_model, cards, backend):
     await talk(conn, backend, story, "Morning.", "Come see my boat!")
     got = await talk(conn, backend, story, "Yes, I'd love to see it!", "Tomorrow, then.")
     assert got["goal"]["outcome"] == "progressed"
+
+
+@pytest.mark.anyio
+async def test_on_lite_yes_but_not_now_is_a_dodge(local_model, cards, backend):
+    conn = local_model
+    setting(conn, "mind.level", "lite")
+    story = make(conn, cards, {"want": BOAT})
+    await talk(conn, backend, story, "Morning.", "Come see my boat!")
+    got = await talk(conn, backend, story, "Yes, but not now. Maybe later.", "Oh. Fine.")
+    assert got["goal"]["outcome"] == "deflected"
 
 
 @pytest.mark.anyio

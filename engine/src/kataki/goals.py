@@ -29,10 +29,16 @@ STOP = frozenset(
 )
 
 
-CARD_CUE = 4  # a topic word from the card needs this many letters ("a" would match anything)
-# ponytail: a word list and suffixes stand in for a tagger: verbs and adjectives are no topic
+CARD_CUE = 3  # a topic word from the card needs this many letters ("a" would match anything)
+# ponytail: a word list and suffixes stand in for a tagger: verbs and adjectives are no topic. A
+# suffix counts only after four letters (ring, shed and king stay), and common nouns that end
+# like a verb or adverb stay too.
+NOUNS = frozenset(
+    "wedding family evening morning building painting ceiling darling feeling meeting"
+    " interest bedding clothing".split()
+)
 ACTION = re.compile(
-    r"(?:ed|ing|ly|est)$|^(?:build|built|save|find|help|show|take|tell|sell|bring|finish|start"
+    r"^.{4,}(?:ed|ing|ly|est)$|^(?:build|built|save|find|help|show|take|tell|sell|bring|finish|start"
     r"|learn|fix|write|open|visit|meet|try|win|big|bigger|small|smaller|new|old|good|better"
     r"|great|little|real|own|finally)$"
 )
@@ -45,7 +51,7 @@ def cues(text: str, names: set[str] = frozenset()) -> list[str]:
     out = [
         w
         for w in words
-        if len(w) >= 3 and w not in STOP and w not in names and not ACTION.search(w)
+        if len(w) >= 3 and w not in STOP and w not in names and (w in NOUNS or not ACTION.search(w))
     ]
     return list(dict.fromkeys(out))
 
@@ -160,6 +166,11 @@ ASKED = re.compile(
 ACCEPT = re.compile(  # a yes that need not name the topic ("sure, show me") is no dodge
     r"\b(yes|yeah|yep|sure|of course|okay,? (?:show|let'?s)|love to|i'?d like|show me|let'?s"
     r"|when can|count me in|sounds (?:good|great|fun))\b",
+    re.IGNORECASE,
+)
+DEFER = re.compile(  # "yes, but not now" puts it off: a dodge, whatever yes came first
+    r"\b(not (?:now|today|tonight|yet|right now)|later|another time|some other time|rain check"
+    r"|maybe (?:some ?time|another day))\b",
     re.IGNORECASE,
 )
 UNPURSUED = ("need", "fear")  # kept, never offered: she does not know she is after them
@@ -319,7 +330,8 @@ def judge(conn: sqlite3.Connection, who: int, path: list) -> dict | None:
     g = next((g for g in live(conn, who, path) if g["key"] == said["key"]), None)
     if g is None:
         return None
-    taken = tried(line["text"], g["cue"]) or ACCEPT.search(line["text"])
+    said_it = line["text"]
+    taken = (tried(said_it, g["cue"]) or ACCEPT.search(said_it)) and not DEFER.search(said_it)
     outcome = "progressed" if taken else "deflected"
     return _judge(conn, who, path, said, line, outcome, "rules")
 
