@@ -111,7 +111,7 @@ export function createGateway(c: GatewayConfig): RequestListener {
       }
       if (path === '/') return void res.writeHead(302, { location: '/app/' }).end()
       // what the sign-in screen may offer; nothing secret
-      if (path === '/api/providers') return json(res, 200, { social: c.social ?? [], payments: paying ? { amounts: AMOUNTS } : null })
+      if (path === '/api/providers') return json(res, 200, { social: c.social ?? [], payments: paying ? { amounts: AMOUNTS, test: paying.payments.processor === 'test' } : null })
       // the test processor's own pages (KATAKI_PAYMENTS=test): stand-ins for a real hosted checkout
       const testing = paying?.payments.processor === 'test' && /^\/test-checkout\/([0-9a-f]{24})(\/pay|\/cancel)?$/.exec(path)
       if (paying && testing) {

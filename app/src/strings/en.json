@@ -792,6 +792,7 @@
   "sp.r.topup": "Credit you added",
   "sp.r.refund": "Refund",
   "sp.r.adjust": "Adjustment",
+  "cr.testRibbon": "Test payments: no real money moves here",
   "cr.title": "Add credit",
   "cr.body": "Pay once, then spend it on replies as you write. It does not renew, and nothing is taken without you asking.",
   "cr.amount": "Amount",

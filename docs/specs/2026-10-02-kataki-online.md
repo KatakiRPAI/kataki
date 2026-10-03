@@ -97,6 +97,8 @@ The owner chose Better Auth on 2026-10-02, so the gateway is a small TypeScript 
       own page, no money) until the owner chooses a real one: then a webhook route that calls
       `settle`. Not done: the real processor (**[owner]**), the balance chip (T1), usage (T5),
       a spending cap (T7).
+      On the test processor every page, sign-in included, carries a thin ribbon: "Test payments:
+      no real money moves here" (`/api/providers` says `payments.test`).
       Out of credit in the Scene (T4, 2026-10-03): a refused reply says "You’re out of credit"
       (or that today’s limit is reached, `DAILY_CAP`), keeps the line, and Add credit opens the
       amounts straight away; Try again or Continue then gets the reply.

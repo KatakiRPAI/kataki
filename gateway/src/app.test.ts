@@ -658,7 +658,7 @@ test('usage: the last 30 days by day, replies and storage apart, and what was ad
 
 test('adding credit: a checkout for a set amount, paid once at the processor, and back to see how it went', async () => {
   const { cookie, id } = await account('payer@example.com')
-  assert.deepEqual(((await (await call('/api/providers')).json()) as { payments: unknown }).payments, { amounts: [5, 10, 20, 50] })
+  assert.deepEqual(((await (await call('/api/providers')).json()) as { payments: unknown }).payments, { amounts: [5, 10, 20, 50], test: true })
   assert.equal((await post('/api/topup', { dollars: 7 }, { cookie })).status, 400) // only the set amounts
   assert.equal((await post('/api/topup', { dollars: 10 })).status, 401) // an account's own
   const before = await balance(pool, id)

@@ -50,6 +50,7 @@ Legend: **[you]** you decided it · **[default]** an agent picked it, you have n
 |---|---|---|
 | 2026-10-03 | One compose file: Postgres, gateway, engine; only the gateway is published [default] | simplest thing that runs anywhere Docker does |
 | 2026-10-03 | The engine shares the gateway's network so it still listens on loopback only [default] | the engine is not yet hardened to listen wider |
+| 2026-10-03 | The ribbon shows whenever the test processor is on, not only on a host called staging [default] | the thing to warn about is fake payments, wherever they run |
 | 2026-10-03 | Out of credit in a story: the line is kept and Add credit opens the amounts; after paying you land in Settings › Account, not back in the story [default] | the simplest return; going back to the story is a later nicety |
 | 2026-10-03 | The daily limit ($5 a day by default, resets 00:00 UTC) gets its own message, not the out-of-credit one [default] | adding credit does not lift it, so saying so would mislead |
 | 2026-10-03 | The balance chip turns amber under $1 and red at $0 [default] | a quiet warning while there is still some left: time to notice, not a nag |
