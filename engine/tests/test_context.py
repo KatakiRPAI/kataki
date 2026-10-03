@@ -398,6 +398,25 @@ def test_every_reply_is_told_how_far_the_story_may_go(conn, story):
     assert "t17" in said and "t18" not in said  # twenty at most
 
 
+def test_a_story_can_go_less_or_further_than_the_library(conn, story):
+    say(conn, story, "Aren", "Hello.")
+
+    def system():
+        return context.build(conn, story, eid(conn, "Mira"), EP).messages[0]["content"]
+
+    def story_level(level):
+        conn.execute(
+            "UPDATE stories SET overrides=? WHERE id=?", (json.dumps({"content": level}), story)
+        )
+
+    story_level("gentle")
+    assert context.CONTENT["gentle"] in system() and context.NEVER in system()
+    story_level("inherit")  # back to the library's level (mature by default)
+    assert context.CONTENT["mature"] in system()
+    story_level("anything")  # not a level: the library's
+    assert context.CONTENT["mature"] in system()
+
+
 def test_the_inside_block_sits_before_the_directive_and_is_capped(conn, story):
     inside = "[Inside Mira right now: show it, never say it]\nFeeling: hurt."
     built = context.build(conn, story, eid(conn, "Mira"), EP, inside=inside)

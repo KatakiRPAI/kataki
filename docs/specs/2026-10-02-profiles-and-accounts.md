@@ -52,7 +52,10 @@ Research: `docs/research/reports/Profiles accounts and cloud.md`.
       stories go (Gentle, Mature by default, Explicit) and topics to keep out; every reply's
       rules carry them (`context.content`), with a line about minors that no level removes.
       Explicit on the desktop asks for 18 or older once; online accounts already said so.
-      Not done: a per-story level; hiding characters by tag; a settings-only export.
+      A per-story level (2026-10-03): the story's settings sheet sets "How far this story goes"
+      (As in Settings, Gentle, Mature, Explicit; `overrides.content`), which wins over the
+      library's; Explicit is offered only where 18 or older is already said. The sheet no longer
+      offers a per-story model online. Not done: hiding characters by tag; a settings-only export.
 - [x] A0 · The gateway's spec: `docs/specs/2026-10-02-kataki-online.md` (2026-10-02). The owner
       chose Better Auth. A1–A6 are its G1–G6, and their progress is kept there.
 - [ ] A1–A6 · Accounts: A1 (G1) done; see the gateway spec.

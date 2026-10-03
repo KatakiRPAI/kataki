@@ -327,6 +327,7 @@ export type Story = Standing & {
   roles: Record<string, unknown>
   ui: StoryUi // the app's own state for this story; the engine keeps it and never reads it
   talk: 'person' | 'text' // How you talk: in person (prose), or texting (a phone thread)
+  content?: 'inherit' | 'gentle' | 'mature' | 'explicit' // how far this story goes; inherit = Settings
 }
 
 /** A moment a story has named ("the storm"), at a story time in minutes. */

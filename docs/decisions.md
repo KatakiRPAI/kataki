@@ -75,6 +75,7 @@ Legend: **[you]** you decided it · **[default]** an agent picked it, you have n
 | 2026-10-03 | No level ever allows sexual content involving anyone under 18 [default] | a line the app holds whatever the setting or the card says |
 | 2026-10-03 | Explicit on the desktop asks "I am 18 or older" once; online accounts said it at sign-up [default] | the desktop has no account to ask |
 | 2026-10-03 | "Keep out of stories": up to 20 topics, told to the model on every reply [default] | a simple, strong way to steer clear of what someone does not want |
+| 2026-10-03 | A story can set its own level; Explicit there needs the same 18-or-older answer as in Settings [default] | one story gentle and another explicit is how people actually play; the age line stays one rule |
 
 ## Desktop
 
