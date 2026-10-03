@@ -19,7 +19,7 @@ export function err(code: Code, facts: Record<string, string | number> = {}): Sh
 /** Which catalogue entry an engine or network failure is, from what it said. `online`: the model is
  *  a service elsewhere; `testing`: Settings is testing a connection, not waiting on a reply. */
 export function classify(message: string, online = false, testing = false): Code {
-  if (message === 'NO_CREDIT' || message === 'DAILY_CAP') return message // Kataki online's own refusals, by code
+  if (message === 'NO_CREDIT' || message === 'DAILY_CAP' || message === 'SPEND_CAP') return message // Kataki online's own refusals, by code
   const m = message.toLowerCase()
   if (online && typeof navigator !== 'undefined' && navigator.onLine === false) return 'OFFLINE'
   if (/\b401\b|unauthori[sz]ed|invalid.*key|key.*invalid/.test(m)) return online ? 'API_KEY_INVALID' : 'SERVER_UNAUTHORIZED'

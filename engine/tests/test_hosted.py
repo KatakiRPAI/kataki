@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 
 from kataki import __main__ as cli
 from kataki import chat, db, extract, hosted, library, usage
-from kataki.llm import LLM, DailyCap, Endpoint
+from kataki.llm import LLM, DailyCap, Endpoint, NoCredit, SpendCap
 from kataki.server import create_app
 
 EMBED = Endpoint("http://fake/v1", "e", role="embed")
@@ -505,6 +505,30 @@ async def test_the_daily_cap_refuses_before_the_gateway_is_asked(tmp_path):
     with pytest.raises(DailyCap):
         lib.host.allow(rp, 0.004)
     assert fake.asked == ["alice"]  # the refusal never reached the gateway
+    await app.close("alice")
+
+
+@pytest.mark.anyio
+async def test_a_monthly_limit_the_user_sets_refuses_with_its_own_code(tmp_path):
+    fake = FakeGateway(PRICES)
+    app = service(tmp_path, fake, daily_cap=100.0)
+    lib = app.open("alice")
+    rp = Endpoint("http://fake/v1", "rp-model", role="rp")
+    lib.conn.execute(  # 7800 micro-dollars this month (see the daily cap above)
+        "INSERT INTO usage_log(role, model, prompt_tokens, completion_tokens, cost)"
+        " VALUES('rp', 'rp-model', 10000, 4000, 0.0)"
+    )
+    lib.conn.commit()
+    assert lib.host.allow(rp, 0.004)  # no limit set
+    lib.conn.execute("INSERT INTO settings(key, value) VALUES('spend.monthly_cap', '0.01')")
+    lib.conn.commit()
+    with pytest.raises(SpendCap) as refused:
+        lib.host.allow(rp, 0.004)
+    assert refused.value.code == "SPEND_CAP" and isinstance(refused.value, NoCredit)
+    assert fake.asked == ["alice"]  # only the first call reached the gateway
+    lib.conn.execute("UPDATE settings SET value='\"none\"' WHERE key='spend.monthly_cap'")
+    lib.conn.commit()
+    assert lib.host.allow(rp, 0.004)  # a word that is not a number is no limit
     await app.close("alice")
 
 
