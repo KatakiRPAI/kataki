@@ -24,6 +24,14 @@ Legend: **[you]** you decided it · **[default]** an agent picked it, you have n
 6. **Going online**: the stack is packaged (`compose.online.yaml`) and runs in Docker. To put it
    on a server it needs a domain or subdomain and a host; your existing server would do for
    staging.
+7. **Backups of the website** [not built]: people's libraries and the Postgres ledger need a
+   backup once there is a host (item 6). Until then the Data page online says nothing about
+   backups rather than promise them.
+8. **Phone designs** [default, built]: the website works at 375 px with a stopgap layout (a tab
+   bar at the bottom, nothing wider than the screen). When the designer draws the phone
+   screens, those replace it.
+9. **The badge list** [default, built]: 16 starter badges (`engine/src/kataki/achievements.py`).
+   The real list, tiers and hidden ones are yours to define.
 
 ## Accounts (Kataki online)
 
