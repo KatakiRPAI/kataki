@@ -12,9 +12,11 @@ const usd = (n: number) => new Intl.NumberFormat(undefined, { style: 'currency',
 /** "Add credit", when there is a way to pay; and the word on a checkout just come back from. */
 export default function Credit({ onChange }: { onChange: () => void }) {
   const [offer] = useLoad(() => fetch('/api/providers').then((r) => r.json()).then((p: { payments: { amounts: number[] } | null }) => p.payments, () => null), [])
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(() => new URLSearchParams(location.search).has('add')) // T4: sent here by "Add credit"
   useEffect(() => { // T3: back from the processor's page
-    const id = new URLSearchParams(location.search).get('topup')
+    const said = new URLSearchParams(location.search)
+    if (said.has('add')) history.replaceState(null, '', location.pathname)
+    const id = said.get('topup')
     if (!id) return
     history.replaceState(null, '', location.pathname)
     api<{ status: 'open' | 'paid' | 'cancelled'; dollars: number }>(`/api/topup/${encodeURIComponent(id)}`).then((c) => {

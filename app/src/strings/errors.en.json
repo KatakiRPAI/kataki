@@ -1037,6 +1037,38 @@
   ]
  },
  {
+  "code": "NO_CREDIT",
+  "group": "Kataki online",
+  "surface": "inline",
+  "title": "You’re out of credit",
+  "body": "Nothing was sent, and your line is kept. Add credit, then try again. Reading, editing and Backstage still work.",
+  "actions": [
+   "Add credit",
+   "Try again"
+  ],
+  "recovery": "The engine refuses before sending (SSE error code NO_CREDIT). Design brief 3 T4.",
+  "appearsOn": [
+   "Scene"
+  ],
+  "drawnOn": []
+ },
+ {
+  "code": "DAILY_CAP",
+  "group": "Kataki online",
+  "surface": "inline",
+  "title": "Today’s spending limit is reached",
+  "body": "Nothing was sent, and your line is kept. The limit resets at 00:00 UTC.",
+  "actions": [
+   "Try again",
+   "Keep it"
+  ],
+  "recovery": "The engine refuses before sending (SSE error code DAILY_CAP). Design brief 3 T7.",
+  "appearsOn": [
+   "Scene"
+  ],
+  "drawnOn": []
+ },
+ {
   "code": "UNKNOWN",
   "group": "System",
   "surface": "dialog",
