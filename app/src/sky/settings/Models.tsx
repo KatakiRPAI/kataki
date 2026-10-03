@@ -2,11 +2,13 @@
 import { useEffect, useState } from 'react'
 import { api, type Provider, type RoleRow } from '../../api'
 import { K } from '../../ds'
+import type { IconName } from '../../ds/kataki'
 import { useLoad } from '../../hooks'
 import { Overlay, toast, openMenu, withMenu, type MenuItem } from '../../overlay'
 import { t, type Key } from '../../strings'
 import { classify, err } from '../../errors'
 import { ModelPicker, type Job } from '../ModelPicker'
+import { account } from '../../online/session'
 
 type Test = { ok: boolean; ms?: number; error?: string; models?: string[] }
 const JOBS: Job[] = ['rp', 'narrator', 'utility', 'reasoning', 'embed']
@@ -23,6 +25,31 @@ async function test(p: Provider): Promise<Test> {
 }
 
 export default function Models() {
+  if (account()) return <OnlineModels /> // online the service picks the models (design brief 3, K)
+  return <LocalModels />
+}
+
+/** Kataki online: each job, its model and about what it costs; nothing here to set up. */
+function OnlineModels() {
+  const [roles] = useLoad(() => api<RoleRow[]>('/roles'), [])
+  const usd = (n: number) => new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: n < 0.1 ? 3 : 2 }).format(n)
+  return (
+    <K.SettingsSection title={t('mo.who')} note={t('mo.whoOnline')}>
+      <K.Panel flush>
+        {JOBS.map((job) => {
+          const row = roles?.find((r) => r.role === job)
+          const model = row?.effective_model ?? t(job === 'embed' ? 'mo.builtIn' : 'mo.unset')
+          return <K.JobRow key={job} icon={ICON[job]} name={t(`mo.job.${job}` as Key)} description={t(`mo.job.${job}Sub` as Key)}
+            model={row?.reply_cost ? t('mo.per100', { model, price: usd(row.reply_cost * 100) }) : model} />
+        })}
+      </K.Panel>
+    </K.SettingsSection>
+  )
+}
+
+const ICON: Record<Job, IconName> = { rp: 'users', narrator: 'quill', utility: 'thought', reasoning: 'spark', embed: 'search' }
+
+function LocalModels() {
   const [providers, reloadProviders] = useLoad(() => api<Provider[]>('/providers'), [])
   const [roles, reloadRoles] = useLoad(() => api<RoleRow[]>('/roles'), [])
   const [tests, setTests] = useState<Record<number, Test | 'testing'>>({})
@@ -110,7 +137,7 @@ export default function Models() {
             const model = row?.model ?? (row?.inherited_from ? t('mo.borrows', { job: t(`mo.job.${row.inherited_from}` as Key) }) : row?.effective_model ?? (job === 'embed' ? t('mo.builtIn') : t('mo.unset')))
             return (
               <div key={job}>
-                <K.JobRow icon={job === 'embed' ? 'search' : job === 'utility' ? 'thought' : job === 'reasoning' ? 'spark' : job === 'narrator' ? 'quill' : 'users'}
+                <K.JobRow icon={ICON[job]}
                   name={t(`mo.job.${job}` as Key)} description={t(`mo.job.${job}Sub` as Key)} model={model} open={open === job}
                   onClick={() => setOpen(open === job ? undefined : job)} />
                 {open === job && row && <JobPanel key={job} job={job} row={row} providers={providers ?? []} onSaved={reloadRoles} />}

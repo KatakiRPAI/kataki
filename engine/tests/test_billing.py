@@ -377,6 +377,17 @@ def test_spend_by_story_most_first_and_calls_outside_any_story_apart(local_model
     assert got["other"] == {"calls": 1, "cost": 0}
 
 
+def test_roles_say_what_one_reply_costs_per_job(local_model):
+    set_prices(local_model, {"rp-model": {"input": 1.0, "output": 2.0}})
+    client, auth = client_for(local_model)
+
+    rows = {r["role"]: r for r in client.get("/roles", headers=auth).json()}
+
+    assert rows["rp"]["reply_cost"] == pytest.approx((4000 * 1.0 + 300 * 2.0) / 1e6)
+    assert rows["narrator"]["reply_cost"] == rows["rp"]["reply_cost"]  # it borrows rp's model
+    assert rows["embed"]["reply_cost"] is None  # no model, no price
+
+
 def test_spend_for_no_story_is_404(conn):
     client, auth = client_for(conn)
     assert client.get("/stories/99/spend", headers=auth).status_code == 404

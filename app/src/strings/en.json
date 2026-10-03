@@ -1254,6 +1254,8 @@
   "mo.detail": "{url}{key, select, yes { · key kept in the keychain} other {}}",
   "mo.replaceKey": "Replace the key",
   "mo.who": "Who does what",
+  "mo.whoOnline": "Kataki picks a model for each job. Prices are about what 100 replies cost.",
+  "mo.per100": "{model} · about {price} per 100 replies",
   "mo.whoSub": "Each job can use its own model. Leave one and it borrows from the one above it.",
   "mo.job.rp": "Characters",
   "mo.job.rpSub": "Speaking, in character",

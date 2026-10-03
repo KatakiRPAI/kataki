@@ -123,6 +123,11 @@ The owner chose Better Auth on 2026-10-02, so the gateway is a small TypeScript 
       375 × 812 on Home, Stories, Characters, World, You, every Settings panel, the Scene and its
       Here panel, and Add credit. Not done: phone designs (**[owner]**: the designer), Peek and
       the editor at phone size, touch gestures.
+- [ ] G10 · Settings › Models online (design brief 3, K). Built (2026-10-03): online the page is
+      the service's jobs, each with its model and about what 100 replies cost (`GET /roles` now
+      carries `reply_cost`, priced at `usage.REPLY`); no servers, keys or tuning, which the
+      service resets anyway. Not done: a choice of models per job with a quality line, and the
+      mind level's cost.
 
 G1–G6 are A1–A6 of the profiles spec.
 
