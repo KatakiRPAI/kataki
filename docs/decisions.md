@@ -50,6 +50,7 @@ Legend: **[you]** you decided it · **[default]** an agent picked it, you have n
 |---|---|---|
 | 2026-10-03 | One compose file: Postgres, gateway, engine; only the gateway is published [default] | simplest thing that runs anywhere Docker does |
 | 2026-10-03 | The engine shares the gateway's network so it still listens on loopback only [default] | the engine is not yet hardened to listen wider |
+| 2026-10-03 | The mind levels are called Light, Standard and Deep in the app (lite, standard, premium in the engine) [default] | plainer words; "premium" sounds like a paid tier, and it is only more calls |
 | 2026-10-03 | The monthly limit is off by default; choices $5 to $100; the month is the calendar month in UTC [default] | pay-as-you-go needs no limit to be safe, and a calendar month is what people expect |
 | 2026-10-03 | Online, Data says nothing about backups until the service really backs libraries up [default] | showing a backup row before there are backups would mislead |
 | 2026-10-03 | "Get the desktop app" links to the GitHub releases page [default] | the only place the app is published today |

@@ -224,12 +224,17 @@ function Memory() {
   const navigate = useNavigate()
   const [stories] = useLoad(() => api<StorySummary[]>('/stories'), [])
   const lastStory = stories?.[0]
+  const [levels] = useLoad(() => api<Record<'lite' | 'standard' | 'premium', number | null>>('/mind-levels').catch(() => undefined), [])
+  const per100 = (n: number | null | undefined) => (n ? new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: n * 100 < 1 ? 3 : 2 }).format(n * 100) : null)
+  const costs = levels && per100(levels.lite) && per100(levels.standard) && per100(levels.premium)
+    ? t('me.mindCost', { lite: per100(levels.lite)!, standard: per100(levels.standard)!, premium: per100(levels.premium)! }) : ''
   return (
     <>
       <K.SettingsSection title={t('set.n.memory')} note={t('me.note')}>
         <K.SettingsRow title={t('me.fade')} description={t('me.fadeSub')}><Seg k="memory.fade" fallback="lifelike" label={t('me.fade')} options={[['fast', 'me.fast'], ['lifelike', 'me.lifelike'], ['slow', 'me.slow'], ['never', 'me.never']]} /></K.SettingsRow>
         <K.SettingsRow title={t('me.wrong')} description={t('me.wrongSub')}><Switch k="memory.canBeWrong" fallback label={t('me.wrong')} /></K.SettingsRow>
         <K.SettingsRow title={t('me.doubt')} description={t('me.doubtSub')}><Switch k="memory.canDoubt" fallback label={t('me.doubt')} /></K.SettingsRow>
+        <K.SettingsRow title={t('me.mind')} description={[t('me.mindSub'), costs].filter(Boolean).join(' ')}><Seg k="mind.level" fallback="standard" label={t('me.mind')} options={[['lite', 'me.mind.lite'], ['standard', 'me.mind.standard'], ['premium', 'me.mind.premium']]} /></K.SettingsRow>
         <K.SettingsRow title={t('me.thinking')} description={t('me.thinkingSub')}><Seg k="memory.thinking" fallback="some" label={t('me.thinking')} options={[['none', 'me.think.none'], ['some', 'me.think.some'], ['lot', 'me.think.lot']]} /></K.SettingsRow>
       </K.SettingsSection>
       <K.Callout tone="warm" title={t('me.engineNote')}>{t('me.engineNoteBody')}</K.Callout>
