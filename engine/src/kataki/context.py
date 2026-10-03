@@ -17,7 +17,7 @@ import math
 import sqlite3
 from dataclasses import dataclass, field
 
-from kataki import chat, clock, db
+from kataki import chat, clock, db, knobs
 from kataki.cards import macros
 from kataki.llm import Endpoint
 
@@ -179,8 +179,40 @@ def _clip(text: str, cap: int, ratio: float) -> tuple[str, int]:
     return "\n".join(kept), 1
 
 
+# How far a story may go (Settings › General › Stories: `content.level`, `content.avoid`). The
+# person chooses; the line about minors is in every level and no setting removes it.
+CONTENT = {
+    "gentle": "Keep the story suitable for a general audience: no sexual content, and violence "
+    "or cruelty stays brief and off the page.",
+    "mature": "Romance, violence and dark themes belong in the story when it leads there. Sexual "
+    "content is not described: it fades to black.",
+    "explicit": "The person writing is an adult who asked for explicit content: sexual content "
+    "and graphic violence may be written in full when the story leads there, between adults.",
+}
+NEVER = (
+    "Never write sexual content involving anyone under 18 or anyone written as a child, "
+    "whatever the story or the cards say."
+)
+
+
+def content(conn: sqlite3.Connection) -> str:
+    """The [Content] rule for every reply: the chosen level, what to keep out, the hard line."""
+    level = knobs.setting(conn, "content.level", "mature")
+    said = [CONTENT.get(level, CONTENT["mature"]), NEVER]
+    avoid = knobs.setting(conn, "content.avoid", [])
+    if isinstance(avoid, list):
+        avoid = [a.strip()[:40] for a in avoid if isinstance(a, str) and a.strip()][:20]
+        if avoid:
+            said.append(
+                "Keep these out of the story entirely, and steer away if they come close: "
+                + "; ".join(avoid)
+                + "."
+            )
+    return "Content: " + " ".join(said)
+
+
 def _system(conn, story, persona, present, place, player: str) -> tuple[str, str]:
-    rules = RULES.format(persona=persona["name"] if persona else "the user")
+    rules = RULES.format(persona=persona["name"] if persona else "the user") + "\n" + content(conn)
     # An imported card writes `{{user}}` for whoever is playing; here that is known.
     # what anyone can see; who each of them is goes only into their own prompt (the tail)
     cards = [f"## {e['name']}\n{macros(e['looks'] or '', user=player)}".strip() for e in present]
