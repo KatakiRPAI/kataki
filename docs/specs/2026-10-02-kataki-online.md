@@ -121,8 +121,10 @@ The owner chose Better Auth on 2026-10-02, so the gateway is a small TypeScript 
       wider than the screen (search, cards, settings rows, list rows, dialogs), the Scene header
       truncates, and Settings shows its list or one panel with "All settings" back. Checked at
       375 × 812 on Home, Stories, Characters, World, You, every Settings panel, the Scene and its
-      Here panel, and Add credit. Not done: phone designs (**[owner]**: the designer), Peek and
-      the editor at phone size, touch gestures.
+      Here panel, and Add credit. Peek and the story's
+      settings sheet fill the screen (2026-10-03; they were a fixed 420 px panel half off it); the
+      character editor, profile, new story and World checked at 375 px. Not done: phone designs
+      (**[owner]**: the designer), touch gestures.
 - [ ] G10 · Settings › Models online (design brief 3, K). Built (2026-10-03): online the page is
       the service's jobs, each with its model and about what 100 replies cost (`GET /roles` now
       carries `reply_cost`, priced at `usage.REPLY`); no servers, keys or tuning, which the
