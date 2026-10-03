@@ -159,6 +159,19 @@ def test_allow_is_asked_once_per_ten_seconds_per_user():
     assert fake.auth == {"Bearer gw-key"}
 
 
+def test_a_no_is_never_kept_so_a_top_up_counts_at_once():
+    now = [0.0]
+    fake = FakeGateway(broke={"bob"})
+    gw = fake.client(lambda: now[0])
+    assert not gw.allow("bob", 0.01)
+    fake.broke.discard("bob")  # Bob adds credit
+    assert gw.allow("bob", 0.01)  # the next call asks again, it does not wait out the 10 s
+    assert fake.asked == ["bob", "bob"]
+    now[0] = 30.0
+    gw.allow("alice", 0.01)
+    assert set(gw._said) == {"alice"}  # Bob's stale yes went when Alice's was kept
+
+
 def test_a_gateway_that_cannot_answer_raises():
     gw = hosted.Gateway("http://gw", "k", httpx2.MockTransport(lambda r: httpx2.Response(500)))
     with pytest.raises(httpx2.HTTPError):

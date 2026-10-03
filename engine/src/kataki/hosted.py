@@ -98,18 +98,22 @@ class Gateway:
             transport=transport,
         )
         self._clock = clock
-        self._said: dict[str, tuple[float, bool]] = {}
+        self._said: dict[str, float] = {}  # user -> when the gateway last said yes
 
     def allow(self, user: str, estimate: float) -> bool:
         """Can this user's balance cover a call of about `estimate` dollars? Raises when the
         gateway cannot say (the online host then refuses: it fails closed)."""
         now = self._clock()
-        if (said := self._said.get(user)) and now - said[0] < self.TTL:
-            return said[1]
+        if (said := self._said.get(user)) is not None and now - said < self.TTL:
+            return True
         r = self._http.get("/allow", params={"user": user, "estimate": estimate})
         r.raise_for_status()
         ok = bool(r.json()["ok"])
-        self._said[user] = (now, ok)
+        if (
+            ok
+        ):  # only a yes is kept: after a "no" the next call asks again, so a top-up counts at once
+            self._said = {u: t for u, t in self._said.items() if now - t < self.TTL}
+            self._said[user] = now
         return ok
 
     def meter(self, user: str, row: dict) -> None:
