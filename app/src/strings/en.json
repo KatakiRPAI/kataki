@@ -779,6 +779,7 @@
   "ac.signOut": "Sign out",
   "ac.balance": "Balance",
   "cr.add": "Add credit",
+  "cr.balanceTip": "Balance: {amount}. Add credit",
   "cr.title": "Add credit",
   "cr.body": "Pay once, then spend it on replies as you write. It does not renew, and nothing is taken without you asking.",
   "cr.amount": "Amount",
