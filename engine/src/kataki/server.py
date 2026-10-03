@@ -680,7 +680,14 @@ def create_app(
 
     @app.get("/roles")
     async def list_roles(story_id: int | None = None):
-        return roles.routing(conn, story_id)
+        """Each job's routing, and about what one reply costs on its model (None: no price)."""
+        prices = host.price_table(conn)
+        prompt, completion = usage.REPLY
+        size = {"prompt_tokens": prompt, "completion_tokens": completion}
+        return [
+            {**r, "reply_cost": r["effective_model"] and usage.cost(prices, r["effective_model"], r["role"], size)}
+            for r in roles.routing(conn, story_id)
+        ]  # fmt: skip
 
     @app.put("/roles/{role}")
     async def set_role(role: Literal[roles.ROLES], r: RoleIn):  # type: ignore[valid-type]

@@ -47,6 +47,7 @@ export type RoleRow = {
   effective_provider_id: number | null
   effective_model: string | null
   effective_kind: 'reasoning' | 'standard' | null
+  reply_cost: number | null // dollars, about, for one reply on its model (null: no price)
 }
 
 export type ItemKind = 'character' | 'place' | 'scenario'
