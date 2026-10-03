@@ -461,4 +461,6 @@ button.k-shortrow, button.k-job { width: 100%; background: transparent; border: 
   .set__back { display: block; margin-block-end: -12px; }
   .set .k-sidenav { width: 100%; box-sizing: border-box; }
   .k-dialog { max-width: calc(100vw - 32px); }
+  .scene-sheet { inset: 8px; }
+  .k-sheet { width: 100%; max-width: 100%; }
 }
