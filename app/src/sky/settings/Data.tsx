@@ -6,7 +6,7 @@ import { api, download, sendFile, type Storage, type Item, type Provider, type S
 import { K } from '../../ds'
 import { useLibrary, useLoad } from '../../hooks'
 import { Overlay, toast } from '../../overlay'
-import { setPref, usePrefs } from '../../prefs'
+import { loadPrefs, setPref, usePrefs } from '../../prefs'
 import { relative, t, type Key } from '../../strings'
 import { err } from '../../errors'
 import Cloud from './Cloud'
@@ -60,6 +60,12 @@ export default function Data() {
             </div>
           </K.SettingsRow>
         )}
+        <K.SettingsRow title={t('da.settings')} description={t('da.settingsSub')}>
+          <div className="row" style={{ gap: 8 }}>
+            <K.Button size="sm" icon="download" onClick={() => download('/export/settings').then((name) => toast(t('toast.exportedLib', { name }), { icon: 'download' }, 5000), (e) => toast((e as Error).message, {}, 8000))}>{t('da.settingsOut')}</K.Button>
+            <label className="k-btn k-btn--ghost k-btn--sm">{t('da.settingsIn')}<input type="file" accept=".json" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) sendFile<{ settings: number }>('/import/settings', f).then((r) => { loadPrefs(); toast(t('toast.settingsIn', { n: r.settings }), { icon: 'check' }, 4000) }, (x) => toast((x as Error).message, {}, 8000)) }} /></label>
+          </div>
+        </K.SettingsRow>
         <K.SettingsRow title={t('da.import')} description={t('da.importSub')}>
           <div className="row" style={{ gap: 8 }}>
             <K.Button onClick={() => navigate('/characters')}>{t('da.importCards')}</K.Button>
