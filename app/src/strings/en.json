@@ -1756,6 +1756,7 @@
   "fr.youAre": "And you are",
   "fr.change": "Change",
   "fr.startWith": "Start with {name}",
+  "fr.credit": "You start with {amount} of credit. Replies spend a little of it; what is left is at the top of the Sky.",
   "fr.empty": "Skip and go to an empty library",
   "fr.seeding": "Setting out the sample world…",
   "fr.personaTitle": "Who are you in these stories?",
