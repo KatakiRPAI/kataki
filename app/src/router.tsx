@@ -124,6 +124,7 @@ const routes: RouteObject[] = [
           sky('/characters/new', <Editor key="new" />),
           sky('/characters/:id', <Profile />),
           sky('/characters/:id/edit', <Editor key="edit" />),
+          sky('/settings', <Settings />),
           sky('/settings/:panel', <Settings />),
           sky('/world', <World />),
           sky('/you', <You />),

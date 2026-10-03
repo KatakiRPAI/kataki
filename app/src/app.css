@@ -334,6 +334,7 @@ button.k-shortrow, button.k-job { width: 100%; background: transparent; border: 
 .bal--out { color: var(--bad); border-color: var(--bad); }
 .spend { display: flex; flex-direction: column; gap: 10px; padding-block: 8px; }
 .testpay { position: fixed; inset: 0 0 auto; z-index: 9999; pointer-events: none; text-align: center; font-size: 11px; font-weight: 600; padding: 2px 8px; background: var(--warm); color: #1a1206; }
+.set__back { display: none; }
 .sr-row { display: block; color: inherit; border-radius: var(--radius-lg); }
 .sr-row:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .sr-row mark { background: color-mix(in srgb, var(--accent) 30%, transparent); color: var(--ink); border-radius: 3px; }
@@ -427,3 +428,37 @@ button.k-shortrow, button.k-job { width: 100%; background: transparent; border: 
 .home-day1 { display: flex; flex-direction: column; gap: 14px; padding: 36px 0 8px; max-width: 760px; }
 .home-day1__h { margin: 0; font-family: var(--font-display); font-size: 48px; line-height: 52px; font-weight: 800; letter-spacing: -0.02em; }
 .home-day1__p { margin: 0; font-size: 16px; line-height: 25px; color: var(--mid); }
+/* Phones (design brief 3: "online must work at 390 × 844"). A stopgap until the phone designs
+   come: the rail becomes a tab bar at the bottom, and nothing is wider than the screen. */
+@media (max-width: 599px) {
+  .app__rail { position: fixed; inset: auto 0 0; z-index: 20; }
+  .app__rail .k-rail, .app__rail.k-rail { height: auto; min-height: 0; width: 100%; flex-direction: row; justify-content: space-around; align-items: center; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); border-inline-end: 0; border-block-start: 1px solid var(--border); }
+  .k-rail__mark, .k-rail__new, .k-rail__foot > :not(:first-child) { display: none; }
+  .k-rail__list, .k-rail__foot { flex-direction: row; gap: 4px; margin: 0; }
+  .app--compact .app__sky, .app__sky { inset-inline-start: 0; }
+  .app__main { padding: 16px 16px 88px; gap: 24px; height: 100dvh; }
+  .k-topbar { gap: 8px; }
+  .k-topbar .k-search { width: auto; flex: 1; min-width: 0; }
+  .k-topbar .k-kbd { display: none; }
+  .k-still, .k-char--featured, .app__main img { max-width: 100%; }
+  .home-day1__h { font-size: 34px; line-height: 38px; }
+  .scene__tl { inset-inline: 12px 164px; top: 12px; }
+  .scene__tr { inset-inline-end: 12px; top: 12px; }
+  .k-scenehead { display: flex; max-width: 100%; }
+  .k-scenehead, .k-scenehead__text { min-width: 0; }
+  .k-scenehead__title, .k-scenehead__sub { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .scene__herepill { font-size: 0; gap: 0; padding-inline: 6px; }
+  .scene__chat { inset-inline: 8px; top: 64px; }
+  .k-setrow { flex-wrap: wrap; gap: 10px 16px; padding-inline: 14px; }
+  .k-setrow__control { flex-shrink: 1; flex-wrap: wrap; max-width: 100%; }
+  .k-setrow__control .k-field { min-width: 0; }
+  .you-hero, .pc__row { flex-direction: column; align-items: flex-start; gap: 16px; }
+  .app__main .row { flex-wrap: wrap; }
+  .k-conn, .k-folder, .k-job, .k-shortrow { flex-wrap: wrap; padding-inline: 14px; }
+  .k-job__name { width: auto; flex: 1; }
+  .k-job__desc { order: 3; flex-basis: 100%; }
+  .set--open .k-sidenav, .set--list .set__panel { display: none; }
+  .set__back { display: block; margin-block-end: -12px; }
+  .set .k-sidenav { width: 100%; box-sizing: border-box; }
+  .k-dialog { max-width: calc(100vw - 32px); }
+}

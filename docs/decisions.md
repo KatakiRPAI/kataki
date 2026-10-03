@@ -55,6 +55,10 @@ Legend: **[you]** you decided it · **[default]** an agent picked it, you have n
 | 2026-10-03 | The daily limit ($5 a day by default, resets 00:00 UTC) gets its own message, not the out-of-credit one [default] | adding credit does not lift it, so saying so would mislead |
 | 2026-10-03 | The balance chip turns amber under $1 and red at $0 [default] | a quiet warning while there is still some left: time to notice, not a nag |
 | 2026-10-03 | Spending shows 30 days, the last 14 with spend as bars, the top 5 stories, the last 5 credits [default] | enough to see where money goes without a whole page; every charge is in the account download |
+| 2026-10-03 | Phones get a working layout now, before the phone designs exist [default] | the website must work on a phone; the designer's version replaces this when it comes |
+| 2026-10-03 | On a phone the rail is a bottom tab bar: Home, Stories, Characters, World, You, Settings; New character, Feedback and Theme move out of it [default] | six fit a 375 px screen; the rest are a tap away in their pages and Settings |
+| 2026-10-03 | Out of credit in a story: the line is kept and Add credit opens the amounts; after paying you land in Settings › Account, not back in the story [default] | the simplest return; going back to the story is a later nicety |
+| 2026-10-03 | The daily limit ($5 a day by default, resets 00:00 UTC) gets its own message, not the out-of-credit one [default] | adding credit does not lift it, so saying so would mislead |
 
 ## Stories
 

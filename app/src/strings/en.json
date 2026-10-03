@@ -764,6 +764,7 @@
   "mode.narrateSub": "> a line starting with >",
   "edit.warn": "Regenerating from here rewrites the {n, plural, one {message} other {# messages}} after this one.",
   "edit.warnMore": "They’ll be kept as the previous take, so you can flip back.",
+  "set.all": "All settings",
   "set.nav": "Settings",
   "set.n.general": "General",
   "set.n.appearance": "Appearance",
