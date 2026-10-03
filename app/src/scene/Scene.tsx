@@ -164,7 +164,7 @@ export default function Scene() {
           const done = value as TurnDone
           planned = done
           if (done.skip_minutes >= 1440) showSkip(done.skip_minutes, from.date, done.date, done.message_id)
-        } else if (kind === 'error') setFailed(value.message)
+        } else if (kind === 'error') setFailed(value.code === 'NO_CREDIT' || value.code === 'DAILY_CAP' ? value.code : value.message)
       }, ctl.signal)
       await typed.drain()
     } catch (e) {
@@ -552,6 +552,7 @@ export default function Scene() {
                   : /Continue it/.test(a) ? () => send('')
                   : /Keep it/.test(a) ? () => setFailed('')
                   : /own model|Open Settings/.test(a) ? () => navigate('/settings/models')
+                  : /Add credit/.test(a) ? () => navigate('/settings/account?add=1')
                   : undefined
                 return (
                   <div className="lineerr" role="alert" title={failed}>
