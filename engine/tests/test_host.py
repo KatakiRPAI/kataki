@@ -173,3 +173,40 @@ def test_one_llm_cannot_bill_two_online_apps(conn, backend):
     create_app(conn, TOKEN, llm, host=online())
     with pytest.raises(ValueError):
         create_app(conn, TOKEN, llm, host=online())
+
+
+# --- settings alone travel: out of one library, into another ------------------------------------
+
+
+def test_settings_export_and_import_alone(conn, tmp_path):
+    from kataki import db
+
+    conn.execute("INSERT INTO settings(key, value) VALUES('profile', '{\"name\": \"Liv\"}')")
+    conn.execute("INSERT INTO settings(key, value) VALUES('content.level', '\"gentle\"')")
+    conn.execute("INSERT INTO settings(key, value) VALUES('prices', '{\"m\": {\"input\": 1}}')")
+    conn.commit()
+    out = TestClient(create_app(conn, TOKEN)).get("/export/settings", headers=AUTH)
+    assert out.status_code == 200 and "kataki-settings.json" in out.headers["content-disposition"]
+    assert out.json()["settings"]["content.level"] == "gentle"
+
+    desk = db.connect(tmp_path / "desk" / "library.db")
+    got = TestClient(create_app(desk, TOKEN)).post(
+        "/import/settings", content=out.content, headers=AUTH
+    )
+    assert got.status_code == 200 and got.json() == {"settings": 3}
+    assert (
+        desk.execute("SELECT value FROM settings WHERE key='profile'").fetchone()[0]
+        == '{"name": "Liv"}'
+    )
+
+    web = db.connect(tmp_path / "web" / "library.db")
+    got = TestClient(create_app(web, TOKEN, host=online())).post(
+        "/import/settings", content=out.content, headers=AUTH
+    )
+    assert got.json() == {"settings": 2}  # online the prices are the service's
+    assert web.execute("SELECT count(*) FROM settings WHERE key='prices'").fetchone()[0] == 0
+
+    bad = TestClient(create_app(desk, TOKEN)).post(
+        "/import/settings", content=b"[1, 2]", headers=AUTH
+    )
+    assert bad.status_code == 422

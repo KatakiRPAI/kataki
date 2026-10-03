@@ -950,6 +950,35 @@ def create_app(
             background=BackgroundTask(shutil.rmtree, made.parent, ignore_errors=True),
         )
 
+    @app.get("/export/settings")
+    async def export_settings():
+        """Every setting (the profile card and each preference), as a small JSON file: what makes
+        Kataki yours, without the library. The card's picture is a file and stays behind."""
+        return JSONResponse(
+            {"kataki": "settings", "version": 1, "settings": await get_settings()},
+            headers={"Content-Disposition": 'attachment; filename="kataki-settings.json"'},
+        )
+
+    @app.post("/import/settings")
+    async def import_settings(request: Request):
+        """A `kataki-settings.json` written into this library's settings, under the same rule as
+        `PUT /settings` (online the prices are the service's and are skipped)."""
+        try:
+            said = json.loads(await request.body())
+            values = said["settings"]
+            if said.get("kataki") != "settings" or not isinstance(values, dict):
+                raise ValueError
+        except (ValueError, KeyError, TypeError):
+            raise HTTPException(422, "that is not a Kataki settings file.") from None
+        if host.prices is not None:
+            values.pop("prices", None)
+        with conn:
+            conn.executemany(
+                "INSERT OR REPLACE INTO settings(key, value) VALUES(?, ?)",
+                [(str(k), json.dumps(v)) for k, v in values.items()],
+            )
+        return {"settings": len(values)}
+
     @app.post("/import/kataki", status_code=201)
     async def import_kataki(request: Request):
         """A `.kataki` poured into this library, which must be empty."""
