@@ -10,7 +10,8 @@ import { pref } from '../prefs'
 import { t } from '../strings'
 import { is, keysOf, parts } from '../shortcuts'
 import { openFeedback } from '../sky/Feedback'
-import { classify, err } from '../errors'
+import { classify, err, online } from '../errors'
+import { account } from '../online/session'
 import { Delete, Export } from '../sky/Stories'
 import Backstage from './Backstage'
 import Lines, { Bubbles, type LineActions, type Play } from './Lines'
@@ -36,7 +37,9 @@ export default function Scene() {
   const { byId, items } = useLibrary()
   const [prefs] = useLoad(() => api<{ reply_speed?: Speed }>('/settings'), [])
   // the model's name, for the error's own words
+  const onService = !!account() // Kataki online: the service's own models, no providers here
   const [provider] = useLoad(async () => {
+    if (onService) return undefined
     const rp = (await api<RoleRow[]>('/roles')).find((r) => r.role === 'rp')
     return (await api<Provider[]>('/providers')).find((p) => p.id === rp?.effective_provider_id)
   }, [])
@@ -418,8 +421,8 @@ export default function Scene() {
   const place = story.place ? item(story.place) : undefined
   const art = scenery(place)
   const artSrc = art.src ?? (art.place ? K.ART[art.place]?.src ?? undefined : undefined)
-  const failedCode = classify(failed, !!providerName && !/^(localhost|127\.|\[::1\])/.test(providerUrl))
-  const offline = ['REPLY_UNREACHABLE', 'API_UNREACHABLE', 'MODEL_GONE', 'REPLY_TIMEOUT'].includes(failedCode)
+  const failedCode = onService ? online(classify(failed, true)) : classify(failed, !!providerName && !/^(localhost|127\.|\[::1\])/.test(providerUrl))
+  const offline = ['REPLY_UNREACHABLE', 'API_UNREACHABLE', 'MODEL_GONE', 'REPLY_TIMEOUT', 'SERVICE_BUSY'].includes(failedCode)
   const first = !messages.some((m) => m.role === 'user') && !said
   const who = persona ?? 'you'
   const placeholder = live ? t('scene.placeholderAnswering', { name: live.speaker || lead?.name || t('scene.narrator') })

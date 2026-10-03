@@ -36,3 +36,8 @@ export function classify(message: string, online = false, testing = false): Code
   if (/connect|reach|refused|unreachable|econn|network|fetch|502|503|504/.test(m)) return online ? 'API_UNREACHABLE' : 'REPLY_UNREACHABLE'
   return 'UNKNOWN'
 }
+
+/** Kataki online: trouble between the service and its model is the service's, not the person's
+ *  to fix (no server, key or model of their own): one message, `SERVICE_BUSY`. */
+export const online = (code: Code): Code =>
+  ['API_UNREACHABLE', 'REPLY_UNREACHABLE', 'API_RATE_LIMITED', 'API_KEY_INVALID', 'API_MODEL_NOT_FOUND', 'MODEL_GONE', 'SERVER_UNAUTHORIZED'].includes(code) ? 'SERVICE_BUSY' : code
