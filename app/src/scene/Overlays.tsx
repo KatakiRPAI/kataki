@@ -6,6 +6,8 @@ import { K } from '../ds'
 import { scenery, twelve, useLibrary, useLoad } from '../hooks'
 import { Overlay, toast } from '../overlay'
 import { t, type Key } from '../strings'
+import { account } from '../online/session'
+import { usePrefs } from '../prefs'
 
 // what the engine's clock reads, and what the button says
 const PRESETS: [string, Key][] = [['5 minutes later', 'pass.moment'], ['1 hour later', 'pass.hour'], ['the next morning', 'pass.morning'], ['a week later', 'pass.week']]
@@ -127,7 +129,13 @@ export function StorySettings({ story, advanced, onAdvanced, onClose, onChange }
   const { items } = useLibrary()
   const personaOptions: [number | null, string][] = [...items.filter((i) => i.kind === 'character' && i.data.persona).map((p) => [p.id, p.name] as [number, string]), [null, t('pm.director')]]
   // a model for this story alone: any model a connection offers, or the default (Settings › Models)
+  const online = !!account() // online the service picks the models: no per-story model
+  const [prefs] = usePrefs()
+  // Explicit only where 18 or older is already said: online at sign-up, the desktop in Settings
+  const levels = ['inherit', 'gentle', 'mature', ...(online || prefs['content.adult'] ? ['explicit'] : [])] as const
+  const levelWord = (l: string) => (l === 'inherit' ? t('set.contentInherit', { level: t(`g.content.${(prefs['content.level'] as string) || 'mature'}` as Key) }) : t(`g.content.${l}` as Key))
   const [models] = useLoad(async () => {
+    if (online) return []
     const providers = await api<Provider[]>('/providers')
     const all = await Promise.all(providers.map((p) => api<{ models: string[] }>(`/providers/${p.id}/models`).then((m) => m.models.map((x) => [`${p.id}:${x}`, `${p.name} · ${x}`] as [string, string]), () => [])))
     return all.flat()
@@ -146,13 +154,15 @@ export function StorySettings({ story, advanced, onAdvanced, onClose, onChange }
             <K.Select label={t('set.you')} hint={t('set.youHint')} options={personaOptions.map(([, l]) => l)}
               value={personaOptions.find(([id]) => id === (story.persona?.lib_item_id ?? null))?.[1] ?? personaOptions.at(-1)?.[1]}
               onChange={(v) => { patch({ persona_id: personaOptions.find(([, l]) => l === v)?.[0] ?? null }); toast(t('toast.personaSwitched', { name: v }), { icon: 'user' }, 3000) }} />
-            <K.Select label={t('set.model')} hint={t('set.modelHint')} options={modelOptions.map(([, l]) => l)}
+            {!online && <K.Select label={t('set.model')} hint={t('set.modelHint')} options={modelOptions.map(([, l]) => l)}
               value={modelOptions.find(([k]) => k === currentModel)?.[1] ?? modelOptions[0][1]}
               onChange={(v) => {
                 const key = modelOptions.find(([, l]) => l === v)?.[0] ?? ''
                 const [pid, ...rest] = key.split(':')
                 patch({ roles: key ? { rp: { provider_id: Number(pid), model: rest.join(':'), kind: 'auto', params: {} } } : {} })
-              }} />
+              }} />}
+            <K.Select label={t('set.content')} hint={t('set.contentHint')} options={levels.map(levelWord)} value={levelWord(story.content ?? 'inherit')}
+              onChange={(v) => patch({ content: levels.find((l) => levelWord(l) === v) ?? 'inherit' })} />
             <K.SettingsRow title={t('talk.label')} description={t('talk.sub')}>
               <K.Segmented tone="scene" size="sm" label={t('talk.label')} options={[t('talk.person'), t('talk.text')]} value={t(story.talk === 'text' ? 'talk.text' : 'talk.person')}
                 onChange={(v) => patch({ talk: v === t('talk.text') ? 'text' : 'person' })} />

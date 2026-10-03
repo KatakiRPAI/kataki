@@ -186,6 +186,8 @@ class StoryPatch(BaseModel):
     moments: list[Moment] | None = None  # what the story's dates count from
     persona_id: int | None = None  # who you are from now on (a library persona); None = no one
     talk: Literal["person", "text"] | None = None  # How you talk: in person, or texting
+    # how far this story goes; "inherit" = the library's content.level (context.content)
+    content: Literal["inherit", "gentle", "mature", "explicit"] | None = None
 
 
 class TurnIn(BaseModel):
@@ -1131,6 +1133,7 @@ def create_app(
             "roles": overrides.get("roles", {}),
             "ui": overrides.get("ui", {}),
             "talk": overrides.get("talk", "person"),
+            "content": overrides.get("content", "inherit"),
             **standing(story),
         }
 
@@ -1139,7 +1142,7 @@ def create_app(
         story = story_row(story_id)
         fields = s.model_dump(
             exclude_unset=True,
-            exclude={"roles", "ui", "moments", "book_id", "tags", "persona_id", "talk"},
+            exclude={"roles", "ui", "moments", "book_id", "tags", "persona_id", "talk", "content"},
         )
         if "persona_id" in s.model_fields_set:
             fields["persona_entity_id"] = (
@@ -1148,9 +1151,11 @@ def create_app(
         if s.tags is not None:
             with conn:  # its own commit: a patch of tags alone writes nothing else
                 library.set_tags(conn, "story", story_id, s.tags)
-        if s.roles is not None or s.ui is not None or s.moments is not None or s.talk is not None:
+        if any(x is not None for x in (s.roles, s.ui, s.moments, s.talk, s.content)):
             overrides = json.loads(story["overrides"])
-            overrides |= s.model_dump(include={"roles", "ui", "moments", "talk"}, exclude_none=True)
+            overrides |= s.model_dump(
+                include={"roles", "ui", "moments", "talk", "content"}, exclude_none=True
+            )
             fields["overrides"] = json.dumps(overrides)
         if "book_id" in s.model_fields_set:
             try:

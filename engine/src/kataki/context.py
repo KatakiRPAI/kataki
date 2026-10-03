@@ -195,9 +195,12 @@ NEVER = (
 )
 
 
-def content(conn: sqlite3.Connection) -> str:
-    """The [Content] rule for every reply: the chosen level, what to keep out, the hard line."""
-    level = knobs.setting(conn, "content.level", "mature")
+def content(conn: sqlite3.Connection, story=None) -> str:
+    """The [Content] rule for every reply: the chosen level (the story's own, else the library's),
+    what to keep out, the hard line."""
+    level = json.loads(story["overrides"]).get("content") if story is not None else None
+    if level not in CONTENT:
+        level = knobs.setting(conn, "content.level", "mature")
     said = [CONTENT.get(level, CONTENT["mature"]), NEVER]
     avoid = knobs.setting(conn, "content.avoid", [])
     if isinstance(avoid, list):
@@ -212,7 +215,11 @@ def content(conn: sqlite3.Connection) -> str:
 
 
 def _system(conn, story, persona, present, place, player: str) -> tuple[str, str]:
-    rules = RULES.format(persona=persona["name"] if persona else "the user") + "\n" + content(conn)
+    rules = (
+        RULES.format(persona=persona["name"] if persona else "the user")
+        + "\n"
+        + content(conn, story)
+    )
     # An imported card writes `{{user}}` for whoever is playing; here that is known.
     # what anyone can see; who each of them is goes only into their own prompt (the tail)
     cards = [f"## {e['name']}\n{macros(e['looks'] or '', user=player)}".strip() for e in present]
