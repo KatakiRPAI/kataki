@@ -136,6 +136,8 @@ The owner chose Better Auth on 2026-10-02, so the gateway is a small TypeScript 
       General's updates, start with the computer and closing the window show only in the desktop
       app; Data hides backups on disk and API keys online; About gains "Get the desktop app".
       Not done: "last backed up" for the service's own backups, which do not exist yet (G8).
+- [x] B · First run online ends with the starting balance, once (design brief 3, B; 2026-10-03): a
+      toast as the first story opens (or the empty library), only when there is credit.
 
 G1–G6 are A1–A6 of the profiles spec.
 

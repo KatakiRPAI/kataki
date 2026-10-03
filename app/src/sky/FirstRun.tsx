@@ -286,6 +286,7 @@ function Who() {
       character_ids: [chosen.id], place_id: place ?? null, persona_id: me?.id ?? null,
     })
     navigate(`/story/${story.id}`, { replace: true })
+    startingCredit()
   }
   return (
     <Frame step={2} gap={26}>
@@ -318,7 +319,7 @@ function Who() {
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <K.Button variant="ghost" icon="left" onClick={() => navigate('/welcome')}>{t('fr.back')}</K.Button>
         <div className="row" style={{ gap: 16 }}>
-          <K.Button variant="link" onClick={() => navigate('/home', { replace: true })}>{t('fr.empty')}</K.Button>
+          <K.Button variant="link" onClick={() => { navigate('/home', { replace: true }); startingCredit() }}>{t('fr.empty')}</K.Button>
           <K.Button variant="primary" size="lg" disabled={!chosen} onClick={start}>{t('fr.startWith', { name: chosen?.name ?? '' })}</K.Button>
         </div>
       </div>
@@ -425,4 +426,12 @@ export function ModelGone() {
       <div className="row" style={{ gap: 10 }}><span className="t-meta">{t('mg.stuck')}</span><span onClick={() => openFeedback('bug')}><K.TextLink icon="help">{t('mg.report')}</K.TextLink></span></div>
     </main>
   )
+}
+
+/** Kataki online, at the end of first run: the starting balance, said once and calmly (design brief 3, B). */
+function startingCredit() {
+  if (!account()) return
+  api<{ balance: number }>('/api/me').then((m) => {
+    if (m.balance > 0) toast(t('fr.credit', { amount: new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(m.balance / 1e6) }), { icon: 'check' }, 8000)
+  }, () => {})
 }
