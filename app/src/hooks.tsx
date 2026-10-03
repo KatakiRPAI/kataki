@@ -11,6 +11,7 @@ import {
 } from 'react'
 import { api, mediaUrl, type Item } from './api'
 import { t } from './strings'
+import { usePrefs } from './prefs'
 
 /** A draft kept in this browser, so leaving and coming back finds it as it was. null: nothing
  *  kept. Storage can be missing (private mode); the draft then lasts only while you stay. */
@@ -107,9 +108,17 @@ const LibraryContext = createContext<Library>({ items: [], byId: new Map(), load
 export function LibraryProvider({ children }: { children: ReactNode }) {
   const [items, reload, error] = useLoad(() => api<Item[]>('/library'), [])
   useArrivals(reload)
+  // Settings › General: characters with a hidden tag leave every list; `byId` keeps them, so a
+  // story that has one still opens
+  const [prefs] = usePrefs()
+  const hidden = ((prefs['content.hideTags'] as string[] | undefined) ?? []).map((x) => x.toLowerCase())
+  const key = hidden.join('\n')
   const value = useMemo(
-    () => ({ items: items ?? [], byId: new Map((items ?? []).map((i) => [i.id, i])), loaded: !!items, reload, error }),
-    [items, reload, error],
+    () => ({
+      items: (items ?? []).filter((i) => i.kind !== 'character' || !!i.data.persona || !i.tags.some((tg) => hidden.includes(tg.toLowerCase()))),
+      byId: new Map((items ?? []).map((i) => [i.id, i])), loaded: !!items, reload, error,
+    }),
+    [items, reload, error, key], // eslint-disable-line react-hooks/exhaustive-deps
   )
   return <LibraryContext.Provider value={value}>{children}</LibraryContext.Provider>
 }
