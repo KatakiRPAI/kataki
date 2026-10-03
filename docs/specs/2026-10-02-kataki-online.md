@@ -145,6 +145,10 @@ The owner chose Better Auth on 2026-10-02, so the gateway is a small TypeScript 
 - [x] T5 · A story's own cost (design brief 3 T5, "open a story → its cost"; 2026-10-03): Backstage's
       Engine panel shows "This story so far" with its model calls and cost (`/stories/{id}/spend`),
       when it has cost anything; the desktop too, when prices are set.
+- [x] K · The mind level and its cost (design brief 3 K, 2026-10-03): Settings › Memory and
+      thinking › "How deep their minds go" (Light, Standard, Deep = `mind.level` lite, standard,
+      premium, which no screen set before), with about what 100 replies cost at each when prices
+      are known (`GET /mind-levels`, `usage.per_turn` sized as a new story). Both products.
 
 G1–G6 are A1–A6 of the profiles spec.
 

@@ -1390,6 +1390,12 @@ def create_app(
         """What each story's model calls cost, most first (design brief 3 T5). No call is made."""
         return usage.by_story(conn, host.price_table(conn))
 
+    @app.get("/mind-levels")
+    async def mind_levels():
+        """The mind level in force and about what a turn costs at each (Settings beside the
+        level), sized as a story with no turns yet. No call is made."""
+        return usage.per_turn(conn, None, host.price_table(conn))
+
     @app.get("/stories/{story_id}/spend")
     async def get_spend(story_id: int):
         """What this story's model calls cost, by role and day, and a turn at each mind level

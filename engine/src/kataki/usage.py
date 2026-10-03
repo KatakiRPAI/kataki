@@ -150,7 +150,7 @@ LEVELS = {
 REPLY = (4000, 300)  # ponytail: a reply's size before the story has one of its own
 
 
-def per_turn(conn: sqlite3.Connection, story_id: int, prices: dict) -> dict:
+def per_turn(conn: sqlite3.Connection, story_id: int | None, prices: dict) -> dict:
     """What one turn costs at each mind level (the UI shows it beside the level), in dollars, or
     None for a level when a model it uses has no price. The reply is sized from this story."""
     last = conn.execute(

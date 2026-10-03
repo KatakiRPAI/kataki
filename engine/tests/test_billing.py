@@ -405,6 +405,15 @@ def test_a_turn_costs_more_the_more_the_mind_does(local_model):
     assert turn["lite"] < turn["standard"] < turn["premium"]
 
 
+def test_the_mind_levels_are_priced_without_a_story_too(local_model):
+    set_prices(local_model, {"rp-model": {"input": 1.0, "output": 2.0}})
+    client, auth = client_for(local_model)
+    got = client.get("/mind-levels", headers=auth).json()
+    assert got["level"] == "standard"  # the default
+    assert got["lite"] == pytest.approx((4000 + 300 * 2 + 0.2 * (2000 + 300 * 2)) / 1e6)
+    assert got["lite"] < got["standard"] < got["premium"]
+
+
 def test_a_turns_reply_is_sized_from_the_story_itself(local_model):
     conn = local_model
     story = a_story(conn)
