@@ -4,10 +4,16 @@ import { RouterProvider } from 'react-router'
 import './ds'
 import './app.css'
 import { session } from './online/session'
+import { t } from './strings'
 
 // Kataki online asks who is signed in before the app (and its first calls) load at all.
 const root = createRoot(document.getElementById('root')!)
 const who = await session()
+if (who !== 'none') { // Kataki online on the test processor: say so on every page, so no one mistakes it for real
+  fetch('/api/providers').then((r) => r.json()).then((p: { payments?: { test?: boolean } | null }) => {
+    if (p.payments?.test) document.body.insertAdjacentHTML('beforeend', `<div class="testpay" role="note">${t('cr.testRibbon')}</div>`)
+  }, () => {})
+}
 if (who === 'signed-out') {
   const { default: SignIn } = await import('./online/SignIn')
   root.render(<StrictMode><SignIn /></StrictMode>)
