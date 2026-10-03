@@ -53,6 +53,7 @@ Legend: **[you]** you decided it · **[default]** an agent picked it, you have n
 | 2026-10-03 | The ribbon shows whenever the test processor is on, not only on a host called staging [default] | the thing to warn about is fake payments, wherever they run |
 | 2026-10-03 | Online, Models shows each job's model and a price per 100 replies, and nothing to change [default] | the service picks the models; a choice of models per job comes when the catalogue has more than one |
 | 2026-10-03 | Every job's price is for a reply-sized call (4,000 tokens in, 300 out) [default] | one honest yardstick; side jobs vary, so it says "about" |
+| 2026-10-03 | An unsent line is kept in the browser's session storage (this tab, until it closes), not on the server [default] | it survives a reload or a new sign-in, and nothing unsent leaves the device |
 | 2026-10-03 | Out of credit in a story: the line is kept and Add credit opens the amounts; after paying you land in Settings › Account, not back in the story [default] | the simplest return; going back to the story is a later nicety |
 | 2026-10-03 | The daily limit ($5 a day by default, resets 00:00 UTC) gets its own message, not the out-of-credit one [default] | adding credit does not lift it, so saying so would mislead |
 | 2026-10-03 | The balance chip turns amber under $1 and red at $0 [default] | a quiet warning while there is still some left: time to notice, not a nag |

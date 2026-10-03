@@ -57,7 +57,10 @@ export default function Scene() {
   const [live, setLive] = useState<Live | null>(null)
   const [said, setSaid] = useState<{ text: string; mode?: 'whisper' | 'narrate' } | null>(null)
   const [failed, setFailed] = useState('')
-  const [draft, setDraft] = useState('')
+  // an unsent line outlives a reload (an ended session signs in again and comes back here, S5)
+  const draftKey = `kataki:draft:${id}`
+  const [draft, setDraftNow] = useState(() => { try { return sessionStorage.getItem(draftKey) ?? '' } catch { return '' } })
+  const setDraft = (v: string) => { setDraftNow(v); try { if (v) sessionStorage.setItem(draftKey, v); else sessionStorage.removeItem(draftKey) } catch { /* private window: kept in memory only */ } }
   const home = pref<Mode>('story.composerMode', 'Auto') // a mode picked in the menu is for one line, then this again
   const [mode, setMode] = useState<Mode>(home)
   const [advanced, setAdvancedState] = useState(kept)

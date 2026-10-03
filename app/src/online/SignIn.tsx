@@ -48,7 +48,8 @@ export default function SignIn() {
   // Leave for the other service. Creating an account carries "18 or older" with it; signing in never creates one.
   const leave = (provider: string) => {
     if (view === 'up' && !adult) return setError(t('si.e.tick')) // say what is missing, rather than a dead button
-    auth<{ url: string }>('/sign-in/social', { provider, callbackURL: home, errorCallbackURL: home, ...(view === 'up' ? { requestSignUp: true, additionalData: { adult: true } } : {}) })
+    auth<{ url: string }>('/sign-in/social', { provider, callbackURL: location.pathname, errorCallbackURL: location.pathname, // back to this page (S5)
+      ...(view === 'up' ? { requestSignUp: true, additionalData: { adult: true } } : {}) })
       .then((r) => location.assign(r.url), () => setError(t('si.e.other')))
   }
 
