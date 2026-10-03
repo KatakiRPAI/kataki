@@ -100,6 +100,9 @@ The owner chose Better Auth on 2026-10-02, so the gateway is a small TypeScript 
       Out of credit in the Scene (T4, 2026-10-03): a refused reply says "You’re out of credit"
       (or that today’s limit is reached, `DAILY_CAP`), keeps the line, and Add credit opens the
       amounts straight away; Try again or Continue then gets the reply.
+      The balance chip (T1, 2026-10-03): the top bar shows what is left, amber under $1, red at
+      nothing; it reads `/api/me` when a page opens and when the window gets focus, and opens Add
+      credit.
 - [ ] G8 · The image, staging and production (infrastructure Phase 6). Built (2026-10-03):
       `gateway/Dockerfile` (the gateway with the web build inside) and `compose.online.yaml`
       (Postgres, the gateway, and the engine in the gateway's network namespace so it still
