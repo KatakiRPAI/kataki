@@ -80,6 +80,19 @@ jobs:
       - run: pnpm -C gateway typecheck
       - run: pnpm -C gateway test
 
+  images:
+    # Kataki online's two images (compose.online.yaml) still build: a broken Dockerfile fails
+    # here, not at a deploy. Built only, never pushed (publishing is Phase 6's deploy.yml).
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: docker build -f gateway/Dockerfile -t kataki-gateway:ci .
+      - run: docker build -t kataki-engine:ci .
+
   smoke:
     # the whole desktop path: Electron shell -> engine -> renderer health check
     runs-on: windows-latest
